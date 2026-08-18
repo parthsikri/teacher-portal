@@ -7,7 +7,7 @@ const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_master';
 const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_master';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
-// Initial Admin User ONLY
+// Initial Registered Faculty & Admin Roster
 const INITIAL_USERS: User[] = [
   {
     id: 'u-admin',
@@ -21,22 +21,186 @@ const INITIAL_USERS: User[] = [
     subject: 'Management',
     dailyLimit: 999,
   },
+  {
+    id: 'u-101',
+    teacherId: 'AEW-T-101',
+    username: 'harish_mehta',
+    password: 'teach123',
+    name: 'Dr. Harish Mehta',
+    email: 'harish.cs@aew.com',
+    role: 'teacher',
+    department: 'Computer Science & Engg',
+    subject: 'Data Structures & Algorithms',
+    dailyLimit: 4,
+  },
+  {
+    id: 'u-102',
+    teacherId: 'AEW-T-102',
+    username: 'sneha_sharma',
+    password: 'teach123',
+    name: 'Prof. Sneha Sharma',
+    email: 'sneha.ece@aew.com',
+    role: 'teacher',
+    department: 'Electronics & Comm Engg',
+    subject: 'Signals & Systems',
+    dailyLimit: 4,
+  },
+  {
+    id: 'u-103',
+    teacherId: 'AEW-T-103',
+    username: 'rajesh_kulkarni',
+    password: 'teach123',
+    name: 'Dr. Rajesh Kulkarni',
+    email: 'rajesh.mech@aew.com',
+    role: 'teacher',
+    department: 'Mechanical Engineering',
+    subject: 'Thermodynamics',
+    dailyLimit: 4,
+  },
+  {
+    id: 'u-104',
+    teacherId: 'AEW-T-104',
+    username: 'ananya_iyer',
+    password: 'teach123',
+    name: 'Prof. Ananya Iyer',
+    email: 'ananya.ee@aew.com',
+    role: 'teacher',
+    department: 'Electrical Engineering',
+    subject: 'Power Systems',
+    dailyLimit: 4,
+  },
+  {
+    id: 'u-105',
+    teacherId: 'AEW-T-105',
+    username: 'vikram_malhotra',
+    password: 'teach123',
+    name: 'Dr. Vikram Malhotra',
+    email: 'vikram.civil@aew.com',
+    role: 'teacher',
+    department: 'Civil Engineering',
+    subject: 'Structural Analysis',
+    dailyLimit: 4,
+  },
 ];
 
-// Demo IDs to filter out if previously seeded
-const DEMO_IDS = new Set(['u-101', 'u-102', 'u-103', 'AEW-T-101', 'AEW-T-102', 'AEW-T-103', 'lec-1', 'at-101', 'at-102', 'at-103']);
+// Initial Subject References
+const INITIAL_SUBJECT_REFERENCES: SubjectReference[] = [
+  {
+    id: 'sref-1',
+    subjectName: 'Data Structures & Algorithms',
+    department: 'Computer Science & Engg',
+    title: 'Master DSA Curriculum & Standard Reference Notes',
+    referenceUrl: 'https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ',
+    notes: 'Follow CLRS 4th Edition Chapters 1-12 and standard AEW lecture slides.',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'sref-2',
+    subjectName: 'Signals & Systems',
+    department: 'Electronics & Comm Engg',
+    title: 'Signals & Systems Lecture Reference Drive',
+    referenceUrl: 'https://drive.google.com/drive/folders/1bCdEfGhIjKlMnOpQrStUvWxYz',
+    notes: 'Oppenheim & Willsky standard syllabus reference and Fourier transform problem sets.',
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'sref-3',
+    subjectName: 'Thermodynamics',
+    department: 'Mechanical Engineering',
+    title: 'Thermodynamics Master Drive Material',
+    referenceUrl: 'https://drive.google.com/drive/folders/1cDeFgHiJkLmNoPqRsTuVwXyZa',
+    notes: 'Cengel & Boles Engineering Thermodynamics 9th Edition reference formulas.',
+    updatedAt: new Date().toISOString(),
+  }
+];
+
+// Initial Assigned Syllabus Topics
+const INITIAL_ASSIGNED_TOPICS: AssignedTopic[] = [
+  {
+    id: 'at-101',
+    teacherId: 'AEW-T-101',
+    subject: 'Data Structures & Algorithms',
+    topicTitle: 'Advanced Graph Algorithms & Shortest Path',
+    subtopics: ['Dijkstra Algorithm', 'Bellman-Ford', 'Floyd-Warshall'],
+    subtopicItems: [
+      { id: 'sub-1', name: 'Dijkstra Algorithm', deadlineDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], status: 'pending' },
+      { id: 'sub-2', name: 'Bellman-Ford', deadlineDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0], status: 'pending' },
+      { id: 'sub-3', name: 'Floyd-Warshall', deadlineDate: new Date(Date.now() + 86400000 * 6).toISOString().split('T')[0], status: 'pending' }
+    ],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'approved',
+    assignedBy: 'Admin',
+    deadlineDate: new Date(Date.now() + 86400000 * 6).toISOString().split('T')[0],
+    status: 'pending',
+    priority: 'high',
+    notes: 'Please cover time complexity analysis with Fibonacci Heaps.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'at-102',
+    teacherId: 'AEW-T-101',
+    subject: 'Data Structures & Algorithms',
+    topicTitle: 'Dynamic Programming on Trees',
+    subtopics: [],
+    subtopicItems: [],
+    proposedSubtopics: ['Tree Rerooting DP', 'Subtree Sums & Heights', 'Binary Lifting for LCA'],
+    subtopicsApprovalState: 'pending_admin_approval',
+    assignedBy: 'Admin',
+    deadlineDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
+    status: 'pending',
+    priority: 'high',
+    notes: 'Include minimum 2 competitive programming problems.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'at-103',
+    teacherId: 'AEW-T-102',
+    subject: 'Signals & Systems',
+    topicTitle: 'Continuous-Time Fourier Series & Transforms',
+    subtopics: ['Dirichlet Conditions', 'Frequency Response', 'Parseval Relation'],
+    subtopicItems: [
+      { id: 'sub-4', name: 'Dirichlet Conditions', deadlineDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0], status: 'pending' },
+      { id: 'sub-5', name: 'Frequency Response', deadlineDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], status: 'pending' },
+      { id: 'sub-6', name: 'Parseval Relation', deadlineDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0], status: 'pending' }
+    ],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'approved',
+    assignedBy: 'Admin',
+    deadlineDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
+    status: 'pending',
+    priority: 'high',
+    notes: 'Solve numericals on duality property.',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'at-104',
+    teacherId: 'AEW-T-103',
+    subject: 'Thermodynamics',
+    topicTitle: 'Second Law of Thermodynamics & Entropy',
+    subtopics: [],
+    subtopicItems: [],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'pending_teacher_input',
+    assignedBy: 'Admin',
+    deadlineDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
+    status: 'pending',
+    priority: 'normal',
+    notes: 'Please propose subtopics for admin approval.',
+    createdAt: new Date().toISOString(),
+  }
+];
 
 export const StorageService = {
-  // Collects real users (filtering out demo accounts)
+  // Collects all registered users (seeded with full initial roster)
   getUsers(): User[] {
     const userMap = new Map<string, User>();
 
-    // 1. Seed with initial Admin
+    // 1. Seed with initial registered faculty & admin
     INITIAL_USERS.forEach((u) => {
       userMap.set(u.teacherId.toUpperCase(), { ...u });
     });
 
-    // 2. Collect from localStorage
+    // 2. Collect from localStorage overrides
     const keysToCheck = [
       'aew_portal_users_v4',
       'aew_portal_users_v5',
@@ -53,9 +217,6 @@ export const StorageService = {
             parsed.forEach((u: User) => {
               if (u && u.teacherId) {
                 const cleanId = u.teacherId.trim().toUpperCase();
-                if (DEMO_IDS.has(cleanId) || DEMO_IDS.has(u.id)) {
-                  return;
-                }
                 const existing: Partial<User> = userMap.get(cleanId) || {};
                 userMap.set(cleanId, {
                   ...existing,
@@ -176,12 +337,15 @@ export const StorageService = {
   // ─── SUBJECT REFERENCE MATERIALS (WHOLE SUBJECT) ────────────────────────────
   getSubjectReferences(): SubjectReference[] {
     const data = localStorage.getItem(SUBJECT_REFERENCES_KEY);
-    if (!data) return [];
+    if (!data) {
+      this.saveSubjectReferences(INITIAL_SUBJECT_REFERENCES);
+      return INITIAL_SUBJECT_REFERENCES;
+    }
     try {
       const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_SUBJECT_REFERENCES;
     } catch {
-      return [];
+      return INITIAL_SUBJECT_REFERENCES;
     }
   },
 
@@ -240,6 +404,12 @@ export const StorageService = {
   getAssignedTopics(): AssignedTopic[] {
     const topicMap = new Map<string, AssignedTopic>();
 
+    // 1. Seed with initial assigned topics
+    INITIAL_ASSIGNED_TOPICS.forEach((t) => {
+      topicMap.set(t.id, { ...t });
+    });
+
+    // 2. Collect from localStorage
     const keysToCheck = [
       'aew_portal_assigned_topics_v5',
       'aew_portal_assigned_topics_v6',
@@ -253,10 +423,9 @@ export const StorageService = {
           const parsed = JSON.parse(data);
           if (Array.isArray(parsed)) {
             parsed.forEach((t: AssignedTopic) => {
-              if (t && t.id && !DEMO_IDS.has(t.id)) {
+              if (t && t.id) {
                 const subtopicStrings = Array.isArray(t.subtopics) ? t.subtopics : [];
                 
-                // Construct or normalize subtopicItems with individual deadlines
                 let items: SubtopicItem[] = Array.isArray(t.subtopicItems) && t.subtopicItems.length > 0
                   ? t.subtopicItems
                   : subtopicStrings.map((name, idx) => ({
@@ -515,7 +684,7 @@ export const StorageService = {
           const parsed = JSON.parse(data);
           if (Array.isArray(parsed)) {
             parsed.forEach((l: Lecture) => {
-              if (l && l.id && !DEMO_IDS.has(l.id)) {
+              if (l && l.id) {
                 lecMap.set(l.id, { ...lecMap.get(l.id), ...l });
               }
             });
