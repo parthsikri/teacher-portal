@@ -37,8 +37,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ).length
     : 0;
 
-  const uploadsToday = currentUser.role === 'teacher' ? StorageService.getUploadsToday(currentUser.teacherId) : 0;
-  const isLimitReached = currentUser.role === 'teacher' && uploadsToday >= currentUser.dailyLimit;
+  const minutesRecordedToday = currentUser.role === 'teacher' ? StorageService.getMinutesRecordedToday(currentUser.teacherId) : 0;
+  const targetMinutes = currentUser.role === 'teacher' ? (currentUser.dailyTargetMinutes || 120) : 0;
+  const isTargetReached = minutesRecordedToday >= targetMinutes;
 
   // Teacher Navigation Links
   const teacherNavItems = [
@@ -178,13 +179,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {currentUser.role === 'teacher' && (
             <div className="px-2.5 py-2 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-1">
               <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                <span>Daily Uploads</span>
-                <span className="text-slate-300 font-bold">{uploadsToday} / {currentUser.dailyLimit}</span>
+                <span>Daily Target</span>
+                <span className={isTargetReached ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>
+                  {minutesRecordedToday} / {targetMinutes} min
+                </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
                 <div
-                  className={`h-full transition-all ${isLimitReached ? 'bg-amber-400' : 'bg-indigo-500'}`}
-                  style={{ width: `${Math.min(100, (uploadsToday / currentUser.dailyLimit) * 100)}%` }}
+                  className={`h-full transition-all ${isTargetReached ? 'bg-emerald-400' : 'bg-indigo-500'}`}
+                  style={{ width: `${Math.min(100, (minutesRecordedToday / (targetMinutes || 1)) * 100)}%` }}
                 />
               </div>
             </div>

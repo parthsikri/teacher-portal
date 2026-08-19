@@ -29,8 +29,9 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const uploadsToday = StorageService.getUploadsToday(teacher.teacherId);
-  const isLimitReached = uploadsToday >= teacher.dailyLimit;
+  const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
+  const targetMinutes = teacher.dailyTargetMinutes || 120;
+  const isLimitReached = false;
 
   // Form fields
   const [title, setTitle] = useState(prefillTopic ? prefillTopic.topicTitle : '');
@@ -39,6 +40,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   const [subtopics, setSubtopics] = useState<string[]>(prefillTopic ? prefillTopic.subtopics : []);
   const [subtopicInput, setSubtopicInput] = useState('');
   const [deadlineDate, setDeadlineDate] = useState(prefillTopic ? prefillTopic.deadlineDate : new Date().toISOString().split('T')[0]);
+  const [durationMinutes, setDurationMinutes] = useState<number>(45);
 
   // Video source choice
   const [videoMode, setVideoMode] = useState<'upload' | 'youtube' | 'drive_link'>('upload');
@@ -143,6 +145,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       title: title.trim(),
       primaryTopic: primaryTopic.trim(),
       subtopics: subtopics.length > 0 ? subtopics : [primaryTopic.trim()],
+      durationMinutes: Math.max(5, durationMinutes || 45),
       deadlineDate,
       status: isOnTime ? 'on_time' : 'overdue',
       youtubeUrl: youtubeUrl.trim() || undefined,
@@ -193,8 +196,8 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           <div className="flex items-center gap-3">
             <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono">
-              <span className="text-slate-400">Quota: </span>
-              <span className="font-extrabold text-amber-400">{uploadsToday}/{teacher.dailyLimit}</span>
+              <span className="text-slate-400">Today: </span>
+              <span className="font-extrabold text-amber-400">{minutesRecordedToday}/{targetMinutes} min</span>
             </div>
             <button
               onClick={onClose}
@@ -216,15 +219,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
             </div>
           )}
 
-          {isLimitReached && (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-2xl flex items-center gap-3">
-              <span className="text-xl">⚠️</span>
-              <div>
-                <strong>Daily Quota Reached</strong>
-                <p className="text-[11px] text-amber-400/80">You have uploaded {uploadsToday} out of {teacher.dailyLimit} allowed lectures today.</p>
-              </div>
-            </div>
-          )}
+
 
           {errorMsg && (
             <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-2xl font-semibold flex items-center gap-2">
@@ -252,24 +247,37 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Subject / Course</label>
                 <input
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
                   disabled={isLimitReached}
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Completion Deadline Date</label>
+                <label className="block text-slate-300 font-semibold mb-1">Lecture Duration (Min) *</label>
+                <input
+                  type="number"
+                  min="5"
+                  max="360"
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10) || 0)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs font-mono font-bold"
+                  placeholder="e.g. 45"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Deadline Date</label>
                 <input
                   type="date"
                   value={deadlineDate}
                   onChange={(e) => setDeadlineDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
                   disabled={isLimitReached}
                 />
               </div>

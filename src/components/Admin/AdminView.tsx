@@ -4,7 +4,7 @@ import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { 
   Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
-  Plus, Minus, Eye, MessageCircle, Clock, X, 
+  Eye, MessageCircle, Clock, X, 
   Key, Lock, User as UserIcon, Check, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, CalendarDays
@@ -42,7 +42,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newEmail, setNewEmail] = useState('');
   const [newDept, setNewDept] = useState('Computer Science & Engg');
   const [newSubject, setNewSubject] = useState('Data Structures & Algorithms');
-  const [newLimit, setNewLimit] = useState(4);
+  const [newTargetMinutes, setNewTargetMinutes] = useState(120);
 
   // Edit Teacher Credentials Modal State
   const [editingTeacher, setEditingTeacher] = useState<User | null>(null);
@@ -52,7 +52,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editEmail, setEditEmail] = useState('');
   const [editDept, setEditDept] = useState('');
   const [editSubject, setEditSubject] = useState('');
-  const [editLimit, setEditLimit] = useState(4);
+  const [editTargetMinutes, setEditTargetMinutes] = useState(120);
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Standalone Assign Topic Modal State (Supports Comma Separated Topics)
@@ -104,11 +104,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
     onRefreshData();
   };
 
-  const handleUpdateLimit = (teacherId: string, delta: number) => {
+  const handleUpdateTargetMinutes = (teacherId: string, deltaMinutes: number) => {
     const target = teachers.find((t) => t.teacherId === teacherId);
     if (!target) return;
-    const updatedLimit = Math.max(1, target.dailyLimit + delta);
-    StorageService.updateTeacherLimit(teacherId, updatedLimit);
+    const current = target.dailyTargetMinutes || 120;
+    const updatedMinutes = Math.max(15, current + deltaMinutes);
+    StorageService.updateTeacherTargetMinutes(teacherId, updatedMinutes);
     refreshState();
   };
 
@@ -128,13 +129,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
       email: newEmail.trim() || `${newTeacherId.toLowerCase()}@aew.com`,
       department: newDept.trim() || 'Engineering',
       subject: newSubject.trim() || 'Engineering',
-      dailyLimit: newLimit,
+      dailyTargetMinutes: newTargetMinutes || 120,
     });
 
     setShowAddModal(false);
     setNewName('');
     setNewUsername('');
     setNewPassword('teach123');
+    setNewTargetMinutes(120);
     setNewTeacherId(`AEW-T-10${teachers.length + 2}`);
     refreshState();
   };
@@ -148,7 +150,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setEditEmail(t.email);
     setEditDept(t.department);
     setEditSubject(t.subject);
-    setEditLimit(t.dailyLimit);
+    setEditTargetMinutes(t.dailyTargetMinutes || 120);
     setShowEditPassword(false);
   };
 
@@ -164,7 +166,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       email: editEmail.trim(),
       department: editDept.trim(),
       subject: editSubject.trim(),
-      dailyLimit: editLimit,
+      dailyTargetMinutes: editTargetMinutes || 120,
     });
 
     setEditingTeacher(null);
@@ -805,7 +807,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {filteredTeachers.map((t) => {
-                const uploadsToday = StorageService.getUploadsToday(t.teacherId);
                 return (
                   <div key={t.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between">
                     <div className="space-y-3">
@@ -844,30 +845,40 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </div>
                       </div>
 
-                      {/* LIMIT COUNTER */}
+                      {/* DAILY RECORDING TARGET (MINUTES) */}
                       <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-400 font-medium">Daily Quota:</span>
-                          <div className="flex items-center gap-2">
+                          <span className="text-slate-400 font-medium">Daily Min Target:</span>
+                          <div className="flex items-center gap-1.5">
                             <button
-                              onClick={() => handleUpdateLimit(t.teacherId, -1)}
-                              className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 font-extrabold text-slate-200 flex items-center justify-center"
+                              onClick={() => handleUpdateTargetMinutes(t.teacherId, -15)}
+                              className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center"
+                              title="Decrease by 15 mins"
                             >
-                              <Minus className="w-3 h-3" />
+                              -15m
                             </button>
-                            <span className="font-mono font-black text-amber-400 text-sm px-1">{t.dailyLimit}</span>
+                            <span className="font-mono font-black text-amber-400 text-xs px-1">
+                              {t.dailyTargetMinutes || 120} min
+                            </span>
                             <button
-                              onClick={() => handleUpdateLimit(t.teacherId, 1)}
-                              className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 font-extrabold text-slate-200 flex items-center justify-center"
+                              onClick={() => handleUpdateTargetMinutes(t.teacherId, 15)}
+                              className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center"
+                              title="Increase by 15 mins"
                             >
-                              <Plus className="w-3 h-3" />
+                              +15m
                             </button>
                           </div>
                         </div>
 
-                        <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                          <span>Used Today:</span>
-                          <strong className="text-slate-200">{uploadsToday} / {t.dailyLimit} sessions</strong>
+                        <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
+                          <span>Recorded Today:</span>
+                          <span className={
+                            StorageService.getMinutesRecordedToday(t.teacherId) >= (t.dailyTargetMinutes || 120)
+                              ? 'text-emerald-400 font-bold'
+                              : 'text-slate-300 font-bold'
+                          }>
+                            {StorageService.getMinutesRecordedToday(t.teacherId)} / {t.dailyTargetMinutes || 120} min
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1412,14 +1423,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Daily Upload Limit</label>
+                    <label className="block text-slate-300 font-semibold mb-1">Daily Min Target (Minutes)</label>
                     <input
                       type="number"
-                      min={1}
-                      max={20}
-                      value={newLimit}
-                      onChange={(e) => setNewLimit(parseInt(e.target.value) || 1)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none"
+                      min={15}
+                      max={480}
+                      step={15}
+                      value={newTargetMinutes}
+                      onChange={(e) => setNewTargetMinutes(parseInt(e.target.value) || 120)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1539,14 +1551,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Daily Quota Limit</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Daily Min Target (Minutes)</label>
                   <input
                     type="number"
-                    min={1}
-                    max={20}
-                    value={editLimit}
-                    onChange={(e) => setEditLimit(parseInt(e.target.value) || 1)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-bold focus:outline-none"
+                    min={15}
+                    max={480}
+                    step={15}
+                    value={editTargetMinutes}
+                    onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
                   />
                 </div>
               </div>

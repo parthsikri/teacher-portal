@@ -10,7 +10,8 @@ export interface User {
   role: UserRole;
   department: string;
   subject: string;
-  dailyLimit: number;
+  dailyTargetMinutes: number; // Minimum required lecture recording time per day in minutes (e.g. 120 min)
+  dailyLimit?: number;        // Backwards compatibility
 }
 
 export interface AdminRemark {
@@ -71,7 +72,8 @@ export interface Lecture {
   title: string;
   primaryTopic: string;
   subtopics: string[];
-  deadlineDate: string; // YYYY-MM-DD
+  durationMinutes: number;    // Lecture duration recorded in minutes (e.g. 45, 60, 90)
+  deadlineDate: string;       // YYYY-MM-DD
   status: 'on_time' | 'overdue';
   youtubeUrl?: string;
   driveUrl?: string;

@@ -7,7 +7,7 @@ const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_master';
 const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_master';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
-// Initial Registered Faculty & Admin Roster
+// Initial Registered Faculty & Admin Roster with Daily Recording Target Minutes
 const INITIAL_USERS: User[] = [
   {
     id: 'u-admin',
@@ -19,6 +19,7 @@ const INITIAL_USERS: User[] = [
     role: 'admin',
     department: 'Academic Operations',
     subject: 'Management',
+    dailyTargetMinutes: 9999,
     dailyLimit: 999,
   },
   {
@@ -31,6 +32,7 @@ const INITIAL_USERS: User[] = [
     role: 'teacher',
     department: 'Computer Science & Engg',
     subject: 'Data Structures & Algorithms',
+    dailyTargetMinutes: 120, // 2 Hours required daily
     dailyLimit: 4,
   },
   {
@@ -43,6 +45,7 @@ const INITIAL_USERS: User[] = [
     role: 'teacher',
     department: 'Electronics & Comm Engg',
     subject: 'Signals & Systems',
+    dailyTargetMinutes: 90, // 1.5 Hours required daily
     dailyLimit: 4,
   },
   {
@@ -55,6 +58,7 @@ const INITIAL_USERS: User[] = [
     role: 'teacher',
     department: 'Mechanical Engineering',
     subject: 'Thermodynamics',
+    dailyTargetMinutes: 120, // 2 Hours required daily
     dailyLimit: 4,
   },
   {
@@ -67,6 +71,7 @@ const INITIAL_USERS: User[] = [
     role: 'teacher',
     department: 'Electrical Engineering',
     subject: 'Power Systems',
+    dailyTargetMinutes: 90,
     dailyLimit: 4,
   },
   {
@@ -79,6 +84,7 @@ const INITIAL_USERS: User[] = [
     role: 'teacher',
     department: 'Civil Engineering',
     subject: 'Structural Analysis',
+    dailyTargetMinutes: 120,
     dailyLimit: 4,
   },
 ];
@@ -230,6 +236,7 @@ export const StorageService = {
                   email: (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`).trim(),
                   department: u.department || existing.department || 'Engineering',
                   subject: u.subject || existing.subject || 'Engineering',
+                  dailyTargetMinutes: u.dailyTargetMinutes || existing.dailyTargetMinutes || (u.dailyLimit ? u.dailyLimit * 30 : 120),
                   dailyLimit: u.dailyLimit || existing.dailyLimit || 4,
                 });
               }
@@ -272,7 +279,8 @@ export const StorageService = {
       email: newTeacher.email.trim() || `${cleanTeacherId.toLowerCase()}@aew.com`,
       department: newTeacher.department.trim() || 'Engineering',
       subject: newTeacher.subject.trim() || 'Engineering',
-      dailyLimit: newTeacher.dailyLimit || 4,
+      dailyTargetMinutes: newTeacher.dailyTargetMinutes || 120,
+      dailyLimit: newTeacher.dailyLimit || Math.ceil((newTeacher.dailyTargetMinutes || 120) / 30),
       role: 'teacher',
     };
     filtered.push(created);
@@ -292,6 +300,7 @@ export const StorageService = {
       teacherId: updates.teacherId ? updates.teacherId.trim().toUpperCase() : users[index].teacherId,
       username: updates.username ? updates.username.trim().toLowerCase().replace(/\s+/g, '_') : users[index].username,
       password: updates.password ? updates.password.trim() : users[index].password,
+      dailyTargetMinutes: updates.dailyTargetMinutes !== undefined ? updates.dailyTargetMinutes : users[index].dailyTargetMinutes,
     };
     users[index] = updatedUser;
     this.saveUsers(users);
@@ -310,14 +319,19 @@ export const StorageService = {
     this.saveUsers(users);
   },
 
-  updateTeacherLimit(teacherId: string, limit: number): void {
+  updateTeacherTargetMinutes(teacherId: string, targetMinutes: number): void {
     const cleanId = teacherId.trim().toUpperCase();
     const users = this.getUsers();
     const index = users.findIndex((u) => u.teacherId.toUpperCase() === cleanId);
     if (index !== -1) {
-      users[index].dailyLimit = limit;
+      users[index].dailyTargetMinutes = Math.max(15, targetMinutes);
       this.saveUsers(users);
     }
+  },
+
+  // Backwards compatibility
+  updateTeacherLimit(teacherId: string, limit: number): void {
+    this.updateTeacherTargetMinutes(teacherId, limit * 30);
   },
 
   getCurrentUser(): User | null {
@@ -685,7 +699,11 @@ export const StorageService = {
           if (Array.isArray(parsed)) {
             parsed.forEach((l: Lecture) => {
               if (l && l.id) {
-                lecMap.set(l.id, { ...lecMap.get(l.id), ...l });
+                lecMap.set(l.id, { 
+                  ...lecMap.get(l.id), 
+                  ...l,
+                  durationMinutes: l.durationMinutes || 45, // default 45 min
+                });
               }
             });
           }
@@ -708,6 +726,7 @@ export const StorageService = {
     const lectures = this.getLectures();
     const newLec: Lecture = {
       ...lecture,
+      durationMinutes: lecture.durationMinutes || 45,
       id: `lec-${Date.now()}`,
       adminRemarks: [],
       createdAt: new Date().toISOString(),
@@ -738,6 +757,16 @@ export const StorageService = {
     lectures[index].adminRemarks.unshift(newRemark);
     this.saveLectures(lectures);
     return newRemark;
+  },
+
+  // Total recording minutes completed today by the teacher
+  getMinutesRecordedToday(teacherId: string): number {
+    const lectures = this.getLectures();
+    const today = new Date().toISOString().split('T')[0];
+    const todayLectures = lectures.filter(
+      (l) => l.teacherId.toUpperCase() === teacherId.toUpperCase() && l.createdAt.startsWith(today)
+    );
+    return todayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
   },
 
   getUploadsToday(teacherId: string): number {

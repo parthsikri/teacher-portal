@@ -39,9 +39,9 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     return StorageService.getReferenceForSubject(teacher.subject);
   }, [teacher.subject, refreshKey]);
 
-  const uploadsToday = StorageService.getUploadsToday(teacher.teacherId);
-  const dailyLimit = teacher.dailyLimit;
-  const isLimitReached = uploadsToday >= dailyLimit;
+  const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
+  const targetMinutes = teacher.dailyTargetMinutes || 120;
+  const isTargetReached = minutesRecordedToday >= targetMinutes;
 
   const [selectedLectureForPreview, setSelectedLectureForPreview] = useState<Lecture | null>(null);
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
@@ -246,18 +246,17 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 Welcome back, {teacher.name}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Discipline: <strong className="text-slate-300 font-semibold">{teacher.subject}</strong> • {dailyLimit - uploadsToday} uploads remaining today
+                Discipline: <strong className="text-slate-300 font-semibold">{teacher.subject}</strong> • Daily Goal: <strong className="text-indigo-400">{minutesRecordedToday} / {targetMinutes} min</strong> recorded today
               </p>
             </div>
 
             <div className="flex items-center gap-2.5 shrink-0">
               <button
                 onClick={() => onOpenUpload()}
-                disabled={isLimitReached}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
               >
                 <Plus className="w-4 h-4" />
-                {isLimitReached ? 'Daily Limit Reached' : 'Upload Lecture'}
+                Upload Lecture
               </button>
             </div>
           </div>
@@ -328,12 +327,18 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 space-y-1">
               <div className="text-xs text-slate-400 font-medium flex items-center justify-between">
-                <span>Today's Uploads</span>
+                <span>Today's Recording</span>
                 <Target className="w-3.5 h-3.5 text-slate-500" />
               </div>
-              <div className="text-2xl font-black text-slate-100">{uploadsToday} <span className="text-xs font-normal text-slate-400">/ {dailyLimit}</span></div>
-              <div className="text-[10px] text-slate-400 font-medium">
-                {dailyLimit - uploadsToday} remaining today
+              <div className="text-2xl font-black text-slate-100">
+                {minutesRecordedToday} <span className="text-xs font-normal text-slate-400">/ {targetMinutes} min</span>
+              </div>
+              <div className="text-[10px] font-medium">
+                {isTargetReached ? (
+                  <span className="text-emerald-400 font-bold">✓ Daily Target Met!</span>
+                ) : (
+                  <span className="text-amber-400">{targetMinutes - minutesRecordedToday} min to target</span>
+                )}
               </div>
             </div>
 
@@ -500,7 +505,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
             <button
               onClick={() => onOpenUpload()}
-              disabled={isLimitReached}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 self-start sm:self-auto"
             >
               <Plus className="w-3.5 h-3.5" /> Upload Lecture
@@ -653,7 +657,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       ) : isApproved ? (
                         <button
                           onClick={() => onOpenUpload(topic)}
-                          disabled={isLimitReached}
                           className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-colors"
                         >
                           <Zap className="w-3.5 h-3.5 fill-white" /> Upload Lecture ➔
@@ -754,8 +757,11 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-400">
-                      Topic: <span className="text-slate-200">{lec.primaryTopic}</span>
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <div>Topic: <span className="text-slate-200">{lec.primaryTopic}</span></div>
+                      <span className="text-[10px] font-mono font-semibold text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                        ⏱️ {lec.durationMinutes || 45}m
+                      </span>
                     </div>
                   </div>
 
