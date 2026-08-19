@@ -4,8 +4,7 @@ import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { 
   Search, Video, FileText, CheckCircle2, Clock, MessageSquare, 
-  Sparkles, Plus, Play, 
-  Flame, Award, Zap, Target, ShieldCheck, CheckCircle,
+  Sparkles, Plus, Play, Flame, Award, Zap, Target, ShieldCheck, CheckCircle,
   Edit3, Send, X, AlertTriangle, BookMarked, ExternalLink,
   Copy, Check, ChevronRight, Layers, Star, Trophy, Info
 } from 'lucide-react';
@@ -26,6 +25,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [topicFilter, setTopicFilter] = useState<'all' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
+  const [acknowledgedRemarks, setAcknowledgedRemarks] = useState<Set<string>>(new Set());
 
   const lectures = useMemo(() => {
     return StorageService.getLectures().filter((l) => l.teacherId.toUpperCase() === teacher.teacherId.toUpperCase());
@@ -63,6 +63,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const facultyLevel = onTimeLectures >= 15 ? 4 : onTimeLectures >= 8 ? 3 : onTimeLectures >= 3 ? 2 : 1;
   const levelNames = ['🌱 Active Faculty', '⚡ Senior Instructor', '🥇 Lead Professor', '🌟 Master Academician'];
   const currentLevelName = levelNames[facultyLevel - 1];
+  const nextLevelThreshold = facultyLevel === 1 ? 3 : facultyLevel === 2 ? 8 : facultyLevel === 3 ? 15 : 25;
+  const prevLevelThreshold = facultyLevel === 1 ? 0 : facultyLevel === 2 ? 3 : facultyLevel === 3 ? 8 : 15;
+  const levelProgress = Math.min(100, Math.round(((onTimeLectures - prevLevelThreshold) / (nextLevelThreshold - prevLevelThreshold)) * 100));
+
+  // Dynamic time greeting
+  const currentHour = new Date().getHours();
+  const timeGreeting = currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening';
 
   // Admin remarks for this teacher
   const teacherRemarks = useMemo(() => {
@@ -96,6 +103,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   });
 
   const completedTopics = assignedTopics.filter((t) => t.status === 'completed');
+
+  // Find nearest upcoming active deliverable
+  const nextUrgentTopic = useMemo(() => {
+    if (readyToDeliverTopics.length > 0) return readyToDeliverTopics[0];
+    if (needsActionTopics.length > 0) return needsActionTopics[0];
+    return assignedTopics.find((t) => t.status !== 'completed');
+  }, [readyToDeliverTopics, needsActionTopics, assignedTopics]);
 
   // Filtered Topics
   const filteredTopics = useMemo(() => {
@@ -158,8 +172,8 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) return { label: `${Math.abs(diffDays)}d Overdue`, color: 'text-red-400 bg-red-500/10 border-red-500/30', urgent: true };
-    if (diffDays === 0) return { label: '🔥 Due Today (Submit by 11:59 PM)', color: 'text-amber-400 bg-amber-500/15 border-amber-500/40 animate-pulse', urgent: true };
-    if (diffDays === 1) return { label: '⚡ Due Tomorrow (24h left)', color: 'text-amber-300 bg-amber-500/10 border-amber-500/30', urgent: true };
+    if (diffDays === 0) return { label: '🔥 Due Today', color: 'text-amber-400 bg-amber-500/15 border-amber-500/40 animate-pulse', urgent: true };
+    if (diffDays === 1) return { label: '⚡ Due Tomorrow', color: 'text-amber-300 bg-amber-500/10 border-amber-500/30', urgent: true };
     return { label: `⏳ ${diffDays} days left`, color: 'text-indigo-300 bg-indigo-500/10 border-indigo-500/30', urgent: false };
   };
 
@@ -208,8 +222,15 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     setRefreshKey((k) => k + 1);
   };
 
+  const toggleAcknowledgeRemark = (id: string) => {
+    const next = new Set(acknowledgedRemarks);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setAcknowledgedRemarks(next);
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-8 animate-in fade-in duration-200">
+    <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-8 animate-in fade-in duration-200">
       
       {/* TOAST FEEDBACK */}
       {copiedToast && (
@@ -220,69 +241,118 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
       {/* PAGE 1: 🏠 OVERVIEW DASHBOARD */}
       {(currentPage === 'dashboard' || !currentPage) && (
-        <div className="space-y-8">
-          {/* HERO HEADER */}
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-            <div className="relative z-10 space-y-2.5 max-w-xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {teacher.teacherId}
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" /> {teacher.department}
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 shadow-sm">
-                  <Flame className="w-3.5 h-3.5 text-orange-400 fill-orange-400" />
-                  {currentStreakDays} Session Streak
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                  <Star className="w-3.5 h-3.5 text-purple-400 fill-purple-400" /> {currentLevelName}
-                </span>
+        <div className="space-y-7">
+          
+          {/* HERO BANNER WITH DYNAMIC GREETING & URGENT DELIVERABLE TICKER */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+              
+              {/* Left Column: Greeting & Info */}
+              <div className="space-y-3 max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> {teacher.teacherId}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    {teacher.department}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 shadow-sm">
+                    <Flame className="w-3.5 h-3.5 text-orange-400 fill-orange-400" />
+                    {currentStreakDays} Session Streak
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 text-purple-400 fill-purple-400" /> {currentLevelName}
+                  </span>
+                </div>
+
+                <h2 className="text-2xl md:text-3xl font-black text-slate-100 tracking-tight leading-tight">
+                  {timeGreeting}, {teacher.name}! 👨‍🏫
+                </h2>
+                <p className="text-xs md:text-sm text-slate-300 font-medium leading-relaxed">
+                  Academic Discipline: <strong className="text-indigo-400 font-bold">{teacher.subject}</strong> • Review assigned syllabus topics, propose curriculum subtopics, and deliver on-time video lectures.
+                </p>
               </div>
 
-              <h2 className="text-2xl md:text-3xl font-black text-slate-100 tracking-tight">
-                Welcome back, {teacher.name}! 👨‍🏫
-              </h2>
-              <p className="text-xs md:text-sm text-slate-300 font-medium leading-relaxed">
-                Discipline: <strong className="text-indigo-400 font-bold">{teacher.subject}</strong> • Deliver timely syllabus sessions, propose subtopics for admin approval, and manage course materials.
-              </p>
+              {/* Right Column: Fast Actions */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                <button
+                  onClick={() => onOpenUpload()}
+                  disabled={isLimitReached}
+                  className={`px-6 py-3.5 rounded-2xl font-black text-white text-xs shadow-2xl transition-all flex items-center justify-center gap-2 ${
+                    isLimitReached
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                      : 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]'
+                  }`}
+                >
+                  <Plus className="w-4 h-4" />
+                  {isLimitReached ? 'Daily Limit Reached' : '+ Quick Lecture Upload'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-              <button
-                onClick={() => onOpenUpload()}
-                disabled={isLimitReached}
-                className={`px-6 py-3.5 rounded-2xl font-black text-white text-xs shadow-2xl transition-all flex items-center justify-center gap-2 ${
-                  isLimitReached
-                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                    : 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]'
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                {isLimitReached ? 'Daily Limit Reached' : '+ Quick Lecture Upload'}
-              </button>
-            </div>
+            {/* URGENT DELIVERABLE ACTION TICKER BANNER */}
+            {nextUrgentTopic && (
+              <div className="relative z-10 bg-slate-950/80 border border-indigo-500/30 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-inner">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 font-black text-sm shrink-0">
+                    ⚡
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                      Active Priority Deliverable
+                    </div>
+                    <div className="text-xs md:text-sm font-extrabold text-slate-100 flex items-center gap-2 flex-wrap">
+                      <span>{nextUrgentTopic.topicTitle}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30">
+                        Due: {nextUrgentTopic.deadlineDate}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {nextUrgentTopic.subtopicsApprovalState === 'approved' ? (
+                    <button
+                      onClick={() => onOpenUpload(nextUrgentTopic)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105"
+                    >
+                      <Zap className="w-3.5 h-3.5 fill-white" /> Record & Upload Now
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleOpenProposeModal(nextUrgentTopic)}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 fill-slate-950" /> Propose Subtopics
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* PERFORMANCE KPI METRICS */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl">
+          {/* PERFORMANCE KPI METRICS WITH INTERACTIVE PROGRESS */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* 1. On-Time Streak */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl relative overflow-hidden group hover:border-orange-500/40 transition-all">
               <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
                 <span>On-Time Streak</span>
-                <Flame className="w-4 h-4 text-orange-400 fill-orange-400" />
+                <Flame className="w-4 h-4 text-orange-400 fill-orange-400 group-hover:scale-110 transition-transform" />
               </div>
               <div className="text-3xl font-black text-orange-400 flex items-baseline gap-1.5">
                 {currentStreakDays} <span className="text-xs font-bold text-slate-400">Sessions</span>
               </div>
               <div className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5" /> Streak Active
+                <Sparkles className="w-3.5 h-3.5" /> 100% Punctual Submissions
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl">
+            {/* 2. Punctuality Score */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl relative overflow-hidden group hover:border-amber-500/40 transition-all">
               <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
                 <span>Punctuality Score</span>
-                <Award className="w-4 h-4 text-amber-400" />
+                <Award className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
               </div>
               <div className="text-3xl font-black text-amber-400 flex items-baseline gap-1.5">
                 {punctualityScore}% <span className="text-xs font-bold text-slate-400">Rating</span>
@@ -292,10 +362,11 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl">
+            {/* 3. Daily Upload Quota */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl relative overflow-hidden group hover:border-indigo-500/40 transition-all">
               <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
                 <span>Daily Upload Quota</span>
-                <Target className="w-4 h-4 text-indigo-400" />
+                <Target className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
               </div>
               <div className="text-3xl font-black text-slate-100 flex items-baseline gap-1.5">
                 {uploadsToday} <span className="text-xs font-bold text-slate-400">/ {dailyLimit} today</span>
@@ -308,71 +379,82 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             </div>
 
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl">
+            {/* 4. Faculty Rank & Level Progression */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-xl relative overflow-hidden group hover:border-purple-500/40 transition-all">
               <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
-                <span>Faculty Level</span>
-                <Trophy className="w-4 h-4 text-purple-400" />
+                <span>Faculty Rank</span>
+                <Trophy className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
               </div>
               <div className="text-2xl font-black text-purple-300 flex items-baseline gap-1">
                 Level {facultyLevel}
               </div>
-              <div className="text-[11px] text-slate-400 font-medium">
-                {currentLevelName}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-slate-400">
+                  <span>{currentLevelName}</span>
+                  <span>{levelProgress}% to next</span>
+                </div>
+                <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                  <div className="h-full bg-purple-500 transition-all duration-500" style={{ width: `${levelProgress}%` }} />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* ACTION REQUIRED & QUICK JUMP BANNER */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Quick Action Queue */}
+          {/* TWO-COLUMN GRID: ACTION QUEUE & SUBJECT RESOURCES */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            
+            {/* Left: Syllabus Action Queue */}
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400 font-bold text-sm">📌</span>
-                    <h3 className="font-extrabold text-sm text-slate-100">Syllabus Action Queue</h3>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-100">Syllabus Workflow Queue</h3>
+                      <p className="text-[11px] text-slate-400">Syllabus breakdown & lecture recording status</p>
+                    </div>
                   </div>
                   <button 
                     onClick={() => onPageChange('syllabus')}
                     className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
                   >
-                    View All Topics <ChevronRight className="w-3.5 h-3.5" />
+                    View All <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2.5">
                   <div 
                     onClick={() => { setTopicFilter('needs_action'); onPageChange('syllabus'); }}
-                    className="p-3 bg-slate-950 border border-amber-500/30 rounded-2xl cursor-pointer hover:border-amber-500/60 transition-all text-center space-y-1"
+                    className="p-3.5 bg-slate-950 border border-amber-500/30 rounded-2xl cursor-pointer hover:border-amber-500/60 transition-all text-center space-y-1 group"
                   >
-                    <div className="text-xl font-black text-amber-400">{needsActionTopics.length}</div>
+                    <div className="text-2xl font-black text-amber-400 group-hover:scale-105 transition-transform">{needsActionTopics.length}</div>
                     <div className="text-[10px] font-bold text-slate-300">Needs Subtopics</div>
                   </div>
                   <div 
                     onClick={() => { setTopicFilter('in_review'); onPageChange('syllabus'); }}
-                    className="p-3 bg-slate-950 border border-purple-500/30 rounded-2xl cursor-pointer hover:border-purple-500/60 transition-all text-center space-y-1"
+                    className="p-3.5 bg-slate-950 border border-purple-500/30 rounded-2xl cursor-pointer hover:border-purple-500/60 transition-all text-center space-y-1 group"
                   >
-                    <div className="text-xl font-black text-purple-300">{inReviewTopics.length}</div>
+                    <div className="text-2xl font-black text-purple-300 group-hover:scale-105 transition-transform">{inReviewTopics.length}</div>
                     <div className="text-[10px] font-bold text-slate-300">In Admin Review</div>
                   </div>
                   <div 
                     onClick={() => { setTopicFilter('ready_to_deliver'); onPageChange('syllabus'); }}
-                    className="p-3 bg-slate-950 border border-emerald-500/30 rounded-2xl cursor-pointer hover:border-emerald-500/60 transition-all text-center space-y-1"
+                    className="p-3.5 bg-slate-950 border border-emerald-500/30 rounded-2xl cursor-pointer hover:border-emerald-500/60 transition-all text-center space-y-1 group"
                   >
-                    <div className="text-xl font-black text-emerald-400">{readyToDeliverTopics.length}</div>
+                    <div className="text-2xl font-black text-emerald-400 group-hover:scale-105 transition-transform">{readyToDeliverTopics.length}</div>
                     <div className="text-[10px] font-bold text-slate-300">Ready to Deliver</div>
                   </div>
                 </div>
               </div>
 
               {readyToDeliverTopics.length > 0 ? (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between">
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl flex items-center justify-between gap-3">
                   <div className="text-xs text-emerald-300 font-bold truncate">
                     Ready: {readyToDeliverTopics[0].topicTitle}
                   </div>
                   <button
                     onClick={() => onOpenUpload(readyToDeliverTopics[0])}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md shrink-0"
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md shrink-0"
                   >
                     Upload Now 🚀
                   </button>
@@ -380,13 +462,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               ) : null}
             </div>
 
-            {/* Subject Reference Preview */}
+            {/* Right: Whole-Subject Reference Material */}
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 font-bold text-sm">📚</span>
-                    <h3 className="font-extrabold text-sm text-slate-100">Subject Reference Material</h3>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-100">Subject Reference Material</h3>
+                      <p className="text-[11px] text-slate-400">Master Google Drive & Curriculum Guidelines</p>
+                    </div>
                   </div>
                   <button 
                     onClick={() => onPageChange('resources')}
@@ -397,17 +482,28 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 </div>
 
                 {subjectReference ? (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-black text-slate-200">{subjectReference.title}</h4>
+                  <div className="space-y-2 bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-emerald-400 font-mono">
+                        {subjectReference.subjectName}
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(subjectReference.referenceUrl, 'Drive URL')}
+                        className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1 font-semibold"
+                      >
+                        <Copy className="w-3 h-3" /> Copy Link
+                      </button>
+                    </div>
+                    <h4 className="text-xs font-black text-slate-100 line-clamp-1">{subjectReference.title}</h4>
                     {subjectReference.notes && (
-                      <p className="text-xs text-slate-400 italic line-clamp-2">
+                      <p className="text-[11px] text-slate-400 italic line-clamp-2">
                         "{subjectReference.notes}"
                       </p>
                     )}
                   </div>
                 ) : (
-                  <div className="text-xs text-slate-500 italic py-2">
-                    No subject reference materials attached by admin yet.
+                  <div className="text-xs text-slate-500 italic py-4 text-center bg-slate-950 rounded-2xl border border-slate-800">
+                    No reference folder attached by admin yet.
                   </div>
                 )}
               </div>
@@ -417,22 +513,22 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   href={subjectReference.referenceUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" /> Open Subject Drive ↗
+                  <ExternalLink className="w-3.5 h-3.5" /> Open Google Drive Folder ↗
                 </a>
               )}
             </div>
           </div>
 
-          {/* RECENT DELIVERED SESSIONS PREVIEW */}
+          {/* RECENT DELIVERED SESSIONS ARCHIVE */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-7 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 font-bold text-sm">📹</span>
                 <div>
                   <h3 className="font-extrabold text-base text-slate-100">Recent Deliveries ({lectures.length})</h3>
-                  <p className="text-xs text-slate-400">Recently uploaded lecture recordings and PDF notes</p>
+                  <p className="text-xs text-slate-400">Recently uploaded video sessions and lecture PDF notes</p>
                 </div>
               </div>
 
@@ -445,13 +541,15 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
 
             {lectures.length === 0 ? (
-              <div className="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-400 text-xs">
-                No lectures delivered yet. Click "+ Quick Lecture Upload" to submit your first session!
+              <div className="p-12 text-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-400 text-xs space-y-2">
+                <div className="text-3xl">📹</div>
+                <div className="font-bold text-slate-300">No lectures delivered yet</div>
+                <p>Click "+ Quick Lecture Upload" above to submit your first recorded lecture!</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {lectures.slice(0, 3).map((lec) => (
-                  <div key={lec.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4.5 space-y-3 shadow-md flex flex-col justify-between">
+                  <div key={lec.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4.5 space-y-3 shadow-md flex flex-col justify-between hover:border-slate-700 transition-all">
                     <div>
                       <div className="flex items-center justify-between text-[10px]">
                         <span className="font-bold text-indigo-400">{lec.subject}</span>
@@ -492,7 +590,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 <Layers className="w-5 h-5 text-amber-400" /> Syllabus Topics & Subtopic Approvals
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Propose syllabus subtopic breakdowns for admin approval and deliver authorized lecture sessions.
+                Propose syllabus subtopic breakdowns for admin approval, track individual subtopic deadlines, and deliver authorized sessions.
               </p>
             </div>
             <button
@@ -960,18 +1058,40 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {teacherRemarks.map((rem) => (
-                <div key={rem.id} className="bg-slate-900 border border-purple-500/30 p-5 rounded-3xl space-y-3 shadow-lg">
-                  <div className="text-xs font-bold text-slate-200">Re: {rem.lectureTitle}</div>
-                  <div className="text-xs text-purple-200 italic bg-slate-950 p-3.5 rounded-2xl border border-purple-500/20">
-                    "{rem.remark}"
+              {teacherRemarks.map((rem) => {
+                const isAck = acknowledgedRemarks.has(rem.id);
+                return (
+                  <div key={rem.id} className="bg-slate-900 border border-purple-500/30 p-5.5 rounded-3xl space-y-3 shadow-lg flex flex-col justify-between">
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-200">Re: {rem.lectureTitle}</span>
+                        <span className="text-[10px] text-slate-500">{rem.date}</span>
+                      </div>
+                      <div className="text-xs text-purple-200 italic bg-slate-950 p-4 rounded-2xl border border-purple-500/20 leading-relaxed">
+                        "{rem.remark}"
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                      <span className="text-[11px] text-slate-400">
+                        Admin: <strong className="text-purple-300">{rem.adminName}</strong>
+                      </span>
+
+                      <button
+                        onClick={() => toggleAcknowledgeRemark(rem.id)}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                          isAck
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 border border-purple-500/30'
+                        }`}
+                      >
+                        {isAck ? <Check className="w-3.5 h-3.5" /> : null}
+                        {isAck ? 'Acknowledged ✓' : 'Acknowledge Directive'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-slate-400 pt-1 flex justify-between">
-                    <span>Admin: <strong className="text-purple-300">{rem.adminName}</strong></span>
-                    <span>{rem.date}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
