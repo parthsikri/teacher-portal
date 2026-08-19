@@ -49,7 +49,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Syllabus & Topics', 
       icon: Layers,
       badge: teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount}` : undefined,
-      badgeColor: 'bg-amber-500 text-slate-950',
     },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
     { id: 'resources', label: 'Subject Library', icon: BookMarked },
@@ -64,7 +63,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Syllabus & Deadlines', 
       icon: Layers,
       badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
-      badgeColor: 'bg-purple-500 text-white animate-pulse',
     },
     { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
     { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
@@ -81,16 +79,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* MOBILE TOP BAR */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-slate-900/95 border-b border-slate-800 z-40 px-4 flex items-center justify-between backdrop-blur-md">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-slate-900 border-b border-slate-800 z-40 px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-white text-xs">
+          <div className="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center font-bold text-white text-[10px]">
             AEW
           </div>
-          <span className="font-bold text-xs text-slate-200">Apna Engineering Wallah</span>
+          <span className="font-semibold text-xs text-slate-200">Apna Engineering Wallah</span>
         </div>
         <button
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white"
+          className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white"
         >
           {isMobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </button>
@@ -100,52 +98,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isMobileOpen && (
         <div
           onClick={() => setIsMobileOpen(false)}
-          className="md:hidden fixed inset-0 bg-slate-950/80 z-40 backdrop-blur-sm"
+          className="md:hidden fixed inset-0 bg-slate-950/70 z-40 backdrop-blur-sm"
         />
       )}
 
       {/* FULL LEFT-SIDEBAR CONTAINER */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 w-60 lg:w-64 bg-slate-900 border-r border-slate-800 z-50 flex flex-col justify-between shadow-xl transition-transform duration-200 md:translate-x-0 ${
+        className={`fixed top-0 left-0 bottom-0 w-60 bg-slate-900/90 border-r border-slate-800/80 z-50 flex flex-col justify-between transition-transform duration-150 md:translate-x-0 ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         {/* TOP BRAND HEADER */}
-        <div className="p-5 border-b border-slate-800/70 space-y-3.5">
+        <div className="p-4 border-b border-slate-800/60 space-y-3">
           <div 
             onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin_dashboard' : 'dashboard')}
             className="flex items-center gap-2.5 cursor-pointer group"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center font-black text-white text-xs shadow-md group-hover:scale-105 transition-transform shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">
               AEW
             </div>
             <div>
-              <h1 className="font-bold text-xs text-slate-100 tracking-tight leading-none">
+              <h1 className="font-bold text-xs text-slate-100 leading-none">
                 Apna Engg Wallah
               </h1>
-              <p className="text-[10px] text-slate-400 mt-0.5">Faculty Operations</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Faculty Portal</p>
             </div>
-          </div>
-
-          {/* USER PROFILE CARD */}
-          <div className="bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-300">
-                {currentUser.role === 'admin' ? 'Admin' : currentUser.teacherId}
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            </div>
-            <h3 className="font-bold text-xs text-slate-200 truncate">{currentUser.name}</h3>
-            <p className="text-[10px] text-slate-400 truncate">{currentUser.subject}</p>
           </div>
         </div>
 
         {/* MIDDLE NAVIGATION ITEMS */}
-        <div className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto scrollbar-none">
-          <div className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-500">
-            Menu
-          </div>
-
+        <div className="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
@@ -153,19 +135,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => handleNavClick(item.id)}
-                className={`w-full px-3 py-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between ${
+                className={`w-full px-2.5 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-between ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-sm font-bold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    ? 'bg-slate-800 text-white font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
                   <span className="truncate">{item.label}</span>
                 </div>
 
                 {item.badge && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold shrink-0 ${item.badgeColor}`}>
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300">
                     {item.badge}
                   </span>
                 )}
@@ -174,14 +156,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* BOTTOM QUOTA & LOGOUT */}
-        <div className="p-3 border-t border-slate-800/70 space-y-2.5">
+        {/* BOTTOM USER PROFILE & LOGOUT */}
+        <div className="p-3 border-t border-slate-800/60 space-y-2 text-xs">
           {currentUser.role === 'teacher' && (
-            <div className="px-2.5 py-2 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-1">
-              <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+            <div className="px-2 py-1.5 bg-slate-950/40 border border-slate-800/60 rounded-lg space-y-1">
+              <div className="flex items-center justify-between text-[10px] text-slate-400">
                 <span>Daily Target</span>
-                <span className={isTargetReached ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>
-                  {minutesRecordedToday} / {targetMinutes} min
+                <span className={isTargetReached ? 'text-emerald-400 font-semibold' : 'text-slate-300 font-medium'}>
+                  {minutesRecordedToday}/{targetMinutes}m
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
@@ -193,13 +175,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          <button
-            onClick={onLogout}
-            className="w-full py-2 px-2.5 rounded-xl hover:bg-red-500/10 hover:text-red-400 text-slate-400 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
+          <div className="flex items-center justify-between pt-1">
+            <div className="truncate flex-1 mr-2">
+              <div className="text-xs font-medium text-slate-200 truncate">{currentUser.name}</div>
+              <div className="text-[10px] text-slate-400 truncate">{currentUser.subject || currentUser.department}</div>
+            </div>
+
+            <button
+              onClick={onLogout}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </aside>
     </>
