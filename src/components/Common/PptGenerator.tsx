@@ -948,58 +948,66 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               </div>
             </div>
 
-            {/* LIVE 16:9 SLIDE CANVAS PREVIEW — STRICTLY CONTAINED, ZERO OVERFLOW */}
+            {/* SLIDE CANVAS PREVIEW — STACKED HEADER, NO OVERFLOW */}
             {currentPreviewQuestion ? (
               <div
-                style={{ aspectRatio: '16/9', boxSizing: 'border-box' }}
-                className={`w-full rounded-2xl border flex flex-col shadow-2xl overflow-hidden transition-all ${
+                style={{ aspectRatio: '16/9', boxSizing: 'border-box', overflow: 'hidden' }}
+                className={`w-full rounded-2xl border flex flex-col shadow-2xl transition-all ${
                   theme === 'dark_tech'
-                    ? 'bg-[#090D16] border-[#1E293B] text-slate-100'
+                    ? 'bg-[#090D16] border-[#1E293B]'
                     : theme === 'clean_minimal'
-                    ? 'bg-[#F8FAFC] border-[#E2E8F0] text-slate-900'
-                    : 'bg-[#061426] border-[#1A3A60] text-white'
+                    ? 'bg-[#F8FAFC] border-[#E2E8F0]'
+                    : 'bg-[#061426] border-[#1A3A60]'
                 }`}
               >
-                {/* TOP HEADER: Unit + Topic | Year&Exam Badge */}
-                <div className="flex items-center gap-2 px-5 py-3 border-b border-white/10" style={{ flexShrink: 0 }}>
-                  {/* Left: unit pill + topic */}
-                  <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
-                    <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-black font-mono tracking-widest uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 whitespace-nowrap">
+                {/* HEADER SECTION — stacked into 2 rows so nothing overflows */}
+                <div className="px-5 pt-3 pb-2 border-b border-white/10" style={{ flexShrink: 0 }}>
+                  {/* Row 1: Unit pill + Mapped Topic */}
+                  <div className="flex items-center gap-2 mb-1.5" style={{ overflow: 'hidden' }}>
+                    <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-black font-mono tracking-widest uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
                       {currentPreviewQuestion.unitNumber}
                     </span>
-                    <span className="text-slate-300 font-semibold text-xs truncate">
+                    <span className="text-slate-300 font-semibold truncate" style={{ fontSize: '11px' }}>
                       {currentPreviewQuestion.mappedTopic}
                     </span>
                   </div>
-
-                  {/* Right: Year & Exam badge — hard capped at 40% of container */}
+                  {/* Row 2: Year & Exam — full width, no overflow possible */}
                   {currentPreviewQuestion.yearExam && (
-                    <span
-                      className="shrink-0 px-2.5 py-0.5 rounded text-[11px] font-bold font-mono bg-amber-900/50 text-amber-300 border border-amber-700/60 whitespace-nowrap overflow-hidden text-ellipsis"
-                      style={{ maxWidth: '38%' }}
-                      title={currentPreviewQuestion.yearExam}
-                    >
-                      🏷️ {currentPreviewQuestion.yearExam}
-                    </span>
+                    <div style={{ overflow: 'hidden' }}>
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-900/40 text-amber-300 border border-amber-700/50 truncate max-w-full">
+                        🏷️ {currentPreviewQuestion.yearExam}
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                {/* BODY: Question */}
-                <div className="flex-1 flex flex-col justify-center px-6 py-4 min-h-0 overflow-hidden">
-                  <div className="text-indigo-400 font-black text-xs font-mono tracking-widest uppercase mb-2">
+                {/* BODY: Question text */}
+                <div className="flex-1 flex flex-col justify-center px-5 py-3" style={{ minHeight: 0, overflow: 'hidden' }}>
+                  <div className="font-black font-mono tracking-widest uppercase mb-2 text-indigo-400" style={{ fontSize: '10px' }}>
                     QUESTION {activeSlideIndex + 1}
                   </div>
-                  <div className="font-bold leading-relaxed text-slate-100 overflow-hidden"
-                    style={{ fontSize: 'clamp(0.85rem, 2.2vw, 1.5rem)', display: '-webkit-box', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical' }}>
+                  <div
+                    className="font-bold leading-snug text-slate-100"
+                    style={{
+                      fontSize: 'clamp(0.75rem, 1.8vw, 1.25rem)',
+                      overflow: 'hidden',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 5,
+                      WebkitBoxOrient: 'vertical',
+                    }}
+                  >
                     {currentPreviewQuestion.fullQuestionText}
                   </div>
                 </div>
 
                 {/* FOOTER */}
-                <div className="flex items-center justify-between px-5 py-2 border-t border-white/10 text-[10px] text-slate-500" style={{ flexShrink: 0 }}>
+                <div
+                  className="flex items-center justify-between px-5 py-2 border-t border-white/10 text-slate-500"
+                  style={{ flexShrink: 0, fontSize: '10px', overflow: 'hidden' }}
+                >
                   <span className="truncate mr-2">Apna Engineering Wallah • {subjectName}</span>
                   <span className="font-mono shrink-0">
-                    Q{activeSlideIndex + 1} of {filteredQuestions.length} • {currentPreviewQuestion.unitNumber}
+                    Q{activeSlideIndex + 1} / {filteredQuestions.length}
                   </span>
                 </div>
               </div>
