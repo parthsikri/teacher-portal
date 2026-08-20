@@ -86,8 +86,8 @@ export const App: React.FC = () => {
           />
 
           {/* MAIN APPLICATION VIEW (OFFSET BY LEFT SIDEBAR) */}
-          <div className="flex-1 md:pl-64 lg:pl-72 flex flex-col min-h-screen">
-            <main key={refreshKey} className="flex-1 pt-16 md:pt-4 pb-16">
+          <div className="flex-1 md:pl-64 lg:pl-72 flex flex-col min-h-screen min-w-0 overflow-x-hidden">
+            <main key={refreshKey} className="flex-1 pt-16 md:pt-4 pb-16 min-w-0 w-full overflow-x-hidden">
               {currentPage === 'ppt_generator' ? (
                 <PptGenerator
                   userSubject={currentUser.subject || currentUser.department}

@@ -11,9 +11,9 @@ import {
 
 export interface ParsedQuestion {
   id: string;
-  yearExam: string;       // "Year & Exam" e.g. "March 2020 First-Term Examination (ETCS-304)"
-  unitNumber: string;     // "Unit Number" e.g. "UNIT 1"
-  mappedTopic: string;    // "Mapped Topic" e.g. "Multiprogrammed Batches Systems"
+  yearExam: string;       // "Year & Exam" e.g. "Mid Term October 2024"
+  unitNumber: string;     // "Unit Number" e.g. "UNIT 2"
+  mappedTopic: string;    // "Mapped Topic" e.g. "Sparse Matrix Representation"
   fullQuestionText: string; // "Full Question Text"
   solution?: string;      // Optional solution / key points
   questionNumber?: number;
@@ -27,7 +27,7 @@ interface PptGeneratorProps {
 type SlideTheme = 'dark_tech' | 'clean_minimal' | 'deep_navy';
 
 export const PptGenerator: React.FC<PptGeneratorProps> = ({
-  userSubject = 'Operating Systems',
+  userSubject = 'Data Structures & Algorithms',
   userName = 'Faculty',
 }) => {
   const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
@@ -81,47 +81,47 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const handleDownloadSampleExcel = () => {
     const sampleData = [
       {
+        'Year & Exam': 'Mid Term October 2024',
+        'Unit Number': 'UNIT 2',
+        'Mapped Topic': 'Sparse Matrix Representation (Array and Link List representation)',
+        'Full Question Text': 'Explain different types of sparse matrix with suitable examples. Discuss the memory advantage of 3-tuple (triplet) representation over standard 2D array representation.',
+        'Solution / Key Points': '1. Lower/Upper Triangular Matrix, Tridiagonal Matrix, Diagonal Matrix.\n2. Triplet Representation: Row, Column, Value (3 * non-zero elements + 1 header). Saves significant space when density < 1/3.',
+      },
+      {
         'Year & Exam': 'March 2020 First-Term Examination (ETCS-304)',
         'Unit Number': 'UNIT 1',
         'Mapped Topic': 'Multiprogrammed Batches Systems',
         'Full Question Text': 'Differentiate between multiprogramming and multi tasking. Explain how CPU scheduling facilitates context switching in modern operating systems.',
-        'Solution / Key Points': '1. Multiprogramming keeps multiple jobs in main memory simultaneously to maximize CPU utilization.\n2. Multitasking (time-sharing) is a logical extension where CPU switches rapidly between tasks.',
+        'Solution / Key Points': '1. Multiprogramming keeps multiple jobs in memory to maximize CPU utilization.\n2. Multitasking switches CPU rapidly between user tasks for interactive execution.',
       },
       {
         'Year & Exam': 'December 2022 End-Sem Examination (ETCS-304)',
         'Unit Number': 'UNIT 1',
         'Mapped Topic': 'Operating System Structures & System Calls',
         'Full Question Text': 'What are System Calls? Explain the step-by-step mechanism of handling a system call with the help of a dual-mode (User Mode vs Kernel Mode) transition diagram.',
-        'Solution / Key Points': 'System calls provide an interface between a running program and the operating system. Execution transitions from User Mode (bit 1) to Kernel Mode (bit 0) via software trap instruction.',
+        'Solution / Key Points': 'System calls provide an interface between a user program and OS kernel. Transition happens via software trap instruction setting mode bit to 0 (Kernel Mode).',
       },
       {
         'Year & Exam': 'May 2023 End-Term (ETCS-304)',
         'Unit Number': 'UNIT 2',
         'Mapped Topic': 'Process Synchronization & Semaphores',
         'Full Question Text': 'Define Critical Section Problem. State the three mandatory requirements that any valid synchronization solution must satisfy (Mutual Exclusion, Progress, Bounded Waiting).',
-        'Solution / Key Points': '1. Mutual Exclusion: Only one process inside critical section.\n2. Progress: Process selection cannot be postponed indefinitely.\n3. Bounded Waiting: Bound on entry attempts.',
-      },
-      {
-        'Year & Exam': 'March 2021 Mid-Term (ETCS-304)',
-        'Unit Number': 'UNIT 2',
-        'Mapped Topic': 'CPU Scheduling Algorithms',
-        'Full Question Text': 'Consider Shortest Remaining Time First (SRTF) scheduling. Explain how preemption affects average waiting time and turnaround time compared to non-preemptive Shortest Job First (SJF).',
-        'Solution / Key Points': 'SRTF preempts the currently running process if a newly arrived process has a shorter remaining burst time, yielding optimal average waiting time.',
+        'Solution / Key Points': '1. Mutual Exclusion: Only one process inside critical section.\n2. Progress: Next process selection cannot be delayed indefinitely.\n3. Bounded Waiting: Bound on entry attempts.',
       },
       {
         'Year & Exam': 'December 2023 End-Sem (ETCS-304)',
         'Unit Number': 'UNIT 3',
         'Mapped Topic': 'Deadlocks & Resource Allocation Graph',
         'Full Question Text': 'State the four necessary and sufficient conditions for Deadlock occurrence. How does Banker’s Algorithm ensure Deadlock Avoidance in a multi-resource system?',
-        'Solution / Key Points': 'Four Conditions: Mutual Exclusion, Hold and Wait, No Preemption, Circular Wait. Banker algorithm verifies that a Safe Sequence exists before allocation.',
+        'Solution / Key Points': 'Four Conditions: Mutual Exclusion, Hold and Wait, No Preemption, Circular Wait. Banker algorithm simulates resource safety sequence.',
       },
     ];
 
     const ws = XLSX.utils.json_to_sheet(sampleData);
     ws['!cols'] = [
-      { wch: 42 }, // Year & Exam
+      { wch: 40 }, // Year & Exam
       { wch: 15 }, // Unit Number
-      { wch: 38 }, // Mapped Topic
+      { wch: 45 }, // Mapped Topic
       { wch: 80 }, // Full Question Text
       { wch: 60 }, // Solution / Key Points
     ];
@@ -225,8 +225,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       const themeColors = {
         dark_tech: {
           bg: '090D16',          // Dark luxury matte slate
-          cardBg: '121829',      // Elevated surface
-          cardBorder: '232E4A',  // Hairline border
+          cardBorder: '1E293B',  // Hairline border
           accentGradient: '6366F1', // Indigo accent
           textPrimary: 'FFFFFF',
           textSecondary: '94A3B8',
@@ -239,7 +238,6 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         },
         clean_minimal: {
           bg: 'F8FAFC',
-          cardBg: 'FFFFFF',
           cardBorder: 'E2E8F0',
           accentGradient: '4F46E5',
           textPrimary: '0F172A',
@@ -253,7 +251,6 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         },
         deep_navy: {
           bg: '061426',
-          cardBg: '0D213A',
           cardBorder: '1A3A60',
           accentGradient: '00ADB5',
           textPrimary: 'FFFFFF',
@@ -296,7 +293,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       titleSlide.addText(deckTitle, {
         x: 0.8,
         y: 1.7,
-        w: 11.7,
+        w: 11.73,
         h: 1.8,
         fontSize: 36,
         bold: true,
@@ -327,7 +324,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           w: 3.3,
           h: 0.7,
           rectRadius: 0.1,
-          fill: { color: themeColors.cardBg },
+          fill: { color: themeColors.bg },
           line: { color: themeColors.cardBorder, width: 1 },
         });
 
@@ -409,7 +406,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           fontFace: 'Calibri',
         });
 
-        // 1-QUESTION-PER-PAGE SLIDES
+        // 1-QUESTION-PER-PAGE SLIDES (CLEAN, PROPORTIONAL & UNIFIED)
         for (let qIdx = 0; qIdx < topicQuestions.length; qIdx++) {
           const q = topicQuestions[qIdx];
           const slide = pptx.addSlide();
@@ -443,7 +440,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           slide.addText(q.mappedTopic, {
             x: 2.35,
             y: 0.45,
-            w: 5.5,
+            w: 5.2,
             h: 0.42,
             fontSize: 13,
             bold: true,
@@ -452,12 +449,12 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             fontFace: 'Calibri',
           });
 
-          // Year & Exam Highlight Tag (Right aligned with safe margin)
+          // Year & Exam Highlight Tag (Right aligned with strict 11.73 total width limit)
           if (q.yearExam) {
             slide.addShape(pptx.ShapeType.roundRect, {
-              x: 8.0,
+              x: 7.7,
               y: 0.42,
-              w: 4.5,
+              w: 4.83,
               h: 0.48,
               rectRadius: 0.08,
               fill: { color: themeColors.examBadgeBg },
@@ -465,9 +462,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             });
 
             slide.addText(`🏷️ ${q.yearExam}`, {
-              x: 8.0,
+              x: 7.7,
               y: 0.42,
-              w: 4.5,
+              w: 4.83,
               h: 0.48,
               fontSize: 11,
               bold: true,
@@ -478,32 +475,21 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             });
           }
 
-          // 2. MAIN GRAND QUESTION CONTAINER (Full Width & Height)
-          slide.addShape(pptx.ShapeType.roundRect, {
+          // Top Header Divider Line
+          slide.addShape(pptx.ShapeType.rect, {
             x: 0.8,
-            y: 1.15,
+            y: 1.1,
             w: 11.73,
-            h: 5.2,
-            rectRadius: 0.12,
-            fill: { color: themeColors.cardBg },
-            line: { color: themeColors.cardBorder, width: 1.2 },
+            h: 0.015,
+            fill: { color: themeColors.cardBorder },
           });
 
-          // Left Accent Stripe
-          slide.addShape(pptx.ShapeType.roundRect, {
-            x: 0.8,
-            y: 1.15,
-            w: 0.14,
-            h: 5.2,
-            rectRadius: 0.05,
-            fill: { color: themeColors.accentGradient },
-          });
-
-          // Question Label
+          // 2. HERO QUESTION CONTENT (Directly on slide canvas)
+          // Question Header Label
           slide.addText(`QUESTION ${qIdx + 1}`, {
-            x: 1.25,
-            y: 1.5,
-            w: 3.5,
+            x: 0.8,
+            y: 1.6,
+            w: 4.0,
             h: 0.45,
             fontSize: 18,
             bold: true,
@@ -513,11 +499,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
           // Full Question Text
           slide.addText(q.fullQuestionText, {
-            x: 1.25,
-            y: 2.1,
-            w: 10.9,
-            h: 3.9,
-            fontSize: 22,
+            x: 0.8,
+            y: 2.2,
+            w: 11.73,
+            h: 4.0,
+            fontSize: 24,
             bold: true,
             color: themeColors.textPrimary,
             fontFace: 'Calibri',
@@ -525,10 +511,19 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             lineSpacingMultiple: 1.25,
           });
 
+          // Bottom Divider Line
+          slide.addShape(pptx.ShapeType.rect, {
+            x: 0.8,
+            y: 6.55,
+            w: 11.73,
+            h: 0.015,
+            fill: { color: themeColors.cardBorder },
+          });
+
           // 3. FOOTER
           slide.addText(`Apna Engineering Wallah • ${subjectName}`, {
             x: 0.8,
-            y: 6.8,
+            y: 6.75,
             w: 6.0,
             h: 0.35,
             fontSize: 10,
@@ -538,7 +533,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
           slide.addText(`Question ${qIdx + 1} of ${topicQuestions.length} (Overall Q${globalCounter}) • ${q.unitNumber}`, {
             x: 7.0,
-            y: 6.8,
+            y: 6.75,
             w: 5.53,
             h: 0.35,
             fontSize: 10,
@@ -567,7 +562,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               solSlide.addText(`Exam: ${q.yearExam}`, {
                 x: 8.0,
                 y: 0.45,
-                w: 4.5,
+                w: 4.53,
                 h: 0.4,
                 fontSize: 11,
                 color: themeColors.textSecondary,
@@ -582,7 +577,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               w: 11.73,
               h: 1.3,
               rectRadius: 0.1,
-              fill: { color: themeColors.cardBg },
+              fill: { color: themeColors.bg },
               line: { color: themeColors.cardBorder, width: 1 },
             });
 
@@ -602,7 +597,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               w: 11.73,
               h: 3.9,
               rectRadius: 0.1,
-              fill: { color: themeColors.cardBg },
+              fill: { color: themeColors.bg },
               line: { color: '34D399', width: 1.2 },
             });
 
@@ -637,7 +632,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const currentPreviewQuestion = filteredQuestions[activeSlideIndex];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 space-y-6 animate-in fade-in duration-150 text-slate-200">
+    <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-6 space-y-6 min-w-0 overflow-hidden text-slate-200">
       
       {/* TOAST FEEDBACK */}
       {successToast && (
@@ -647,22 +642,22 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       )}
 
       {/* HEADER BANNER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 min-w-0">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold">
+            <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold shrink-0">
               <FileSpreadsheet className="w-4 h-4" />
             </span>
-            <h2 className="text-xl font-bold text-slate-100 tracking-tight">
+            <h2 className="text-xl font-bold text-slate-100 tracking-tight truncate">
               Excel to PowerPoint Slide Deck Studio
             </h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-400 mt-1 truncate">
             Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • Widescreen 16:9
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleDownloadSampleExcel}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium text-xs rounded-xl transition-colors flex items-center gap-1.5"
@@ -695,7 +690,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
       {/* MAIN WORKSPACE */}
       {questions.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-5">
+        <div className="p-8 sm:p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-5 min-w-0">
           <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto text-2xl">
             📊
           </div>
@@ -707,7 +702,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </p>
           </div>
 
-          <div className="flex justify-center gap-3 pt-2">
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
             <button
               onClick={handleDownloadSampleExcel}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5"
@@ -733,7 +728,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 <div className="font-bold text-amber-400 flex items-center gap-1">
                   <Calendar className="w-3 h-3" /> Year & Exam
                 </div>
-                <div className="text-[11px] text-slate-400">e.g. <em>March 2020 First-Term Examination (ETCS-304)</em></div>
+                <div className="text-[11px] text-slate-400">e.g. <em>Mid Term October 2024</em></div>
               </div>
 
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
@@ -747,7 +742,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 <div className="font-bold text-purple-300 flex items-center gap-1">
                   <BookOpen className="w-3 h-3" /> Mapped Topic
                 </div>
-                <div className="text-[11px] text-slate-400">e.g. <em>Multiprogrammed Batches Systems</em></div>
+                <div className="text-[11px] text-slate-400">e.g. <em>Sparse Matrix Representation</em></div>
               </div>
 
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
@@ -760,10 +755,10 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0 w-full">
           
           {/* LEFT COLUMN: PRESENTATION SETTINGS & FILTER */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             
             {/* DECK CONFIGURATION */}
             <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 space-y-4 text-xs">
@@ -870,7 +865,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </div>
 
             {/* TOPIC FILTER */}
-            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 space-y-3 text-xs">
+            <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 space-y-3 text-xs min-w-0">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-amber-400" /> Mapped Topics ({uniqueTopics.length})
               </span>
@@ -884,8 +879,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-950/60'
                   }`}
                 >
-                  <span>All Topics</span>
-                  <span className="font-mono text-[10px] text-slate-500">{questions.length}</span>
+                  <span className="truncate">All Topics</span>
+                  <span className="font-mono text-[10px] text-slate-500 shrink-0 ml-1">{questions.length}</span>
                 </button>
 
                 {uniqueTopics.map((topic) => (
@@ -923,19 +918,19 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </div>
           </div>
 
-          {/* RIGHT COLUMN: PERFECTLY BALANCED 16:9 SLIDE CANVAS PREVIEW */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* RIGHT COLUMN: 100% CONTAINED 16:9 SLIDE CANVAS PREVIEW */}
+          <div className="lg:col-span-2 space-y-4 min-w-0 w-full overflow-hidden">
             
             {/* SLIDE NAVIGATION STRIP */}
-            <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl px-4 py-2 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-200">
+            <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl px-4 py-2 text-xs min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold text-slate-200 shrink-0">
                   Slide {activeSlideIndex + 1} of {filteredQuestions.length}
                 </span>
-                <span className="text-[11px] text-slate-400">• 1 Question Per Slide View</span>
+                <span className="text-[11px] text-slate-400 truncate">• 1 Question Per Slide View</span>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={() => setActiveSlideIndex((i) => Math.max(0, i - 1))}
                   disabled={activeSlideIndex === 0}
@@ -953,20 +948,20 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               </div>
             </div>
 
-            {/* LIVE 16:9 SLIDE CANVAS PREVIEW (CONTAINED & BEAUTIFUL) */}
+            {/* LIVE 16:9 SLIDE CANVAS PREVIEW (CONTAINED & ZERO OVERFLOW) */}
             {currentPreviewQuestion ? (
-              <div className={`aspect-[16/9] w-full rounded-2xl border p-5 sm:p-7 md:p-8 flex flex-col justify-between shadow-2xl relative overflow-hidden transition-all ${
+              <div className={`w-full aspect-[16/9] rounded-2xl border p-5 sm:p-7 md:p-8 flex flex-col justify-between shadow-2xl relative overflow-hidden box-border transition-all ${
                 theme === 'dark_tech'
-                  ? 'bg-[#090D16] border-[#232E4A] text-slate-100'
+                  ? 'bg-[#090D16] border-[#1E293B] text-slate-100'
                   : theme === 'clean_minimal'
                   ? 'bg-[#F8FAFC] border-[#E2E8F0] text-slate-900'
                   : 'bg-[#061426] border-[#1A3A60] text-white'
               }`}>
                 
                 {/* 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right) */}
-                <div className="flex items-center justify-between border-b pb-3 border-slate-800/80 gap-2 w-full">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="px-2.5 py-0.5 rounded text-[10px] sm:text-xs font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider shrink-0 font-mono">
+                <div className="flex items-center justify-between border-b pb-3 border-slate-800/80 gap-3 w-full min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider shrink-0 font-mono">
                       {currentPreviewQuestion.unitNumber}
                     </span>
                     <span className="text-xs sm:text-sm text-slate-300 font-semibold truncate">
@@ -975,33 +970,28 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   </div>
 
                   {currentPreviewQuestion.yearExam && (
-                    <div className="max-w-[48%] text-right shrink-0">
-                      <span className="inline-block px-2.5 py-0.5 rounded text-[10px] sm:text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono truncate shadow-sm max-w-full">
+                    <div className="shrink-0 max-w-[45%] text-right">
+                      <span className="inline-block px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono truncate max-w-full shadow-sm">
                         🏷️ {currentPreviewQuestion.yearExam}
                       </span>
                     </div>
                   )}
                 </div>
 
-                {/* 2. GRAND HERO QUESTION CARD */}
-                <div className="flex-1 my-3 sm:my-4 rounded-xl sm:rounded-2xl bg-slate-950/70 border border-slate-800/80 p-5 sm:p-7 md:p-8 flex flex-col justify-center relative overflow-hidden shadow-xl">
-                  {/* Left Accent Stripe */}
-                  <div className="absolute top-0 left-0 bottom-0 w-1.5 sm:w-2 bg-gradient-to-b from-indigo-500 to-purple-600" />
-                  
-                  <div className="pl-3 sm:pl-4 space-y-2 sm:space-y-3">
-                    <div className="text-indigo-400 font-black text-sm sm:text-base md:text-lg font-mono tracking-wider uppercase">
-                      QUESTION {activeSlideIndex + 1}
-                    </div>
-                    <div className="text-base sm:text-xl md:text-2xl font-bold leading-relaxed text-slate-100">
-                      {currentPreviewQuestion.fullQuestionText}
-                    </div>
+                {/* 2. SEAMLESS QUESTION HERO BODY (No Nested Box, Full Balance) */}
+                <div className="flex-1 my-auto flex flex-col justify-center py-4 px-1 min-w-0">
+                  <div className="text-indigo-400 font-black text-xs sm:text-sm md:text-base font-mono tracking-wider uppercase mb-2 sm:mb-3">
+                    QUESTION {activeSlideIndex + 1}
+                  </div>
+                  <div className="text-sm sm:text-xl md:text-2xl lg:text-3xl font-bold leading-relaxed text-slate-100 line-clamp-6">
+                    {currentPreviewQuestion.fullQuestionText}
                   </div>
                 </div>
 
                 {/* 3. SLIDE FOOTER */}
-                <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 text-[10px] sm:text-xs text-slate-400 w-full">
-                  <span>Apna Engineering Wallah • {subjectName}</span>
-                  <span className="font-mono">
+                <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 text-[10px] sm:text-xs text-slate-400 w-full min-w-0">
+                  <span className="truncate mr-2">Apna Engineering Wallah • {subjectName}</span>
+                  <span className="font-mono shrink-0">
                     Question {activeSlideIndex + 1} of {filteredQuestions.length} • {currentPreviewQuestion.unitNumber}
                   </span>
                 </div>
@@ -1009,7 +999,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             ) : null}
 
             {/* QUICK QUESTION NAVIGATION CAROUSEL */}
-            <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 space-y-2">
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 space-y-2 min-w-0">
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 Question Quick Navigation
               </div>
