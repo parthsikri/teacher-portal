@@ -11,7 +11,7 @@ import {
 
 export interface ParsedQuestion {
   id: string;
-  yearExam: string;       // "Year & Exam" e.g. "Mid Term October 2024"
+  yearExam: string;       // "Year & Exam" e.g. "End Term Feb 2023"
   unitNumber: string;     // "Unit Number" e.g. "UNIT 2"
   mappedTopic: string;    // "Mapped Topic" e.g. "Sparse Matrix Representation"
   fullQuestionText: string; // "Full Question Text"
@@ -81,11 +81,18 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const handleDownloadSampleExcel = () => {
     const sampleData = [
       {
-        'Year & Exam': 'Mid Term October 2024',
+        'Year & Exam': 'End Term Feb 2023',
         'Unit Number': 'UNIT 2',
         'Mapped Topic': 'Sparse Matrix Representation (Array and Link List representation)',
-        'Full Question Text': 'Explain different types of sparse matrix with suitable examples. Discuss the memory advantage of 3-tuple (triplet) representation over standard 2D array representation.',
-        'Solution / Key Points': '1. Lower/Upper Triangular Matrix, Tridiagonal Matrix, Diagonal Matrix.\n2. Triplet Representation: Row, Column, Value (3 * non-zero elements + 1 header). Saves significant space when density < 1/3.',
+        'Full Question Text': 'What is sparse matrix? Explain different types of sparse matrix with suitable examples. State different storage formats of sparse matrix.',
+        'Solution / Key Points': '1. A sparse matrix is a matrix in which most of the elements are zero.\n2. Formats: 3-Tuple (Row, Column, Value), Linked List node representation.\n3. Benefits: Reduces memory consumption from O(N*M) to O(non-zero elements).',
+      },
+      {
+        'Year & Exam': 'Mid Term October 2024',
+        'Unit Number': 'UNIT 2',
+        'Mapped Topic': 'Stack Applications & Infix to Postfix',
+        'Full Question Text': 'What are polish notations in stack? Explain the complete conversion algorithm from Infix expression to Postfix notation with a trace table.',
+        'Solution / Key Points': 'Polish notations include Prefix, Infix, and Postfix. Postfix eliminates ambiguity of operator precedence without needing parentheses.',
       },
       {
         'Year & Exam': 'March 2020 First-Term Examination (ETCS-304)',
@@ -100,13 +107,6 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         'Mapped Topic': 'Operating System Structures & System Calls',
         'Full Question Text': 'What are System Calls? Explain the step-by-step mechanism of handling a system call with the help of a dual-mode (User Mode vs Kernel Mode) transition diagram.',
         'Solution / Key Points': 'System calls provide an interface between a user program and OS kernel. Transition happens via software trap instruction setting mode bit to 0 (Kernel Mode).',
-      },
-      {
-        'Year & Exam': 'May 2023 End-Term (ETCS-304)',
-        'Unit Number': 'UNIT 2',
-        'Mapped Topic': 'Process Synchronization & Semaphores',
-        'Full Question Text': 'Define Critical Section Problem. State the three mandatory requirements that any valid synchronization solution must satisfy (Mutual Exclusion, Progress, Bounded Waiting).',
-        'Solution / Key Points': '1. Mutual Exclusion: Only one process inside critical section.\n2. Progress: Next process selection cannot be delayed indefinitely.\n3. Bounded Waiting: Bound on entry attempts.',
       },
       {
         'Year & Exam': 'December 2023 End-Sem (ETCS-304)',
@@ -170,7 +170,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             return undefined;
           };
 
-          const yearExam = findVal('yearexam', 'year', 'exam', 'session', 'pyq', 'source') || 'Practice Question';
+          const yearExam = findVal('yearexam', 'year', 'exam', 'session', 'pyq', 'source') || 'University Exam';
           const unitNumber = findVal('unitnumber', 'unitno', 'unit', 'module', 'chapter') || 'UNIT 1';
           const mappedTopic = findVal('mappedtopic', 'topic', 'topicname', 'subtopic', 'concept') || 'Core Topic';
           const fullQuestionText = findVal('fullquestiontext', 'questiontext', 'question', 'problem', 'statement', 'qtext') || `Question ${idx + 1}`;
@@ -225,7 +225,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       const themeColors = {
         dark_tech: {
           bg: '090D16',          // Dark luxury matte slate
-          cardBorder: '1E293B',  // Hairline border
+          cardBg: '121829',      // Elevated surface
+          cardBorder: '232E4A',  // Hairline border
           accentGradient: '6366F1', // Indigo accent
           textPrimary: 'FFFFFF',
           textSecondary: '94A3B8',
@@ -238,6 +239,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         },
         clean_minimal: {
           bg: 'F8FAFC',
+          cardBg: 'FFFFFF',
           cardBorder: 'E2E8F0',
           accentGradient: '4F46E5',
           textPrimary: '0F172A',
@@ -251,6 +253,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         },
         deep_navy: {
           bg: '061426',
+          cardBg: '0D213A',
           cardBorder: '1A3A60',
           accentGradient: '00ADB5',
           textPrimary: 'FFFFFF',
@@ -324,7 +327,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           w: 3.3,
           h: 0.7,
           rectRadius: 0.1,
-          fill: { color: themeColors.bg },
+          fill: { color: themeColors.cardBg },
           line: { color: themeColors.cardBorder, width: 1 },
         });
 
@@ -406,29 +409,29 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           fontFace: 'Calibri',
         });
 
-        // 1-QUESTION-PER-PAGE SLIDES (CLEAN, PROPORTIONAL & BALANCED)
+        // 1-QUESTION-PER-PAGE SLIDES (HERO GRAND CARD LAYOUT)
         for (let qIdx = 0; qIdx < topicQuestions.length; qIdx++) {
           const q = topicQuestions[qIdx];
           const slide = pptx.addSlide();
           slide.background = { color: themeColors.bg };
 
-          // 1. TOP HEADER SECTION (Row 1: Unit + Topic, Row 2: Year & Exam)
-          // Unit Tag Pill
+          // 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right)
+          // Unit Tag
           slide.addShape(pptx.ShapeType.roundRect, {
             x: 0.8,
-            y: 0.42,
-            w: 1.3,
-            h: 0.36,
-            rectRadius: 0.06,
+            y: 0.45,
+            w: 1.4,
+            h: 0.42,
+            rectRadius: 0.08,
             fill: { color: themeColors.unitTagBg },
           });
 
           slide.addText(q.unitNumber.toUpperCase(), {
             x: 0.8,
-            y: 0.42,
-            w: 1.3,
-            h: 0.36,
-            fontSize: 10,
+            y: 0.45,
+            w: 1.4,
+            h: 0.42,
+            fontSize: 11,
             bold: true,
             color: themeColors.unitTagText,
             align: 'center',
@@ -438,36 +441,35 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
           // Mapped Topic Name
           slide.addText(q.mappedTopic, {
-            x: 2.25,
-            y: 0.42,
-            w: 10.28,
-            h: 0.36,
-            fontSize: 12,
+            x: 2.35,
+            y: 0.45,
+            w: 5.5,
+            h: 0.42,
+            fontSize: 13,
             bold: true,
             color: themeColors.textSecondary,
             valign: 'middle',
             fontFace: 'Calibri',
           });
 
-          // Row 2: Year & Exam Tag Pill (on its own dedicated row)
+          // Year & Exam Highlight Tag (Top Right)
           if (q.yearExam) {
-            const badgeWidth = Math.min(11.73, Math.max(3.5, q.yearExam.length * 0.11 + 0.6));
             slide.addShape(pptx.ShapeType.roundRect, {
-              x: 0.8,
-              y: 0.9,
-              w: badgeWidth,
-              h: 0.36,
-              rectRadius: 0.06,
+              x: 8.0,
+              y: 0.42,
+              w: 4.53,
+              h: 0.48,
+              rectRadius: 0.08,
               fill: { color: themeColors.examBadgeBg },
               line: { color: themeColors.examBadgeBorder, width: 1 },
             });
 
             slide.addText(`🏷️ ${q.yearExam}`, {
-              x: 0.8,
-              y: 0.9,
-              w: badgeWidth,
-              h: 0.36,
-              fontSize: 10,
+              x: 8.0,
+              y: 0.42,
+              w: 4.53,
+              h: 0.48,
+              fontSize: 11,
               bold: true,
               color: themeColors.examBadgeText,
               align: 'center',
@@ -476,73 +478,74 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             });
           }
 
-          // Header Divider Line
-          const dividerY = q.yearExam ? 1.4 : 0.95;
-          slide.addShape(pptx.ShapeType.rect, {
+          // 2. MAIN GRAND HERO QUESTION CONTAINER
+          slide.addShape(pptx.ShapeType.roundRect, {
             x: 0.8,
-            y: dividerY,
+            y: 1.15,
             w: 11.73,
-            h: 0.015,
-            fill: { color: themeColors.cardBorder },
+            h: 5.2,
+            rectRadius: 0.12,
+            fill: { color: themeColors.cardBg },
+            line: { color: themeColors.cardBorder, width: 1.2 },
           });
 
-          // 2. HERO QUESTION CONTENT (Adaptive Font Sizing)
-          const qLength = q.fullQuestionText.length;
-          const dynamicFontSize = qLength > 280 ? 13 : qLength > 180 ? 15 : qLength > 90 ? 17 : 19;
-          const questionStartY = dividerY + 0.3;
-
-          // Question Header Label
-          slide.addText(`QUESTION ${qIdx + 1}`, {
+          // Left Accent Stripe
+          slide.addShape(pptx.ShapeType.roundRect, {
             x: 0.8,
-            y: questionStartY,
-            w: 4.0,
-            h: 0.35,
-            fontSize: 12,
+            y: 1.15,
+            w: 0.14,
+            h: 5.2,
+            rectRadius: 0.05,
+            fill: { color: themeColors.accentGradient },
+          });
+
+          // Question Label
+          slide.addText(`QUESTION ${qIdx + 1}`, {
+            x: 1.25,
+            y: 1.5,
+            w: 3.5,
+            h: 0.45,
+            fontSize: 16,
             bold: true,
             color: themeColors.accentGradient,
             fontFace: 'Arial',
           });
 
+          // Dynamic Font Sizing for Question Text
+          const qLen = q.fullQuestionText.length;
+          const pptFontSize = qLen > 240 ? 15 : qLen > 140 ? 18 : 20;
+
           // Full Question Text
           slide.addText(q.fullQuestionText, {
-            x: 0.8,
-            y: questionStartY + 0.45,
-            w: 11.73,
-            h: 6.4 - (questionStartY + 0.45),
-            fontSize: dynamicFontSize,
+            x: 1.25,
+            y: 2.05,
+            w: 10.9,
+            h: 3.9,
+            fontSize: pptFontSize,
             bold: true,
             color: themeColors.textPrimary,
             fontFace: 'Calibri',
-            valign: 'top',
-            lineSpacingMultiple: 1.2,
-          });
-
-          // Bottom Divider Line
-          slide.addShape(pptx.ShapeType.rect, {
-            x: 0.8,
-            y: 6.55,
-            w: 11.73,
-            h: 0.015,
-            fill: { color: themeColors.cardBorder },
+            valign: 'middle',
+            lineSpacingMultiple: 1.25,
           });
 
           // 3. FOOTER
           slide.addText(`Apna Engineering Wallah • ${subjectName}`, {
             x: 0.8,
-            y: 6.75,
+            y: 6.8,
             w: 6.0,
             h: 0.35,
-            fontSize: 9,
+            fontSize: 10,
             color: themeColors.textMuted,
             fontFace: 'Calibri',
           });
 
           slide.addText(`Question ${qIdx + 1} of ${topicQuestions.length} (Overall Q${globalCounter}) • ${q.unitNumber}`, {
             x: 7.0,
-            y: 6.75,
+            y: 6.8,
             w: 5.53,
             h: 0.35,
-            fontSize: 9,
+            fontSize: 10,
             color: themeColors.textMuted,
             align: 'right',
             fontFace: 'Calibri',
@@ -583,7 +586,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               w: 11.73,
               h: 1.3,
               rectRadius: 0.1,
-              fill: { color: themeColors.bg },
+              fill: { color: themeColors.cardBg },
               line: { color: themeColors.cardBorder, width: 1 },
             });
 
@@ -603,7 +606,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               w: 11.73,
               h: 3.9,
               rectRadius: 0.1,
-              fill: { color: themeColors.bg },
+              fill: { color: themeColors.cardBg },
               line: { color: '34D399', width: 1.2 },
             });
 
@@ -638,7 +641,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const currentPreviewQuestion = filteredQuestions[activeSlideIndex];
 
   return (
-    <div className="w-full px-4 md:px-6 py-6 space-y-6 text-slate-200" style={{ overflowX: 'hidden', boxSizing: 'border-box' }}>
+    <div className="w-full max-w-full px-3 sm:px-6 py-6 space-y-6 text-slate-200 overflow-hidden box-border">
       
       {/* TOAST FEEDBACK */}
       {successToast && (
@@ -648,7 +651,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       )}
 
       {/* HEADER BANNER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 w-full min-w-0">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold shrink-0">
@@ -659,7 +662,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1 truncate">
-            Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • Widescreen 16:9
+            Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • Broadcast 16:9
           </p>
         </div>
 
@@ -696,7 +699,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
       {/* MAIN WORKSPACE */}
       {questions.length === 0 ? (
-        <div className="p-8 sm:p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-5 min-w-0">
+        <div className="p-8 sm:p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-5 w-full">
           <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto text-2xl">
             📊
           </div>
@@ -734,14 +737,14 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 <div className="font-bold text-amber-400 flex items-center gap-1">
                   <Calendar className="w-3 h-3" /> Year & Exam
                 </div>
-                <div className="text-[11px] text-slate-400">e.g. <em>Mid Term October 2024</em></div>
+                <div className="text-[11px] text-slate-400">e.g. <em>End Term Feb 2023</em></div>
               </div>
 
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
                 <div className="font-bold text-indigo-400 flex items-center gap-1">
                   <Layers className="w-3 h-3" /> Unit Number
                 </div>
-                <div className="text-[11px] text-slate-400">e.g. <em>UNIT 1</em>, <em>UNIT 2</em>, <em>Module 3</em></div>
+                <div className="text-[11px] text-slate-400">e.g. <em>UNIT 2</em>, <em>Module 3</em></div>
               </div>
 
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
@@ -761,10 +764,10 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minWidth: 0, width: '100%' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full min-w-0">
           
-          {/* LEFT COLUMN */}
-          <div className="space-y-4" style={{ minWidth: 0, overflow: 'hidden' }}>
+          {/* LEFT COLUMN: PRESENTATION SETTINGS & FILTER */}
+          <div className="space-y-4 min-w-0">
             
             {/* DECK CONFIGURATION */}
             <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 space-y-4 text-xs">
@@ -924,8 +927,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </div>
           </div>
 
-          {/* RIGHT COLUMN: SLIDE PREVIEW */}
-          <div className="lg:col-span-2 space-y-4" style={{ minWidth: 0, overflow: 'hidden' }}>
+          {/* RIGHT COLUMN: 100% CONTAINED BROADCAST SLIDE CANVAS PREVIEW */}
+          <div className="lg:col-span-2 space-y-4 min-w-0 w-full overflow-hidden">
             
             {/* SLIDE NAVIGATION STRIP */}
             <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl px-4 py-2 text-xs min-w-0">
@@ -954,66 +957,73 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               </div>
             </div>
 
-            {/* SLIDE CANVAS PREVIEW — STACKED HEADER, NO OVERFLOW */}
+            {/* LIVE 16:9 SLIDE CANVAS PREVIEW (GRAND HERO BROADCAST QUALITY) */}
             {currentPreviewQuestion ? (
               <div
-                style={{ aspectRatio: '16/9', boxSizing: 'border-box', overflow: 'hidden' }}
-                className={`w-full rounded-2xl border flex flex-col shadow-2xl transition-all ${
+                style={{
+                  aspectRatio: '16/9',
+                  boxSizing: 'border-box',
+                  maxWidth: '100%',
+                }}
+                className={`w-full rounded-2xl border p-4 sm:p-6 md:p-7 flex flex-col justify-between shadow-2xl relative overflow-hidden transition-all ${
                   theme === 'dark_tech'
-                    ? 'bg-[#090D16] border-[#1E293B]'
+                    ? 'bg-gradient-to-br from-[#0c1220] via-[#080c18] to-[#04060d] border-[#1E293B] text-slate-100'
                     : theme === 'clean_minimal'
-                    ? 'bg-[#F8FAFC] border-[#E2E8F0]'
-                    : 'bg-[#061426] border-[#1A3A60]'
+                    ? 'bg-gradient-to-br from-[#ffffff] via-[#f8fafc] to-[#f1f5f9] border-[#E2E8F0] text-slate-900'
+                    : 'bg-gradient-to-br from-[#08182b] via-[#061426] to-[#030a14] border-[#1A3A60] text-white'
                 }`}
               >
-                {/* HEADER SECTION — stacked into 2 rows so nothing overflows */}
-                <div className="px-5 pt-3 pb-2 border-b border-white/10" style={{ flexShrink: 0 }}>
-                  {/* Row 1: Unit pill + Mapped Topic */}
-                  <div className="flex items-center gap-2 mb-1.5" style={{ overflow: 'hidden' }}>
-                    <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-black font-mono tracking-widest uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                {/* 1. TOP HEADER BAR: UNIT + TOPIC (Left) & YEAR & EXAM BADGE (Right) */}
+                <div className="flex items-center justify-between gap-2.5 pb-2.5 border-b border-white/10 w-full min-w-0">
+                  {/* Left: Unit Pill & Topic */}
+                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                    <span className="shrink-0 px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-black font-mono tracking-wider uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
                       {currentPreviewQuestion.unitNumber}
                     </span>
-                    <span className="text-slate-300 font-semibold truncate" style={{ fontSize: '11px' }}>
+                    <span className="text-xs sm:text-sm text-slate-200 font-bold truncate">
                       {currentPreviewQuestion.mappedTopic}
                     </span>
                   </div>
-                  {/* Row 2: Year & Exam — full width, no overflow possible */}
+
+                  {/* Right: Year & Exam Badge */}
                   {currentPreviewQuestion.yearExam && (
-                    <div style={{ overflow: 'hidden' }}>
-                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-900/40 text-amber-300 border border-amber-700/50 truncate max-w-full">
+                    <div className="shrink-0 max-w-[42%] text-right overflow-hidden">
+                      <span
+                        className="inline-block px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-bold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 truncate max-w-full shadow-sm"
+                        title={currentPreviewQuestion.yearExam}
+                      >
                         🏷️ {currentPreviewQuestion.yearExam}
                       </span>
                     </div>
                   )}
                 </div>
 
-                {/* BODY: Question text */}
-                <div className="flex-1 flex flex-col justify-center px-5 py-3" style={{ minHeight: 0, overflow: 'hidden' }}>
-                  <div className="font-black font-mono tracking-widest uppercase mb-1.5 text-indigo-400" style={{ fontSize: '11px' }}>
-                    QUESTION {activeSlideIndex + 1}
-                  </div>
-                  <div
-                    className="font-bold leading-relaxed text-slate-100"
-                    style={{
-                      fontSize: 'clamp(0.72rem, 1.35vw, 1.05rem)',
-                      overflow: 'hidden',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 6,
-                      WebkitBoxOrient: 'vertical',
-                    }}
-                  >
-                    {currentPreviewQuestion.fullQuestionText}
+                {/* 2. GRAND HERO QUESTION CARD */}
+                <div className="flex-1 my-2.5 sm:my-3 rounded-xl bg-slate-950/80 border border-slate-800/80 p-4 sm:p-6 flex flex-col justify-center relative overflow-hidden shadow-inner min-h-0">
+                  {/* Left Accent Glow Stripe */}
+                  <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-gradient-to-b from-indigo-500 via-purple-500 to-indigo-600" />
+                  
+                  <div className="pl-3 sm:pl-4 space-y-1.5 sm:space-y-2 min-w-0 overflow-hidden">
+                    <div className="text-indigo-400 font-black text-xs sm:text-sm font-mono tracking-widest uppercase">
+                      QUESTION {activeSlideIndex + 1}
+                    </div>
+                    <div
+                      className="font-bold leading-relaxed text-slate-100 break-words text-sm sm:text-base md:text-lg lg:text-xl line-clamp-6"
+                      style={{
+                        wordBreak: 'break-word',
+                        overflowWrap: 'break-word',
+                      }}
+                    >
+                      {currentPreviewQuestion.fullQuestionText}
+                    </div>
                   </div>
                 </div>
 
-                {/* FOOTER */}
-                <div
-                  className="flex items-center justify-between px-5 py-2 border-t border-white/10 text-slate-500"
-                  style={{ flexShrink: 0, fontSize: '10px', overflow: 'hidden' }}
-                >
+                {/* 3. SLIDE FOOTER */}
+                <div className="flex items-center justify-between pt-2 border-t border-white/10 text-[10px] sm:text-xs text-slate-400 w-full min-w-0">
                   <span className="truncate mr-2">Apna Engineering Wallah • {subjectName}</span>
                   <span className="font-mono shrink-0">
-                    Q{activeSlideIndex + 1} / {filteredQuestions.length}
+                    Question {activeSlideIndex + 1} of {filteredQuestions.length} • {currentPreviewQuestion.unitNumber}
                   </span>
                 </div>
               </div>
