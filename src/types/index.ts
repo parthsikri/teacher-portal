@@ -10,8 +10,10 @@ export interface User {
   role: UserRole;
   department: string;
   subject: string;
-  dailyTargetMinutes: number; // Minimum required lecture recording time per day in minutes (e.g. 120 min)
-  dailyLimit?: number;        // Backwards compatibility
+  dailyTargetMinutes: number;    // Minimum required lecture recording time per day in minutes (e.g. 120 min)
+  dailyUploadCutoffTime?: string; // Standard fixed daily upload cutoff time (e.g. "20:00" / "08:00 PM") set once upon first login
+  hasSetInitialCommitment?: boolean; // Set to true once the teacher sets their initial commitment time
+  dailyLimit?: number;           // Backwards compatibility
 }
 
 export interface DailyCommitment {

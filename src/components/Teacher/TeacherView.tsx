@@ -268,8 +268,9 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           </div>
 
-          {/* COMMITTED UPLOAD SCHEDULE BANNER */}
+          {/* DAILY UPLOAD CUTOFF SCHEDULE BANNER */}
           {(() => {
+            const cutoffTime = teacher.dailyUploadCutoffTime || dailyCommitment?.promisedTime;
             const isMissed = StorageService.isDailyDeadlineMissed(teacher.teacherId);
             const isCompleted = minutesRecordedToday >= targetMinutes;
 
@@ -283,32 +284,30 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                     isMissed && !isCompleted
                       ? 'bg-red-500/10 border border-red-500/30 text-red-400'
-                      : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                      : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400'
                   }`}>
                     <Clock className="w-3.5 h-3.5" />
                   </div>
                   <div className="space-y-0.5">
                     <div className="font-semibold text-slate-200 flex items-center gap-2">
-                      <span>Today's Upload Deadline:</span>
+                      <span>Daily Upload Cutoff:</span>
                       <span className="font-mono text-amber-400 font-bold">
-                        {dailyCommitment ? formatDisplayTime(dailyCommitment.promisedTime) : 'Not committed yet'}
+                        {cutoffTime ? formatDisplayTime(cutoffTime) : 'Not configured yet'}
                       </span>
-                      {dailyCommitment && (
+                      {cutoffTime && (
                         <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
                           isMissed && !isCompleted
                             ? 'text-red-400 bg-red-500/10 border-red-500/30'
                             : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
                         }`}>
-                          {isMissed && !isCompleted ? '⚠️ Overdue (Not On Time)' : '🔒 Locked Firm'}
+                          {isMissed && !isCompleted ? '⚠️ Overdue (Not On Time)' : '🔒 Fixed Schedule'}
                         </span>
                       )}
                     </div>
                     <p className="text-[11px] text-slate-400">
                       {isMissed && !isCompleted
-                        ? 'Passed today\'s promised deadline. Uploads recorded now will be marked as Not On Time.'
-                        : dailyCommitment?.note 
-                        ? `"${dailyCommitment.note}"` 
-                        : 'Committed once per day. Uploads after this time are marked as Not On Time.'}
+                        ? 'Passed your daily upload cutoff time. Uploads completed now will be marked as Not On Time.'
+                        : 'Fixed daily deadline configured on first login. Uploads submitted after this time will be marked as Not On Time.'}
                     </p>
                   </div>
                 </div>
@@ -317,7 +316,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   onClick={onOpenCommitmentModal}
                   className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg transition-colors text-xs self-start sm:self-auto shrink-0"
                 >
-                  {dailyCommitment ? 'View Rule' : 'Set Upload Time →'}
+                  {cutoffTime ? 'View Schedule' : 'Set Daily Cutoff →'}
                 </button>
               </div>
             );

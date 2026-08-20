@@ -177,9 +177,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
 
-              {/* COMMITTED UPLOAD TIME SHORTCUT */}
+              {/* PERMANENT DAILY CUTOFF SHORTCUT */}
               {(() => {
-                const commitment = StorageService.getDailyCommitment(currentUser.teacherId);
+                const cutoff = currentUser.dailyUploadCutoffTime || StorageService.getDailyCommitment(currentUser.teacherId)?.promisedTime;
                 const formatTime = (time24?: string) => {
                   if (!time24) return '';
                   const [hours, minutes] = time24.split(':').map(Number);
@@ -193,11 +193,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     onClick={onOpenCommitmentModal}
                     className="w-full py-1.5 px-2.5 rounded-lg bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 text-slate-300 text-[11px] flex items-center justify-between transition-colors"
-                    title="Change upload commitment time"
+                    title="View daily upload cutoff schedule"
                   >
-                    <span className="text-slate-400">Upload by:</span>
+                    <span className="text-slate-400">Daily Cutoff:</span>
                     <span className="font-mono text-amber-400 font-bold">
-                      {commitment ? formatTime(commitment.promisedTime) : 'Set Time →'}
+                      {cutoff ? formatTime(cutoff) : 'Set Cutoff →'}
                     </span>
                   </button>
                 );

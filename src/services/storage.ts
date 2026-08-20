@@ -238,6 +238,8 @@ export const StorageService = {
                   department: u.department || existing.department || 'Engineering',
                   subject: u.subject || existing.subject || 'Engineering',
                   dailyTargetMinutes: u.dailyTargetMinutes || existing.dailyTargetMinutes || (u.dailyLimit ? u.dailyLimit * 30 : 120),
+                  dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
+                  hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
                   dailyLimit: u.dailyLimit || existing.dailyLimit || 4,
                 });
               }
@@ -832,7 +834,29 @@ export const StorageService = {
     return commitment;
   },
 
-  // Verifies if an upload right now is on time (checks both topic deadline and today's committed upload time)
+  // Updates permanent daily upload cutoff time (configured once upon first login)
+  updateTeacherCutoffTime(teacherId: string, cutoffTime: string): User | null {
+    const users = this.getUsers();
+    const index = users.findIndex((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    if (index === -1) return null;
+
+    users[index].dailyUploadCutoffTime = cutoffTime.trim();
+    users[index].hasSetInitialCommitment = true;
+    this.saveUsers(users);
+
+    const currentUser = this.getCurrentUser();
+    if (currentUser && currentUser.teacherId.toUpperCase() === teacherId.toUpperCase()) {
+      this.setCurrentUser({ 
+        ...currentUser, 
+        dailyUploadCutoffTime: cutoffTime.trim(), 
+        hasSetInitialCommitment: true 
+      });
+    }
+
+    return users[index];
+  },
+
+  // Verifies if an upload right now is on time (checks both topic deadline and the teacher's standard daily cutoff time)
   isUploadOnTime(teacherId: string, topicDeadlineDate: string): boolean {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -842,29 +866,33 @@ export const StorageService = {
       return false;
     }
 
-    // 2. Check today's committed upload time (once committed, teacher must upload before this time)
-    const commitment = this.getDailyCommitment(teacherId, todayStr);
-    if (commitment && commitment.promisedTime) {
-      const [hours, minutes] = commitment.promisedTime.split(':').map(Number);
+    // 2. Check teacher's permanent daily upload cutoff time (set once on first login)
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const cutoffTime = teacher?.dailyUploadCutoffTime;
+
+    if (cutoffTime) {
+      const [hours, minutes] = cutoffTime.split(':').map(Number);
       const deadlineDateObj = new Date();
       deadlineDateObj.setHours(hours, minutes, 59, 999);
 
       if (now > deadlineDateObj) {
-        return false; // Missed today's committed time!
+        return false; // Missed standard daily upload cutoff time!
       }
     }
 
     return true;
   },
 
-  // Checks if a teacher's committed upload deadline has passed today
+  // Checks if a teacher's permanent daily cutoff time has passed today
   isDailyDeadlineMissed(teacherId: string): boolean {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const commitment = this.getDailyCommitment(teacherId, todayStr);
-    if (!commitment || !commitment.promisedTime) return false;
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const cutoffTime = teacher?.dailyUploadCutoffTime;
+    if (!cutoffTime) return false;
 
-    const [hours, minutes] = commitment.promisedTime.split(':').map(Number);
+    const [hours, minutes] = cutoffTime.split(':').map(Number);
     const deadlineDateObj = new Date();
     deadlineDateObj.setHours(hours, minutes, 59, 999);
 

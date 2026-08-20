@@ -21,10 +21,10 @@ export const App: React.FC = () => {
     setCurrentUser(user);
     if (user) {
       setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
-      // If teacher logged in and hasn't set today's upload commitment, prompt them
+      // Prompt ONLY if teacher is logging in for the first time without a set cutoff time
       if (user.role === 'teacher') {
-        const commitment = StorageService.getDailyCommitment(user.teacherId);
-        if (!commitment) {
+        const needsFirstTimeSetup = !user.hasSetInitialCommitment && !user.dailyUploadCutoffTime;
+        if (needsFirstTimeSetup) {
           setShowCommitmentModal(true);
         }
       }
@@ -36,10 +36,10 @@ export const App: React.FC = () => {
     setCurrentUser(user);
     setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
     
-    // Check if teacher needs to set today's upload time commitment
+    // Prompt ONLY on first-time login
     if (user.role === 'teacher') {
-      const commitment = StorageService.getDailyCommitment(user.teacherId);
-      if (!commitment) {
+      const needsFirstTimeSetup = !user.hasSetInitialCommitment && !user.dailyUploadCutoffTime;
+      if (needsFirstTimeSetup) {
         setShowCommitmentModal(true);
       }
     }

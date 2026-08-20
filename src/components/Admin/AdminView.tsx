@@ -600,9 +600,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                     <div className="pt-2 border-t border-slate-800/60 space-y-1">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">Promised Time:</span>
-                        <span className={`font-mono font-bold ${commitment ? 'text-amber-400' : 'text-slate-500 italic'}`}>
-                          {commitment ? formatTime(commitment.promisedTime) : 'Not committed yet'}
+                        <span className="text-slate-400">Daily Cutoff:</span>
+                        <span className={`font-mono font-bold ${
+                          (t.dailyUploadCutoffTime || commitment) ? 'text-amber-400' : 'text-slate-500 italic'
+                        }`}>
+                          {t.dailyUploadCutoffTime 
+                            ? formatTime(t.dailyUploadCutoffTime) 
+                            : commitment 
+                            ? formatTime(commitment.promisedTime) 
+                            : 'Pending 1st Login'}
                         </span>
                       </div>
 
@@ -954,9 +960,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </div>
                       </div>
 
-                      {/* TODAY'S COMMITTED UPLOAD TIME */}
+                      {/* PERMANENT DAILY UPLOAD CUTOFF TIME */}
                       {(() => {
-                        const commitment = StorageService.getDailyCommitment(t.teacherId);
+                        const cutoff = t.dailyUploadCutoffTime || StorageService.getDailyCommitment(t.teacherId)?.promisedTime;
                         const formatTime = (time24?: string) => {
                           if (!time24) return '';
                           const [hours, minutes] = time24.split(':').map(Number);
@@ -968,9 +974,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                         return (
                           <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                            <span className="text-slate-400">Promised Upload:</span>
+                            <span className="text-slate-400">Daily Cutoff:</span>
                             <span className="font-mono font-bold text-amber-400">
-                              {commitment ? formatTime(commitment.promisedTime) : 'Not Set Yet'}
+                              {cutoff ? formatTime(cutoff) : 'Pending 1st Login'}
                             </span>
                           </div>
                         );

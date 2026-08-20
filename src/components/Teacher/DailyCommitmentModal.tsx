@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Clock, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { Clock, CheckCircle2, Sparkles, ShieldAlert, X } from 'lucide-react';
 
 interface DailyCommitmentModalProps {
   teacher: User;
@@ -16,11 +16,9 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
   onSuccess,
   isMandatoryLoginPrompt = false,
 }) => {
-  const existingCommitment = StorageService.getDailyCommitment(teacher.teacherId);
-  const [selectedTime, setSelectedTime] = useState<string>(
-    existingCommitment?.promisedTime || '20:00'
-  );
-  const [note, setNote] = useState<string>(existingCommitment?.note || '');
+  const currentCutoff = teacher.dailyUploadCutoffTime || '20:00';
+  const [selectedTime, setSelectedTime] = useState<string>(currentCutoff);
+  const [note, setNote] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   // Quick preset times
@@ -44,21 +42,26 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTime) {
-      setErrorMsg('Please select or specify a promised upload time.');
+      setErrorMsg('Please select or specify your daily upload cutoff time.');
       return;
     }
 
+    // 1. Permanently update the teacher's profile cutoff time (set once on first login)
+    StorageService.updateTeacherCutoffTime(teacher.teacherId, selectedTime);
+
+    // 2. Also register today's commitment
     StorageService.saveDailyCommitment(
       teacher.teacherId,
       teacher.name,
       selectedTime,
-      note.trim() || undefined
+      note.trim() || 'Initial first-time login commitment'
     );
 
     onSuccess();
   };
 
-  if (existingCommitment && !isMandatoryLoginPrompt) {
+  // If already set and opened manually, show locked info
+  if (teacher.hasSetInitialCommitment && teacher.dailyUploadCutoffTime && !isMandatoryLoginPrompt) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 my-8">
@@ -68,7 +71,7 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
                 <Clock className="w-4 h-4" />
               </span>
               <h3 className="font-bold text-sm text-slate-100">
-                Today's Upload Deadline Locked
+                Daily Upload Cutoff Schedule
               </h3>
             </div>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-200">
@@ -78,22 +81,20 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
 
           <div className="p-4 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">Your Committed Time:</span>
+              <span className="text-slate-400">Fixed Daily Cutoff Time:</span>
               <span className="font-mono font-bold text-amber-400 text-sm">
-                {formatDisplayTime(existingCommitment.promisedTime)}
+                {formatDisplayTime(teacher.dailyUploadCutoffTime)}
               </span>
             </div>
-            {existingCommitment.note && (
-              <div className="text-[11px] text-slate-400 italic">
-                "{existingCommitment.note}"
-              </div>
-            )}
+            <p className="text-[11px] text-slate-400">
+              Configured during your initial account setup.
+            </p>
           </div>
 
           <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs rounded-xl flex items-center gap-2">
-            <span>🔒</span>
+            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
             <p>
-              Your daily upload commitment is fixed once submitted. Any lecture uploaded after <strong>{formatDisplayTime(existingCommitment.promisedTime)}</strong> will be marked as <strong>Not On Time</strong>.
+              Your daily cutoff time is fixed. Any lecture uploaded after <strong>{formatDisplayTime(teacher.dailyUploadCutoffTime)}</strong> on any day will be automatically marked as <strong>Not On Time</strong>.
             </p>
           </div>
 
@@ -111,7 +112,7 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-5 my-8">
         
         {/* MODAL HEADER */}
@@ -122,11 +123,11 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
                 <Clock className="w-4 h-4" />
               </span>
               <h3 className="font-bold text-sm text-slate-100">
-                Set Today's Upload Time Commitment
+                Initial Setup: Set Daily Upload Cutoff Time
               </h3>
             </div>
             <p className="text-xs text-slate-400">
-              {teacher.name} • {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+              {teacher.name} • {teacher.department}
             </p>
           </div>
 
@@ -143,12 +144,14 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div className="space-y-1.5">
             <label className="block text-slate-300 font-medium">
-              By what maximum time will you upload today's lecture recordings? *
+              By what time will you upload your recorded lectures daily? *
             </label>
-            <div className="p-2.5 bg-indigo-950/20 border border-indigo-500/20 rounded-xl text-indigo-300 text-[11px] space-y-0.5">
-              <p className="font-semibold">⚠️ One-Time Daily Commitment Rule:</p>
-              <p className="text-slate-400">
-                This deadline is set <strong>once per day</strong> and cannot be extended. Uploads completed after this time will be marked as <strong>Not On Time</strong>.
+            <div className="p-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl text-indigo-200 text-xs space-y-1">
+              <p className="font-bold flex items-center gap-1.5 text-amber-300">
+                <Sparkles className="w-3.5 h-3.5" /> One-Time Setup Rule:
+              </p>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                This cutoff time is set <strong>just once</strong> when you log in for the first time. It becomes your permanent daily delivery schedule. Any lecture uploaded after this cutoff will be marked as <strong>Not On Time</strong>.
               </p>
             </div>
           </div>
@@ -180,7 +183,7 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
           {/* EXACT CUSTOM TIME PICKER */}
           <div className="space-y-1.5 pt-1">
             <label className="block text-slate-400 font-medium text-[11px]">
-              Or specify exact custom time:
+              Or select exact daily cutoff time:
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -199,11 +202,11 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
           {/* OPTIONAL NOTE */}
           <div className="space-y-1.5">
             <label className="block text-slate-300 font-medium">
-              Note for Admin (Optional):
+              Standard Daily Schedule Note (Optional):
             </label>
             <input
               type="text"
-              placeholder="e.g. Will record after 4 PM lab session"
+              placeholder="e.g. Recording completed in afternoon academic slot"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-slate-700 text-xs"
@@ -228,7 +231,7 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
               </button>
             ) : (
               <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-indigo-400" /> Daily schedule check-in
+                <Sparkles className="w-3 h-3 text-indigo-400" /> First-time login setup
               </div>
             )}
 
@@ -236,7 +239,7 @@ export const DailyCommitmentModal: React.FC<DailyCommitmentModalProps> = ({
               type="submit"
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-md transition-colors flex items-center gap-1.5"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Confirm Deadline
+              <CheckCircle2 className="w-3.5 h-3.5" /> Save & Lock Daily Cutoff
             </button>
           </div>
         </form>
