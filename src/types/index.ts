@@ -14,6 +14,16 @@ export interface User {
   dailyLimit?: number;        // Backwards compatibility
 }
 
+export interface DailyCommitment {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  date: string;            // YYYY-MM-DD
+  promisedTime: string;    // e.g. "18:00" or "06:00 PM"
+  note?: string;           // Optional note e.g. "Will record and upload by 8 PM"
+  updatedAt: string;
+}
+
 export interface AdminRemark {
   id: string;
   lectureId: string;

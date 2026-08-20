@@ -1,10 +1,11 @@
-import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem } from '../types';
+import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_master';
 const USERS_KEY = 'aew_portal_users_master';
 const CURRENT_USER_KEY = 'aew_portal_session_master';
 const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_master';
 const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_master';
+const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_master';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
 // Initial Registered Faculty & Admin Roster with Daily Recording Target Minutes
@@ -773,6 +774,62 @@ export const StorageService = {
     const lectures = this.getLectures();
     const today = new Date().toISOString().split('T')[0];
     return lectures.filter((l) => l.teacherId.toUpperCase() === teacherId.toUpperCase() && l.createdAt.startsWith(today)).length;
+  },
+
+  // ─── DAILY UPLOAD TIME COMMITMENT (PROMISED DELIVERY TIME) ─────────────────
+  getDailyCommitments(): DailyCommitment[] {
+    const data = localStorage.getItem(DAILY_COMMITMENTS_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveDailyCommitments(commitments: DailyCommitment[]): void {
+    localStorage.setItem(DAILY_COMMITMENTS_KEY, JSON.stringify(commitments));
+  },
+
+  getDailyCommitment(teacherId: string, date?: string): DailyCommitment | null {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const list = this.getDailyCommitments();
+    return list.find(
+      (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase() && c.date === targetDate
+    ) || null;
+  },
+
+  saveDailyCommitment(
+    teacherId: string, 
+    teacherName: string, 
+    promisedTime: string, 
+    note?: string
+  ): DailyCommitment {
+    const targetDate = new Date().toISOString().split('T')[0];
+    const list = this.getDailyCommitments();
+    const existingIndex = list.findIndex(
+      (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase() && c.date === targetDate
+    );
+
+    const commitment: DailyCommitment = {
+      id: existingIndex !== -1 ? list[existingIndex].id : `comm-${Date.now()}`,
+      teacherId: teacherId.trim().toUpperCase(),
+      teacherName: teacherName.trim(),
+      date: targetDate,
+      promisedTime: promisedTime.trim(),
+      note: note?.trim() || undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existingIndex !== -1) {
+      list[existingIndex] = commitment;
+    } else {
+      list.unshift(commitment);
+    }
+
+    this.saveDailyCommitments(list);
+    return commitment;
   },
 
   // ─── PDF Storage ─────────────────────────────────────────────────────────────

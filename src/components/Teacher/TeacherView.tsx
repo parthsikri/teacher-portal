@@ -13,18 +13,33 @@ interface TeacherViewProps {
   currentPage: string;
   onPageChange: (page: string) => void;
   onOpenUpload: (prefillTopic?: AssignedTopic) => void;
+  onOpenCommitmentModal?: () => void;
 }
 
 export const TeacherView: React.FC<TeacherViewProps> = ({ 
   teacher, 
   currentPage, 
   onPageChange, 
-  onOpenUpload 
+  onOpenUpload,
+  onOpenCommitmentModal,
 }) => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [topicFilter, setTopicFilter] = useState<'all' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
   const [acknowledgedRemarks, setAcknowledgedRemarks] = useState<Set<string>>(new Set());
+
+  const dailyCommitment = useMemo(() => {
+    return StorageService.getDailyCommitment(teacher.teacherId);
+  }, [teacher.teacherId, refreshKey]);
+
+  const formatDisplayTime = (time24?: string) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const formattedHours = hours % 12 || 12;
+    const formattedMinutes = String(minutes).padStart(2, '0');
+    return `${formattedHours}:${formattedMinutes} ${period}`;
+  };
 
   const lectures = useMemo(() => {
     return StorageService.getLectures().filter((l) => l.teacherId.toUpperCase() === teacher.teacherId.toUpperCase());
@@ -234,11 +249,54 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </p>
             </div>
 
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                onClick={onOpenCommitmentModal}
+                className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium text-xs transition-colors flex items-center gap-1.5"
+                title="Change today's upload commitment time"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>{dailyCommitment ? `Upload by ${formatDisplayTime(dailyCommitment.promisedTime)}` : 'Set Upload Time'}</span>
+              </button>
+
+              <button
+                onClick={() => onOpenUpload()}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" /> Upload Lecture
+              </button>
+            </div>
+          </div>
+
+          {/* COMMITTED UPLOAD SCHEDULE BANNER */}
+          <div className="bg-slate-900/40 border border-slate-800/70 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="font-semibold text-slate-200 flex items-center gap-2">
+                  <span>Today's Upload Commitment:</span>
+                  <span className="font-mono text-amber-400 font-bold">
+                    {dailyCommitment ? formatDisplayTime(dailyCommitment.promisedTime) : 'Not committed yet'}
+                  </span>
+                  {dailyCommitment && (
+                    <span className="text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                      Confirmed
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  {dailyCommitment?.note ? `"${dailyCommitment.note}"` : 'Your promised time for uploading today\'s lecture recordings'}
+                </p>
+              </div>
+            </div>
+
             <button
-              onClick={() => onOpenUpload()}
-              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+              onClick={onOpenCommitmentModal}
+              className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg transition-colors text-xs self-start sm:self-auto shrink-0"
             >
-              <Plus className="w-3.5 h-3.5" /> Upload Lecture
+              {dailyCommitment ? 'Edit Time' : 'Set Upload Time →'}
             </button>
           </div>
 

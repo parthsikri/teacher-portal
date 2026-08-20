@@ -6,11 +6,13 @@ import { LoginModal } from './components/Auth/LoginModal';
 import { TeacherView } from './components/Teacher/TeacherView';
 import { AdminView } from './components/Admin/AdminView';
 import { UploadLectureModal } from './components/Teacher/UploadLectureModal';
+import { DailyCommitmentModal } from './components/Teacher/DailyCommitmentModal';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState<string>('dashboard');
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+  const [showCommitmentModal, setShowCommitmentModal] = useState<boolean>(false);
   const [activePrefillTopic, setActivePrefillTopic] = useState<AssignedTopic | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
@@ -19,6 +21,13 @@ export const App: React.FC = () => {
     setCurrentUser(user);
     if (user) {
       setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+      // If teacher logged in and hasn't set today's upload commitment, prompt them
+      if (user.role === 'teacher') {
+        const commitment = StorageService.getDailyCommitment(user.teacherId);
+        if (!commitment) {
+          setShowCommitmentModal(true);
+        }
+      }
     }
   }, []);
 
@@ -26,12 +35,21 @@ export const App: React.FC = () => {
     StorageService.setCurrentUser(user);
     setCurrentUser(user);
     setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+    
+    // Check if teacher needs to set today's upload time commitment
+    if (user.role === 'teacher') {
+      const commitment = StorageService.getDailyCommitment(user.teacherId);
+      if (!commitment) {
+        setShowCommitmentModal(true);
+      }
+    }
   };
 
   const handleLogout = () => {
     StorageService.setCurrentUser(null);
     setCurrentUser(null);
     setCurrentPage('dashboard');
+    setShowCommitmentModal(false);
   };
 
   const handleRefreshData = () => {
@@ -62,6 +80,7 @@ export const App: React.FC = () => {
             onPageChange={handlePageChange}
             onLogout={handleLogout}
             onRefreshData={handleRefreshData}
+            onOpenCommitmentModal={() => setShowCommitmentModal(true)}
           />
 
           {/* MAIN APPLICATION VIEW (OFFSET BY LEFT SIDEBAR) */}
@@ -79,10 +98,24 @@ export const App: React.FC = () => {
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
                   onOpenUpload={handleOpenUpload}
+                  onOpenCommitmentModal={() => setShowCommitmentModal(true)}
                 />
               )}
             </main>
           </div>
+
+          {/* DAILY UPLOAD COMMITMENT MODAL */}
+          {showCommitmentModal && currentUser.role === 'teacher' && (
+            <DailyCommitmentModal
+              teacher={currentUser}
+              onClose={() => setShowCommitmentModal(false)}
+              onSuccess={() => {
+                setShowCommitmentModal(false);
+                handleRefreshData();
+              }}
+              isMandatoryLoginPrompt={!StorageService.getDailyCommitment(currentUser.teacherId)}
+            />
+          )}
 
           {/* UPLOAD LECTURE MODAL */}
           {showUploadModal && currentUser.role === 'teacher' && (

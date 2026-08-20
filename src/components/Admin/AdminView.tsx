@@ -552,6 +552,78 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
             </div>
           )}
+
+          {/* TODAY'S FACULTY UPLOAD COMMITMENT SCHEDULES */}
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <h3 className="font-bold text-sm text-slate-100">
+                  Today's Faculty Upload Commitments
+                </h3>
+              </div>
+              <button
+                onClick={() => onPageChange('admin_faculty')}
+                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+              >
+                View Faculty Roster →
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              {teachers.map((t) => {
+                const commitment = StorageService.getDailyCommitment(t.teacherId);
+                const recordedMins = StorageService.getMinutesRecordedToday(t.teacherId);
+                const targetMins = t.dailyTargetMinutes || 120;
+                const isMet = recordedMins >= targetMins;
+
+                const formatTime = (time24?: string) => {
+                  if (!time24) return '';
+                  const [hours, minutes] = time24.split(':').map(Number);
+                  const period = hours >= 12 ? 'PM' : 'AM';
+                  const formattedHours = hours % 12 || 12;
+                  const formattedMinutes = String(minutes).padStart(2, '0');
+                  return `${formattedHours}:${formattedMinutes} ${period}`;
+                };
+
+                return (
+                  <div key={t.id} className="p-3 bg-slate-950/70 border border-slate-800/70 rounded-xl space-y-2 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-200 truncate">{t.name}</span>
+                        <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-1.5 py-0.2 rounded border border-indigo-500/20">
+                          {t.teacherId}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400">{t.subject}</div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/60 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Promised Time:</span>
+                        <span className={`font-mono font-bold ${commitment ? 'text-amber-400' : 'text-slate-500 italic'}`}>
+                          {commitment ? formatTime(commitment.promisedTime) : 'Not committed yet'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Progress:</span>
+                        <span className={isMet ? 'text-emerald-400 font-bold' : 'text-slate-300 font-medium'}>
+                          {recordedMins} / {targetMins} min {isMet ? '✓' : ''}
+                        </span>
+                      </div>
+
+                      {commitment?.note && (
+                        <p className="text-[10px] text-slate-400 italic bg-slate-900/60 p-1.5 rounded border border-slate-800/60 truncate">
+                          "{commitment.note}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -881,6 +953,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           </span>
                         </div>
                       </div>
+
+                      {/* TODAY'S COMMITTED UPLOAD TIME */}
+                      {(() => {
+                        const commitment = StorageService.getDailyCommitment(t.teacherId);
+                        const formatTime = (time24?: string) => {
+                          if (!time24) return '';
+                          const [hours, minutes] = time24.split(':').map(Number);
+                          const period = hours >= 12 ? 'PM' : 'AM';
+                          const formattedHours = hours % 12 || 12;
+                          const formattedMinutes = String(minutes).padStart(2, '0');
+                          return `${formattedHours}:${formattedMinutes} ${period}`;
+                        };
+
+                        return (
+                          <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                            <span className="text-slate-400">Promised Upload:</span>
+                            <span className="font-mono font-bold text-amber-400">
+                              {commitment ? formatTime(commitment.promisedTime) : 'Not Set Yet'}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <button

@@ -12,6 +12,7 @@ interface SidebarProps {
   onPageChange: (page: string) => void;
   onLogout: () => void;
   onRefreshData: () => void;
+  onOpenCommitmentModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -19,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentPage,
   onPageChange,
   onLogout,
+  onOpenCommitmentModal,
 }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -159,19 +161,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* BOTTOM USER PROFILE & LOGOUT */}
         <div className="p-4 border-t border-slate-800/60 space-y-3 text-xs">
           {currentUser.role === 'teacher' && (
-            <div className="p-3 bg-slate-950/60 border border-slate-800/70 rounded-xl space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Daily Target</span>
-                <span className={isTargetReached ? 'text-emerald-400 font-bold' : 'text-slate-200 font-semibold'}>
-                  {minutesRecordedToday} / {targetMinutes} min
-                </span>
+            <div className="space-y-2">
+              <div className="p-3 bg-slate-950/60 border border-slate-800/70 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Daily Target</span>
+                  <span className={isTargetReached ? 'text-emerald-400 font-bold' : 'text-slate-200 font-semibold'}>
+                    {minutesRecordedToday} / {targetMinutes} min
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${isTargetReached ? 'bg-emerald-400' : 'bg-indigo-500'}`}
+                    style={{ width: `${Math.min(100, (minutesRecordedToday / (targetMinutes || 1)) * 100)}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                <div
-                  className={`h-full transition-all ${isTargetReached ? 'bg-emerald-400' : 'bg-indigo-500'}`}
-                  style={{ width: `${Math.min(100, (minutesRecordedToday / (targetMinutes || 1)) * 100)}%` }}
-                />
-              </div>
+
+              {/* COMMITTED UPLOAD TIME SHORTCUT */}
+              {(() => {
+                const commitment = StorageService.getDailyCommitment(currentUser.teacherId);
+                const formatTime = (time24?: string) => {
+                  if (!time24) return '';
+                  const [hours, minutes] = time24.split(':').map(Number);
+                  const period = hours >= 12 ? 'PM' : 'AM';
+                  const formattedHours = hours % 12 || 12;
+                  const formattedMinutes = String(minutes).padStart(2, '0');
+                  return `${formattedHours}:${formattedMinutes} ${period}`;
+                };
+
+                return (
+                  <button
+                    onClick={onOpenCommitmentModal}
+                    className="w-full py-1.5 px-2.5 rounded-lg bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 text-slate-300 text-[11px] flex items-center justify-between transition-colors"
+                    title="Change upload commitment time"
+                  >
+                    <span className="text-slate-400">Upload by:</span>
+                    <span className="font-mono text-amber-400 font-bold">
+                      {commitment ? formatTime(commitment.promisedTime) : 'Set Time →'}
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
           )}
 
