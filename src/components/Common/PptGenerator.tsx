@@ -948,51 +948,58 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               </div>
             </div>
 
-            {/* LIVE 16:9 SLIDE CANVAS PREVIEW (CONTAINED & ZERO OVERFLOW) */}
+            {/* LIVE 16:9 SLIDE CANVAS PREVIEW — STRICTLY CONTAINED, ZERO OVERFLOW */}
             {currentPreviewQuestion ? (
-              <div className={`w-full aspect-[16/9] rounded-2xl border p-5 sm:p-7 md:p-8 flex flex-col justify-between shadow-2xl relative overflow-hidden box-border transition-all ${
-                theme === 'dark_tech'
-                  ? 'bg-[#090D16] border-[#1E293B] text-slate-100'
-                  : theme === 'clean_minimal'
-                  ? 'bg-[#F8FAFC] border-[#E2E8F0] text-slate-900'
-                  : 'bg-[#061426] border-[#1A3A60] text-white'
-              }`}>
-                
-                {/* 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right) */}
-                <div className="flex items-center justify-between border-b pb-3 border-slate-800/80 gap-3 w-full min-w-0">
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <span className="px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider shrink-0 font-mono">
+              <div
+                style={{ aspectRatio: '16/9', boxSizing: 'border-box' }}
+                className={`w-full rounded-2xl border flex flex-col shadow-2xl overflow-hidden transition-all ${
+                  theme === 'dark_tech'
+                    ? 'bg-[#090D16] border-[#1E293B] text-slate-100'
+                    : theme === 'clean_minimal'
+                    ? 'bg-[#F8FAFC] border-[#E2E8F0] text-slate-900'
+                    : 'bg-[#061426] border-[#1A3A60] text-white'
+                }`}
+              >
+                {/* TOP HEADER: Unit + Topic | Year&Exam Badge */}
+                <div className="flex items-center gap-2 px-5 py-3 border-b border-white/10" style={{ flexShrink: 0 }}>
+                  {/* Left: unit pill + topic */}
+                  <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                    <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-black font-mono tracking-widest uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 whitespace-nowrap">
                       {currentPreviewQuestion.unitNumber}
                     </span>
-                    <span className="text-xs sm:text-sm text-slate-300 font-semibold truncate">
+                    <span className="text-slate-300 font-semibold text-xs truncate">
                       {currentPreviewQuestion.mappedTopic}
                     </span>
                   </div>
 
+                  {/* Right: Year & Exam badge — hard capped at 40% of container */}
                   {currentPreviewQuestion.yearExam && (
-                    <div className="shrink-0 max-w-[45%] text-right">
-                      <span className="inline-block px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono truncate max-w-full shadow-sm">
-                        🏷️ {currentPreviewQuestion.yearExam}
-                      </span>
-                    </div>
+                    <span
+                      className="shrink-0 px-2.5 py-0.5 rounded text-[11px] font-bold font-mono bg-amber-900/50 text-amber-300 border border-amber-700/60 whitespace-nowrap overflow-hidden text-ellipsis"
+                      style={{ maxWidth: '38%' }}
+                      title={currentPreviewQuestion.yearExam}
+                    >
+                      🏷️ {currentPreviewQuestion.yearExam}
+                    </span>
                   )}
                 </div>
 
-                {/* 2. SEAMLESS QUESTION HERO BODY (No Nested Box, Full Balance) */}
-                <div className="flex-1 my-auto flex flex-col justify-center py-4 px-1 min-w-0">
-                  <div className="text-indigo-400 font-black text-xs sm:text-sm md:text-base font-mono tracking-wider uppercase mb-2 sm:mb-3">
+                {/* BODY: Question */}
+                <div className="flex-1 flex flex-col justify-center px-6 py-4 min-h-0 overflow-hidden">
+                  <div className="text-indigo-400 font-black text-xs font-mono tracking-widest uppercase mb-2">
                     QUESTION {activeSlideIndex + 1}
                   </div>
-                  <div className="text-sm sm:text-xl md:text-2xl lg:text-3xl font-bold leading-relaxed text-slate-100 line-clamp-6">
+                  <div className="font-bold leading-relaxed text-slate-100 overflow-hidden"
+                    style={{ fontSize: 'clamp(0.85rem, 2.2vw, 1.5rem)', display: '-webkit-box', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical' }}>
                     {currentPreviewQuestion.fullQuestionText}
                   </div>
                 </div>
 
-                {/* 3. SLIDE FOOTER */}
-                <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 text-[10px] sm:text-xs text-slate-400 w-full min-w-0">
+                {/* FOOTER */}
+                <div className="flex items-center justify-between px-5 py-2 border-t border-white/10 text-[10px] text-slate-500" style={{ flexShrink: 0 }}>
                   <span className="truncate mr-2">Apna Engineering Wallah • {subjectName}</span>
                   <span className="font-mono shrink-0">
-                    Question {activeSlideIndex + 1} of {filteredQuestions.length} • {currentPreviewQuestion.unitNumber}
+                    Q{activeSlideIndex + 1} of {filteredQuestions.length} • {currentPreviewQuestion.unitNumber}
                   </span>
                 </div>
               </div>
