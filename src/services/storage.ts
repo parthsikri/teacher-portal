@@ -832,6 +832,45 @@ export const StorageService = {
     return commitment;
   },
 
+  // Verifies if an upload right now is on time (checks both topic deadline and today's committed upload time)
+  isUploadOnTime(teacherId: string, topicDeadlineDate: string): boolean {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // 1. Check topic deadline date
+    if (topicDeadlineDate < todayStr) {
+      return false;
+    }
+
+    // 2. Check today's committed upload time (once committed, teacher must upload before this time)
+    const commitment = this.getDailyCommitment(teacherId, todayStr);
+    if (commitment && commitment.promisedTime) {
+      const [hours, minutes] = commitment.promisedTime.split(':').map(Number);
+      const deadlineDateObj = new Date();
+      deadlineDateObj.setHours(hours, minutes, 59, 999);
+
+      if (now > deadlineDateObj) {
+        return false; // Missed today's committed time!
+      }
+    }
+
+    return true;
+  },
+
+  // Checks if a teacher's committed upload deadline has passed today
+  isDailyDeadlineMissed(teacherId: string): boolean {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const commitment = this.getDailyCommitment(teacherId, todayStr);
+    if (!commitment || !commitment.promisedTime) return false;
+
+    const [hours, minutes] = commitment.promisedTime.split(':').map(Number);
+    const deadlineDateObj = new Date();
+    deadlineDateObj.setHours(hours, minutes, 59, 999);
+
+    return now > deadlineDateObj;
+  },
+
   // ─── PDF Storage ─────────────────────────────────────────────────────────────
   savePdfFile(lectureId: string, file: File): Promise<string> {
     return new Promise((resolve, reject) => {

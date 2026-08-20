@@ -134,8 +134,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    const isOnTime = deadlineDate >= today;
+    const isOnTime = StorageService.isUploadOnTime(teacher.teacherId, deadlineDate);
 
     StorageService.addLecture({
       teacherId: teacher.teacherId,
