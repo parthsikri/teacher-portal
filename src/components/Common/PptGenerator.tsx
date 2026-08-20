@@ -632,7 +632,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const currentPreviewQuestion = filteredQuestions[activeSlideIndex];
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-6 space-y-6 min-w-0 overflow-hidden text-slate-200">
+    <div className="w-full px-4 md:px-6 py-6 space-y-6 text-slate-200" style={{ overflowX: 'hidden', boxSizing: 'border-box' }}>
       
       {/* TOAST FEEDBACK */}
       {successToast && (
@@ -755,10 +755,10 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minWidth: 0, width: '100%' }}>
           
-          {/* LEFT COLUMN: PRESENTATION SETTINGS & FILTER */}
-          <div className="space-y-4 min-w-0">
+          {/* LEFT COLUMN */}
+          <div className="space-y-4" style={{ minWidth: 0, overflow: 'hidden' }}>
             
             {/* DECK CONFIGURATION */}
             <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 space-y-4 text-xs">
@@ -918,8 +918,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </div>
           </div>
 
-          {/* RIGHT COLUMN: 100% CONTAINED 16:9 SLIDE CANVAS PREVIEW */}
-          <div className="lg:col-span-2 space-y-4 min-w-0 w-full overflow-hidden">
+          {/* RIGHT COLUMN: SLIDE PREVIEW */}
+          <div className="lg:col-span-2 space-y-4" style={{ minWidth: 0, overflow: 'hidden' }}>
             
             {/* SLIDE NAVIGATION STRIP */}
             <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl px-4 py-2 text-xs min-w-0">

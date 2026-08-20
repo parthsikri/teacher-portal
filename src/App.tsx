@@ -70,7 +70,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans antialiased flex">
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans antialiased">
       {!currentUser ? (
         <LoginModal onLoginSuccess={handleLoginSuccess} />
       ) : (
@@ -85,9 +85,9 @@ export const App: React.FC = () => {
             onOpenCommitmentModal={() => setShowCommitmentModal(true)}
           />
 
-          {/* MAIN APPLICATION VIEW (OFFSET BY LEFT SIDEBAR) */}
-          <div className="flex-1 md:pl-64 lg:pl-72 flex flex-col min-h-screen min-w-0 overflow-x-hidden">
-            <main key={refreshKey} className="flex-1 pt-16 md:pt-4 pb-16 min-w-0 w-full overflow-x-hidden">
+          {/* MAIN APPLICATION VIEW — sidebar is fixed, so we just pad-left to offset */}
+          <div className="min-h-screen md:pl-64 lg:pl-72" style={{ overflowX: 'hidden' }}>
+            <main key={refreshKey} className="pt-16 md:pt-4 pb-16">
               {currentPage === 'ppt_generator' ? (
                 <PptGenerator
                   userSubject={currentUser.subject || currentUser.department}
