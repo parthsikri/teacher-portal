@@ -8,7 +8,7 @@ import {
   Trash2, Sliders,
   HelpCircle, RefreshCw, Layers,
   Calendar, BookOpen, Sparkles, Maximize2, X,
-  FileText
+  FileText, FolderKanban
 } from 'lucide-react';
 
 export interface ParsedQuestion {
@@ -33,8 +33,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   userName = 'Faculty',
 }) => {
   const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<string>('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
+  const [selectedTopic, setSelectedTopic] = useState<string>('all');
   const [deckTitle, setDeckTitle] = useState<string>('University Question Bank & PYQs');
   const [subjectName, setSubjectName] = useState<string>(userSubject);
   const [theme, setTheme] = useState<SlideTheme>('dark_tech');
@@ -48,74 +48,132 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Group questions by Mapped Topic
-  const topicGroups = React.useMemo(() => {
-    const groups: { [key: string]: ParsedQuestion[] } = {};
+  // Helper for natural sorting of unit numbers: "UNIT 1" -> 1, "Unit 2" -> 2, "Module 10" -> 10
+  const getUnitSortNumber = (unitStr: string): number => {
+    const clean = (unitStr || '').trim();
+    const match = clean.match(/(\d+)/);
+    if (match) return parseInt(match[1], 10);
+    return 9999;
+  };
+
+  // Group questions by Unit Number (Sorted Naturally: Unit 1, Unit 2, Unit 3...)
+  const uniqueUnits = React.useMemo(() => {
+    const set = new Set<string>();
     questions.forEach((q) => {
-      const t = q.mappedTopic.trim() || 'General Topic';
-      if (!groups[t]) groups[t] = [];
-      groups[t].push(q);
+      set.add(q.unitNumber.trim() || 'UNIT 1');
     });
-    return groups;
+    return Array.from(set).sort((a, b) => {
+      const numA = getUnitSortNumber(a);
+      const numB = getUnitSortNumber(b);
+      if (numA !== numB) return numA - numB;
+      return a.localeCompare(b);
+    });
   }, [questions]);
 
-  // Group questions by Unit Number
-  const unitGroups = React.useMemo(() => {
-    const groups: { [key: string]: ParsedQuestion[] } = {};
-    questions.forEach((q) => {
-      const u = q.unitNumber.trim() || 'UNIT 1';
-      if (!groups[u]) groups[u] = [];
-      groups[u].push(q);
+  // Nested Unit Hierarchy: Unit -> Topics -> Questions
+  const unitHierarchy = React.useMemo(() => {
+    const hierarchy: {
+      unitName: string;
+      topics: {
+        topicName: string;
+        questions: ParsedQuestion[];
+      }[];
+      totalQuestions: number;
+    }[] = [];
+
+    uniqueUnits.forEach((unitName) => {
+      const unitQuestions = questions.filter(
+        (q) => (q.unitNumber.trim() || 'UNIT 1') === unitName
+      );
+
+      // Group topics within this unit
+      const topicMap: { [topic: string]: ParsedQuestion[] } = {};
+      unitQuestions.forEach((q) => {
+        const t = q.mappedTopic.trim() || 'General Topic';
+        if (!topicMap[t]) topicMap[t] = [];
+        topicMap[t].push(q);
+      });
+
+      const topics = Object.keys(topicMap).map((topicName) => ({
+        topicName,
+        questions: topicMap[topicName],
+      }));
+
+      hierarchy.push({
+        unitName,
+        topics,
+        totalQuestions: unitQuestions.length,
+      });
     });
-    return groups;
-  }, [questions]);
 
-  const uniqueTopics = Object.keys(topicGroups);
-  const uniqueUnits = Object.keys(unitGroups);
+    return hierarchy;
+  }, [questions, uniqueUnits]);
 
+  // Topics available under current unit selection
+  const availableTopics = React.useMemo(() => {
+    const set = new Set<string>();
+    const pool = selectedUnit === 'all' 
+      ? questions 
+      : questions.filter((q) => (q.unitNumber.trim() || 'UNIT 1') === selectedUnit);
+    pool.forEach((q) => set.add(q.mappedTopic.trim() || 'General Topic'));
+    return Array.from(set);
+  }, [questions, selectedUnit]);
+
+  // All questions strictly sorted Unit-Wise first, then Topic-Wise
+  const sortedQuestionsUnitWise = React.useMemo(() => {
+    const list: ParsedQuestion[] = [];
+    unitHierarchy.forEach((unit) => {
+      unit.topics.forEach((top) => {
+        list.push(...top.questions);
+      });
+    });
+    return list;
+  }, [unitHierarchy]);
+
+  // Filtered questions for active preview
   const filteredQuestions = React.useMemo(() => {
-    return questions.filter((q) => {
-      const matchTopic = selectedTopic === 'all' || (q.mappedTopic.trim() || 'General Topic') === selectedTopic;
+    return sortedQuestionsUnitWise.filter((q) => {
       const matchUnit = selectedUnit === 'all' || (q.unitNumber.trim() || 'UNIT 1') === selectedUnit;
-      return matchTopic && matchUnit;
+      const matchTopic = selectedTopic === 'all' || (q.mappedTopic.trim() || 'General Topic') === selectedTopic;
+      return matchUnit && matchTopic;
     });
-  }, [questions, selectedTopic, selectedUnit]);
+  }, [sortedQuestionsUnitWise, selectedUnit, selectedTopic]);
 
   // ─── DOWNLOAD SAMPLE EXCEL TEMPLATE ──────────────────────────────────────────
   const handleDownloadSampleExcel = () => {
     const sampleData = [
       {
-        'Year & Exam': 'End Term Feb 2023',
-        'Unit Number': 'UNIT 2',
-        'Mapped Topic': 'Sparse Matrix Representation (Array and Link List representation)',
-        'Full Question Text': 'What is sparse matrix? Explain different types of sparse matrix with suitable examples. State different storage formats of sparse matrix.',
-        'Solution / Key Points': '1. A sparse matrix is a matrix in which most of the elements are zero.\n2. Formats: 3-Tuple (Row, Column, Value), Linked List node representation.\n3. Benefits: Reduces memory consumption from O(N*M) to O(non-zero elements).',
-      },
-      {
-        'Year & Exam': 'Mid Term October 2024',
-        'Unit Number': 'UNIT 2',
-        'Mapped Topic': 'Stack Applications & Infix to Postfix',
-        'Full Question Text': 'What are polish notations in stack? Explain the complete conversion algorithm from Infix expression to Postfix notation with a trace table.',
-        'Solution / Key Points': 'Polish notations include Prefix, Infix, and Postfix. Postfix eliminates ambiguity of operator precedence without needing parentheses.',
-      },
-      {
-        'Year & Exam': 'March 2020 First-Term Examination (ETCS-304)',
+        'Year & Exam': 'March 2020 First-Term Examination',
         'Unit Number': 'UNIT 1',
         'Mapped Topic': 'Multiprogrammed Batches Systems',
         'Full Question Text': 'Differentiate between multiprogramming and multi tasking. Explain how CPU scheduling facilitates context switching in modern operating systems.',
         'Solution / Key Points': '1. Multiprogramming keeps multiple jobs in memory to maximize CPU utilization.\n2. Multitasking switches CPU rapidly between user tasks for interactive execution.',
       },
       {
-        'Year & Exam': 'December 2022 End-Sem Examination (ETCS-304)',
+        'Year & Exam': 'December 2022 End-Sem Examination',
         'Unit Number': 'UNIT 1',
         'Mapped Topic': 'Operating System Structures & System Calls',
         'Full Question Text': 'What are System Calls? Explain the step-by-step mechanism of handling a system call with the help of a dual-mode (User Mode vs Kernel Mode) transition diagram.',
         'Solution / Key Points': 'System calls provide an interface between a user program and OS kernel. Transition happens via software trap instruction setting mode bit to 0 (Kernel Mode).',
       },
       {
-        'Year & Exam': 'December 2023 End-Sem (ETCS-304)',
+        'Year & Exam': 'End Term Feb 2023',
+        'Unit Number': 'UNIT 2',
+        'Mapped Topic': 'Sparse Matrix Representation',
+        'Full Question Text': 'What is sparse matrix? Explain different types of sparse matrix with suitable examples. State different storage formats of sparse matrix.',
+        'Solution / Key Points': '1. A sparse matrix is a matrix in which most of the elements are zero.\n2. Formats: 3-Tuple (Row, Column, Value), Linked List node representation.\n3. Benefits: Reduces memory consumption from O(N*M) to O(non-zero elements).',
+      },
+      {
+        'Year & Exam': 'Mid Term October 2024',
+        'Unit Number': 'UNIT 2',
+        'Mapped Topic': 'Stack Applications & Polish Notations',
+        'Full Question Text': 'What are polish notations in stack? Explain the complete conversion algorithm from Infix expression to Postfix notation with a trace table.',
+        'Solution / Key Points': 'Polish notations include Prefix, Infix, and Postfix. Postfix eliminates ambiguity of operator precedence without needing parentheses.',
+      },
+      {
+        'Year & Exam': 'December 2023 End-Sem',
         'Unit Number': 'UNIT 3',
-        'Mapped Topic': 'Deadlocks & Resource Allocation Graph',
+        'Mapped Topic': 'Deadlocks & Banker Algorithm',
         'Full Question Text': 'State the four necessary and sufficient conditions for Deadlock occurrence. How does Banker’s Algorithm ensure Deadlock Avoidance in a multi-resource system?',
         'Solution / Key Points': 'Four Conditions: Mutual Exclusion, Hold and Wait, No Preemption, Circular Wait. Banker algorithm simulates resource safety sequence.',
       },
@@ -123,9 +181,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
     const ws = XLSX.utils.json_to_sheet(sampleData);
     ws['!cols'] = [
-      { wch: 40 }, // Year & Exam
+      { wch: 35 }, // Year & Exam
       { wch: 15 }, // Unit Number
-      { wch: 45 }, // Mapped Topic
+      { wch: 40 }, // Mapped Topic
       { wch: 80 }, // Full Question Text
       { wch: 60 }, // Solution / Key Points
     ];
@@ -134,7 +192,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     XLSX.utils.book_append_sheet(wb, ws, 'Questions');
     XLSX.writeFile(wb, 'AEW_Questions_Template.xlsx');
 
-    setSuccessToast('Downloaded AEW Question Bank Template (.xlsx)');
+    setSuccessToast('Downloaded Unit-Wise AEW Question Bank Template (.xlsx)');
     setTimeout(() => setSuccessToast(null), 3000);
   };
 
@@ -200,9 +258,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
         setQuestions(valid);
         setActiveSlideIndex(0);
-        setSelectedTopic('all');
         setSelectedUnit('all');
-        setSuccessToast(`Parsed ${valid.length} questions across ${new Set(valid.map((q) => q.mappedTopic)).size} topics!`);
+        setSelectedTopic('all');
+        setSuccessToast(`Parsed ${valid.length} questions organized Unit-Wise!`);
         setTimeout(() => setSuccessToast(null), 3500);
       } catch (err) {
         setErrorMessage('Failed to parse Excel file. Please ensure valid .xlsx, .xls, or .csv format.');
@@ -292,7 +350,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     },
   }[theme];
 
-  // ─── 1. EXPORT BROADCAST-READY POWERPOINT (.PPTX) ─────────────────────────────
+  // ─── 1. EXPORT UNIT-WISE BROADCAST POWERPOINT (.PPTX) ─────────────────────────
   // EXACT CANVAS DIMENSIONS: 16:9 Widescreen (13.333" width × 7.500" height)
   const handleExportPowerPoint = async () => {
     if (questions.length === 0) {
@@ -305,11 +363,10 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       const pptx = new PptxGenJS();
       pptx.layout = 'LAYOUT_16x9'; // Exact 13.333 x 7.500 inches (1920x1080 equivalent)
 
-      // COVER / TITLE SLIDE
+      // ─── 1. COVER / TITLE SLIDE ───
       const titleSlide = pptx.addSlide();
       titleSlide.background = { color: themeColors.bg };
 
-      // Single Native Shape Pill (Text locked inside)
       titleSlide.addText('APNA ENGINEERING WALLAH', {
         shape: pptx.ShapeType.roundRect,
         rectRadius: 0.08,
@@ -343,7 +400,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         fontFace: 'Arial',
       });
 
-      titleSlide.addText(`${subjectName} • 1 Question Per Slide Presentation Deck`, {
+      titleSlide.addText(`${subjectName} • Complete Unit-Wise Question Bank Presentation`, {
         x: 0.8,
         y: 3.7,
         w: 11.5,
@@ -355,10 +412,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         fontFace: 'Calibri',
       });
 
+      const totalTopicsCount = unitHierarchy.reduce((acc, u) => acc + u.topics.length, 0);
       const stats = [
-        `📚 ${questions.length} Exam Questions`,
-        `📑 ${uniqueTopics.length} Mapped Topics`,
         `🏛️ ${uniqueUnits.length} Units Covered`,
+        `📑 ${totalTopicsCount} Mapped Topics`,
+        `📚 ${questions.length} Exam Questions`,
       ];
 
       stats.forEach((st, i) => {
@@ -381,7 +439,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         });
       });
 
-      titleSlide.addText(`Faculty: ${userName} • Prepared for Video Recording & Classroom Delivery`, {
+      titleSlide.addText(`Faculty: ${userName} • Organized Unit-Wise for Structured Delivery`, {
         x: 0.8,
         y: 6.7,
         w: 10.0,
@@ -392,26 +450,23 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         fontFace: 'Calibri',
       });
 
-      // TOPIC DIVIDERS & 1-QUESTION-PER-PAGE SLIDES
+      // ─── 2. UNIT-WISE HIERARCHICAL SLIDE GENERATION ───
       let globalCounter = 1;
 
-      for (const topicName of uniqueTopics) {
-        const topicQuestions = topicGroups[topicName];
-        const unitName = topicQuestions[0]?.unitNumber || 'UNIT 1';
+      for (const unit of unitHierarchy) {
+        // A. UNIT MASTER SECTION COVER SLIDE
+        const unitCoverSlide = pptx.addSlide();
+        unitCoverSlide.background = { color: themeColors.bg };
 
-        // SECTION DIVIDER SLIDE
-        const sectionSlide = pptx.addSlide();
-        sectionSlide.background = { color: themeColors.bg };
-
-        sectionSlide.addText(unitName.toUpperCase(), {
+        unitCoverSlide.addText(unit.unitName.toUpperCase(), {
           shape: pptx.ShapeType.roundRect,
           rectRadius: 0.08,
           x: 1.0,
-          y: 1.8,
-          w: 2.2,
-          h: 0.45,
+          y: 1.5,
+          w: 2.5,
+          h: 0.48,
           fill: { color: themeColors.accentGradient },
-          fontSize: 12,
+          fontSize: 13,
           bold: true,
           color: 'FFFFFF',
           align: 'center',
@@ -420,12 +475,12 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           fontFace: 'Arial',
         });
 
-        sectionSlide.addText(topicName, {
+        unitCoverSlide.addText(`${unit.unitName} : Question Bank & PYQs`, {
           x: 1.0,
-          y: 2.5,
+          y: 2.2,
           w: 11.2,
-          h: 2.0,
-          fontSize: 32,
+          h: 1.4,
+          fontSize: 34,
           bold: true,
           color: themeColors.textPrimary,
           valign: 'top',
@@ -435,255 +490,324 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           fontFace: 'Arial',
         });
 
-        sectionSlide.addText(`${topicQuestions.length} Practice & University Exam Problems • 1 Question Per Slide`, {
+        unitCoverSlide.addText(
+          `Covering ${unit.topics.length} Mapped Topics • ${unit.totalQuestions} Practice & Exam Problems • 1 Question Per Slide`,
+          {
+            x: 1.0,
+            y: 3.8,
+            w: 11.0,
+            h: 0.6,
+            fontSize: 16,
+            color: themeColors.textSecondary,
+            margin: 0,
+            fontFace: 'Calibri',
+          }
+        );
+
+        // Render Topic Badges on the Unit Cover
+        const topicListText = unit.topics.map((t, idx) => `${idx + 1}. ${t.topicName} (${t.questions.length}Q)`).join('   |   ');
+        unitCoverSlide.addText(topicListText, {
+          shape: pptx.ShapeType.roundRect,
+          rectRadius: 0.08,
           x: 1.0,
-          y: 4.8,
-          w: 11.0,
-          h: 0.6,
-          fontSize: 16,
+          y: 4.7,
+          w: 11.2,
+          h: 1.4,
+          fill: { color: themeColors.cardBg },
+          line: { color: themeColors.cardBorder, width: 1 },
+          fontSize: 12,
           color: themeColors.textSecondary,
-          margin: 0,
+          valign: 'middle',
+          align: 'left',
+          wrap: true,
+          margin: 10,
           fontFace: 'Calibri',
         });
 
-        // 1-QUESTION-PER-PAGE SLIDES (HERO GRAND CARD LAYOUT)
-        for (let qIdx = 0; qIdx < topicQuestions.length; qIdx++) {
-          const q = topicQuestions[qIdx];
-          const slide = pptx.addSlide();
-          slide.background = { color: themeColors.bg };
+        // B. TOPICS & QUESTIONS INSIDE THIS UNIT
+        for (const topic of unit.topics) {
+          // TOPIC SUB-DIVIDER SLIDE
+          const topicSlide = pptx.addSlide();
+          topicSlide.background = { color: themeColors.bg };
 
-          // 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right)
-          // Unit Tag (Single Native Shape)
-          slide.addText(q.unitNumber.toUpperCase(), {
+          topicSlide.addText(unit.unitName.toUpperCase(), {
             shape: pptx.ShapeType.roundRect,
             rectRadius: 0.08,
-            x: 0.8,
-            y: 0.45,
-            w: 1.4,
-            h: 0.42,
+            x: 1.0,
+            y: 1.8,
+            w: 2.2,
+            h: 0.45,
             fill: { color: themeColors.unitTagBg },
-            fontSize: 10,
-            bold: true,
             color: themeColors.unitTagText,
+            fontSize: 11,
+            bold: true,
             align: 'center',
             valign: 'middle',
             margin: 0,
             fontFace: 'Arial',
           });
 
-          // Mapped Topic Name
-          slide.addText(q.mappedTopic, {
-            x: 2.35,
-            y: 0.45,
-            w: 5.3,
-            h: 0.42,
-            fontSize: 12,
+          topicSlide.addText(topic.topicName, {
+            x: 1.0,
+            y: 2.5,
+            w: 11.2,
+            h: 2.0,
+            fontSize: 30,
             bold: true,
-            color: themeColors.textSecondary,
-            valign: 'middle',
-            align: 'left',
-            margin: 0,
+            color: themeColors.textPrimary,
+            valign: 'top',
             wrap: true,
+            margin: 0,
             isTextBox: true,
+            fontFace: 'Arial',
+          });
+
+          topicSlide.addText(`${topic.questions.length} Questions in this topic • ${unit.unitName}`, {
+            x: 1.0,
+            y: 4.8,
+            w: 11.0,
+            h: 0.6,
+            fontSize: 15,
+            color: themeColors.textSecondary,
+            margin: 0,
             fontFace: 'Calibri',
           });
 
-          // Year & Exam Highlight Tag (Single Native Shape - Top Right)
-          if (q.yearExam) {
-            slide.addText(`🏷️ ${q.yearExam}`, {
+          // 1-QUESTION-PER-PAGE SLIDES
+          for (let qIdx = 0; qIdx < topic.questions.length; qIdx++) {
+            const q = topic.questions[qIdx];
+            const slide = pptx.addSlide();
+            slide.background = { color: themeColors.bg };
+
+            // 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right)
+            slide.addText(q.unitNumber.toUpperCase(), {
               shape: pptx.ShapeType.roundRect,
               rectRadius: 0.08,
-              x: 7.8,
-              y: 0.45,
-              w: 4.733,
-              h: 0.42,
-              fill: { color: themeColors.examBadgeBg },
-              line: { color: themeColors.examBadgeBorder, width: 1 },
-              fontSize: 10,
-              bold: true,
-              color: themeColors.examBadgeText,
-              align: 'center',
-              valign: 'middle',
-              margin: 0,
-              fontFace: 'Calibri',
-            });
-          }
-
-          // 2. MAIN GRAND HERO QUESTION CONTAINER (Width: 11.733", Height: 5.20")
-          slide.addShape(pptx.ShapeType.roundRect, {
-            x: 0.8,
-            y: 1.15,
-            w: 11.733,
-            h: 5.20,
-            rectRadius: 0.12,
-            fill: { color: themeColors.cardBg },
-            line: { color: themeColors.cardBorder, width: 1.2 },
-          });
-
-          // Left Accent Stripe
-          slide.addShape(pptx.ShapeType.roundRect, {
-            x: 0.8,
-            y: 1.15,
-            w: 0.14,
-            h: 5.20,
-            rectRadius: 0.05,
-            fill: { color: themeColors.accentGradient },
-          });
-
-          // PPT-SAFE CONSERVATIVE FONT SIZING (Reserves 25-45% vertical headroom for font engine variations)
-          const qLen = q.fullQuestionText.length;
-          const pptFontSize = qLen > 360 ? 11 : qLen > 220 ? 12.5 : qLen > 120 ? 14.5 : qLen > 60 ? 16.5 : 18;
-
-          // Single Structured Multi-Paragraph Block with explicit paraSpaceAfter
-          slide.addText(
-            [
-              {
-                text: `QUESTION ${qIdx + 1}`,
-                options: {
-                  fontSize: 12,
-                  bold: true,
-                  color: themeColors.accentGradient,
-                  fontFace: 'Arial',
-                  paraSpaceAfter: 8,
-                },
-              },
-              {
-                text: q.fullQuestionText,
-                options: {
-                  fontSize: pptFontSize,
-                  bold: true,
-                  color: themeColors.textPrimary,
-                  fontFace: 'Calibri',
-                  lineSpacingMultiple: 1.18,
-                },
-              },
-            ],
-            {
-              x: 1.30,
-              y: 1.45,
-              w: 10.80,
-              h: 4.50,
-              valign: 'top',
-              align: 'left',
-              wrap: true,
-              margin: 0,
-              isTextBox: true,
-            }
-          );
-
-          // 3. FOOTER (Y: 6.75", Height: 0.35")
-          slide.addText(`Apna Engineering Wallah • ${subjectName}`, {
-            x: 0.8,
-            y: 6.75,
-            w: 6.0,
-            h: 0.35,
-            fontSize: 10,
-            color: themeColors.textMuted,
-            margin: 0,
-            valign: 'middle',
-            fontFace: 'Calibri',
-          });
-
-          slide.addText(`Question ${qIdx + 1} of ${topicQuestions.length} (Overall Q${globalCounter}) • ${q.unitNumber}`, {
-            x: 7.0,
-            y: 6.75,
-            w: 5.533,
-            h: 0.35,
-            fontSize: 10,
-            color: themeColors.textMuted,
-            align: 'right',
-            margin: 0,
-            valign: 'middle',
-            fontFace: 'Calibri',
-          });
-
-          // Optional Solution Slide
-          if (includeSolutions && q.solution) {
-            const solSlide = pptx.addSlide();
-            solSlide.background = { color: themeColors.bg };
-
-            solSlide.addText(`SOLUTION & KEY CONCEPTS • Q.${qIdx + 1}`, {
               x: 0.8,
               y: 0.45,
-              w: 7.0,
-              h: 0.4,
-              fontSize: 13,
+              w: 1.4,
+              h: 0.42,
+              fill: { color: themeColors.unitTagBg },
+              fontSize: 10,
               bold: true,
-              color: '34D399',
+              color: themeColors.unitTagText,
+              align: 'center',
+              valign: 'middle',
               margin: 0,
               fontFace: 'Arial',
             });
 
+            slide.addText(q.mappedTopic, {
+              x: 2.35,
+              y: 0.45,
+              w: 5.3,
+              h: 0.42,
+              fontSize: 12,
+              bold: true,
+              color: themeColors.textSecondary,
+              valign: 'middle',
+              align: 'left',
+              margin: 0,
+              wrap: true,
+              isTextBox: true,
+              fontFace: 'Calibri',
+            });
+
             if (q.yearExam) {
-              solSlide.addText(`Exam: ${q.yearExam}`, {
-                x: 8.0,
+              slide.addText(`🏷️ ${q.yearExam}`, {
+                shape: pptx.ShapeType.roundRect,
+                rectRadius: 0.08,
+                x: 7.8,
                 y: 0.45,
-                w: 4.533,
-                h: 0.4,
-                fontSize: 11,
-                color: themeColors.textSecondary,
-                align: 'right',
+                w: 4.733,
+                h: 0.42,
+                fill: { color: themeColors.examBadgeBg },
+                line: { color: themeColors.examBadgeBorder, width: 1 },
+                fontSize: 10,
+                bold: true,
+                color: themeColors.examBadgeText,
+                align: 'center',
+                valign: 'middle',
                 margin: 0,
                 fontFace: 'Calibri',
               });
             }
 
-            solSlide.addShape(pptx.ShapeType.roundRect, {
+            // 2. MAIN GRAND HERO QUESTION CONTAINER (Width: 11.733", Height: 5.20")
+            slide.addShape(pptx.ShapeType.roundRect, {
               x: 0.8,
-              y: 1.05,
-              w: 11.733,
-              h: 1.3,
-              rectRadius: 0.1,
-              fill: { color: themeColors.cardBg },
-              line: { color: themeColors.cardBorder, width: 1 },
-            });
-
-            solSlide.addText(`Q.${qIdx + 1}: ${q.fullQuestionText}`, {
-              x: 1.1,
               y: 1.15,
-              w: 11.1,
-              h: 1.1,
-              fontSize: 13,
-              color: themeColors.textSecondary,
-              margin: 0,
-              wrap: true,
-              isTextBox: true,
-              fontFace: 'Calibri',
-            });
-
-            solSlide.addShape(pptx.ShapeType.roundRect, {
-              x: 0.8,
-              y: 2.55,
               w: 11.733,
-              h: 3.9,
-              rectRadius: 0.1,
+              h: 5.20,
+              rectRadius: 0.12,
               fill: { color: themeColors.cardBg },
-              line: { color: '34D399', width: 1.2 },
+              line: { color: themeColors.cardBorder, width: 1.2 },
             });
 
-            solSlide.addText(`Step-by-Step Solution & Key Points:\n\n${q.solution}`, {
-              x: 1.2,
-              y: 2.75,
-              w: 10.9,
-              h: 3.4,
-              fontSize: 14,
-              color: themeColors.textPrimary,
+            // Left Accent Stripe
+            slide.addShape(pptx.ShapeType.roundRect, {
+              x: 0.8,
+              y: 1.15,
+              w: 0.14,
+              h: 5.20,
+              rectRadius: 0.05,
+              fill: { color: themeColors.accentGradient },
+            });
+
+            // Conservative PPT-Safe Typography
+            const qLen = q.fullQuestionText.length;
+            const pptFontSize = qLen > 360 ? 11 : qLen > 220 ? 12.5 : qLen > 120 ? 14.5 : qLen > 60 ? 16.5 : 18;
+
+            slide.addText(
+              [
+                {
+                  text: `QUESTION ${qIdx + 1}`,
+                  options: {
+                    fontSize: 12,
+                    bold: true,
+                    color: themeColors.accentGradient,
+                    fontFace: 'Arial',
+                    paraSpaceAfter: 8,
+                  },
+                },
+                {
+                  text: q.fullQuestionText,
+                  options: {
+                    fontSize: pptFontSize,
+                    bold: true,
+                    color: themeColors.textPrimary,
+                    fontFace: 'Calibri',
+                    lineSpacingMultiple: 1.18,
+                  },
+                },
+              ],
+              {
+                x: 1.30,
+                y: 1.45,
+                w: 10.80,
+                h: 4.50,
+                valign: 'top',
+                align: 'left',
+                wrap: true,
+                margin: 0,
+                isTextBox: true,
+              }
+            );
+
+            // 3. FOOTER
+            slide.addText(`Apna Engineering Wallah • ${subjectName}`, {
+              x: 0.8,
+              y: 6.75,
+              w: 6.0,
+              h: 0.35,
+              fontSize: 9.5,
+              color: themeColors.textMuted,
               margin: 0,
-              wrap: true,
-              isTextBox: true,
+              valign: 'middle',
               fontFace: 'Calibri',
-              lineSpacingMultiple: 1.2,
             });
-          }
 
-          globalCounter++;
+            slide.addText(`Question ${qIdx + 1} of ${topic.questions.length} (Overall Q${globalCounter}) • ${unit.unitName}`, {
+              x: 7.0,
+              y: 6.75,
+              w: 5.533,
+              h: 0.35,
+              fontSize: 9.5,
+              color: themeColors.textMuted,
+              align: 'right',
+              margin: 0,
+              valign: 'middle',
+              fontFace: 'Calibri',
+            });
+
+            // Optional Solution Slide
+            if (includeSolutions && q.solution) {
+              const solSlide = pptx.addSlide();
+              solSlide.background = { color: themeColors.bg };
+
+              solSlide.addText(`SOLUTION & KEY CONCEPTS • Q.${qIdx + 1} (${unit.unitName})`, {
+                x: 0.8,
+                y: 0.45,
+                w: 7.0,
+                h: 0.4,
+                fontSize: 13,
+                bold: true,
+                color: '34D399',
+                margin: 0,
+                fontFace: 'Arial',
+              });
+
+              if (q.yearExam) {
+                solSlide.addText(`Exam: ${q.yearExam}`, {
+                  x: 8.0,
+                  y: 0.45,
+                  w: 4.533,
+                  h: 0.4,
+                  fontSize: 11,
+                  color: themeColors.textSecondary,
+                  align: 'right',
+                  margin: 0,
+                  fontFace: 'Calibri',
+                });
+              }
+
+              solSlide.addShape(pptx.ShapeType.roundRect, {
+                x: 0.8,
+                y: 1.05,
+                w: 11.733,
+                h: 1.3,
+                rectRadius: 0.1,
+                fill: { color: themeColors.cardBg },
+                line: { color: themeColors.cardBorder, width: 1 },
+              });
+
+              solSlide.addText(`Q.${qIdx + 1}: ${q.fullQuestionText}`, {
+                x: 1.1,
+                y: 1.15,
+                w: 11.1,
+                h: 1.1,
+                fontSize: 13,
+                color: themeColors.textSecondary,
+                margin: 0,
+                wrap: true,
+                isTextBox: true,
+                fontFace: 'Calibri',
+              });
+
+              solSlide.addShape(pptx.ShapeType.roundRect, {
+                x: 0.8,
+                y: 2.55,
+                w: 11.733,
+                h: 3.9,
+                rectRadius: 0.1,
+                fill: { color: themeColors.cardBg },
+                line: { color: '34D399', width: 1.2 },
+              });
+
+              solSlide.addText(`Step-by-Step Solution & Key Points:\n\n${q.solution}`, {
+                x: 1.2,
+                y: 2.75,
+                w: 10.9,
+                h: 3.4,
+                fontSize: 14,
+                color: themeColors.textPrimary,
+                margin: 0,
+                wrap: true,
+                isTextBox: true,
+                fontFace: 'Calibri',
+                lineSpacingMultiple: 1.2,
+              });
+            }
+
+            globalCounter++;
+          }
         }
       }
 
-      const filename = `${subjectName.replace(/[^a-zA-Z0-9]/g, '_')}_Presentation_Deck.pptx`;
+      const filename = `${subjectName.replace(/[^a-zA-Z0-9]/g, '_')}_UnitWise_Deck.pptx`;
       await pptx.writeFile({ fileName: filename });
 
-      setSuccessToast(`PowerPoint generated: ${filename}`);
+      setSuccessToast(`Unit-Wise PowerPoint generated: ${filename}`);
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err) {
       alert('Failed to generate PowerPoint: ' + (err as Error).message);
@@ -692,7 +816,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     }
   };
 
-  // ─── 2. EXPORT HIGH-RES 16:9 PDF PRESENTATION DECK (.PDF) ───────────────────
+  // ─── 2. EXPORT UNIT-WISE 16:9 PDF PRESENTATION DECK (.PDF) ────────────────────
   const handleExportPDF = async () => {
     if (questions.length === 0) {
       alert('Please upload an Excel file with questions first.');
@@ -733,13 +857,14 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       pdf.setTextColor(...themeColors.rgbTextSecondary);
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(13);
-      pdf.text(`${subjectName} • 1 Question Per Slide Presentation Deck`, 18, 65);
+      pdf.text(`${subjectName} • Complete Unit-Wise Question Bank Presentation`, 18, 65);
 
       // Stats Cards
+      const totalTopicsCount = unitHierarchy.reduce((acc, u) => acc + u.topics.length, 0);
       const stats = [
-        `* ${questions.length} Exam Questions`,
-        `* ${uniqueTopics.length} Mapped Topics`,
         `* ${uniqueUnits.length} Units Covered`,
+        `* ${totalTopicsCount} Mapped Topics`,
+        `* ${questions.length} Exam Questions`,
       ];
 
       stats.forEach((st, idx) => {
@@ -756,119 +881,148 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       // Cover Footer
       pdf.setTextColor(...themeColors.rgbTextMuted);
       pdf.setFontSize(9);
-      pdf.text(`Faculty: ${userName} • Prepared for Video Recording & Classroom Delivery`, 18, 155);
+      pdf.text(`Faculty: ${userName} • Organized Unit-Wise for Structured Delivery`, 18, 155);
 
-      // ─── QUESTION SLIDES ───
+      // ─── UNIT-WISE SLIDE GENERATION ───
       let globalIdx = 1;
 
-      for (const topic of uniqueTopics) {
-        const topicQuestions = topicGroups[topic];
-        const unitName = topicQuestions[0]?.unitNumber || 'UNIT 1';
-
-        // SECTION DIVIDER SLIDE
+      for (const unit of unitHierarchy) {
+        // A. UNIT MASTER SECTION COVER SLIDE
         pdf.addPage([297, 167.06], 'landscape');
         pdf.setFillColor(...themeColors.rgbBg);
         pdf.rect(0, 0, pageWidth, pageHeight, 'F');
 
         // Unit Pill
         pdf.setFillColor(...themeColors.rgbAccent);
-        pdf.roundedRect(20, 35, 45, 10, 2, 2, 'F');
+        pdf.roundedRect(20, 30, 48, 11, 2, 2, 'F');
         pdf.setTextColor(255, 255, 255);
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(11);
-        pdf.text(unitName.toUpperCase(), 42.5, 41.5, { align: 'center' });
+        pdf.setFontSize(12);
+        pdf.text(unit.unitName.toUpperCase(), 44, 37.5, { align: 'center' });
 
-        // Topic Title
+        // Unit Title
         pdf.setTextColor(...themeColors.rgbTextPrimary);
-        pdf.setFontSize(24);
-        pdf.text(topic, 20, 62, { maxWidth: 257 });
+        pdf.setFontSize(26);
+        pdf.text(`${unit.unitName} : Question Bank & PYQs`, 20, 58, { maxWidth: 257 });
 
         // Subtitle
         pdf.setTextColor(...themeColors.rgbTextSecondary);
         pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(12);
-        pdf.text(`${topicQuestions.length} Practice & University Exam Problems • 1 Question Per Slide`, 20, 95);
+        pdf.setFontSize(13);
+        pdf.text(`Covering ${unit.topics.length} Mapped Topics • ${unit.totalQuestions} Questions • 1 Question Per Slide`, 20, 78);
 
-        // 1-QUESTION-PER-PAGE SLIDES
-        for (let qIdx = 0; qIdx < topicQuestions.length; qIdx++) {
-          const q = topicQuestions[qIdx];
+        // Topic Box on Unit Cover
+        pdf.setFillColor(...themeColors.rgbCard);
+        pdf.setDrawColor(...themeColors.rgbBorder);
+        pdf.roundedRect(20, 95, 257, 45, 3, 3, 'FD');
+        pdf.setTextColor(...themeColors.rgbTextPrimary);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.text('MAPPED TOPICS IN THIS UNIT:', 28, 105);
+
+        pdf.setTextColor(...themeColors.rgbTextSecondary);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9.5);
+        const topicSummary = unit.topics.map((t, idx) => `${idx + 1}. ${t.topicName} (${t.questions.length} Questions)`).join('\n');
+        pdf.text(topicSummary, 28, 114);
+
+        // B. TOPICS & QUESTIONS
+        for (const topic of unit.topics) {
+          // TOPIC DIVIDER SLIDE
           pdf.addPage([297, 167.06], 'landscape');
-
-          // Slide Background
           pdf.setFillColor(...themeColors.rgbBg);
           pdf.rect(0, 0, pageWidth, pageHeight, 'F');
 
-          // 1. TOP HEADER BAR
-          // Unit Tag
           pdf.setFillColor(...themeColors.rgbUnitBg);
-          pdf.roundedRect(18, 10, 28, 8, 2, 2, 'F');
+          pdf.roundedRect(20, 35, 45, 10, 2, 2, 'F');
           pdf.setTextColor(...themeColors.rgbUnitText);
           pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(9);
-          pdf.text(q.unitNumber.toUpperCase(), 32, 15.5, { align: 'center' });
-
-          // Topic Name
-          pdf.setTextColor(...themeColors.rgbTextSecondary);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(10);
-          pdf.text(q.mappedTopic, 50, 15.5, { maxWidth: 120 });
-
-          // Year & Exam Badge (Right aligned)
-          if (q.yearExam) {
-            pdf.setFillColor(...themeColors.rgbExamBg);
-            pdf.setDrawColor(...themeColors.rgbBorder);
-            pdf.roundedRect(185, 10, 94, 8, 2, 2, 'FD');
-            pdf.setTextColor(...themeColors.rgbExamText);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setFontSize(8.5);
-            pdf.text(`[Exam] ${q.yearExam}`, 232, 15.5, { align: 'center', maxWidth: 90 });
-          }
-
-          // 2. MAIN GRAND HERO CARD
-          const cardX = 18;
-          const cardY = 24;
-          const cardW = 261;
-          const cardH = 125;
-
-          pdf.setFillColor(...themeColors.rgbCard);
-          pdf.setDrawColor(...themeColors.rgbBorder);
-          pdf.roundedRect(cardX, cardY, cardW, cardH, 4, 4, 'FD');
-
-          // Left Accent Stripe
-          pdf.setFillColor(...themeColors.rgbAccent);
-          pdf.roundedRect(cardX, cardY, 3, cardH, 1, 1, 'F');
-
-          // Question Label
-          pdf.setTextColor(...themeColors.rgbAccent);
-          pdf.setFont('helvetica', 'bold');
           pdf.setFontSize(11);
-          pdf.text(`QUESTION ${qIdx + 1}`, cardX + 12, cardY + 14);
+          pdf.text(unit.unitName.toUpperCase(), 42.5, 41.5, { align: 'center' });
 
-          // Full Question Text
-          const qLength = q.fullQuestionText.length;
-          const pdfFontSize = qLength > 300 ? 11 : qLength > 180 ? 13 : qLength > 80 ? 15 : 17;
           pdf.setTextColor(...themeColors.rgbTextPrimary);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(pdfFontSize);
+          pdf.setFontSize(22);
+          pdf.text(topic.topicName, 20, 62, { maxWidth: 257 });
 
-          const splitLines = pdf.splitTextToSize(q.fullQuestionText, cardW - 24);
-          pdf.text(splitLines, cardX + 12, cardY + 28, { lineHeightFactor: 1.35 });
-
-          // 3. FOOTER
-          pdf.setTextColor(...themeColors.rgbTextMuted);
+          pdf.setTextColor(...themeColors.rgbTextSecondary);
           pdf.setFont('helvetica', 'normal');
-          pdf.setFontSize(8.5);
-          pdf.text(`Apna Engineering Wallah • ${subjectName}`, 18, 158);
-          pdf.text(`Question ${qIdx + 1} of ${topicQuestions.length} (Overall Q${globalIdx}) • ${q.unitNumber}`, 279, 158, { align: 'right' });
+          pdf.setFontSize(12);
+          pdf.text(`${topic.questions.length} Practice & University Exam Problems • ${unit.unitName}`, 20, 95);
 
-          globalIdx++;
+          // 1-QUESTION-PER-PAGE SLIDES
+          for (let qIdx = 0; qIdx < topic.questions.length; qIdx++) {
+            const q = topic.questions[qIdx];
+            pdf.addPage([297, 167.06], 'landscape');
+
+            pdf.setFillColor(...themeColors.rgbBg);
+            pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+            // Header Bar
+            pdf.setFillColor(...themeColors.rgbUnitBg);
+            pdf.roundedRect(18, 10, 28, 8, 2, 2, 'F');
+            pdf.setTextColor(...themeColors.rgbUnitText);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(9);
+            pdf.text(q.unitNumber.toUpperCase(), 32, 15.5, { align: 'center' });
+
+            pdf.setTextColor(...themeColors.rgbTextSecondary);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(10);
+            pdf.text(q.mappedTopic, 50, 15.5, { maxWidth: 120 });
+
+            if (q.yearExam) {
+              pdf.setFillColor(...themeColors.rgbExamBg);
+              pdf.setDrawColor(...themeColors.rgbBorder);
+              pdf.roundedRect(185, 10, 94, 8, 2, 2, 'FD');
+              pdf.setTextColor(...themeColors.rgbExamText);
+              pdf.setFont('helvetica', 'bold');
+              pdf.setFontSize(8.5);
+              pdf.text(`[Exam] ${q.yearExam}`, 232, 15.5, { align: 'center', maxWidth: 90 });
+            }
+
+            // Main Hero Card
+            const cardX = 18;
+            const cardY = 24;
+            const cardW = 261;
+            const cardH = 125;
+
+            pdf.setFillColor(...themeColors.rgbCard);
+            pdf.setDrawColor(...themeColors.rgbBorder);
+            pdf.roundedRect(cardX, cardY, cardW, cardH, 4, 4, 'FD');
+
+            pdf.setFillColor(...themeColors.rgbAccent);
+            pdf.roundedRect(cardX, cardY, 3, cardH, 1, 1, 'F');
+
+            pdf.setTextColor(...themeColors.rgbAccent);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(11);
+            pdf.text(`QUESTION ${qIdx + 1}`, cardX + 12, cardY + 14);
+
+            const qLength = q.fullQuestionText.length;
+            const pdfFontSize = qLength > 300 ? 11 : qLength > 180 ? 13 : qLength > 80 ? 15 : 17;
+            pdf.setTextColor(...themeColors.rgbTextPrimary);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(pdfFontSize);
+
+            const splitLines = pdf.splitTextToSize(q.fullQuestionText, cardW - 24);
+            pdf.text(splitLines, cardX + 12, cardY + 28, { lineHeightFactor: 1.35 });
+
+            // Footer
+            pdf.setTextColor(...themeColors.rgbTextMuted);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8.5);
+            pdf.text(`Apna Engineering Wallah • ${subjectName}`, 18, 158);
+            pdf.text(`Question ${qIdx + 1} of ${topic.questions.length} (Overall Q${globalIdx}) • ${unit.unitName}`, 279, 158, { align: 'right' });
+
+            globalIdx++;
+          }
         }
       }
 
-      const filename = `${subjectName.replace(/[^a-zA-Z0-9]/g, '_')}_Deck.pdf`;
+      const filename = `${subjectName.replace(/[^a-zA-Z0-9]/g, '_')}_UnitWise_Deck.pdf`;
       pdf.save(filename);
 
-      setSuccessToast(`PDF generated successfully: ${filename}`);
+      setSuccessToast(`Unit-Wise PDF generated: ${filename}`);
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err) {
       alert('Failed to generate PDF: ' + (err as Error).message);
@@ -1046,7 +1200,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1 truncate">
-            Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • 16:9 Canvas
+            <strong>Unit-Wise & Topic-Wise</strong> Presentation Deck Generator • 1 Question Per Slide • 16:9 Canvas
           </p>
         </div>
 
@@ -1091,7 +1245,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           <div className="space-y-1.5">
             <h3 className="font-bold text-base text-slate-100">Upload Your Questions Spreadsheet</h3>
             <p className="text-xs text-slate-400 max-w-lg mx-auto">
-              Upload your question bank. Each question will be formatted into a widescreen 16:9 presentation slide deck with topic categorization.
+              Upload your question bank. Questions will be organized <strong>Unit-Wise</strong> (Unit 1, Unit 2...) and categorized into broadcast-quality 16:9 slides.
             </p>
           </div>
 
@@ -1118,24 +1272,24 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
-                <div className="font-bold text-amber-400 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> Year & Exam
-                </div>
-                <div className="text-[11px] text-slate-400">e.g. <em>End Term Feb 2023</em></div>
-              </div>
-
-              <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
                 <div className="font-bold text-indigo-400 flex items-center gap-1">
-                  <Layers className="w-3 h-3" /> Unit Number
+                  <Layers className="w-3 h-3" /> Unit Number (Primary)
                 </div>
-                <div className="text-[11px] text-slate-400">e.g. <em>UNIT 2</em>, <em>Module 3</em></div>
+                <div className="text-[11px] text-slate-400">e.g. <em>UNIT 1</em>, <em>UNIT 2</em>, <em>UNIT 3</em></div>
               </div>
 
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
                 <div className="font-bold text-purple-300 flex items-center gap-1">
-                  <BookOpen className="w-3 h-3" /> Mapped Topic
+                  <BookOpen className="w-3 h-3" /> Mapped Topic (Secondary)
                 </div>
                 <div className="text-[11px] text-slate-400">e.g. <em>Sparse Matrix Representation</em></div>
+              </div>
+
+              <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
+                <div className="font-bold text-amber-400 flex items-center gap-1">
+                  <Calendar className="w-3 h-3" /> Year & Exam
+                </div>
+                <div className="text-[11px] text-slate-400">e.g. <em>End Term Feb 2023</em></div>
               </div>
 
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1">
@@ -1150,7 +1304,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full min-w-0">
           
-          {/* LEFT COLUMN: PRESENTATION SETTINGS & FILTER */}
+          {/* LEFT COLUMN: PRESENTATION SETTINGS & UNIT-WISE NAVIGATION */}
           <div className="space-y-4 min-w-0">
             
             {/* DECK CONFIGURATION */}
@@ -1160,7 +1314,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   <Sliders className="w-3.5 h-3.5 text-indigo-400" /> Presentation Settings
                 </span>
                 <span className="text-[10px] font-mono text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                  {questions.length} Questions
+                  {uniqueUnits.length} Units • {questions.length} Qs
                 </span>
               </div>
 
@@ -1228,7 +1382,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 {/* CANVAS SPECS DISPLAY */}
                 <div className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800 text-[11px] space-y-1 font-mono text-slate-400">
                   <div className="text-indigo-400 font-bold flex items-center gap-1">
-                    <span>📐</span> Standard 16:9 Canvas
+                    <span>📐</span> Standard 16:9 Canvas (Unit-Wise)
                   </div>
                   <div>Dimensions: 13.333" × 7.500" (1920×1080)</div>
                 </div>
@@ -1256,11 +1410,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 >
                   {isGeneratingPpt ? (
                     <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating PowerPoint...
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating Unit-Wise Deck...
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4" /> Download PowerPoint (.pptx)
+                      <Download className="w-4 h-4" /> Download Unit-Wise PowerPoint (.pptx)
                     </>
                   )}
                 </button>
@@ -1283,41 +1437,86 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               </div>
             </div>
 
-            {/* TOPIC FILTER */}
+            {/* UNIT-WISE EXPLORER & FILTER */}
             <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 space-y-3 text-xs min-w-0">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-amber-400" /> Mapped Topics ({uniqueTopics.length})
+                <FolderKanban className="w-3.5 h-3.5 text-indigo-400" /> Unit-Wise Organization
               </span>
 
-              <div className="space-y-1 max-h-52 overflow-y-auto">
+              {/* Unit Selection Pills */}
+              <div className="flex flex-wrap gap-1.5">
                 <button
-                  onClick={() => { setSelectedTopic('all'); setActiveSlideIndex(0); }}
-                  className={`w-full px-3 py-2 rounded-lg text-left transition-colors flex items-center justify-between ${
-                    selectedTopic === 'all'
-                      ? 'bg-slate-800 text-white font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-950/60'
+                  onClick={() => { setSelectedUnit('all'); setSelectedTopic('all'); setActiveSlideIndex(0); }}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-xs transition-colors ${
+                    selectedUnit === 'all'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <span className="truncate">All Topics</span>
-                  <span className="font-mono text-[10px] text-slate-500 shrink-0 ml-1">{questions.length}</span>
+                  All Units ({questions.length})
                 </button>
 
-                {uniqueTopics.map((topic) => (
+                {uniqueUnits.map((u) => {
+                  const count = questions.filter((q) => (q.unitNumber.trim() || 'UNIT 1') === u).length;
+                  return (
+                    <button
+                      key={u}
+                      onClick={() => { setSelectedUnit(u); setSelectedTopic('all'); setActiveSlideIndex(0); }}
+                      className={`px-2.5 py-1 rounded-lg font-mono font-bold text-xs transition-colors ${
+                        selectedUnit === u
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {u} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Topics List within selected unit */}
+              <div className="pt-2 border-t border-slate-800/60 space-y-1.5">
+                <div className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-amber-400" /> Topics in {selectedUnit === 'all' ? 'All Units' : selectedUnit}:
+                </div>
+
+                <div className="space-y-1 max-h-44 overflow-y-auto">
                   <button
-                    key={topic}
-                    onClick={() => { setSelectedTopic(topic); setActiveSlideIndex(0); }}
-                    className={`w-full px-3 py-2 rounded-lg text-left transition-colors flex items-center justify-between ${
-                      selectedTopic === topic
-                        ? 'bg-slate-800 text-indigo-300 font-bold'
+                    onClick={() => { setSelectedTopic('all'); setActiveSlideIndex(0); }}
+                    className={`w-full px-2.5 py-1.5 rounded-lg text-left transition-colors flex items-center justify-between text-[11px] ${
+                      selectedTopic === 'all'
+                        ? 'bg-slate-800 text-white font-bold'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-950/60'
                     }`}
                   >
-                    <span className="truncate mr-2">{topic}</span>
-                    <span className="font-mono text-[10px] text-slate-500 shrink-0">
-                      {topicGroups[topic]?.length || 0}
+                    <span className="truncate">All Topics</span>
+                    <span className="font-mono text-[10px] text-slate-500 shrink-0 ml-1">
+                      {filteredQuestions.length}
                     </span>
                   </button>
-                ))}
+
+                  {availableTopics.map((top) => {
+                    const topCount = filteredQuestions.filter(
+                      (q) => (q.mappedTopic.trim() || 'General Topic') === top
+                    ).length;
+                    return (
+                      <button
+                        key={top}
+                        onClick={() => { setSelectedTopic(top); setActiveSlideIndex(0); }}
+                        className={`w-full px-2.5 py-1.5 rounded-lg text-left transition-colors flex items-center justify-between text-[11px] ${
+                          selectedTopic === top
+                            ? 'bg-slate-800 text-indigo-300 font-bold'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-950/60'
+                        }`}
+                      >
+                        <span className="truncate mr-2">{top}</span>
+                        <span className="font-mono text-[10px] text-slate-500 shrink-0">
+                          {topCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between">
@@ -1346,7 +1545,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 <span className="font-semibold text-slate-200 shrink-0">
                   Slide {activeSlideIndex + 1} of {filteredQuestions.length}
                 </span>
-                <span className="text-[11px] text-slate-400 truncate">• 16:9 Canvas</span>
+                <span className="text-[11px] text-slate-400 truncate">
+                  • {currentPreviewQuestion?.unitNumber} • 16:9 Canvas
+                </span>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
@@ -1398,10 +1599,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               </div>
             ) : null}
 
-            {/* QUICK QUESTION NAVIGATION CAROUSEL */}
+            {/* QUICK QUESTION NAVIGATION CAROUSEL (GROUPED UNIT-WISE) */}
             <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 space-y-2 min-w-0">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Question Quick Navigation
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Question Quick Navigation</span>
+                <span className="text-[10px] text-indigo-400 font-mono">Sorted Unit-Wise</span>
               </div>
               <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                 {filteredQuestions.map((q, idx) => (
@@ -1413,6 +1615,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                         ? 'bg-indigo-600 text-white shadow-sm'
                         : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
+                    title={`${q.unitNumber} - ${q.mappedTopic}`}
                   >
                     Q{idx + 1}
                   </button>
