@@ -530,20 +530,21 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             fill: { color: themeColors.accentGradient },
           });
 
-          // Adaptive Font Sizing for Question Text
+          // PPT-SAFE CONSERVATIVE FONT SIZING (Reserves 25-45% vertical headroom for font engine variations)
           const qLen = q.fullQuestionText.length;
-          const pptFontSize = qLen > 320 ? 14 : qLen > 180 ? 16 : qLen > 80 ? 18 : 21;
+          const pptFontSize = qLen > 360 ? 11 : qLen > 220 ? 12.5 : qLen > 120 ? 14.5 : qLen > 60 ? 16.5 : 18;
 
-          // Single Multi-Paragraph Text Block (Guarantees Perfect Vertical Alignment & Zero Overlap)
+          // Single Structured Multi-Paragraph Block with explicit paraSpaceAfter
           slide.addText(
             [
               {
-                text: `QUESTION ${qIdx + 1}\n\n`,
+                text: `QUESTION ${qIdx + 1}`,
                 options: {
-                  fontSize: 13,
+                  fontSize: 12,
                   bold: true,
                   color: themeColors.accentGradient,
                   fontFace: 'Arial',
+                  paraSpaceAfter: 8,
                 },
               },
               {
@@ -553,15 +554,15 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   bold: true,
                   color: themeColors.textPrimary,
                   fontFace: 'Calibri',
-                  lineSpacing: pptFontSize * 1.35,
+                  lineSpacingMultiple: 1.18,
                 },
               },
             ],
             {
-              x: 1.25,
+              x: 1.30,
               y: 1.45,
-              w: 10.9,
-              h: 4.60,
+              w: 10.80,
+              h: 4.50,
               valign: 'top',
               align: 'left',
               wrap: true,
