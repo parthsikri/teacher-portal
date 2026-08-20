@@ -309,26 +309,21 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       const titleSlide = pptx.addSlide();
       titleSlide.background = { color: themeColors.bg };
 
-      titleSlide.addShape(pptx.ShapeType.roundRect, {
-        x: 0.8,
-        y: 1.0,
-        w: 3.5,
-        h: 0.45,
-        rectRadius: 0.08,
-        fill: { color: themeColors.unitTagBg },
-      });
-
+      // Single Native Shape Pill (Text locked inside)
       titleSlide.addText('APNA ENGINEERING WALLAH', {
+        shape: pptx.ShapeType.roundRect,
+        rectRadius: 0.08,
         x: 0.8,
         y: 1.0,
         w: 3.5,
         h: 0.45,
+        fill: { color: themeColors.unitTagBg },
+        color: themeColors.unitTagText,
         fontSize: 11,
         bold: true,
-        color: themeColors.unitTagText,
         align: 'center',
         valign: 'middle',
-        margin: [0, 0, 0, 0],
+        margin: 0,
         fontFace: 'Arial',
       });
 
@@ -340,7 +335,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         fontSize: 32,
         bold: true,
         color: themeColors.textPrimary,
-        margin: [0, 0, 0, 0],
+        valign: 'top',
+        align: 'left',
+        wrap: true,
+        margin: 0,
+        isTextBox: true,
         fontFace: 'Arial',
       });
 
@@ -351,7 +350,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         h: 0.5,
         fontSize: 16,
         color: themeColors.textSecondary,
-        margin: [0, 0, 0, 0],
+        valign: 'middle',
+        margin: 0,
         fontFace: 'Calibri',
       });
 
@@ -362,27 +362,21 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       ];
 
       stats.forEach((st, i) => {
-        titleSlide.addShape(pptx.ShapeType.roundRect, {
+        titleSlide.addText(st, {
+          shape: pptx.ShapeType.roundRect,
+          rectRadius: 0.1,
           x: 0.8 + (i * 3.6),
           y: 4.6,
           w: 3.3,
           h: 0.7,
-          rectRadius: 0.1,
           fill: { color: themeColors.cardBg },
           line: { color: themeColors.cardBorder, width: 1 },
-        });
-
-        titleSlide.addText(st, {
-          x: 0.8 + (i * 3.6),
-          y: 4.6,
-          w: 3.3,
-          h: 0.7,
           fontSize: 13,
           bold: true,
           color: themeColors.textPrimary,
           align: 'center',
           valign: 'middle',
-          margin: [0, 0, 0, 0],
+          margin: 0,
           fontFace: 'Arial',
         });
       });
@@ -394,7 +388,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         h: 0.4,
         fontSize: 11,
         color: themeColors.textMuted,
-        margin: [0, 0, 0, 0],
+        margin: 0,
         fontFace: 'Calibri',
       });
 
@@ -409,26 +403,20 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         const sectionSlide = pptx.addSlide();
         sectionSlide.background = { color: themeColors.bg };
 
-        sectionSlide.addShape(pptx.ShapeType.roundRect, {
-          x: 1.0,
-          y: 1.8,
-          w: 2.2,
-          h: 0.45,
-          rectRadius: 0.08,
-          fill: { color: themeColors.accentGradient },
-        });
-
         sectionSlide.addText(unitName.toUpperCase(), {
+          shape: pptx.ShapeType.roundRect,
+          rectRadius: 0.08,
           x: 1.0,
           y: 1.8,
           w: 2.2,
           h: 0.45,
+          fill: { color: themeColors.accentGradient },
           fontSize: 12,
           bold: true,
           color: 'FFFFFF',
           align: 'center',
           valign: 'middle',
-          margin: [0, 0, 0, 0],
+          margin: 0,
           fontFace: 'Arial',
         });
 
@@ -440,7 +428,10 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           fontSize: 32,
           bold: true,
           color: themeColors.textPrimary,
-          margin: [0, 0, 0, 0],
+          valign: 'top',
+          wrap: true,
+          margin: 0,
+          isTextBox: true,
           fontFace: 'Arial',
         });
 
@@ -451,7 +442,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           h: 0.6,
           fontSize: 16,
           color: themeColors.textSecondary,
-          margin: [0, 0, 0, 0],
+          margin: 0,
           fontFace: 'Calibri',
         });
 
@@ -462,27 +453,21 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           slide.background = { color: themeColors.bg };
 
           // 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right)
-          // Unit Tag Pill
-          slide.addShape(pptx.ShapeType.roundRect, {
-            x: 0.8,
-            y: 0.45,
-            w: 1.4,
-            h: 0.42,
-            rectRadius: 0.08,
-            fill: { color: themeColors.unitTagBg },
-          });
-
+          // Unit Tag (Single Native Shape)
           slide.addText(q.unitNumber.toUpperCase(), {
+            shape: pptx.ShapeType.roundRect,
+            rectRadius: 0.08,
             x: 0.8,
             y: 0.45,
             w: 1.4,
             h: 0.42,
-            fontSize: 11,
+            fill: { color: themeColors.unitTagBg },
+            fontSize: 10,
             bold: true,
             color: themeColors.unitTagText,
             align: 'center',
             valign: 'middle',
-            margin: [0, 0, 0, 0],
+            margin: 0,
             fontFace: 'Arial',
           });
 
@@ -490,39 +475,36 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           slide.addText(q.mappedTopic, {
             x: 2.35,
             y: 0.45,
-            w: 5.5,
+            w: 5.3,
             h: 0.42,
             fontSize: 12,
             bold: true,
             color: themeColors.textSecondary,
             valign: 'middle',
-            margin: [0, 0, 0, 0],
+            align: 'left',
+            margin: 0,
+            wrap: true,
+            isTextBox: true,
             fontFace: 'Calibri',
           });
 
-          // Year & Exam Highlight Tag (Top Right - Strictly aligned to y: 0.45)
+          // Year & Exam Highlight Tag (Single Native Shape - Top Right)
           if (q.yearExam) {
-            slide.addShape(pptx.ShapeType.roundRect, {
-              x: 8.0,
-              y: 0.45,
-              w: 4.533,
-              h: 0.42,
+            slide.addText(`🏷️ ${q.yearExam}`, {
+              shape: pptx.ShapeType.roundRect,
               rectRadius: 0.08,
+              x: 7.8,
+              y: 0.45,
+              w: 4.733,
+              h: 0.42,
               fill: { color: themeColors.examBadgeBg },
               line: { color: themeColors.examBadgeBorder, width: 1 },
-            });
-
-            slide.addText(`🏷️ ${q.yearExam}`, {
-              x: 8.0,
-              y: 0.45,
-              w: 4.533,
-              h: 0.42,
-              fontSize: 11,
+              fontSize: 10,
               bold: true,
               color: themeColors.examBadgeText,
               align: 'center',
               valign: 'middle',
-              margin: [0, 0, 0, 0],
+              margin: 0,
               fontFace: 'Calibri',
             });
           }
@@ -548,39 +530,45 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             fill: { color: themeColors.accentGradient },
           });
 
-          // Question Label
-          slide.addText(`QUESTION ${qIdx + 1}`, {
-            x: 1.25,
-            y: 1.45,
-            w: 3.5,
-            h: 0.40,
-            fontSize: 14,
-            bold: true,
-            color: themeColors.accentGradient,
-            margin: [0, 0, 0, 0],
-            fontFace: 'Arial',
-          });
-
           // Adaptive Font Sizing for Question Text
           const qLen = q.fullQuestionText.length;
-          const pptFontSize = qLen > 320 ? 13 : qLen > 180 ? 15 : qLen > 80 ? 17 : 19;
+          const pptFontSize = qLen > 320 ? 14 : qLen > 180 ? 16 : qLen > 80 ? 18 : 21;
 
-          // Full Question Text (Strict left alignment and zero displacement)
-          slide.addText(q.fullQuestionText, {
-            x: 1.25,
-            y: 1.95,
-            w: 10.9,
-            h: 4.10,
-            fontSize: pptFontSize,
-            bold: true,
-            color: themeColors.textPrimary,
-            fontFace: 'Calibri',
-            valign: 'top',
-            align: 'left',
-            wrap: true,
-            margin: [0, 0, 0, 0],
-            lineSpacingMultiple: 1.25,
-          });
+          // Single Multi-Paragraph Text Block (Guarantees Perfect Vertical Alignment & Zero Overlap)
+          slide.addText(
+            [
+              {
+                text: `QUESTION ${qIdx + 1}\n\n`,
+                options: {
+                  fontSize: 13,
+                  bold: true,
+                  color: themeColors.accentGradient,
+                  fontFace: 'Arial',
+                },
+              },
+              {
+                text: q.fullQuestionText,
+                options: {
+                  fontSize: pptFontSize,
+                  bold: true,
+                  color: themeColors.textPrimary,
+                  fontFace: 'Calibri',
+                  lineSpacing: pptFontSize * 1.35,
+                },
+              },
+            ],
+            {
+              x: 1.25,
+              y: 1.45,
+              w: 10.9,
+              h: 4.60,
+              valign: 'top',
+              align: 'left',
+              wrap: true,
+              margin: 0,
+              isTextBox: true,
+            }
+          );
 
           // 3. FOOTER (Y: 6.75", Height: 0.35")
           slide.addText(`Apna Engineering Wallah • ${subjectName}`, {
@@ -590,7 +578,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             h: 0.35,
             fontSize: 10,
             color: themeColors.textMuted,
-            margin: [0, 0, 0, 0],
+            margin: 0,
             valign: 'middle',
             fontFace: 'Calibri',
           });
@@ -603,7 +591,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             fontSize: 10,
             color: themeColors.textMuted,
             align: 'right',
-            margin: [0, 0, 0, 0],
+            margin: 0,
             valign: 'middle',
             fontFace: 'Calibri',
           });
@@ -621,7 +609,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               fontSize: 13,
               bold: true,
               color: '34D399',
-              margin: [0, 0, 0, 0],
+              margin: 0,
               fontFace: 'Arial',
             });
 
@@ -634,7 +622,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 fontSize: 11,
                 color: themeColors.textSecondary,
                 align: 'right',
-                margin: [0, 0, 0, 0],
+                margin: 0,
                 fontFace: 'Calibri',
               });
             }
@@ -656,7 +644,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               h: 1.1,
               fontSize: 13,
               color: themeColors.textSecondary,
-              margin: [0, 0, 0, 0],
+              margin: 0,
+              wrap: true,
+              isTextBox: true,
               fontFace: 'Calibri',
             });
 
@@ -677,7 +667,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               h: 3.4,
               fontSize: 14,
               color: themeColors.textPrimary,
-              margin: [0, 0, 0, 0],
+              margin: 0,
+              wrap: true,
+              isTextBox: true,
               fontFace: 'Calibri',
               lineSpacingMultiple: 1.2,
             });
