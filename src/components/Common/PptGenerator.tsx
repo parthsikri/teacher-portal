@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2,
   Trash2, Sliders,
   HelpCircle, RefreshCw, Layers,
-  Calendar, BookOpen, Sparkles
+  Calendar, BookOpen, Sparkles, Maximize2, X
 } from 'lucide-react';
 
 export interface ParsedQuestion {
@@ -41,6 +41,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [isFullscreenPreview, setIsFullscreenPreview] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -210,6 +211,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   };
 
   // ─── EXPORT BROADCAST-READY POWERPOINT (.PPTX) ────────────────────────────────
+  // EXACT CANVAS DIMENSIONS: 16:9 Widescreen (13.333" width × 7.500" height)
   const handleExportPowerPoint = async () => {
     if (questions.length === 0) {
       alert('Please upload an Excel file with questions first.');
@@ -219,21 +221,21 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     setIsGeneratingPpt(true);
     try {
       const pptx = new PptxGenJS();
-      pptx.layout = 'LAYOUT_16x9'; // 13.33 x 7.5 inches
+      pptx.layout = 'LAYOUT_16x9'; // Exact 13.333 x 7.500 inches (1920x1080 equivalent)
 
-      // Theme Colors
+      // Theme Color Palettes
       const themeColors = {
         dark_tech: {
-          bg: '090D16',          // Dark luxury matte slate
-          cardBg: '121829',      // Elevated surface
-          cardBorder: '232E4A',  // Hairline border
-          accentGradient: '6366F1', // Indigo accent
+          bg: '090D16',          // Luxury matte dark background
+          cardBg: '111728',      // Card surface
+          cardBorder: '212D4A',  // Crisp card hairline
+          accentGradient: '6366F1', // Royal indigo
           textPrimary: 'FFFFFF',
           textSecondary: '94A3B8',
           textMuted: '64748B',
-          unitTagBg: '272757',
+          unitTagBg: '23255A',
           unitTagText: 'A5B4FC',
-          examBadgeBg: '451A03',
+          examBadgeBg: '422006',
           examBadgeBorder: '78350F',
           examBadgeText: 'FDE68A',
         },
@@ -267,7 +269,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         },
       }[theme];
 
-      // ─── 1. TITLE / COVER SLIDE ───
+      // ─── 1. COVER / TITLE SLIDE ───
       const titleSlide = pptx.addSlide();
       titleSlide.background = { color: themeColors.bg };
 
@@ -296,9 +298,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       titleSlide.addText(deckTitle, {
         x: 0.8,
         y: 1.7,
-        w: 11.73,
+        w: 11.733,
         h: 1.8,
-        fontSize: 36,
+        fontSize: 32,
         bold: true,
         color: themeColors.textPrimary,
         fontFace: 'Arial',
@@ -393,7 +395,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           y: 2.5,
           w: 11.2,
           h: 2.0,
-          fontSize: 34,
+          fontSize: 32,
           bold: true,
           color: themeColors.textPrimary,
           fontFace: 'Arial',
@@ -416,7 +418,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           slide.background = { color: themeColors.bg };
 
           // 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right)
-          // Unit Tag
+          // Unit Tag Pill
           slide.addShape(pptx.ShapeType.roundRect, {
             x: 0.8,
             y: 0.45,
@@ -445,7 +447,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             y: 0.45,
             w: 5.5,
             h: 0.42,
-            fontSize: 13,
+            fontSize: 12,
             bold: true,
             color: themeColors.textSecondary,
             valign: 'middle',
@@ -457,7 +459,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             slide.addShape(pptx.ShapeType.roundRect, {
               x: 8.0,
               y: 0.42,
-              w: 4.53,
+              w: 4.533,
               h: 0.48,
               rectRadius: 0.08,
               fill: { color: themeColors.examBadgeBg },
@@ -467,7 +469,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             slide.addText(`🏷️ ${q.yearExam}`, {
               x: 8.0,
               y: 0.42,
-              w: 4.53,
+              w: 4.533,
               h: 0.48,
               fontSize: 11,
               bold: true,
@@ -478,12 +480,12 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             });
           }
 
-          // 2. MAIN GRAND HERO QUESTION CONTAINER
+          // 2. MAIN GRAND HERO QUESTION CONTAINER (Width: 11.733", Height: 5.20")
           slide.addShape(pptx.ShapeType.roundRect, {
             x: 0.8,
             y: 1.15,
-            w: 11.73,
-            h: 5.2,
+            w: 11.733,
+            h: 5.20,
             rectRadius: 0.12,
             fill: { color: themeColors.cardBg },
             line: { color: themeColors.cardBorder, width: 1.2 },
@@ -494,7 +496,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             x: 0.8,
             y: 1.15,
             w: 0.14,
-            h: 5.2,
+            h: 5.20,
             rectRadius: 0.05,
             fill: { color: themeColors.accentGradient },
           });
@@ -502,37 +504,37 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           // Question Label
           slide.addText(`QUESTION ${qIdx + 1}`, {
             x: 1.25,
-            y: 1.5,
+            y: 1.45,
             w: 3.5,
-            h: 0.45,
-            fontSize: 16,
+            h: 0.40,
+            fontSize: 14,
             bold: true,
             color: themeColors.accentGradient,
             fontFace: 'Arial',
           });
 
-          // Dynamic Font Sizing for Question Text
+          // Adaptive Font Sizing for Question Text (Strict Canvas Bounds)
           const qLen = q.fullQuestionText.length;
-          const pptFontSize = qLen > 240 ? 15 : qLen > 140 ? 18 : 20;
+          const pptFontSize = qLen > 320 ? 13 : qLen > 180 ? 15 : qLen > 80 ? 17 : 19;
 
           // Full Question Text
           slide.addText(q.fullQuestionText, {
             x: 1.25,
-            y: 2.05,
+            y: 1.95,
             w: 10.9,
-            h: 3.9,
+            h: 4.10,
             fontSize: pptFontSize,
             bold: true,
             color: themeColors.textPrimary,
             fontFace: 'Calibri',
-            valign: 'middle',
-            lineSpacingMultiple: 1.25,
+            valign: 'top',
+            lineSpacingMultiple: 1.2,
           });
 
-          // 3. FOOTER
+          // 3. FOOTER (Y: 6.75", Height: 0.35")
           slide.addText(`Apna Engineering Wallah • ${subjectName}`, {
             x: 0.8,
-            y: 6.8,
+            y: 6.75,
             w: 6.0,
             h: 0.35,
             fontSize: 10,
@@ -542,8 +544,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
           slide.addText(`Question ${qIdx + 1} of ${topicQuestions.length} (Overall Q${globalCounter}) • ${q.unitNumber}`, {
             x: 7.0,
-            y: 6.8,
-            w: 5.53,
+            y: 6.75,
+            w: 5.533,
             h: 0.35,
             fontSize: 10,
             color: themeColors.textMuted,
@@ -571,7 +573,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               solSlide.addText(`Exam: ${q.yearExam}`, {
                 x: 8.0,
                 y: 0.45,
-                w: 4.53,
+                w: 4.533,
                 h: 0.4,
                 fontSize: 11,
                 color: themeColors.textSecondary,
@@ -583,7 +585,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             solSlide.addShape(pptx.ShapeType.roundRect, {
               x: 0.8,
               y: 1.05,
-              w: 11.73,
+              w: 11.733,
               h: 1.3,
               rectRadius: 0.1,
               fill: { color: themeColors.cardBg },
@@ -603,7 +605,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             solSlide.addShape(pptx.ShapeType.roundRect, {
               x: 0.8,
               y: 2.55,
-              w: 11.73,
+              w: 11.733,
               h: 3.9,
               rectRadius: 0.1,
               fill: { color: themeColors.cardBg },
@@ -615,7 +617,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               y: 2.75,
               w: 10.9,
               h: 3.4,
-              fontSize: 15,
+              fontSize: 14,
               color: themeColors.textPrimary,
               fontFace: 'Calibri',
               lineSpacingMultiple: 1.2,
@@ -640,9 +642,154 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
   const currentPreviewQuestion = filteredQuestions[activeSlideIndex];
 
+  // Helper renderer for Slide Content (shared between inline and fullscreen)
+  const renderSlideCanvasContent = (isFullscreen: boolean) => {
+    if (!currentPreviewQuestion) return null;
+    return (
+      <div
+        className={`w-full h-full flex flex-col justify-between box-border select-none ${
+          isFullscreen ? 'p-8 sm:p-12' : 'p-4 sm:p-6'
+        }`}
+      >
+        {/* 1. TOP HEADER BAR: UNIT + TOPIC (Left) & YEAR & EXAM BADGE (Right) */}
+        <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/10 w-full min-w-0 shrink-0">
+          {/* Left: Unit Pill & Topic */}
+          <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+            <span
+              className={`shrink-0 px-2.5 py-0.5 rounded-md font-black font-mono tracking-wider uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 ${
+                isFullscreen ? 'text-sm' : 'text-[10px] sm:text-xs'
+              }`}
+            >
+              {currentPreviewQuestion.unitNumber}
+            </span>
+            <span
+              className={`text-slate-200 font-bold truncate ${
+                isFullscreen ? 'text-base sm:text-lg' : 'text-xs sm:text-sm'
+              }`}
+            >
+              {currentPreviewQuestion.mappedTopic}
+            </span>
+          </div>
+
+          {/* Right: Year & Exam Badge */}
+          {currentPreviewQuestion.yearExam && (
+            <div className="shrink-0 max-w-[42%] text-right overflow-hidden">
+              <span
+                className={`inline-block px-2.5 py-0.5 rounded-md font-bold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 truncate max-w-full shadow-sm ${
+                  isFullscreen ? 'text-xs sm:text-sm' : 'text-[10px] sm:text-xs'
+                }`}
+                title={currentPreviewQuestion.yearExam}
+              >
+                🏷️ {currentPreviewQuestion.yearExam}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 2. GRAND HERO QUESTION CARD */}
+        <div className="flex-1 my-2.5 sm:my-3 rounded-xl bg-slate-950/80 border border-slate-800/80 p-4 sm:p-6 flex flex-col justify-start relative overflow-hidden shadow-inner min-h-0">
+          {/* Left Accent Glow Stripe */}
+          <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-gradient-to-b from-indigo-500 via-purple-500 to-indigo-600" />
+
+          <div className="pl-3 sm:pl-4 space-y-1.5 min-w-0 overflow-hidden">
+            <div
+              className={`text-indigo-400 font-black font-mono tracking-widest uppercase ${
+                isFullscreen ? 'text-sm mb-2' : 'text-xs mb-1'
+              }`}
+            >
+              QUESTION {activeSlideIndex + 1}
+            </div>
+            <div
+              className={`font-bold leading-relaxed text-slate-100 break-words ${
+                isFullscreen
+                  ? 'text-lg sm:text-2xl md:text-3xl'
+                  : 'text-xs sm:text-sm md:text-base lg:text-lg'
+              }`}
+              style={{
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                display: '-webkit-box',
+                WebkitLineClamp: isFullscreen ? 8 : 5,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {currentPreviewQuestion.fullQuestionText}
+            </div>
+          </div>
+        </div>
+
+        {/* 3. SLIDE FOOTER */}
+        <div
+          className={`flex items-center justify-between pt-2 border-t border-white/10 text-slate-400 w-full min-w-0 shrink-0 ${
+            isFullscreen ? 'text-xs sm:text-sm' : 'text-[10px] sm:text-xs'
+          }`}
+        >
+          <span className="truncate mr-2">Apna Engineering Wallah • {subjectName}</span>
+          <span className="font-mono shrink-0">
+            Question {activeSlideIndex + 1} of {filteredQuestions.length} • {currentPreviewQuestion.unitNumber}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full max-w-full px-3 sm:px-6 py-6 space-y-6 text-slate-200 overflow-hidden box-border">
       
+      {/* FULLSCREEN PREVIEW MODAL */}
+      {isFullscreenPreview && currentPreviewQuestion && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-5xl flex flex-col items-center gap-4">
+            <div className="flex items-center justify-between w-full text-slate-300">
+              <span className="text-sm font-semibold flex items-center gap-2 font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                16:9 Standard Presentation Canvas (1920 × 1080)
+              </span>
+              <button
+                onClick={() => setIsFullscreenPreview(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              style={{ aspectRatio: '16/9' }}
+              className={`w-full rounded-2xl border shadow-2xl overflow-hidden transition-all ${
+                theme === 'dark_tech'
+                  ? 'bg-gradient-to-br from-[#0c1220] via-[#080c18] to-[#04060d] border-[#1E293B]'
+                  : theme === 'clean_minimal'
+                  ? 'bg-gradient-to-br from-[#ffffff] via-[#f8fafc] to-[#f1f5f9] border-[#E2E8F0]'
+                  : 'bg-gradient-to-br from-[#08182b] via-[#061426] to-[#030a14] border-[#1A3A60]'
+              }`}
+            >
+              {renderSlideCanvasContent(true)}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveSlideIndex((i) => Math.max(0, i - 1))}
+                disabled={activeSlideIndex === 0}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold disabled:opacity-40"
+              >
+                Previous Slide
+              </button>
+              <span className="text-xs font-mono text-slate-400">
+                {activeSlideIndex + 1} / {filteredQuestions.length}
+              </span>
+              <button
+                onClick={() => setActiveSlideIndex((i) => Math.min(filteredQuestions.length - 1, i + 1))}
+                disabled={activeSlideIndex === filteredQuestions.length - 1}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold disabled:opacity-40"
+              >
+                Next Slide
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TOAST FEEDBACK */}
       {successToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-emerald-500/40 text-emerald-300 px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2">
@@ -662,7 +809,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1 truncate">
-            Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • Broadcast 16:9
+            Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • 16:9 Standard Canvas
           </p>
         </div>
 
@@ -707,7 +854,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           <div className="space-y-1.5">
             <h3 className="font-bold text-base text-slate-100">Upload Your Questions Spreadsheet</h3>
             <p className="text-xs text-slate-400 max-w-lg mx-auto">
-              Upload your question bank. Each question will be formatted into a widescreen, broadcast-quality PowerPoint slide with topic categorization.
+              Upload your question bank. Each question will be formatted into a widescreen 16:9 broadcast-quality PowerPoint slide with topic categorization.
             </p>
           </div>
 
@@ -841,8 +988,16 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   </div>
                 </div>
 
+                {/* CANVAS SPECS DISPLAY */}
+                <div className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800 text-[11px] space-y-1 font-mono text-slate-400">
+                  <div className="text-indigo-400 font-bold flex items-center gap-1">
+                    <span>📐</span> Standard 16:9 Canvas
+                  </div>
+                  <div>Dimensions: 13.333" × 7.500" (1920×1080)</div>
+                </div>
+
                 {/* TOGGLE SOLUTIONS */}
-                <div className="pt-2 border-t border-slate-800/60">
+                <div className="pt-1 border-t border-slate-800/60">
                   <label className="flex items-center gap-2 cursor-pointer text-slate-300">
                     <input
                       type="checkbox"
@@ -863,7 +1018,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               >
                 {isGeneratingPpt ? (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating Slides...
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating Deck...
                   </>
                 ) : (
                   <>
@@ -936,36 +1091,47 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 <span className="font-semibold text-slate-200 shrink-0">
                   Slide {activeSlideIndex + 1} of {filteredQuestions.length}
                 </span>
-                <span className="text-[11px] text-slate-400 truncate">• 1 Question Per Slide View</span>
+                <span className="text-[11px] text-slate-400 truncate">• 16:9 Canvas</span>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => setActiveSlideIndex((i) => Math.max(0, i - 1))}
-                  disabled={activeSlideIndex === 0}
-                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-800"
+                  onClick={() => setIsFullscreenPreview(true)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                  title="Expand Fullscreen 1080p Preview"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <Maximize2 className="w-3.5 h-3.5" /> Fullscreen
                 </button>
-                <button
-                  onClick={() => setActiveSlideIndex((i) => Math.min(filteredQuestions.length - 1, i + 1))}
-                  disabled={activeSlideIndex === filteredQuestions.length - 1}
-                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-800"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setActiveSlideIndex((i) => Math.max(0, i - 1))}
+                    disabled={activeSlideIndex === 0}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-800"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setActiveSlideIndex((i) => Math.min(filteredQuestions.length - 1, i + 1))}
+                    disabled={activeSlideIndex === filteredQuestions.length - 1}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-800"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* LIVE 16:9 SLIDE CANVAS PREVIEW (GRAND HERO BROADCAST QUALITY) */}
+            {/* LIVE 16:9 SLIDE CANVAS PREVIEW (STRICT RATIO CONTAINER) */}
             {currentPreviewQuestion ? (
               <div
                 style={{
                   aspectRatio: '16/9',
                   boxSizing: 'border-box',
+                  width: '100%',
                   maxWidth: '100%',
                 }}
-                className={`w-full rounded-2xl border p-4 sm:p-6 md:p-7 flex flex-col justify-between shadow-2xl relative overflow-hidden transition-all ${
+                className={`rounded-2xl border shadow-2xl relative overflow-hidden transition-all ${
                   theme === 'dark_tech'
                     ? 'bg-gradient-to-br from-[#0c1220] via-[#080c18] to-[#04060d] border-[#1E293B] text-slate-100'
                     : theme === 'clean_minimal'
@@ -973,59 +1139,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                     : 'bg-gradient-to-br from-[#08182b] via-[#061426] to-[#030a14] border-[#1A3A60] text-white'
                 }`}
               >
-                {/* 1. TOP HEADER BAR: UNIT + TOPIC (Left) & YEAR & EXAM BADGE (Right) */}
-                <div className="flex items-center justify-between gap-2.5 pb-2.5 border-b border-white/10 w-full min-w-0">
-                  {/* Left: Unit Pill & Topic */}
-                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                    <span className="shrink-0 px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-black font-mono tracking-wider uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                      {currentPreviewQuestion.unitNumber}
-                    </span>
-                    <span className="text-xs sm:text-sm text-slate-200 font-bold truncate">
-                      {currentPreviewQuestion.mappedTopic}
-                    </span>
-                  </div>
-
-                  {/* Right: Year & Exam Badge */}
-                  {currentPreviewQuestion.yearExam && (
-                    <div className="shrink-0 max-w-[42%] text-right overflow-hidden">
-                      <span
-                        className="inline-block px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-bold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 truncate max-w-full shadow-sm"
-                        title={currentPreviewQuestion.yearExam}
-                      >
-                        🏷️ {currentPreviewQuestion.yearExam}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. GRAND HERO QUESTION CARD */}
-                <div className="flex-1 my-2.5 sm:my-3 rounded-xl bg-slate-950/80 border border-slate-800/80 p-4 sm:p-6 flex flex-col justify-center relative overflow-hidden shadow-inner min-h-0">
-                  {/* Left Accent Glow Stripe */}
-                  <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-gradient-to-b from-indigo-500 via-purple-500 to-indigo-600" />
-                  
-                  <div className="pl-3 sm:pl-4 space-y-1.5 sm:space-y-2 min-w-0 overflow-hidden">
-                    <div className="text-indigo-400 font-black text-xs sm:text-sm font-mono tracking-widest uppercase">
-                      QUESTION {activeSlideIndex + 1}
-                    </div>
-                    <div
-                      className="font-bold leading-relaxed text-slate-100 break-words text-sm sm:text-base md:text-lg lg:text-xl line-clamp-6"
-                      style={{
-                        wordBreak: 'break-word',
-                        overflowWrap: 'break-word',
-                      }}
-                    >
-                      {currentPreviewQuestion.fullQuestionText}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. SLIDE FOOTER */}
-                <div className="flex items-center justify-between pt-2 border-t border-white/10 text-[10px] sm:text-xs text-slate-400 w-full min-w-0">
-                  <span className="truncate mr-2">Apna Engineering Wallah • {subjectName}</span>
-                  <span className="font-mono shrink-0">
-                    Question {activeSlideIndex + 1} of {filteredQuestions.length} • {currentPreviewQuestion.unitNumber}
-                  </span>
-                </div>
+                {renderSlideCanvasContent(false)}
               </div>
             ) : null}
 
