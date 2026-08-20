@@ -3,7 +3,7 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, Menu, X
+  Users, Menu, X, FileSpreadsheet
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -52,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Layers,
       badge: teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount}` : undefined,
     },
+    { id: 'ppt_generator', label: 'PPT Generator', icon: FileSpreadsheet },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
     { id: 'resources', label: 'Subject Library', icon: BookMarked },
     { id: 'directives', label: 'Admin Directives', icon: MessageSquare },
@@ -66,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Layers,
       badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
     },
+    { id: 'ppt_generator', label: 'PPT Generator', icon: FileSpreadsheet },
     { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
     { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
     { id: 'admin_lectures', label: 'Lecture Audits', icon: Video },

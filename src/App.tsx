@@ -8,6 +8,8 @@ import { AdminView } from './components/Admin/AdminView';
 import { UploadLectureModal } from './components/Teacher/UploadLectureModal';
 import { DailyCommitmentModal } from './components/Teacher/DailyCommitmentModal';
 
+import { PptGenerator } from './components/Common/PptGenerator';
+
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState<string>('dashboard');
@@ -86,7 +88,12 @@ export const App: React.FC = () => {
           {/* MAIN APPLICATION VIEW (OFFSET BY LEFT SIDEBAR) */}
           <div className="flex-1 md:pl-64 lg:pl-72 flex flex-col min-h-screen">
             <main key={refreshKey} className="flex-1 pt-16 md:pt-4 pb-16">
-              {currentUser.role === 'admin' ? (
+              {currentPage === 'ppt_generator' ? (
+                <PptGenerator
+                  userSubject={currentUser.subject || currentUser.department}
+                  userName={currentUser.name}
+                />
+              ) : currentUser.role === 'admin' ? (
                 <AdminView
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
