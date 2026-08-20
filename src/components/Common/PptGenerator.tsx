@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import PptxGenJS from 'pptxgenjs';
+import { jsPDF } from 'jspdf';
 import { 
   FileSpreadsheet, Download, 
   ChevronLeft, ChevronRight, CheckCircle2,
   Trash2, Sliders,
   HelpCircle, RefreshCw, Layers,
-  Calendar, BookOpen, Sparkles, Maximize2, X
+  Calendar, BookOpen, Sparkles, Maximize2, X,
+  FileText
 } from 'lucide-react';
 
 export interface ParsedQuestion {
@@ -38,6 +40,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const [theme, setTheme] = useState<SlideTheme>('dark_tech');
   const [includeSolutions, setIncludeSolutions] = useState<boolean>(false);
   const [isGeneratingPpt, setIsGeneratingPpt] = useState<boolean>(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -210,7 +213,86 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // ─── EXPORT BROADCAST-READY POWERPOINT (.PPTX) ────────────────────────────────
+  // ─── THEME PALETTES ──────────────────────────────────────────────────────────
+  const themeColors = {
+    dark_tech: {
+      bg: '090D16',          // Luxury matte dark background
+      cardBg: '111728',      // Card surface
+      cardBorder: '212D4A',  // Crisp card hairline
+      accentGradient: '6366F1', // Royal indigo
+      textPrimary: 'FFFFFF',
+      textSecondary: '94A3B8',
+      textMuted: '64748B',
+      unitTagBg: '23255A',
+      unitTagText: 'A5B4FC',
+      examBadgeBg: '422006',
+      examBadgeBorder: '78350F',
+      examBadgeText: 'FDE68A',
+      rgbBg: [9, 13, 22] as [number, number, number],
+      rgbCard: [17, 23, 40] as [number, number, number],
+      rgbBorder: [33, 45, 74] as [number, number, number],
+      rgbAccent: [99, 102, 241] as [number, number, number],
+      rgbTextPrimary: [255, 255, 255] as [number, number, number],
+      rgbTextSecondary: [148, 163, 184] as [number, number, number],
+      rgbTextMuted: [100, 116, 139] as [number, number, number],
+      rgbUnitBg: [35, 37, 90] as [number, number, number],
+      rgbUnitText: [165, 180, 252] as [number, number, number],
+      rgbExamBg: [66, 32, 6] as [number, number, number],
+      rgbExamText: [253, 230, 138] as [number, number, number],
+    },
+    clean_minimal: {
+      bg: 'F8FAFC',
+      cardBg: 'FFFFFF',
+      cardBorder: 'E2E8F0',
+      accentGradient: '4F46E5',
+      textPrimary: '0F172A',
+      textSecondary: '475569',
+      textMuted: '94A3B8',
+      unitTagBg: 'EEF2FF',
+      unitTagText: '4338CA',
+      examBadgeBg: 'FEF3C7',
+      examBadgeBorder: 'FDE68A',
+      examBadgeText: '92400E',
+      rgbBg: [248, 250, 252] as [number, number, number],
+      rgbCard: [255, 255, 255] as [number, number, number],
+      rgbBorder: [226, 232, 240] as [number, number, number],
+      rgbAccent: [79, 70, 229] as [number, number, number],
+      rgbTextPrimary: [15, 23, 42] as [number, number, number],
+      rgbTextSecondary: [71, 85, 105] as [number, number, number],
+      rgbTextMuted: [148, 163, 184] as [number, number, number],
+      rgbUnitBg: [238, 242, 255] as [number, number, number],
+      rgbUnitText: [67, 56, 202] as [number, number, number],
+      rgbExamBg: [254, 243, 199] as [number, number, number],
+      rgbExamText: [146, 64, 14] as [number, number, number],
+    },
+    deep_navy: {
+      bg: '061426',
+      cardBg: '0D213A',
+      cardBorder: '1A3A60',
+      accentGradient: '00ADB5',
+      textPrimary: 'FFFFFF',
+      textSecondary: '94A3B8',
+      textMuted: '4E6987',
+      unitTagBg: '16385C',
+      unitTagText: '7DD3FC',
+      examBadgeBg: '422006',
+      examBadgeBorder: '713F12',
+      examBadgeText: 'FDE047',
+      rgbBg: [6, 20, 38] as [number, number, number],
+      rgbCard: [13, 33, 58] as [number, number, number],
+      rgbBorder: [26, 58, 96] as [number, number, number],
+      rgbAccent: [0, 173, 181] as [number, number, number],
+      rgbTextPrimary: [255, 255, 255] as [number, number, number],
+      rgbTextSecondary: [148, 163, 184] as [number, number, number],
+      rgbTextMuted: [78, 105, 135] as [number, number, number],
+      rgbUnitBg: [22, 56, 92] as [number, number, number],
+      rgbUnitText: [125, 211, 252] as [number, number, number],
+      rgbExamBg: [66, 32, 6] as [number, number, number],
+      rgbExamText: [253, 224, 71] as [number, number, number],
+    },
+  }[theme];
+
+  // ─── 1. EXPORT BROADCAST-READY POWERPOINT (.PPTX) ─────────────────────────────
   // EXACT CANVAS DIMENSIONS: 16:9 Widescreen (13.333" width × 7.500" height)
   const handleExportPowerPoint = async () => {
     if (questions.length === 0) {
@@ -223,53 +305,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       const pptx = new PptxGenJS();
       pptx.layout = 'LAYOUT_16x9'; // Exact 13.333 x 7.500 inches (1920x1080 equivalent)
 
-      // Theme Color Palettes
-      const themeColors = {
-        dark_tech: {
-          bg: '090D16',          // Luxury matte dark background
-          cardBg: '111728',      // Card surface
-          cardBorder: '212D4A',  // Crisp card hairline
-          accentGradient: '6366F1', // Royal indigo
-          textPrimary: 'FFFFFF',
-          textSecondary: '94A3B8',
-          textMuted: '64748B',
-          unitTagBg: '23255A',
-          unitTagText: 'A5B4FC',
-          examBadgeBg: '422006',
-          examBadgeBorder: '78350F',
-          examBadgeText: 'FDE68A',
-        },
-        clean_minimal: {
-          bg: 'F8FAFC',
-          cardBg: 'FFFFFF',
-          cardBorder: 'E2E8F0',
-          accentGradient: '4F46E5',
-          textPrimary: '0F172A',
-          textSecondary: '475569',
-          textMuted: '94A3B8',
-          unitTagBg: 'EEF2FF',
-          unitTagText: '4338CA',
-          examBadgeBg: 'FEF3C7',
-          examBadgeBorder: 'FDE68A',
-          examBadgeText: '92400E',
-        },
-        deep_navy: {
-          bg: '061426',
-          cardBg: '0D213A',
-          cardBorder: '1A3A60',
-          accentGradient: '00ADB5',
-          textPrimary: 'FFFFFF',
-          textSecondary: '94A3B8',
-          textMuted: '4E6987',
-          unitTagBg: '16385C',
-          unitTagText: '7DD3FC',
-          examBadgeBg: '422006',
-          examBadgeBorder: '713F12',
-          examBadgeText: 'FDE047',
-        },
-      }[theme];
-
-      // ─── 1. COVER / TITLE SLIDE ───
+      // COVER / TITLE SLIDE
       const titleSlide = pptx.addSlide();
       titleSlide.background = { color: themeColors.bg };
 
@@ -292,6 +328,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         color: themeColors.unitTagText,
         align: 'center',
         valign: 'middle',
+        margin: [0, 0, 0, 0],
         fontFace: 'Arial',
       });
 
@@ -303,6 +340,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         fontSize: 32,
         bold: true,
         color: themeColors.textPrimary,
+        margin: [0, 0, 0, 0],
         fontFace: 'Arial',
       });
 
@@ -313,6 +351,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         h: 0.5,
         fontSize: 16,
         color: themeColors.textSecondary,
+        margin: [0, 0, 0, 0],
         fontFace: 'Calibri',
       });
 
@@ -343,6 +382,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           color: themeColors.textPrimary,
           align: 'center',
           valign: 'middle',
+          margin: [0, 0, 0, 0],
           fontFace: 'Arial',
         });
       });
@@ -354,10 +394,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         h: 0.4,
         fontSize: 11,
         color: themeColors.textMuted,
+        margin: [0, 0, 0, 0],
         fontFace: 'Calibri',
       });
 
-      // ─── 2. TOPIC DIVIDERS & 1-QUESTION-PER-PAGE SLIDES ───
+      // TOPIC DIVIDERS & 1-QUESTION-PER-PAGE SLIDES
       let globalCounter = 1;
 
       for (const topicName of uniqueTopics) {
@@ -387,6 +428,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           color: 'FFFFFF',
           align: 'center',
           valign: 'middle',
+          margin: [0, 0, 0, 0],
           fontFace: 'Arial',
         });
 
@@ -398,6 +440,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           fontSize: 32,
           bold: true,
           color: themeColors.textPrimary,
+          margin: [0, 0, 0, 0],
           fontFace: 'Arial',
         });
 
@@ -408,6 +451,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           h: 0.6,
           fontSize: 16,
           color: themeColors.textSecondary,
+          margin: [0, 0, 0, 0],
           fontFace: 'Calibri',
         });
 
@@ -438,6 +482,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             color: themeColors.unitTagText,
             align: 'center',
             valign: 'middle',
+            margin: [0, 0, 0, 0],
             fontFace: 'Arial',
           });
 
@@ -451,16 +496,17 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             bold: true,
             color: themeColors.textSecondary,
             valign: 'middle',
+            margin: [0, 0, 0, 0],
             fontFace: 'Calibri',
           });
 
-          // Year & Exam Highlight Tag (Top Right)
+          // Year & Exam Highlight Tag (Top Right - Strictly aligned to y: 0.45)
           if (q.yearExam) {
             slide.addShape(pptx.ShapeType.roundRect, {
               x: 8.0,
-              y: 0.42,
+              y: 0.45,
               w: 4.533,
-              h: 0.48,
+              h: 0.42,
               rectRadius: 0.08,
               fill: { color: themeColors.examBadgeBg },
               line: { color: themeColors.examBadgeBorder, width: 1 },
@@ -468,14 +514,15 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
             slide.addText(`🏷️ ${q.yearExam}`, {
               x: 8.0,
-              y: 0.42,
+              y: 0.45,
               w: 4.533,
-              h: 0.48,
+              h: 0.42,
               fontSize: 11,
               bold: true,
               color: themeColors.examBadgeText,
               align: 'center',
               valign: 'middle',
+              margin: [0, 0, 0, 0],
               fontFace: 'Calibri',
             });
           }
@@ -510,14 +557,15 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             fontSize: 14,
             bold: true,
             color: themeColors.accentGradient,
+            margin: [0, 0, 0, 0],
             fontFace: 'Arial',
           });
 
-          // Adaptive Font Sizing for Question Text (Strict Canvas Bounds)
+          // Adaptive Font Sizing for Question Text
           const qLen = q.fullQuestionText.length;
           const pptFontSize = qLen > 320 ? 13 : qLen > 180 ? 15 : qLen > 80 ? 17 : 19;
 
-          // Full Question Text
+          // Full Question Text (Strict left alignment and zero displacement)
           slide.addText(q.fullQuestionText, {
             x: 1.25,
             y: 1.95,
@@ -528,7 +576,10 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             color: themeColors.textPrimary,
             fontFace: 'Calibri',
             valign: 'top',
-            lineSpacingMultiple: 1.2,
+            align: 'left',
+            wrap: true,
+            margin: [0, 0, 0, 0],
+            lineSpacingMultiple: 1.25,
           });
 
           // 3. FOOTER (Y: 6.75", Height: 0.35")
@@ -539,6 +590,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             h: 0.35,
             fontSize: 10,
             color: themeColors.textMuted,
+            margin: [0, 0, 0, 0],
+            valign: 'middle',
             fontFace: 'Calibri',
           });
 
@@ -550,6 +603,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             fontSize: 10,
             color: themeColors.textMuted,
             align: 'right',
+            margin: [0, 0, 0, 0],
+            valign: 'middle',
             fontFace: 'Calibri',
           });
 
@@ -566,6 +621,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               fontSize: 13,
               bold: true,
               color: '34D399',
+              margin: [0, 0, 0, 0],
               fontFace: 'Arial',
             });
 
@@ -578,6 +634,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 fontSize: 11,
                 color: themeColors.textSecondary,
                 align: 'right',
+                margin: [0, 0, 0, 0],
                 fontFace: 'Calibri',
               });
             }
@@ -599,6 +656,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               h: 1.1,
               fontSize: 13,
               color: themeColors.textSecondary,
+              margin: [0, 0, 0, 0],
               fontFace: 'Calibri',
             });
 
@@ -619,6 +677,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               h: 3.4,
               fontSize: 14,
               color: themeColors.textPrimary,
+              margin: [0, 0, 0, 0],
               fontFace: 'Calibri',
               lineSpacingMultiple: 1.2,
             });
@@ -628,15 +687,200 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         }
       }
 
-      const filename = `${subjectName.replace(/[^a-zA-Z0-9]/g, '_')}_Questions_Presentation.pptx`;
+      const filename = `${subjectName.replace(/[^a-zA-Z0-9]/g, '_')}_Presentation_Deck.pptx`;
       await pptx.writeFile({ fileName: filename });
 
-      setSuccessToast(`PowerPoint generated successfully: ${filename}`);
+      setSuccessToast(`PowerPoint generated: ${filename}`);
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err) {
       alert('Failed to generate PowerPoint: ' + (err as Error).message);
     } finally {
       setIsGeneratingPpt(false);
+    }
+  };
+
+  // ─── 2. EXPORT HIGH-RES 16:9 PDF PRESENTATION DECK (.PDF) ───────────────────
+  const handleExportPDF = async () => {
+    if (questions.length === 0) {
+      alert('Please upload an Excel file with questions first.');
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    try {
+      // 16:9 Landscape Widescreen (297mm x 167.06mm)
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [297, 167.06],
+      });
+
+      const pageWidth = 297;
+      const pageHeight = 167.06;
+
+      // ─── COVER SLIDE ───
+      pdf.setFillColor(...themeColors.rgbBg);
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+      // Top Tag
+      pdf.setFillColor(...themeColors.rgbUnitBg);
+      pdf.roundedRect(18, 20, 60, 9, 2, 2, 'F');
+      pdf.setTextColor(...themeColors.rgbUnitText);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.text('APNA ENGINEERING WALLAH', 48, 26, { align: 'center' });
+
+      // Deck Title
+      pdf.setTextColor(...themeColors.rgbTextPrimary);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(24);
+      pdf.text(deckTitle, 18, 44, { maxWidth: 260 });
+
+      // Subtitle
+      pdf.setTextColor(...themeColors.rgbTextSecondary);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(13);
+      pdf.text(`${subjectName} • 1 Question Per Slide Presentation Deck`, 18, 65);
+
+      // Stats Cards
+      const stats = [
+        `* ${questions.length} Exam Questions`,
+        `* ${uniqueTopics.length} Mapped Topics`,
+        `* ${uniqueUnits.length} Units Covered`,
+      ];
+
+      stats.forEach((st, idx) => {
+        const xPos = 18 + (idx * 88);
+        pdf.setFillColor(...themeColors.rgbCard);
+        pdf.setDrawColor(...themeColors.rgbBorder);
+        pdf.roundedRect(xPos, 85, 80, 16, 3, 3, 'FD');
+        pdf.setTextColor(...themeColors.rgbTextPrimary);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+        pdf.text(st, xPos + 40, 95, { align: 'center' });
+      });
+
+      // Cover Footer
+      pdf.setTextColor(...themeColors.rgbTextMuted);
+      pdf.setFontSize(9);
+      pdf.text(`Faculty: ${userName} • Prepared for Video Recording & Classroom Delivery`, 18, 155);
+
+      // ─── QUESTION SLIDES ───
+      let globalIdx = 1;
+
+      for (const topic of uniqueTopics) {
+        const topicQuestions = topicGroups[topic];
+        const unitName = topicQuestions[0]?.unitNumber || 'UNIT 1';
+
+        // SECTION DIVIDER SLIDE
+        pdf.addPage([297, 167.06], 'landscape');
+        pdf.setFillColor(...themeColors.rgbBg);
+        pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+        // Unit Pill
+        pdf.setFillColor(...themeColors.rgbAccent);
+        pdf.roundedRect(20, 35, 45, 10, 2, 2, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+        pdf.text(unitName.toUpperCase(), 42.5, 41.5, { align: 'center' });
+
+        // Topic Title
+        pdf.setTextColor(...themeColors.rgbTextPrimary);
+        pdf.setFontSize(24);
+        pdf.text(topic, 20, 62, { maxWidth: 257 });
+
+        // Subtitle
+        pdf.setTextColor(...themeColors.rgbTextSecondary);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(12);
+        pdf.text(`${topicQuestions.length} Practice & University Exam Problems • 1 Question Per Slide`, 20, 95);
+
+        // 1-QUESTION-PER-PAGE SLIDES
+        for (let qIdx = 0; qIdx < topicQuestions.length; qIdx++) {
+          const q = topicQuestions[qIdx];
+          pdf.addPage([297, 167.06], 'landscape');
+
+          // Slide Background
+          pdf.setFillColor(...themeColors.rgbBg);
+          pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+          // 1. TOP HEADER BAR
+          // Unit Tag
+          pdf.setFillColor(...themeColors.rgbUnitBg);
+          pdf.roundedRect(18, 10, 28, 8, 2, 2, 'F');
+          pdf.setTextColor(...themeColors.rgbUnitText);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(9);
+          pdf.text(q.unitNumber.toUpperCase(), 32, 15.5, { align: 'center' });
+
+          // Topic Name
+          pdf.setTextColor(...themeColors.rgbTextSecondary);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(10);
+          pdf.text(q.mappedTopic, 50, 15.5, { maxWidth: 120 });
+
+          // Year & Exam Badge (Right aligned)
+          if (q.yearExam) {
+            pdf.setFillColor(...themeColors.rgbExamBg);
+            pdf.setDrawColor(...themeColors.rgbBorder);
+            pdf.roundedRect(185, 10, 94, 8, 2, 2, 'FD');
+            pdf.setTextColor(...themeColors.rgbExamText);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(8.5);
+            pdf.text(`[Exam] ${q.yearExam}`, 232, 15.5, { align: 'center', maxWidth: 90 });
+          }
+
+          // 2. MAIN GRAND HERO CARD
+          const cardX = 18;
+          const cardY = 24;
+          const cardW = 261;
+          const cardH = 125;
+
+          pdf.setFillColor(...themeColors.rgbCard);
+          pdf.setDrawColor(...themeColors.rgbBorder);
+          pdf.roundedRect(cardX, cardY, cardW, cardH, 4, 4, 'FD');
+
+          // Left Accent Stripe
+          pdf.setFillColor(...themeColors.rgbAccent);
+          pdf.roundedRect(cardX, cardY, 3, cardH, 1, 1, 'F');
+
+          // Question Label
+          pdf.setTextColor(...themeColors.rgbAccent);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(11);
+          pdf.text(`QUESTION ${qIdx + 1}`, cardX + 12, cardY + 14);
+
+          // Full Question Text
+          const qLength = q.fullQuestionText.length;
+          const pdfFontSize = qLength > 300 ? 11 : qLength > 180 ? 13 : qLength > 80 ? 15 : 17;
+          pdf.setTextColor(...themeColors.rgbTextPrimary);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(pdfFontSize);
+
+          const splitLines = pdf.splitTextToSize(q.fullQuestionText, cardW - 24);
+          pdf.text(splitLines, cardX + 12, cardY + 28, { lineHeightFactor: 1.35 });
+
+          // 3. FOOTER
+          pdf.setTextColor(...themeColors.rgbTextMuted);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(8.5);
+          pdf.text(`Apna Engineering Wallah • ${subjectName}`, 18, 158);
+          pdf.text(`Question ${qIdx + 1} of ${topicQuestions.length} (Overall Q${globalIdx}) • ${q.unitNumber}`, 279, 158, { align: 'right' });
+
+          globalIdx++;
+        }
+      }
+
+      const filename = `${subjectName.replace(/[^a-zA-Z0-9]/g, '_')}_Deck.pdf`;
+      pdf.save(filename);
+
+      setSuccessToast(`PDF generated successfully: ${filename}`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } catch (err) {
+      alert('Failed to generate PDF: ' + (err as Error).message);
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -805,11 +1049,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               <FileSpreadsheet className="w-4 h-4" />
             </span>
             <h2 className="text-xl font-bold text-slate-100 tracking-tight truncate">
-              Excel to PowerPoint Slide Deck Studio
+              Excel to PowerPoint & PDF Slide Studio
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1 truncate">
-            Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • 16:9 Standard Canvas
+            Topic-Wise Presentation Generator • <strong>1 Question Per Slide</strong> • 16:9 Canvas
           </p>
         </div>
 
@@ -854,7 +1098,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           <div className="space-y-1.5">
             <h3 className="font-bold text-base text-slate-100">Upload Your Questions Spreadsheet</h3>
             <p className="text-xs text-slate-400 max-w-lg mx-auto">
-              Upload your question bank. Each question will be formatted into a widescreen 16:9 broadcast-quality PowerPoint slide with topic categorization.
+              Upload your question bank. Each question will be formatted into a widescreen 16:9 presentation slide deck with topic categorization.
             </p>
           </div>
 
@@ -1010,22 +1254,40 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 </div>
               </div>
 
-              {/* EXPORT BUTTON */}
-              <button
-                onClick={handleExportPowerPoint}
-                disabled={isGeneratingPpt}
-                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isGeneratingPpt ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating Deck...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" /> Download PowerPoint (.pptx)
-                  </>
-                )}
-              </button>
+              {/* EXPORT BUTTONS */}
+              <div className="space-y-2 pt-1">
+                <button
+                  onClick={handleExportPowerPoint}
+                  disabled={isGeneratingPpt || isGeneratingPdf}
+                  className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isGeneratingPpt ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating PowerPoint...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" /> Download PowerPoint (.pptx)
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isGeneratingPpt || isGeneratingPdf}
+                  className="w-full py-2.5 bg-slate-950 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isGeneratingPdf ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4 text-emerald-400" /> Download Presentation PDF (.pdf)
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* TOPIC FILTER */}
