@@ -406,29 +406,29 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           fontFace: 'Calibri',
         });
 
-        // 1-QUESTION-PER-PAGE SLIDES (CLEAN, PROPORTIONAL & UNIFIED)
+        // 1-QUESTION-PER-PAGE SLIDES (CLEAN, PROPORTIONAL & BALANCED)
         for (let qIdx = 0; qIdx < topicQuestions.length; qIdx++) {
           const q = topicQuestions[qIdx];
           const slide = pptx.addSlide();
           slide.background = { color: themeColors.bg };
 
-          // 1. TOP HEADER BAR: UNIT + MAPPED TOPIC (Left) & YEAR & EXAM BADGE (Right)
-          // Unit Tag
+          // 1. TOP HEADER SECTION (Row 1: Unit + Topic, Row 2: Year & Exam)
+          // Unit Tag Pill
           slide.addShape(pptx.ShapeType.roundRect, {
             x: 0.8,
-            y: 0.45,
-            w: 1.4,
-            h: 0.42,
-            rectRadius: 0.08,
+            y: 0.42,
+            w: 1.3,
+            h: 0.36,
+            rectRadius: 0.06,
             fill: { color: themeColors.unitTagBg },
           });
 
           slide.addText(q.unitNumber.toUpperCase(), {
             x: 0.8,
-            y: 0.45,
-            w: 1.4,
-            h: 0.42,
-            fontSize: 11,
+            y: 0.42,
+            w: 1.3,
+            h: 0.36,
+            fontSize: 10,
             bold: true,
             color: themeColors.unitTagText,
             align: 'center',
@@ -438,35 +438,36 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
           // Mapped Topic Name
           slide.addText(q.mappedTopic, {
-            x: 2.35,
-            y: 0.45,
-            w: 5.2,
-            h: 0.42,
-            fontSize: 13,
+            x: 2.25,
+            y: 0.42,
+            w: 10.28,
+            h: 0.36,
+            fontSize: 12,
             bold: true,
             color: themeColors.textSecondary,
             valign: 'middle',
             fontFace: 'Calibri',
           });
 
-          // Year & Exam Highlight Tag (Right aligned with strict 11.73 total width limit)
+          // Row 2: Year & Exam Tag Pill (on its own dedicated row)
           if (q.yearExam) {
+            const badgeWidth = Math.min(11.73, Math.max(3.5, q.yearExam.length * 0.11 + 0.6));
             slide.addShape(pptx.ShapeType.roundRect, {
-              x: 7.7,
-              y: 0.42,
-              w: 4.83,
-              h: 0.48,
-              rectRadius: 0.08,
+              x: 0.8,
+              y: 0.9,
+              w: badgeWidth,
+              h: 0.36,
+              rectRadius: 0.06,
               fill: { color: themeColors.examBadgeBg },
               line: { color: themeColors.examBadgeBorder, width: 1 },
             });
 
             slide.addText(`🏷️ ${q.yearExam}`, {
-              x: 7.7,
-              y: 0.42,
-              w: 4.83,
-              h: 0.48,
-              fontSize: 11,
+              x: 0.8,
+              y: 0.9,
+              w: badgeWidth,
+              h: 0.36,
+              fontSize: 10,
               bold: true,
               color: themeColors.examBadgeText,
               align: 'center',
@@ -475,23 +476,28 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             });
           }
 
-          // Top Header Divider Line
+          // Header Divider Line
+          const dividerY = q.yearExam ? 1.4 : 0.95;
           slide.addShape(pptx.ShapeType.rect, {
             x: 0.8,
-            y: 1.1,
+            y: dividerY,
             w: 11.73,
             h: 0.015,
             fill: { color: themeColors.cardBorder },
           });
 
-          // 2. HERO QUESTION CONTENT (Directly on slide canvas)
+          // 2. HERO QUESTION CONTENT (Adaptive Font Sizing)
+          const qLength = q.fullQuestionText.length;
+          const dynamicFontSize = qLength > 280 ? 13 : qLength > 180 ? 15 : qLength > 90 ? 17 : 19;
+          const questionStartY = dividerY + 0.3;
+
           // Question Header Label
           slide.addText(`QUESTION ${qIdx + 1}`, {
             x: 0.8,
-            y: 1.6,
+            y: questionStartY,
             w: 4.0,
-            h: 0.45,
-            fontSize: 18,
+            h: 0.35,
+            fontSize: 12,
             bold: true,
             color: themeColors.accentGradient,
             fontFace: 'Arial',
@@ -500,15 +506,15 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           // Full Question Text
           slide.addText(q.fullQuestionText, {
             x: 0.8,
-            y: 2.2,
+            y: questionStartY + 0.45,
             w: 11.73,
-            h: 4.0,
-            fontSize: 24,
+            h: 6.4 - (questionStartY + 0.45),
+            fontSize: dynamicFontSize,
             bold: true,
             color: themeColors.textPrimary,
             fontFace: 'Calibri',
-            valign: 'middle',
-            lineSpacingMultiple: 1.25,
+            valign: 'top',
+            lineSpacingMultiple: 1.2,
           });
 
           // Bottom Divider Line
@@ -526,7 +532,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             y: 6.75,
             w: 6.0,
             h: 0.35,
-            fontSize: 10,
+            fontSize: 9,
             color: themeColors.textMuted,
             fontFace: 'Calibri',
           });
@@ -536,7 +542,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             y: 6.75,
             w: 5.53,
             h: 0.35,
-            fontSize: 10,
+            fontSize: 9,
             color: themeColors.textMuted,
             align: 'right',
             fontFace: 'Calibri',
@@ -983,16 +989,16 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
                 {/* BODY: Question text */}
                 <div className="flex-1 flex flex-col justify-center px-5 py-3" style={{ minHeight: 0, overflow: 'hidden' }}>
-                  <div className="font-black font-mono tracking-widest uppercase mb-2 text-indigo-400" style={{ fontSize: '10px' }}>
+                  <div className="font-black font-mono tracking-widest uppercase mb-1.5 text-indigo-400" style={{ fontSize: '11px' }}>
                     QUESTION {activeSlideIndex + 1}
                   </div>
                   <div
-                    className="font-bold leading-snug text-slate-100"
+                    className="font-bold leading-relaxed text-slate-100"
                     style={{
-                      fontSize: 'clamp(0.75rem, 1.8vw, 1.25rem)',
+                      fontSize: 'clamp(0.72rem, 1.35vw, 1.05rem)',
                       overflow: 'hidden',
                       display: '-webkit-box',
-                      WebkitLineClamp: 5,
+                      WebkitLineClamp: 6,
                       WebkitBoxOrient: 'vertical',
                     }}
                   >
