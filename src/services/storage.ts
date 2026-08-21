@@ -1,69 +1,13 @@
 import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest } from '../types';
 
-const LECTURES_KEY = 'aew_portal_lectures_master';
-const USERS_KEY = 'aew_portal_users_master';
-const CURRENT_USER_KEY = 'aew_portal_session_master';
-const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_master';
-const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_master';
-const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_master';
-const PPT_REQUESTS_KEY = 'aew_ppt_requests_master';
+const LECTURES_KEY = 'aew_portal_lectures_prod_v1';
+const USERS_KEY = 'aew_portal_users_prod_v1';
+const CURRENT_USER_KEY = 'aew_portal_session_prod_v1';
+const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_prod_v1';
+const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_prod_v1';
+const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_prod_v1';
+const PPT_REQUESTS_KEY = 'aew_ppt_requests_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
-
-// Initial Seed PPT Requests
-const INITIAL_PPT_REQUESTS: PptRequest[] = [
-  {
-    id: 'req-101',
-    teacherId: 'AEW-T-101',
-    teacherName: 'Dr. Harish Mehta',
-    subject: 'Data Structures & Algorithms',
-    unitNumber: 'UNIT 2',
-    topicTitle: 'Advanced Graph Algorithms & Dijkstra Shortest Path',
-    lectureDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-    estimatedQuestions: 8,
-    referenceUrl: 'https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ',
-    specialInstructions: 'Please include 4 GATE & university exam PYQs with step-by-step trace tables in Dark Tech theme.',
-    status: 'completed',
-    completedPptUrl: 'https://drive.google.com/file/d/1Dijkstra_Algorithm_Lecture_Deck/view',
-    completedPdfUrl: 'https://drive.google.com/file/d/1Dijkstra_Algorithm_Lecture_Deck_PDF/view',
-    adminRemarks: 'Deck prepared and verified by AEW Content Studio. Includes 8 high-contrast 16:9 slides.',
-    isNewForTeacher: true,
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'req-102',
-    teacherId: 'AEW-T-101',
-    teacherName: 'Dr. Harish Mehta',
-    subject: 'Data Structures & Algorithms',
-    unitNumber: 'UNIT 3',
-    topicTitle: 'Dynamic Programming on Trees & Rerooting',
-    lectureDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
-    estimatedQuestions: 6,
-    referenceUrl: '',
-    specialInstructions: 'Need 6 problem statement slides for tree rerooting techniques.',
-    status: 'in_progress',
-    adminRemarks: 'Design team currently assembling topic divider slides and question cards.',
-    isNewForTeacher: false,
-    createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'req-103',
-    teacherId: 'AEW-T-102',
-    teacherName: 'Prof. Sneha Sharma',
-    subject: 'Signals & Systems',
-    unitNumber: 'UNIT 1',
-    topicTitle: 'Continuous-Time Fourier Series & Dirichlet Conditions',
-    lectureDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-    estimatedQuestions: 5,
-    referenceUrl: '',
-    specialInstructions: 'Include waveform comparison diagram slides.',
-    status: 'pending',
-    isNewForTeacher: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
 
 // Initial Registered Faculty & Admin Roster with Daily Recording Target Minutes
 const INITIAL_USERS: User[] = [
@@ -749,40 +693,14 @@ export const StorageService = {
 
   // ─── LECTURES ──────────────────────────────────────────────────────────────
   getLectures(): Lecture[] {
-    const lecMap = new Map<string, Lecture>();
-
-    const keysToCheck = [
-      'aew_portal_lectures_v4',
-      'aew_portal_lectures_v5',
-      'aew_portal_lectures_v6',
-      LECTURES_KEY,
-    ];
-
-    keysToCheck.forEach((k) => {
-      const data = localStorage.getItem(k);
-      if (data) {
-        try {
-          const parsed = JSON.parse(data);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((l: Lecture) => {
-              if (l && l.id) {
-                lecMap.set(l.id, { 
-                  ...lecMap.get(l.id), 
-                  ...l,
-                  durationMinutes: l.durationMinutes || 45, // default 45 min
-                });
-              }
-            });
-          }
-        } catch {
-          // ignore
-        }
-      }
-    });
-
-    const allLectures = Array.from(lecMap.values());
-    localStorage.setItem(LECTURES_KEY, JSON.stringify(allLectures));
-    return allLectures;
+    const data = localStorage.getItem(LECTURES_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   },
 
   saveLectures(lectures: Lecture[]): void {
@@ -966,15 +884,12 @@ export const StorageService = {
   // ─── PPT REQUESTS (TEACHER REQUESTS -> ADMIN PRODUCES DECK) ────────────────
   getPptRequests(): PptRequest[] {
     const data = localStorage.getItem(PPT_REQUESTS_KEY);
-    if (!data) {
-      this.savePptRequests(INITIAL_PPT_REQUESTS);
-      return INITIAL_PPT_REQUESTS;
-    }
+    if (!data) return [];
     try {
       const parsed = JSON.parse(data);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_PPT_REQUESTS;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_PPT_REQUESTS;
+      return [];
     }
   },
 
