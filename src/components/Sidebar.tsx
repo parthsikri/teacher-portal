@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { 
       id: 'ppt_requests', 
-      label: 'Request PPT Deck', 
+      label: 'PYQ Slide Decks', 
       icon: FileSpreadsheet,
       badge: teacherPptReadyCount > 0 ? `${teacherPptReadyCount} Ready` : undefined,
     },

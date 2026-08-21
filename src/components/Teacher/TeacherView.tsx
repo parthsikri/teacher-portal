@@ -481,23 +481,23 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <div className="text-[11px] text-slate-400">{readyToDeliverTopics.length} ready to record</div>
             </div>
 
-            {/* Card 4: PPT Deck Requests with Ready Badge */}
+            {/* Card 4: PYQ Slide Decks with Ready Badge */}
             <div 
               onClick={() => onPageChange('ppt_requests')}
-              className="bg-slate-900/40 border border-slate-800/60 hover:border-indigo-500/50 rounded-xl p-4 space-y-1 cursor-pointer transition-colors"
+              className="bg-slate-900/40 border border-slate-800/60 hover:border-slate-700 rounded-xl p-4 space-y-1 cursor-pointer transition-colors"
             >
               <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>PPT Deck Requests</span>
+                <span>PYQ Slide Decks</span>
                 {adminNotifications.ppt > 0 ? (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-500 text-white animate-pulse">
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500 text-white">
                     {adminNotifications.ppt} READY
                   </span>
                 ) : (
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-400" />
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />
                 )}
               </div>
               <div className="text-xl font-bold text-slate-100">{pptRequests.length} Decks</div>
-              <div className="text-[11px] text-indigo-300">Request 2 days ahead →</div>
+              <div className="text-[11px] text-slate-400">2-day turnaround →</div>
             </div>
           </div>
 
@@ -510,14 +510,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-300">Syllabus Status</span>
                   {adminNotifications.syllabus > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
                       {adminNotifications.syllabus} Action Needed
                     </span>
                   )}
                 </div>
                 <button
                   onClick={() => onPageChange('syllabus')}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
+                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5 font-medium"
                 >
                   View All <ChevronRight className="w-3 h-3" />
                 </button>
@@ -526,24 +526,21 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div 
                   onClick={() => { setTopicFilter('needs_action'); onPageChange('syllabus'); }}
-                  className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors relative"
+                  className="p-3 bg-slate-950 rounded-lg border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors"
                 >
-                  {needsActionTopics.length > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 animate-ping" />
-                  )}
                   <div className="text-base font-bold text-amber-400">{needsActionTopics.length}</div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Needs Action</div>
                 </div>
                 <div 
                   onClick={() => { setTopicFilter('in_review'); onPageChange('syllabus'); }}
-                  className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors"
+                  className="p-3 bg-slate-950 rounded-lg border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors"
                 >
-                  <div className="text-base font-bold text-purple-300">{inReviewTopics.length}</div>
+                  <div className="text-base font-bold text-slate-200">{inReviewTopics.length}</div>
                   <div className="text-[10px] text-slate-400 mt-0.5">In Review</div>
                 </div>
                 <div 
                   onClick={() => { setTopicFilter('ready_to_deliver'); onPageChange('syllabus'); }}
-                  className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors"
+                  className="p-3 bg-slate-950 rounded-lg border border-slate-800 hover:border-slate-700 cursor-pointer transition-colors"
                 >
                   <div className="text-base font-bold text-emerald-400">{readyToDeliverTopics.length}</div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Ready to Record</div>
@@ -551,37 +548,37 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             </div>
 
-            {/* PPT Deck Request Portal Shortcut */}
+            {/* PYQ Slide Deck Request Portal Shortcut */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-3 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-300">Presentation Deck Hub</span>
+                    <span className="text-xs font-semibold text-slate-300">Topic PYQ Presentation Decks</span>
                     {adminNotifications.ppt > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
                         {adminNotifications.ppt} Ready
                       </span>
                     )}
                   </div>
                   <button
                     onClick={() => onPageChange('ppt_requests')}
-                    className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5 font-medium"
                   >
                     Open Portal <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
 
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Request custom 16:9 widescreen presentation slides for your topics <strong>2 days in advance</strong>. Our design team will format and deliver your slides.
+                  Request Previous Year Questions (PYQs) formatted into clean presentation slides for your topics <strong>2 days in advance</strong>.
                 </p>
               </div>
 
               <div className="pt-2">
                 <button
                   onClick={() => onPageChange('ppt_requests')}
-                  className="w-full py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5 text-indigo-400" /> Request New PPT Deck
+                  <Plus className="w-3.5 h-3.5 text-slate-300" /> Request Topic PYQ Deck
                 </button>
               </div>
             </div>

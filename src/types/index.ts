@@ -109,15 +109,17 @@ export interface PptRequest {
   subject: string;
   unitNumber: string;         // e.g. "UNIT 1", "UNIT 2"
   topicTitle: string;         // e.g. "Dynamic Programming on Trees"
+  targetExam?: string;        // e.g. "University End-Term", "GATE", "Semester Exams"
+  yearRange?: string;         // e.g. "2019-2024 (Last 5 Years)"
   lectureDate: string;        // Scheduled lecture recording date (YYYY-MM-DD)
   estimatedQuestions?: number;
   referenceUrl?: string;      // Drive link, question sheet, syllabus link
   specialInstructions?: string; // Notes for the slide design team
   status: PptRequestStatus;
-  completedPptUrl?: string;   // Google Drive or download link for completed .pptx
-  completedPdfUrl?: string;   // Google Drive or download link for completed .pdf
-  adminRemarks?: string;      // Note from the slide production team
-  isNewForTeacher?: boolean;  // Notification flag for newly ready PPT
+  completedPptUrl?: string;   // Link to finalized .pptx
+  completedPdfUrl?: string;   // Link to finalized .pdf
+  adminRemarks?: string;      // Note from design team
+  isNewForTeacher?: boolean;  // Notification badge indicator
   createdAt: string;
   updatedAt: string;
 }

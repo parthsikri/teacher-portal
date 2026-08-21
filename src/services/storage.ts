@@ -986,6 +986,8 @@ export const StorageService = {
     subject: string;
     unitNumber: string;
     topicTitle: string;
+    targetExam?: string;
+    yearRange?: string;
     lectureDate: string;
     estimatedQuestions?: number;
     referenceUrl?: string;
