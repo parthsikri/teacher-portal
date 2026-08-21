@@ -31,6 +31,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ? StorageService.getAssignedTopics().filter((t) => t.subtopicsApprovalState === 'pending_admin_approval').length
     : 0;
 
+  const adminPptRequestsQueueCount = currentUser.role === 'admin'
+    ? StorageService.getPptRequests().filter((r) => r.status === 'pending' || r.status === 'in_progress').length
+    : 0;
+
   const teacherActionRequiredCount = currentUser.role === 'teacher'
     ? StorageService.getAssignedTopics().filter(
         (t) => t.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase() &&
@@ -39,26 +43,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ).length
     : 0;
 
+  const teacherPptReadyCount = currentUser.role === 'teacher'
+    ? StorageService.getTeacherPptRequests(currentUser.teacherId).filter(
+        (r) => r.status === 'completed' && r.isNewForTeacher
+      ).length
+    : 0;
+
+  const teacherUnacknowledgedDirectivesCount = currentUser.role === 'teacher'
+    ? StorageService.getLectures().filter((l) => l.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase())
+        .reduce((sum, lec) => sum + (lec.adminRemarks?.length || 0), 0)
+    : 0;
+
   const minutesRecordedToday = currentUser.role === 'teacher' ? StorageService.getMinutesRecordedToday(currentUser.teacherId) : 0;
   const targetMinutes = currentUser.role === 'teacher' ? (currentUser.dailyTargetMinutes || 120) : 0;
   const isTargetReached = minutesRecordedToday >= targetMinutes;
 
-  // Teacher Navigation Links
+  // Teacher Navigation Links (Removed DIY Generator, Added Request PPT Deck)
   const teacherNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { 
       id: 'syllabus', 
       label: 'Syllabus & Topics', 
       icon: Layers,
-      badge: teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount}` : undefined,
+      badge: teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount} New` : undefined,
     },
-    { id: 'ppt_generator', label: 'PPT Generator', icon: FileSpreadsheet },
+    { 
+      id: 'ppt_requests', 
+      label: 'Request PPT Deck', 
+      icon: FileSpreadsheet,
+      badge: teacherPptReadyCount > 0 ? `${teacherPptReadyCount} Ready` : undefined,
+    },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
     { id: 'resources', label: 'Subject Library', icon: BookMarked },
-    { id: 'directives', label: 'Admin Directives', icon: MessageSquare },
+    { 
+      id: 'directives', 
+      label: 'Admin Directives', 
+      icon: MessageSquare,
+      badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount}` : undefined,
+    },
   ];
 
-  // Admin Navigation Links
+  // Admin Navigation Links (Has Studio PPT Generator & Requests)
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
     { 
@@ -67,7 +92,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Layers,
       badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
     },
-    { id: 'ppt_generator', label: 'PPT Generator', icon: FileSpreadsheet },
+    { 
+      id: 'ppt_generator', 
+      label: 'PPT Generator Studio', 
+      icon: FileSpreadsheet,
+      badge: adminPptRequestsQueueCount > 0 ? `${adminPptRequestsQueueCount} Req` : undefined,
+    },
     { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
     { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
     { id: 'admin_lectures', label: 'Lecture Audits', icon: Video },

@@ -1,4 +1,4 @@
-import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment } from '../types';
+import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_master';
 const USERS_KEY = 'aew_portal_users_master';
@@ -6,7 +6,64 @@ const CURRENT_USER_KEY = 'aew_portal_session_master';
 const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_master';
 const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_master';
 const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_master';
+const PPT_REQUESTS_KEY = 'aew_ppt_requests_master';
 const PDF_STORE_PREFIX = 'aew_pdf_';
+
+// Initial Seed PPT Requests
+const INITIAL_PPT_REQUESTS: PptRequest[] = [
+  {
+    id: 'req-101',
+    teacherId: 'AEW-T-101',
+    teacherName: 'Dr. Harish Mehta',
+    subject: 'Data Structures & Algorithms',
+    unitNumber: 'UNIT 2',
+    topicTitle: 'Advanced Graph Algorithms & Dijkstra Shortest Path',
+    lectureDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+    estimatedQuestions: 8,
+    referenceUrl: 'https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ',
+    specialInstructions: 'Please include 4 GATE & university exam PYQs with step-by-step trace tables in Dark Tech theme.',
+    status: 'completed',
+    completedPptUrl: 'https://drive.google.com/file/d/1Dijkstra_Algorithm_Lecture_Deck/view',
+    completedPdfUrl: 'https://drive.google.com/file/d/1Dijkstra_Algorithm_Lecture_Deck_PDF/view',
+    adminRemarks: 'Deck prepared and verified by AEW Content Studio. Includes 8 high-contrast 16:9 slides.',
+    isNewForTeacher: true,
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'req-102',
+    teacherId: 'AEW-T-101',
+    teacherName: 'Dr. Harish Mehta',
+    subject: 'Data Structures & Algorithms',
+    unitNumber: 'UNIT 3',
+    topicTitle: 'Dynamic Programming on Trees & Rerooting',
+    lectureDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
+    estimatedQuestions: 6,
+    referenceUrl: '',
+    specialInstructions: 'Need 6 problem statement slides for tree rerooting techniques.',
+    status: 'in_progress',
+    adminRemarks: 'Design team currently assembling topic divider slides and question cards.',
+    isNewForTeacher: false,
+    createdAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'req-103',
+    teacherId: 'AEW-T-102',
+    teacherName: 'Prof. Sneha Sharma',
+    subject: 'Signals & Systems',
+    unitNumber: 'UNIT 1',
+    topicTitle: 'Continuous-Time Fourier Series & Dirichlet Conditions',
+    lectureDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+    estimatedQuestions: 5,
+    referenceUrl: '',
+    specialInstructions: 'Include waveform comparison diagram slides.',
+    status: 'pending',
+    isNewForTeacher: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
 
 // Initial Registered Faculty & Admin Roster with Daily Recording Target Minutes
 const INITIAL_USERS: User[] = [
@@ -897,6 +954,208 @@ export const StorageService = {
     deadlineDateObj.setHours(hours, minutes, 59, 999);
 
     return now > deadlineDateObj;
+  },
+
+  // ─── PPT REQUESTS (TEACHER REQUESTS -> ADMIN PRODUCES DECK) ────────────────
+  getPptRequests(): PptRequest[] {
+    const data = localStorage.getItem(PPT_REQUESTS_KEY);
+    if (!data) {
+      this.savePptRequests(INITIAL_PPT_REQUESTS);
+      return INITIAL_PPT_REQUESTS;
+    }
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_PPT_REQUESTS;
+    } catch {
+      return INITIAL_PPT_REQUESTS;
+    }
+  },
+
+  savePptRequests(requests: PptRequest[]): void {
+    localStorage.setItem(PPT_REQUESTS_KEY, JSON.stringify(requests));
+  },
+
+  getTeacherPptRequests(teacherId: string): PptRequest[] {
+    const list = this.getPptRequests();
+    return list.filter((r) => r.teacherId.toUpperCase() === teacherId.toUpperCase());
+  },
+
+  addPptRequest(request: {
+    teacherId: string;
+    teacherName: string;
+    subject: string;
+    unitNumber: string;
+    topicTitle: string;
+    lectureDate: string;
+    estimatedQuestions?: number;
+    referenceUrl?: string;
+    specialInstructions?: string;
+  }): PptRequest {
+    const list = this.getPptRequests();
+    const newReq: PptRequest = {
+      ...request,
+      id: `req-${Date.now()}`,
+      status: 'pending',
+      isNewForTeacher: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    list.unshift(newReq);
+    this.savePptRequests(list);
+    return newReq;
+  },
+
+  updatePptRequest(id: string, updates: Partial<PptRequest>): PptRequest | null {
+    const list = this.getPptRequests();
+    const index = list.findIndex((r) => r.id === id);
+    if (index === -1) return null;
+
+    const updated: PptRequest = {
+      ...list[index],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // If status changed to completed, mark as new for teacher so they get a notification mark
+    if (updates.status === 'completed' && list[index].status !== 'completed') {
+      updated.isNewForTeacher = true;
+    }
+
+    list[index] = updated;
+    this.savePptRequests(list);
+    return updated;
+  },
+
+  markPptRequestSeen(id: string): void {
+    const list = this.getPptRequests();
+    const index = list.findIndex((r) => r.id === id);
+    if (index !== -1 && list[index].isNewForTeacher) {
+      list[index].isNewForTeacher = false;
+      this.savePptRequests(list);
+    }
+  },
+
+  deletePptRequest(id: string): void {
+    const list = this.getPptRequests().filter((r) => r.id !== id);
+    this.savePptRequests(list);
+  },
+
+  // ─── TEACHER ON-TIME SUBMISSION PERCENTAGE & METRICS ─────────────────────────
+  getOnTimeSubmissionStats(teacherId: string): {
+    totalLectures: number;
+    onTimeLectures: number;
+    delayedLectures: number;
+    onTimePercentage: number;
+  } {
+    const lectures = this.getLectures().filter(
+      (l) => l.teacherId.toUpperCase() === teacherId.toUpperCase()
+    );
+    const totalLectures = lectures.length;
+    const onTimeLectures = lectures.filter((l) => l.status === 'on_time').length;
+    const delayedLectures = totalLectures - onTimeLectures;
+    const onTimePercentage = totalLectures > 0 ? Math.round((onTimeLectures / totalLectures) * 100) : 100;
+
+    return {
+      totalLectures,
+      onTimeLectures,
+      delayedLectures,
+      onTimePercentage,
+    };
+  },
+
+  // ─── TIME REMAINING TO SUBMIT TODAY'S LECTURE ─────────────────────────────────
+  getTodayTimeRemaining(teacherId: string): {
+    hours: number;
+    minutes: number;
+    seconds: number;
+    totalSecondsRemaining: number;
+    isPassed: boolean;
+    cutoffDisplay: string;
+    isTargetMet: boolean;
+    minutesRecordedToday: number;
+    targetMinutes: number;
+  } {
+    const now = new Date();
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const commitment = this.getDailyCommitment(teacherId);
+    const cutoffTime = teacher?.dailyUploadCutoffTime || commitment?.promisedTime || '20:00';
+
+    const targetMinutes = teacher?.dailyTargetMinutes || 120;
+    const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
+    const isTargetMet = minutesRecordedToday >= targetMinutes;
+
+    const [hours, minutes] = cutoffTime.split(':').map(Number);
+    const deadlineObj = new Date();
+    deadlineObj.setHours(hours, minutes, 0, 0);
+
+    const diffMs = deadlineObj.getTime() - now.getTime();
+    const totalSecondsRemaining = Math.max(0, Math.floor(diffMs / 1000));
+    const isPassed = diffMs <= 0;
+
+    const remHours = Math.floor(totalSecondsRemaining / 3600);
+    const remMinutes = Math.floor((totalSecondsRemaining % 3600) / 60);
+    const remSeconds = totalSecondsRemaining % 60;
+
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const formattedHours = hours % 12 || 12;
+    const formattedMinutes = String(minutes).padStart(2, '0');
+    const cutoffDisplay = `${formattedHours}:${formattedMinutes} ${period}`;
+
+    return {
+      hours: remHours,
+      minutes: remMinutes,
+      seconds: remSeconds,
+      totalSecondsRemaining,
+      isPassed,
+      cutoffDisplay,
+      isTargetMet,
+      minutesRecordedToday,
+      targetMinutes,
+    };
+  },
+
+  // ─── ADMIN NOTIFICATION BADGES FOR TEACHER ───────────────────────────────────
+  getTeacherAdminNotificationCounts(teacherId: string): {
+    syllabus: number;
+    directives: number;
+    resources: number;
+    ppt: number;
+    total: number;
+  } {
+    const cleanId = teacherId.toUpperCase();
+    
+    // 1. Syllabus: Needs Action (Admin assigned topics or requested revisions)
+    const assignedTopics = this.getAssignedTopics().filter(
+      (t) => t.teacherId.toUpperCase() === cleanId &&
+             t.status !== 'completed' &&
+             (t.subtopicsApprovalState === 'pending_teacher_input' || t.subtopicsApprovalState === 'revision_requested')
+    );
+    const syllabus = assignedTopics.length;
+
+    // 2. Directives: Unread/New remarks from admin on teacher's lectures
+    const lectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
+    let directives = 0;
+    lectures.forEach((lec) => {
+      directives += lec.adminRemarks?.length || 0;
+    });
+
+    // 3. PPT: Ready completed PPTs waiting for download
+    const pptRequests = this.getTeacherPptRequests(cleanId).filter(
+      (r) => r.status === 'completed' && r.isNewForTeacher
+    );
+    const ppt = pptRequests.length;
+
+    // 4. Resources: Available materials
+    const resources = this.getSubjectReferences().length > 0 ? 0 : 0;
+
+    return {
+      syllabus,
+      directives,
+      resources,
+      ppt,
+      total: syllabus + (ppt > 0 ? ppt : 0) + (directives > 0 ? 1 : 0),
+    };
   },
 
   // ─── PDF Storage ─────────────────────────────────────────────────────────────

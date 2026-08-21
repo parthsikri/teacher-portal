@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Lecture, AssignedTopic } from '../../types';
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
+import { PptRequestPortal } from './PptRequestPortal';
 import { 
   Search, FileText, Plus, Play,
   Edit3, ExternalLink, Copy, Check, ChevronRight,
-  Clock, CheckCircle, AlertCircle
+  Clock, CheckCircle, AlertCircle,
+  FileSpreadsheet, Award
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -27,6 +29,20 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [topicFilter, setTopicFilter] = useState<'all' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
   const [acknowledgedRemarks, setAcknowledgedRemarks] = useState<Set<string>>(new Set());
+
+  // Real-time ticking countdown for today's submission deadline
+  const [timeRemaining, setTimeRemaining] = useState(() =>
+    StorageService.getTodayTimeRemaining(teacher.teacherId)
+  );
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      setTimeRemaining(StorageService.getTodayTimeRemaining(teacher.teacherId));
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [teacher.teacherId, refreshKey]);
 
   const dailyCommitment = useMemo(() => {
     return StorageService.getDailyCommitment(teacher.teacherId);
@@ -53,6 +69,20 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     return StorageService.getReferenceForSubject(teacher.subject);
   }, [teacher.subject, refreshKey]);
 
+  const pptRequests = useMemo(() => {
+    return StorageService.getTeacherPptRequests(teacher.teacherId);
+  }, [teacher.teacherId, refreshKey]);
+
+  // On-time lecture submission statistics
+  const onTimeStats = useMemo(() => {
+    return StorageService.getOnTimeSubmissionStats(teacher.teacherId);
+  }, [teacher.teacherId, refreshKey, lectures]);
+
+  // Admin update notification counts
+  const adminNotifications = useMemo(() => {
+    return StorageService.getTeacherAdminNotificationCounts(teacher.teacherId);
+  }, [teacher.teacherId, refreshKey, assignedTopics, lectures, pptRequests]);
+
   const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
   const targetMinutes = teacher.dailyTargetMinutes || 120;
   const isTargetReached = minutesRecordedToday >= targetMinutes;
@@ -67,9 +97,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [proposedSubtopicList, setProposedSubtopicList] = useState<string[]>([]);
   const [subtopicInput, setSubtopicInput] = useState('');
 
-  // Performance metrics
-  const onTimeLectures = lectures.filter((l) => l.status === 'on_time').length;
-  const punctualityScore = lectures.length > 0 ? Math.round((onTimeLectures / lectures.length) * 100) : 100;
+
 
   // Admin remarks for this teacher
   const teacherRemarks = useMemo(() => {
@@ -268,56 +296,93 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           </div>
 
-          {/* DAILY UPLOAD CUTOFF SCHEDULE BANNER */}
+          {/* 1. REAL-TIME SUBMISSION DEADLINE & TIME REMAINING BANNER */}
           {(() => {
-            const cutoffTime = teacher.dailyUploadCutoffTime || dailyCommitment?.promisedTime;
-            const isMissed = StorageService.isDailyDeadlineMissed(teacher.teacherId);
-            const isCompleted = minutesRecordedToday >= targetMinutes;
+            const isCompleted = timeRemaining.isTargetMet;
+            const isPassed = timeRemaining.isPassed;
 
             return (
-              <div className={`border rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition-colors ${
-                isMissed && !isCompleted
-                  ? 'bg-red-950/20 border-red-500/40 text-red-300'
-                  : 'bg-slate-900/40 border-slate-800/70'
+              <div className={`border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs transition-all shadow-sm ${
+                isCompleted
+                  ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-slate-900/40 border-emerald-500/40 text-emerald-200 shadow-emerald-950/20'
+                  : isPassed
+                  ? 'bg-gradient-to-r from-rose-950/40 via-slate-900/60 to-slate-900/40 border-rose-500/40 text-rose-200'
+                  : 'bg-gradient-to-r from-indigo-950/50 via-purple-950/30 to-slate-900/60 border-indigo-500/40 text-indigo-100 shadow-indigo-950/20'
               }`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    isMissed && !isCompleted
-                      ? 'bg-red-500/10 border border-red-500/30 text-red-400'
-                      : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400'
+                <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 ${
+                    isCompleted
+                      ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
+                      : isPassed
+                      ? 'bg-rose-500/20 border border-rose-500/30 text-rose-400 animate-pulse'
+                      : 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-300'
                   }`}>
-                    <Clock className="w-3.5 h-3.5" />
+                    {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                   </div>
-                  <div className="space-y-0.5">
-                    <div className="font-semibold text-slate-200 flex items-center gap-2">
-                      <span>Daily Upload Cutoff:</span>
-                      <span className="font-mono text-amber-400 font-bold">
-                        {cutoffTime ? formatDisplayTime(cutoffTime) : 'Not configured yet'}
+
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        Today's Lecture Submission Window
                       </span>
-                      {cutoffTime && (
-                        <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
-                          isMissed && !isCompleted
-                            ? 'text-red-400 bg-red-500/10 border-red-500/30'
-                            : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                        }`}>
-                          {isMissed && !isCompleted ? '⚠️ Overdue (Not On Time)' : '🔒 Fixed Schedule'}
+                      
+                      {isCompleted ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          ✓ Target Completed On-Time
+                        </span>
+                      ) : isPassed ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                          ⚠️ Deadline Missed for Today
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-pulse font-mono">
+                          ⏰ Live Countdown
                         </span>
                       )}
                     </div>
+
+                    {/* MAIN TIME REMAINING COUNTDOWN TEXT */}
+                    <div className="font-extrabold text-slate-100 text-sm sm:text-base flex flex-wrap items-baseline gap-2">
+                      {isCompleted ? (
+                        <span className="text-emerald-300 font-bold">
+                          All {timeRemaining.targetMinutes} minutes recorded for today! Great job maintaining on-time delivery.
+                        </span>
+                      ) : isPassed ? (
+                        <span className="text-rose-300 font-bold">
+                          Daily Cutoff ({timeRemaining.cutoffDisplay}) has passed. Uploads submitted now will be recorded as Delayed.
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-300 font-semibold text-xs sm:text-sm">Time Remaining Today:</span>
+                          <span className="font-mono text-amber-300 text-base sm:text-lg tracking-wider bg-slate-950/80 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                            {String(timeRemaining.hours).padStart(2, '0')}h {String(timeRemaining.minutes).padStart(2, '0')}m {String(timeRemaining.seconds).padStart(2, '0')}s
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
                     <p className="text-[11px] text-slate-400">
-                      {isMissed && !isCompleted
-                        ? 'Passed your daily upload cutoff time. Uploads completed now will be marked as Not On Time.'
-                        : 'Fixed daily deadline configured on first login. Uploads submitted after this time will be marked as Not On Time.'}
+                      Standard Daily Cutoff: <strong className="text-slate-200 font-mono">{timeRemaining.cutoffDisplay}</strong> • Progress: <strong className="text-slate-200">{timeRemaining.minutesRecordedToday}/{timeRemaining.targetMinutes} min</strong>
                     </p>
                   </div>
                 </div>
 
-                <button
-                  onClick={onOpenCommitmentModal}
-                  className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg transition-colors text-xs self-start sm:self-auto shrink-0"
-                >
-                  {cutoffTime ? 'View Schedule' : 'Set Daily Cutoff →'}
-                </button>
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <button
+                    onClick={onOpenCommitmentModal}
+                    className="px-3 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-xl transition-colors text-xs"
+                  >
+                    View Cutoff Schedule
+                  </button>
+                  {!isCompleted && (
+                    <button
+                      onClick={() => onOpenUpload()}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-colors text-xs shadow-md flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Upload Now
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -326,7 +391,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           {nextUrgentTopic && (
             <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="space-y-0.5">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Priority Deliverable</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Priority Deliverable</span>
+                  {adminNotifications.syllabus > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-rose-500 text-white animate-pulse">
+                      1 NEW
+                    </span>
+                  )}
+                </div>
                 <div className="font-semibold text-slate-100 flex items-center gap-2">
                   <span>{nextUrgentTopic.topicTitle}</span>
                   <span className="text-[11px] text-slate-400 font-mono">Due {nextUrgentTopic.deadlineDate}</span>
@@ -351,8 +423,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           )}
 
-          {/* MINIMAL HORIZONTAL STATS ROW */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* 2. COMPREHENSIVE STATS ROW WITH ON-TIME PERCENTAGE */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            
+            {/* Card 1: Today's Recording Progress */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
               <div className="text-xs text-slate-400">Today's Recording</div>
               <div className="text-xl font-bold text-slate-100">
@@ -360,39 +434,87 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
               <div className="text-[11px] text-slate-400">
                 {isTargetReached ? (
-                  <span className="text-emerald-400 font-medium">Target Met ✓</span>
+                  <span className="text-emerald-400 font-medium">Daily Target Met ✓</span>
                 ) : (
                   <span>{targetMinutes - minutesRecordedToday}m remaining</span>
                 )}
               </div>
             </div>
 
+            {/* Card 2: ON-TIME SUBMISSION PERCENTAGE */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
-              <div className="text-xs text-slate-400">Delivered Sessions</div>
-              <div className="text-xl font-bold text-slate-100">{lectures.length}</div>
-              <div className="text-[11px] text-emerald-400">{punctualityScore}% on-time</div>
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>On-Time Submission Rate</span>
+                <Award className={`w-3.5 h-3.5 ${onTimeStats.onTimePercentage >= 85 ? 'text-amber-400' : 'text-slate-400'}`} />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <div className={`text-2xl font-black ${
+                  onTimeStats.onTimePercentage >= 90
+                    ? 'text-emerald-400'
+                    : onTimeStats.onTimePercentage >= 75
+                    ? 'text-indigo-400'
+                    : 'text-amber-400'
+                }`}>
+                  {onTimeStats.onTimePercentage}%
+                </div>
+                <span className="text-[10px] text-slate-400 font-medium">on-time</span>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                {onTimeStats.onTimeLectures} of {onTimeStats.totalLectures} lectures on time
+              </div>
             </div>
 
-            <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
-              <div className="text-xs text-slate-400">Active Syllabus</div>
-              <div className="text-xl font-bold text-slate-100">{assignedTopics.length}</div>
+            {/* Card 3: Active Syllabus with Admin Badge */}
+            <div 
+              onClick={() => onPageChange('syllabus')}
+              className="bg-slate-900/40 border border-slate-800/60 hover:border-slate-700 rounded-xl p-4 space-y-1 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Active Syllabus</span>
+                {adminNotifications.syllabus > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-rose-500 text-white animate-pulse">
+                    {adminNotifications.syllabus}
+                  </span>
+                )}
+              </div>
+              <div className="text-xl font-bold text-slate-100">{assignedTopics.length} Topics</div>
               <div className="text-[11px] text-slate-400">{readyToDeliverTopics.length} ready to record</div>
             </div>
 
-            <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
-              <div className="text-xs text-slate-400">On-Time Streak</div>
-              <div className="text-xl font-bold text-slate-100">{onTimeLectures}</div>
-              <div className="text-[11px] text-slate-400">Sessions recorded</div>
+            {/* Card 4: PPT Deck Requests with Ready Badge */}
+            <div 
+              onClick={() => onPageChange('ppt_requests')}
+              className="bg-slate-900/40 border border-slate-800/60 hover:border-indigo-500/50 rounded-xl p-4 space-y-1 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>PPT Deck Requests</span>
+                {adminNotifications.ppt > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-500 text-white animate-pulse">
+                    {adminNotifications.ppt} READY
+                  </span>
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-400" />
+                )}
+              </div>
+              <div className="text-xl font-bold text-slate-100">{pptRequests.length} Decks</div>
+              <div className="text-[11px] text-indigo-300">Request 2 days ahead →</div>
             </div>
           </div>
 
-          {/* TWO CLEAN PANELS */}
+          {/* 3. TWO CLEAN PANELS WITH ADMIN NOTIFICATION MARKS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
-            {/* Syllabus Overview */}
+            {/* Syllabus Overview with Notification Badges */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300">Syllabus Status</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-300">Syllabus Status</span>
+                  {adminNotifications.syllabus > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {adminNotifications.syllabus} Action Needed
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => onPageChange('syllabus')}
                   className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
@@ -404,8 +526,11 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div 
                   onClick={() => { setTopicFilter('needs_action'); onPageChange('syllabus'); }}
-                  className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors"
+                  className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors relative"
                 >
+                  {needsActionTopics.length > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 animate-ping" />
+                  )}
                   <div className="text-base font-bold text-amber-400">{needsActionTopics.length}</div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Needs Action</div>
                 </div>
@@ -426,47 +551,39 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             </div>
 
-            {/* Subject Reference Hub */}
+            {/* PPT Deck Request Portal Shortcut */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-3 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-300">Reference Material</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-300">Presentation Deck Hub</span>
+                    {adminNotifications.ppt > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {adminNotifications.ppt} Ready
+                      </span>
+                    )}
+                  </div>
                   <button
-                    onClick={() => onPageChange('resources')}
+                    onClick={() => onPageChange('ppt_requests')}
                     className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
                   >
-                    Details <ChevronRight className="w-3 h-3" />
+                    Open Portal <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
 
-                {subjectReference ? (
-                  <div className="text-xs space-y-0.5">
-                    <div className="font-semibold text-slate-200 truncate">{subjectReference.title}</div>
-                    <div className="text-[11px] text-slate-400 truncate">{teacher.subject}</div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500 italic">No reference materials added yet.</p>
-                )}
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Request custom 16:9 widescreen presentation slides for your topics <strong>2 days in advance</strong>. Our design team will format and deliver your slides.
+                </p>
               </div>
 
-              {subjectReference && (
-                <div className="flex items-center gap-2 pt-1">
-                  <a
-                    href={subjectReference.referenceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 py-1.5 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <ExternalLink className="w-3 h-3" /> Open Drive
-                  </a>
-                  <button
-                    onClick={() => copyToClipboard(subjectReference.referenceUrl, 'Drive URL')}
-                    className="px-2.5 py-1.5 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs rounded-lg transition-colors"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
+              <div className="pt-2">
+                <button
+                  onClick={() => onPageChange('ppt_requests')}
+                  className="w-full py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-400" /> Request New PPT Deck
+                </button>
+              </div>
             </div>
           </div>
 
@@ -896,6 +1013,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* ─── PPT DECK REQUESTS PORTAL ─── */}
+      {currentPage === 'ppt_requests' && (
+        <PptRequestPortal
+          teacher={teacher}
+          onRefreshData={() => setRefreshKey((k) => k + 1)}
+        />
       )}
 
       {/* ─── PROPOSE SUBTOPICS MODAL ─── */}

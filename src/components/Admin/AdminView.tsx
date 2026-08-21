@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem } from '../../types';
+import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest } from '../../types';
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { 
@@ -7,7 +7,7 @@ import {
   Eye, MessageCircle, Clock, X, 
   Key, Lock, User as UserIcon, Check, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
-  Users, CalendarDays
+  Users, CalendarDays, FileSpreadsheet, Sparkles
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -25,6 +25,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [lectures, setLectures] = useState<Lecture[]>(StorageService.getLectures());
   const [assignedTopics, setAssignedTopics] = useState<AssignedTopic[]>(StorageService.getAssignedTopics());
   const [subjectReferences, setSubjectReferences] = useState<SubjectReference[]>(StorageService.getSubjectReferences());
+  const [pptRequests, setPptRequests] = useState<PptRequest[]>(StorageService.getPptRequests());
+
+  // PPT Request Fulfillment Modal State
+  const [fulfillingRequest, setFulfillingRequest] = useState<PptRequest | null>(null);
+  const [fulfillStatus, setFulfillStatus] = useState<'pending' | 'in_progress' | 'completed'>('completed');
+  const [fulfillPptUrl, setFulfillPptUrl] = useState('');
+  const [fulfillPdfUrl, setFulfillPdfUrl] = useState('');
+  const [fulfillRemarks, setFulfillRemarks] = useState('');
   
   const [selectedLectureForPreview, setSelectedLectureForPreview] = useState<Lecture | null>(null);
   const [remarkingLectureId, setRemarkingLectureId] = useState<string | null>(null);
@@ -101,7 +109,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setLectures(StorageService.getLectures());
     setAssignedTopics(StorageService.getAssignedTopics());
     setSubjectReferences(StorageService.getSubjectReferences());
+    setPptRequests(StorageService.getPptRequests());
     onRefreshData();
+  };
+
+  const handleOpenFulfillModal = (req: PptRequest) => {
+    setFulfillingRequest(req);
+    setFulfillStatus(req.status === 'completed' ? 'completed' : 'completed');
+    setFulfillPptUrl(req.completedPptUrl || '');
+    setFulfillPdfUrl(req.completedPdfUrl || '');
+    setFulfillRemarks(req.adminRemarks || 'Deck prepared and verified by AEW Content Studio in broadcast 16:9 widescreen format.');
+  };
+
+  const handleSaveFulfillment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fulfillingRequest) return;
+
+    StorageService.updatePptRequest(fulfillingRequest.id, {
+      status: fulfillStatus,
+      completedPptUrl: fulfillPptUrl.trim() || undefined,
+      completedPdfUrl: fulfillPdfUrl.trim() || undefined,
+      adminRemarks: fulfillRemarks.trim() || undefined,
+    });
+
+    setFulfillingRequest(null);
+    refreshState();
   };
 
   const handleUpdateTargetMinutes = (teacherId: string, deltaMinutes: number) => {
@@ -552,6 +584,100 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
             </div>
           )}
+
+          {/* TEACHER PPT PRESENTATION DECK REQUESTS QUEUE */}
+          <div className="bg-slate-900/60 border border-indigo-500/40 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-slate-100">
+                      Teacher PPT Deck Requests Queue ({pptRequests.length})
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {pptRequests.filter((r) => r.status !== 'completed').length} Pending
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Teachers request decks 2 days in advance. Generate slides in Studio or attach delivery links.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onPageChange('ppt_generator')}
+                  className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Launch PPT Studio
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {pptRequests.map((req) => {
+                const isDone = req.status === 'completed';
+                const isInProg = req.status === 'in_progress';
+
+                return (
+                  <div
+                    key={req.id}
+                    className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3 ${
+                      isDone
+                        ? 'bg-slate-950/70 border-emerald-500/30'
+                        : isInProg
+                        ? 'bg-slate-950/80 border-indigo-500/40'
+                        : 'bg-slate-950/90 border-amber-500/30'
+                    }`}
+                  >
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-indigo-300">
+                          {req.unitNumber}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          isDone
+                            ? 'bg-emerald-500/15 text-emerald-300'
+                            : isInProg
+                            ? 'bg-indigo-500/15 text-indigo-300'
+                            : 'bg-amber-500/15 text-amber-300'
+                        }`}>
+                          {isDone ? '✓ Completed' : isInProg ? 'In Production' : 'Queued'}
+                        </span>
+                      </div>
+
+                      <h4 className="font-bold text-sm text-slate-100 truncate">{req.topicTitle}</h4>
+                      <p className="text-[11px] text-slate-400">
+                        Faculty: <strong className="text-slate-200">{req.teacherName}</strong> • Target: <strong className="text-amber-300 font-mono">{req.lectureDate}</strong>
+                      </p>
+
+                      {req.specialInstructions && (
+                        <p className="text-[10px] text-slate-400 bg-slate-900 p-2 rounded border border-slate-800 italic">
+                          "{req.specialInstructions}"
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-900 flex items-center gap-2 text-xs">
+                      <button
+                        onClick={() => handleOpenFulfillModal(req)}
+                        className={`flex-1 py-1.5 rounded-xl font-bold transition-colors flex items-center justify-center gap-1 ${
+                          isDone
+                            ? 'bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300'
+                            : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md'
+                        }`}
+                      >
+                        {isDone ? 'Edit Deck Links' : 'Fulfill & Deliver →'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* TODAY'S FACULTY UPLOAD COMMITMENT SCHEDULES */}
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
@@ -1907,6 +2033,171 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-md"
                 >
                   Save Subject Reference Material
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FULFILL PPT REQUEST MODAL FOR ADMIN */}
+      {fulfillingRequest && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </span>
+                <h3 className="font-bold text-sm text-slate-100">Fulfill Faculty PPT Request</h3>
+              </div>
+              <button
+                onClick={() => setFulfillingRequest(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveFulfillment} className="p-5 space-y-4 text-xs">
+              
+              {/* Topic & Faculty Summary */}
+              <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800/80 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-mono font-bold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded">
+                    {fulfillingRequest.unitNumber}
+                  </span>
+                  <span className="text-slate-400 font-mono">
+                    Target: {fulfillingRequest.lectureDate}
+                  </span>
+                </div>
+                <h4 className="font-bold text-sm text-slate-100">{fulfillingRequest.topicTitle}</h4>
+                <p className="text-[11px] text-slate-400">
+                  Faculty: <strong className="text-slate-200">{fulfillingRequest.teacherName}</strong> ({fulfillingRequest.subject})
+                </p>
+                {fulfillingRequest.specialInstructions && (
+                  <p className="text-[10px] text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 italic mt-1">
+                    "{fulfillingRequest.specialInstructions}"
+                  </p>
+                )}
+              </div>
+
+              {/* Status Selector */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Production Status *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFulfillStatus('pending')}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      fulfillStatus === 'pending'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    Queued
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFulfillStatus('in_progress')}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      fulfillStatus === 'in_progress'
+                        ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    In Production
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFulfillStatus('completed')}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      fulfillStatus === 'completed'
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    ✓ Completed & Ready
+                  </button>
+                </div>
+              </div>
+
+              {/* PPT Download / Drive Link */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Completed PowerPoint (.pptx) Google Drive / Download URL
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/file/d/.../view"
+                    value={fulfillPptUrl}
+                    onChange={(e) => setFulfillPptUrl(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3.5 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                  />
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              {/* PDF Download / View Link */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Completed PDF Presentation Deck URL (Optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/file/d/.../view"
+                    value={fulfillPdfUrl}
+                    onChange={(e) => setFulfillPdfUrl(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3.5 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                  />
+                  <FileText className="w-3.5 h-3.5 text-emerald-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              {/* Admin Remarks for Teacher */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Note for Faculty / Slide Design Summary
+                </label>
+                <textarea
+                  rows={2}
+                  value={fulfillRemarks}
+                  onChange={(e) => setFulfillRemarks(e.target.value)}
+                  placeholder="e.g. Presentation slides formatted in broadcast 16:9 widescreen format with PYQ badges."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Studio Shortcut */}
+              <div className="p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-xl flex items-center justify-between">
+                <span className="text-[11px] text-slate-300">Need to create this deck from Excel questions?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFulfillingRequest(null);
+                    onPageChange('ppt_generator');
+                  }}
+                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] rounded-lg transition-colors"
+                >
+                  Open PPT Generator Studio ➔
+                </button>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setFulfillingRequest(null)}
+                  className="px-4 py-2 text-slate-400 hover:text-slate-200 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-md"
+                >
+                  Save & Deliver to Faculty
                 </button>
               </div>
             </form>

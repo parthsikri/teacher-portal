@@ -55,6 +55,7 @@ export interface SubjectReference {
   referenceUrl: string;       // Google Drive folder/file or reference doc URL
   notes?: string;             // Course guidelines, textbook recommendations
   updatedAt: string;
+  isNewFromAdmin?: boolean;   // Notification flag
 }
 
 export interface AssignedTopic {
@@ -73,6 +74,7 @@ export interface AssignedTopic {
   priority: 'high' | 'medium' | 'normal';
   notes?: string;
   createdAt: string;
+  isNewFromAdmin?: boolean;             // Notification flag
 }
 
 export interface Lecture {
@@ -96,4 +98,26 @@ export interface Lecture {
   assignedTopicId?: string;
   adminRemarks: AdminRemark[];
   createdAt: string;
+}
+
+export type PptRequestStatus = 'pending' | 'in_progress' | 'completed' | 'rejected';
+
+export interface PptRequest {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  subject: string;
+  unitNumber: string;         // e.g. "UNIT 1", "UNIT 2"
+  topicTitle: string;         // e.g. "Dynamic Programming on Trees"
+  lectureDate: string;        // Scheduled lecture recording date (YYYY-MM-DD)
+  estimatedQuestions?: number;
+  referenceUrl?: string;      // Drive link, question sheet, syllabus link
+  specialInstructions?: string; // Notes for the slide design team
+  status: PptRequestStatus;
+  completedPptUrl?: string;   // Google Drive or download link for completed .pptx
+  completedPdfUrl?: string;   // Google Drive or download link for completed .pdf
+  adminRemarks?: string;      // Note from the slide production team
+  isNewForTeacher?: boolean;  // Notification flag for newly ready PPT
+  createdAt: string;
+  updatedAt: string;
 }
