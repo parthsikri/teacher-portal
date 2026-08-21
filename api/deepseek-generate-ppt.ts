@@ -6,6 +6,7 @@ export interface PyqItemInput {
   mappedTopic?: string;
   questionText: string;
   marks?: string;
+  solution?: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -46,69 +47,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // Format PYQ list if provided
-  let formattedPyqs = 'No specific PYQ list provided. Generate high-yield sample university examination questions with step-by-step solutions.';
+  // Pre-filter PYQs: Include those matching the topic/unit, or feed up to 15 questions for the AI to filter strictly
+  let rawPyqSection = 'No user PYQs provided. Generate 2 to 3 standard university/GATE examination problems matching this exact topic.';
   if (Array.isArray(pyqList) && pyqList.length > 0) {
-    formattedPyqs = pyqList
-      .slice(0, 8)
+    rawPyqSection = pyqList
+      .slice(0, 20)
       .map(
         (q: PyqItemInput, i: number) =>
-          `[PYQ #${i + 1}] ${q.yearExam ? `(${q.yearExam}) ` : ''}${q.questionText}${q.marks ? ` [${q.marks}]` : ''}`
+          `[Question #${i + 1}] ${q.mappedTopic ? `Topic: ${q.mappedTopic} | ` : ''}${q.unitNumber ? `Unit: ${q.unitNumber} | ` : ''}${q.yearExam ? `Exam: ${q.yearExam} | ` : ''}Text: ${q.questionText}${q.marks ? ` [${q.marks}]` : ''}`
       )
       .join('\n\n');
   }
 
-  const systemPrompt = `You are a world-class Professor and Master Pedagogical Presentation Designer for Engineering & University students.
-Your mission is to generate a comprehensive, highly engaging, visually structured 16:9 presentation slide deck for a specific university syllabus topic.
+  const systemPrompt = `You are a distinguished Engineering Professor and Master Pedagogical Presentation Designer.
+Your task is to generate a comprehensive, highly engaging, visually structured 16:9 presentation slide deck for a specific university syllabus topic.
 
-PEDAGOGICAL PHILOSOPHY:
-1. FIRST PRINCIPLES (ZERO-KNOWLEDGE TO MASTERY):
-   - Assume the student has ZERO prior knowledge of this specific topic.
-   - Start with pure intuition: "Why does this exist? What painful real-world problem does it solve?"
-   - Use vivid, unforgettable real-world analogies (e.g. comparing graphs to GPS navigation, entropy to messy rooms, dynamic programming to remembering sub-calculations).
-   - Never use unexplained jargon. Every formula or technical term must be unpacked step-by-step.
+CRITICAL PEDAGOGICAL WORKFLOW (MANDATORY 2-STEP REASONING):
 
-2. HIGHLY STRUCTURED VISUAL SLIDES:
-   - Break down complex concepts into bite-sized, high-retention slides.
-   - Use clear headers, bold keywords, numbered step-by-step logic, and high-impact callout boxes.
-   - Structure each slide cleanly with bullet points, formulas/code snippets, and takeaway tips.
+STEP 1: FIRST-PRINCIPLES SUBTOPIC DECONSTRUCTION
+- Deconstruct the target topic into an exhaustive, prerequisite-to-mastery list of subtopics needed so that a student with ZERO prior knowledge can understand the subject completely from foundational intuition to technical mastery.
+- Sequence: Foundational Problem/Intuition -> Core Mathematical/Architectural Definition -> Mechanics & Execution -> Edge Cases -> Solved Examination Problems.
 
-3. PREVIOUS YEAR QUESTIONS (PYQs) & EXAMINATION DRILLS:
-   - For every examination problem / PYQ included, provide a comprehensive STEP-BY-STEP breakdown:
-     * Problem Statement
-     * Identifying the Core Technique
-     * Step-by-Step Mathematical/Algorithmic Trace
-     * Common Traps/Mistakes Students Make
-     * High-Yield Exam Tip
+STEP 2: PYQ GAP ANALYSIS & STRICT TOPIC FILTERING
+- Review the provided candidate PYQs (Previous Year Questions) and STRICTLY SELECT ONLY the questions that are directly relevant to "${topicTitle}" (and ${unit}). Ignore all unrelated questions from other syllabus chapters.
+- Cross-examine your Step 1 Subtopic list against the selected relevant PYQs.
+- If any subtopic, nuance, edge case, or mathematical technique tested in the PYQs was missing from your initial list, AUGMENT your subtopic roadmap to ensure 100% topic and exam coverage. Nothing must be left out!
+
+STEP 3: ACCURATE, MATURE ENGINEERING ANALOGIES (NON-FRUSTRATING)
+- Use analogies that are intellectually satisfying, technically accurate, and relatable to university engineering students (e.g. comparing shortest-path algorithms to GPS navigation with dynamic traffic weights, caching in CPUs to an engineer's desk vs a library bookshelf, thermodynamic entropy to information uncertainty and irreversible heat dissipation, dynamic programming to memoized tax calculations).
+- NEVER use childish, oversimplified, or cringe analogies that frustrate students. Always explicitly bridge the analogy directly into the mathematical/algorithmic mechanics!
+
+STEP 4: STEP-BY-STEP PYQ SOLVED WALKS
+- For every relevant PYQ included in the slides, provide a clean, complete, step-by-step breakdown:
+  * Problem Statement & Parameters Given
+  * Step-by-Step Mathematical/Algorithmic Execution Trace
+  * Common Pitfalls & Traps to Avoid
+  * Key Exam Strategy / Marking Tip
 
 OUTPUT FORMAT:
-You MUST respond with a valid, clean JSON object strictly adhering to this JSON schema:
+You MUST respond with a valid, clean JSON object strictly adhering to this schema:
 {
   "deckTitle": "Main Presentation Title",
-  "subject": "Subject Name",
-  "unit": "Unit/Module Number",
-  "topicTitle": "Topic Name",
-  "summary": "Brief 2-sentence summary of what this deck covers",
-  "estimatedDurationMinutes": 45,
+  "subject": "${subject}",
+  "unit": "${unit}",
+  "topicTitle": "${topicTitle}",
+  "summary": "2-sentence executive overview of the lesson",
+  "subtopicRoadmap": [
+    {
+      "subtopicName": "1. Why [Concept] Exists: The Fundamental Problem",
+      "pedagogicalGoal": "Build intuitive motivation before formal definitions",
+      "addedFromPyqReview": false
+    },
+    {
+      "subtopicName": "2. Core Architectural Definition & Invariants",
+      "pedagogicalGoal": "Establish mathematical formulation and data structures",
+      "addedFromPyqReview": false
+    },
+    {
+      "subtopicName": "3. Step-by-Step Execution Algorithm",
+      "pedagogicalGoal": "Trace algorithm transitions on sample input",
+      "addedFromPyqReview": false
+    },
+    {
+      "subtopicName": "4. Edge Case Handling & Complexity Analysis",
+      "pedagogicalGoal": "Unpack performance bounds and tricky constraints from PYQ analysis",
+      "addedFromPyqReview": true
+    }
+  ],
+  "relevantPyqCount": 2,
   "slides": [
     {
       "slideNumber": 1,
       "type": "title",
-      "badge": "COURSE OVERVIEW",
-      "title": "Main Title",
-      "subtitle": "Clear Subtitle / Tagline",
-      "bullets": ["Key bullet 1", "Key bullet 2"],
-      "calloutTip": "Learning objective"
+      "badge": "COURSE BLUEPRINT",
+      "title": "Main Lecture Title",
+      "subtitle": "Clear Subtitle / Key Learning Objective",
+      "bullets": ["Roadmap item 1", "Roadmap item 2", "Roadmap item 3"],
+      "calloutTip": "Expected Learning Outcome: Master first principles & solve university examination problems."
     },
     {
       "slideNumber": 2,
       "type": "first_principles",
       "badge": "CORE INTUITION",
       "title": "Why Does This Exist? (First Principles)",
-      "analogy": "Relatable real-world analogy in plain English",
+      "analogy": "Accurate engineering analogy explaining the 'Why' in plain English",
       "bullets": [
-        "**The Problem:** Why naive approaches fail...",
-        "**The Breakthrough Idea:** How this concept solves it..."
+        "**The Naive Flaw:** Why basic approaches break down under real constraints...",
+        "**The Core Breakthrough:** How this concept solves the bottleneck..."
       ],
       "calloutTip": "Mental Model: Remember that..."
     },
@@ -116,101 +141,101 @@ You MUST respond with a valid, clean JSON object strictly adhering to this JSON 
       "slideNumber": 3,
       "type": "concept_card",
       "badge": "FUNDAMENTAL THEORY",
-      "title": "Core Technical Architecture & Definition",
+      "title": "Mathematical Formulation & Definitions",
       "bullets": [
-        "**Formal Definition:** ...",
-        "**Key Properties:** ...",
-        "**Mathematical Formulation / Invariants:** ..."
+        "**Formal Definition:** Clear technical statement",
+        "**Governing Properties:** Key invariants and rules",
+        "**Notation & Assumptions:** Essential parameters"
       ],
-      "formulaOrCode": "Key formula or concise pseudocode snippet (clean text)",
-      "calloutTip": "Exam Note: Always verify..."
+      "formulaOrCode": "Key formula or concise pseudocode snippet",
+      "calloutTip": "Exam Note: Examiners look for correct invariant formulation."
     },
     {
       "slideNumber": 4,
       "type": "two_column",
       "badge": "COMPARATIVE ANALYSIS",
-      "title": "Trade-offs & Comparison",
-      "leftColumnTitle": "Approach A / Advantages",
-      "leftColumnBullets": ["Point 1", "Point 2"],
-      "rightColumnTitle": "Approach B / Limitations",
-      "rightColumnBullets": ["Point 1", "Point 2"],
-      "calloutTip": "Decision Rule: Choose Approach A when..."
+      "title": "Trade-offs & Technical Variations",
+      "leftColumnTitle": "Standard Approach / Pros",
+      "leftColumnBullets": ["Key property 1", "Key property 2"],
+      "rightColumnTitle": "Alternative / Limitations",
+      "rightColumnBullets": ["Constraint 1", "Constraint 2"],
+      "calloutTip": "Selection Rule: Use standard approach when..."
     },
     {
       "slideNumber": 5,
       "type": "step_by_step",
-      "badge": "STEP-BY-STEP METHOD",
-      "title": "Standard Execution Algorithm / Derivation",
+      "badge": "EXECUTION TRACE",
+      "title": "Step-by-Step Algorithm & Procedure",
       "bullets": [
-        "**Step 1: Initialization** - Details...",
-        "**Step 2: Iterative Processing** - Details...",
-        "**Step 3: Termination & Output** - Details..."
+        "**Step 1: Initialization** - Base state setup...",
+        "**Step 2: Iterative Relaxation/Update** - Transformation loop...",
+        "**Step 3: Convergence & Termination** - Output extraction..."
       ],
-      "formulaOrCode": "Algorithmic steps or mathematical flow",
-      "calloutTip": "Time & Space Complexity analysis"
+      "formulaOrCode": "Algorithmic step trace or recurrence relation",
+      "calloutTip": "Time & Space Complexity: Detailed Big-O derivation."
     },
     {
       "slideNumber": 6,
       "type": "pyq_solution",
       "badge": "SOLVED UNIVERSITY / GATE PYQ",
-      "title": "Exam Problem Walkthrough",
+      "title": "Examination Problem Walkthrough",
       "bullets": [
-        "**Given:** Problem parameters...",
-        "**Target:** What we need to solve for..."
+        "**Problem Type:** Standard university examination pattern",
+        "**Key Method:** Identified technique to apply"
       ],
       "pyqDetails": {
-        "examYear": "GATE / University Exam 2023",
+        "examYear": "GATE / University Exam",
         "marks": "10 Marks",
-        "question": "Exact question statement...",
+        "question": "Exact question statement directly related to this topic...",
         "stepByStepSolution": [
-          "Step 1: Identify base conditions...",
-          "Step 2: Apply the governing formula...",
-          "Step 3: Final numerical evaluation..."
+          "Step 1: Parse input parameters and state boundary conditions...",
+          "Step 2: Apply the governing formula or trace table...",
+          "Step 3: Compute final numerical / derived answer with proper units..."
         ],
-        "keyTakeaway": "Key exam strategy for this pattern"
+        "keyTakeaway": "Exam Strategy: Step-by-step marks distribution."
       },
-      "calloutTip": "Frequent Trap: Do NOT forget to..."
+      "calloutTip": "Common Trap: Do NOT make the common mistake of..."
     },
     {
       "slideNumber": 7,
       "type": "common_mistakes",
-      "badge": "PITFALLS & EXAM TRAPS",
-      "title": "Common Student Mistakes & How to Avoid Them",
+      "badge": "EXAM PITFALLS & TRAPS",
+      "title": "Critical Student Mistakes to Avoid",
       "bullets": [
-        "**Mistake #1:** Confusing X with Y -> **Fix:** Remember that...",
-        "**Mistake #2:** Edge cases like null/zero -> **Fix:** Always check...",
-        "**Mistake #3:** Forgetting units/boundary limits -> **Fix:** Double check..."
+        "**Mistake 1:** Confusing X with Y -> **Correction:** Remember that...",
+        "**Mistake 2:** Missing boundary / negative condition -> **Correction:** Always check...",
+        "**Mistake 3:** Incorrect time complexity estimation -> **Correction:** Detail..."
       ],
-      "calloutTip": "Scoring Secret: Examiners specifically check for..."
+      "calloutTip": "High-Yield Tip: Top scoring students always verify..."
     },
     {
       "slideNumber": 8,
       "type": "summary",
       "badge": "QUICK REVISION CHECKLIST",
-      "title": "Lecture Summary & Key Formulas to Remember",
+      "title": "Key Takeaways & Formulas to Memorize",
       "bullets": [
-        "**Key Concept 1:** Brief takeaway",
-        "**Key Concept 2:** Brief takeaway",
-        "**Master Formula:** Core equation to memorize"
+        "**Master Concept:** Core takeaway in one sentence",
+        "**Master Formula / Pseudocode:** Essential equation to remember",
+        "**Exam Checklist:** 3 checkpoints to verify during the test"
       ],
-      "calloutTip": "Next Lecture Preview or Action Item"
+      "calloutTip": "Next Lecture / Homework Problem Preview"
     }
   ]
 }
 
-Ensure the deck has between ${Math.max(6, Math.min(15, slideCount))} high-quality slides. Return ONLY the valid JSON object with NO markdown code backticks.`;
+Ensure the deck has between ${Math.max(6, Math.min(15, slideCount))} high-quality slides. Return ONLY the valid JSON object with NO markdown code fences.`;
 
-  const userPrompt = `Generate a master slide deck for:
+  const userPrompt = `Generate a master first-principles slide deck for:
 Subject: ${subject}
 Unit: ${unit}
 Topic: ${topicTitle}
-Target Audience Pedagogy: ${targetAudience} (Break down from first principles for zero-knowledge beginners)
-Custom Instructions: ${customInstructions || 'Make the slides visual, high-yield, and easy to present.'}
+Target Audience Pedagogy: ${targetAudience} (Zero-knowledge first principles + Gap analysis on PYQs)
+Custom Instructions: ${customInstructions || 'Provide accurate engineering analogies, complete subtopic roadmap, and solve relevant PYQs step-by-step.'}
 
-Previous Year Questions (PYQs) to incorporate and solve:
-${formattedPyqs}
+Candidate Previous Year Questions (Filter strictly for "${topicTitle}"):
+${rawPyqSection}
 
-Please generate the complete, comprehensive JSON slide deck now.`;
+Please generate the complete JSON slide deck now.`;
 
   try {
     const deepSeekResponse = await fetch('https://api.deepseek.com/chat/completions', {
@@ -225,7 +250,7 @@ Please generate the complete, comprehensive JSON slide deck now.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.4,
+        temperature: 0.3,
         response_format: { type: 'json_object' },
       }),
     });
@@ -255,7 +280,6 @@ Please generate the complete, comprehensive JSON slide deck now.`;
 
     let parsedDeck: any;
     try {
-      // Clean possible markdown code fences if present
       const cleanJsonStr = messageContent
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')

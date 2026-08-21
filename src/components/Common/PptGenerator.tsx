@@ -598,6 +598,51 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             )}
           </div>
 
+          {/* SUBTOPIC BLUEPRINT & PYQ GAP ANALYSIS BANNER */}
+          {generatedDeck?.subtopicRoadmap && generatedDeck.subtopicRoadmap.length > 0 && (
+            <div className="bg-slate-900 border border-indigo-500/30 rounded-2xl p-4 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-bold">
+                    🧠
+                  </span>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-100 flex items-center gap-2">
+                      First-Principles Subtopic Roadmap & PYQ Coverage
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono">
+                        ✓ Reviewed & Verified
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      DeepSeek systematically ordered these subtopics for 0-knowledge comprehension and augmented gaps based on your PYQs.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {generatedDeck.subtopicRoadmap.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-1 text-xs"
+                  >
+                    <div className="font-semibold text-slate-200 flex items-center justify-between gap-1.5">
+                      <span className="truncate">{item.subtopicName}</span>
+                      {item.addedFromPyqReview && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono font-bold shrink-0">
+                          + Added from PYQ
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 line-clamp-2">
+                      {item.pedagogicalGoal}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 16:9 SLIDE CANVAS */}
           {!generatedDeck ? (
             <div className="aspect-[16/9] w-full bg-slate-900/60 border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center p-8 text-center space-y-3">

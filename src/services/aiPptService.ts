@@ -34,6 +34,12 @@ export interface AiSlide {
   calloutTip?: string;
 }
 
+export interface SubtopicRoadmapItem {
+  subtopicName: string;
+  pedagogicalGoal: string;
+  addedFromPyqReview?: boolean;
+}
+
 export interface AiGeneratedDeck {
   deckTitle: string;
   subject: string;
@@ -41,6 +47,8 @@ export interface AiGeneratedDeck {
   topicTitle: string;
   summary?: string;
   estimatedDurationMinutes?: number;
+  subtopicRoadmap?: SubtopicRoadmapItem[];
+  relevantPyqCount?: number;
   slides: AiSlide[];
   generatedAt?: string;
 }
