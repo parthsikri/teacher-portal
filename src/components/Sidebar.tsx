@@ -58,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const targetMinutes = currentUser.role === 'teacher' ? (currentUser.dailyTargetMinutes || 120) : 0;
   const isTargetReached = minutesRecordedToday >= targetMinutes;
 
-  // Teacher Navigation Links (Removed DIY Generator, Added Request PPT Deck)
+  // Teacher Navigation Links
   const teacherNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { 
@@ -68,9 +68,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount} New` : undefined,
     },
     { 
+      id: 'ppt_generator', 
+      label: 'AI PPT Generator', 
+      icon: FileSpreadsheet,
+    },
+    { 
       id: 'ppt_requests', 
       label: 'PYQ Slide Decks', 
-      icon: FileSpreadsheet,
+      icon: BookMarked,
       badge: teacherPptReadyCount > 0 ? `${teacherPptReadyCount} Ready` : undefined,
     },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
@@ -83,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  // Admin Navigation Links (Has Studio PPT Generator & Requests)
+  // Admin Navigation Links
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
     { 
@@ -94,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { 
       id: 'ppt_generator', 
-      label: 'PPT Generator Studio', 
+      label: 'AI PPT Studio', 
       icon: FileSpreadsheet,
       badge: adminPptRequestsQueueCount > 0 ? `${adminPptRequestsQueueCount} Req` : undefined,
     },

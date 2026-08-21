@@ -88,7 +88,7 @@ export const App: React.FC = () => {
           {/* MAIN APPLICATION VIEW — sidebar is fixed, so we just pad-left to offset */}
           <div className="min-h-screen md:pl-64 lg:pl-72" style={{ overflowX: 'hidden' }}>
             <main key={refreshKey} className="pt-16 md:pt-4 pb-16">
-              {currentPage === 'ppt_generator' && currentUser.role === 'admin' ? (
+              {currentPage === 'ppt_generator' ? (
                 <PptGenerator
                   userSubject={currentUser.subject || currentUser.department}
                   userName={currentUser.name}
@@ -102,7 +102,7 @@ export const App: React.FC = () => {
               ) : (
                 <TeacherView
                   teacher={currentUser}
-                  currentPage={currentPage === 'ppt_generator' ? 'ppt_requests' : currentPage}
+                  currentPage={currentPage}
                   onPageChange={handlePageChange}
                   onOpenUpload={handleOpenUpload}
                   onOpenCommitmentModal={() => setShowCommitmentModal(true)}
