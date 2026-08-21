@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import type { User, AssignedTopic } from '../../types';
 import { StorageService } from '../../services/storage';
-import { uploadFileToDrive } from '../../services/uploadService';
 import confetti from 'canvas-confetti';
-import { UploadCloud, Link2, Play, FileText, CheckCircle2, X } from 'lucide-react';
+import { Link2, Play, FileText, X } from 'lucide-react';
 
 interface UploadLectureModalProps {
   teacher: User;
@@ -32,23 +31,12 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   );
   const [durationMinutes, setDurationMinutes] = useState<number>(45);
 
-  // Video source format: 'upload' | 'youtube' | 'drive_link'
-  const [videoMode, setVideoMode] = useState<'upload' | 'youtube' | 'drive_link'>('upload');
+  // Video Link format: 'youtube' | 'drive'
+  const [videoLinkType, setVideoLinkType] = useState<'youtube' | 'drive'>('youtube');
+  const [videoUrl, setVideoUrl] = useState('');
 
-  // Video file & URLs
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoLocalUrl, setVideoLocalUrl] = useState<string>('');
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [videoDriveUrl, setVideoDriveUrl] = useState('');
-  const [videoUploadProgress, setVideoUploadProgress] = useState<number | null>(null);
-  const [videoUploadStatus, setVideoUploadStatus] = useState<string>('');
-
-  // PDF Notes file & URLs
-  const [notesFile, setNotesFile] = useState<File | null>(null);
-  const [notesLocalUrl, setNotesLocalUrl] = useState<string>('');
-  const [notesDriveUrl, setNotesDriveUrl] = useState('');
-  const [notesUploadProgress, setNotesUploadProgress] = useState<number | null>(null);
-  const [notesUploadStatus, setNotesUploadStatus] = useState<string>('');
+  // Class Notes Link
+  const [notesUrl, setNotesUrl] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,74 +59,22 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
     setSubtopics(subtopics.filter((_, i) => i !== index));
   };
 
-  const handleVideoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const f = e.target.files[0];
-      setVideoFile(f);
-      const objUrl = URL.createObjectURL(f);
-      setVideoLocalUrl(objUrl);
-      setVideoUploadProgress(null);
-      setVideoUploadStatus('');
-      if (!title) {
-        setTitle(f.name.replace(/\.[^/.]+$/, ''));
-      }
-      setErrorMsg('');
-    }
-  };
-
-  const handleUploadVideoToDrive = async () => {
-    if (!videoFile) return;
-    setVideoUploadProgress(10);
-    setVideoUploadStatus('Uploading to Google Drive...');
-    const result = await uploadFileToDrive(videoFile, (pct) => setVideoUploadProgress(pct));
-    if (result.success && result.driveLink) {
-      setVideoDriveUrl(result.driveLink);
-      setVideoUploadProgress(100);
-      setVideoUploadStatus('Uploaded to Google Drive ✓');
-    } else {
-      setVideoUploadProgress(null);
-      setVideoUploadStatus(result.error || 'Google Drive not configured in Vercel. Local preview active.');
-    }
-  };
-
-  const handleNotesFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const f = e.target.files[0];
-      setNotesFile(f);
-      const objUrl = URL.createObjectURL(f);
-      setNotesLocalUrl(objUrl);
-      setNotesUploadProgress(null);
-      setNotesUploadStatus('');
-      setErrorMsg('');
-    }
-  };
-
-  const handleUploadNotesToDrive = async () => {
-    if (!notesFile) return;
-    setNotesUploadProgress(10);
-    setNotesUploadStatus('Uploading to Google Drive...');
-    const result = await uploadFileToDrive(notesFile, (pct) => setNotesUploadProgress(pct));
-    if (result.success && result.driveLink) {
-      setNotesDriveUrl(result.driveLink);
-      setNotesUploadProgress(100);
-      setNotesUploadStatus('Uploaded to Google Drive ✓');
-    } else {
-      setNotesUploadProgress(null);
-      setNotesUploadStatus(result.error || 'Google Drive not configured in Vercel. Local preview active.');
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
     if (!title.trim()) {
-      setErrorMsg('Please enter a Lecture Title.');
+      setErrorMsg('Please enter a Lecture Session Title.');
       return;
     }
 
     if (!primaryTopic.trim()) {
-      setErrorMsg('Please enter the Primary Topic.');
+      setErrorMsg('Please enter the Primary Topic / Concept.');
+      return;
+    }
+
+    if (!videoUrl.trim() && !notesUrl.trim()) {
+      setErrorMsg('Please provide a Video Link (YouTube or Drive) or Class Notes Link.');
       return;
     }
 
@@ -147,17 +83,8 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
     try {
       const isOnTime = StorageService.isUploadOnTime(teacher.teacherId, deadlineDate);
 
-      // Determine video and notes URLs
-      let finalDriveUrl = videoDriveUrl.trim() || undefined;
-      let finalNotesUrl = notesDriveUrl.trim() || undefined;
-      let finalLocalFileUrl = videoLocalUrl || notesLocalUrl || undefined;
-
-      if (!finalDriveUrl && videoFile) {
-        finalDriveUrl = `https://drive.google.com/file/d/uploaded-video-${Date.now()}/view`;
-      }
-      if (!finalNotesUrl && notesFile) {
-        finalNotesUrl = `https://drive.google.com/file/d/uploaded-notes-${Date.now()}/view`;
-      }
+      const youtubeLink = videoLinkType === 'youtube' && videoUrl.trim() ? videoUrl.trim() : undefined;
+      const driveVideoLink = videoLinkType === 'drive' && videoUrl.trim() ? videoUrl.trim() : undefined;
 
       StorageService.addLecture({
         teacherId: teacher.teacherId,
@@ -170,12 +97,10 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         durationMinutes: Math.max(5, durationMinutes || 45),
         deadlineDate,
         status: isOnTime ? 'on_time' : 'overdue',
-        youtubeUrl: youtubeUrl.trim() || undefined,
-        driveUrl: finalDriveUrl,
-        notesUrl: finalNotesUrl,
-        localFileUrl: finalLocalFileUrl,
+        youtubeUrl: youtubeLink,
+        driveUrl: driveVideoLink,
+        notesUrl: notesUrl.trim() || undefined,
         assignedTopicId: prefillTopic ? prefillTopic.id : undefined,
-        fileName: videoFile?.name || notesFile?.name || undefined,
       });
 
       if (isOnTime) {
@@ -199,22 +124,18 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-8 max-h-[92vh] flex flex-col">
+      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-8 max-h-[92vh] flex flex-col">
         
         {/* HEADER */}
         <div className="px-6 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg">
-              <UploadCloud className="w-5 h-5 text-indigo-400" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-100">
-                {prefillTopic ? 'Fulfill Assigned Topic' : 'Upload Lecture Recording'}
-              </h3>
-              <p className="text-[11px] text-slate-400 font-medium">
-                {teacher.name} • {teacher.subject || teacher.department}
-              </p>
-            </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-indigo-400" />
+              {prefillTopic ? 'Fulfill Assigned Topic' : 'Submit Lecture Recording'}
+            </h3>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              {teacher.name} • {teacher.subject || teacher.department}
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -231,13 +152,13 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
           </div>
         </div>
 
-        {/* SCROLLABLE FORM BODY */}
-        <form onSubmit={handleSubmit} id="lecture-upload-form" className="p-6 space-y-5 text-xs overflow-y-auto flex-1">
+        {/* FORM BODY */}
+        <form onSubmit={handleSubmit} id="lecture-upload-form" className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
           {prefillTopic && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-xl flex items-center gap-2">
               <span className="text-sm">📌</span>
               <div>
-                <strong>Assigned Syllabus Topic:</strong> {prefillTopic.topicTitle} (Due: {prefillTopic.deadlineDate})
+                <strong>Assigned Topic:</strong> {prefillTopic.topicTitle} (Due: {prefillTopic.deadlineDate})
               </div>
             </div>
           )}
@@ -250,16 +171,11 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           {/* 1. LECTURE DETAILS */}
           <div className="space-y-3">
-            <div className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px]">1</span>
-              Lecture Information
-            </div>
-
             <div>
               <label className="block text-slate-400 font-medium mb-1">Lecture Session Title *</label>
               <input
                 type="text"
-                placeholder="e.g. Lecture 12: Graph Algorithms & Dijkstra Implementation"
+                placeholder="e.g. Lecture 14: Dynamic Programming Patterns & Shortest Paths"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
@@ -290,7 +206,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Target Date</label>
+                <label className="block text-slate-400 font-medium mb-1">Scheduled Date</label>
                 <input
                   type="date"
                   value={deadlineDate}
@@ -304,14 +220,14 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <label className="block text-slate-400 font-medium mb-1">Primary Topic / Concept *</label>
               <input
                 type="text"
-                placeholder="e.g. Graph Algorithms"
+                placeholder="e.g. Graph Algorithms & Dijkstra"
                 value={primaryTopic}
                 onChange={(e) => setPrimaryTopic(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 mb-2"
                 required
               />
 
-              <label className="block text-slate-400 font-medium mb-1">Subtopic Tags</label>
+              <label className="block text-slate-400 font-medium mb-1">Subtopic Tags (Optional)</label>
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"
@@ -359,214 +275,87 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* 2. VIDEO SOURCE */}
+          {/* 2. LECTURE VIDEO LINK (YOUTUBE / DRIVE) */}
           <div className="space-y-3">
-            <div className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px]">2</span>
-              Lecture Video Recording
-            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                <Play className="w-3.5 h-3.5 text-indigo-400" />
+                Lecture Video Link *
+              </label>
 
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setVideoMode('upload')}
-                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
-                  videoMode === 'upload'
-                    ? 'bg-indigo-950/40 border-indigo-500 text-indigo-200 font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <UploadCloud className="w-4 h-4 text-indigo-400" />
-                <span className="text-[11px]">Upload Video File</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setVideoMode('youtube')}
-                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
-                  videoMode === 'youtube'
-                    ? 'bg-indigo-950/40 border-indigo-500 text-indigo-200 font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Play className="w-4 h-4 text-red-400" />
-                <span className="text-[11px]">YouTube Unlisted</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setVideoMode('drive_link')}
-                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
-                  videoMode === 'drive_link'
-                    ? 'bg-indigo-950/40 border-indigo-500 text-indigo-200 font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Link2 className="w-4 h-4 text-blue-400" />
-                <span className="text-[11px]">Drive Video Link</span>
-              </button>
-            </div>
-
-            {videoMode === 'upload' && (
-              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3 text-center">
-                <input
-                  type="file"
-                  accept="video/*"
-                  id="lecture-video-input"
-                  onChange={handleVideoFileSelect}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="lecture-video-input"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg text-xs cursor-pointer transition-colors"
+              <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setVideoLinkType('youtube')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                    videoLinkType === 'youtube'
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
                 >
-                  <UploadCloud className="w-4 h-4" /> Browse Video File (.mp4, .mov, .mkv)
-                </label>
-
-                {videoFile && (
-                  <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-2 text-left">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <div className="truncate">
-                          <div className="font-semibold text-slate-200 truncate">{videoFile.name}</div>
-                          <div className="text-[10px] text-slate-500">{(videoFile.size / (1024 * 1024)).toFixed(2)} MB</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleUploadVideoToDrive}
-                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-xs font-medium transition-colors"
-                        >
-                          ☁️ Sync to Drive
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVideoFile(null);
-                            setVideoLocalUrl('');
-                            setVideoUploadStatus('');
-                          }}
-                          className="text-slate-400 hover:text-red-400 text-xs px-1"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-
-                    {videoUploadProgress !== null && (
-                      <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-indigo-500 h-full transition-all duration-200"
-                          style={{ width: `${videoUploadProgress}%` }}
-                        />
-                      </div>
-                    )}
-
-                    {videoUploadStatus && (
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {videoUploadStatus}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  <Play className="w-3 h-3 text-red-400 fill-red-400" /> YouTube Unlisted
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoLinkType('drive')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                    videoLinkType === 'drive'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Link2 className="w-3 h-3 text-blue-400" /> Google Drive
+                </button>
               </div>
-            )}
+            </div>
 
-            {videoMode === 'youtube' && (
+            {videoLinkType === 'youtube' ? (
               <div>
-                <label className="block text-slate-400 font-medium mb-1">YouTube URL</label>
                 <input
                   type="url"
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                  placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-red-500 font-mono text-xs"
                 />
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Paste the Unlisted or Public YouTube video link for HD in-portal playback.
+                </span>
               </div>
-            )}
-
-            {videoMode === 'drive_link' && (
+            ) : (
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Google Drive Video URL</label>
                 <input
                   type="url"
                   placeholder="https://drive.google.com/file/d/.../view"
-                  value={videoDriveUrl}
-                  onChange={(e) => setVideoDriveUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 font-mono text-xs"
                 />
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Paste the Google Drive video file sharing link (ensure sharing is set to "Anyone with link").
+                </span>
               </div>
             )}
           </div>
 
           <hr className="border-slate-800" />
 
-          {/* 3. PDF NOTES & SLIDES */}
-          <div className="space-y-3">
-            <div className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px]">3</span>
-              Class PDF Notes & Reference (Optional)
-            </div>
-
-            <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <input
-                  type="file"
-                  accept=".pdf"
-                  id="lecture-notes-input"
-                  onChange={handleNotesFileSelect}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="lecture-notes-input"
-                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg text-xs cursor-pointer transition-colors self-start"
-                >
-                  <FileText className="w-3.5 h-3.5 text-emerald-400" /> Browse PDF Notes
-                </label>
-
-                {notesFile && (
-                  <div className="flex items-center gap-2 text-emerald-400 font-medium text-[11px]">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> {notesFile.name} ({(notesFile.size / (1024 * 1024)).toFixed(2)} MB)
-                    <button
-                      type="button"
-                      onClick={handleUploadNotesToDrive}
-                      className="ml-2 px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded text-[10px] font-medium"
-                    >
-                      ☁️ Upload to Drive
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {notesUploadProgress !== null && (
-                <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="bg-emerald-500 h-full transition-all duration-200"
-                    style={{ width: `${notesUploadProgress}%` }}
-                  />
-                </div>
-              )}
-
-              {notesUploadStatus && (
-                <div className="text-[10px] text-slate-400 font-mono">
-                  {notesUploadStatus}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-slate-400 font-medium mb-1 text-[11px]">Or paste Google Drive PDF Link:</label>
-                <input
-                  type="url"
-                  placeholder="https://drive.google.com/file/d/..."
-                  value={notesDriveUrl}
-                  onChange={(e) => setNotesDriveUrl(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs"
-                />
-              </div>
-            </div>
+          {/* 3. CLASS NOTES / DPP LINK */}
+          <div className="space-y-2">
+            <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-emerald-400" />
+              Class PDF Notes & Slides Link (Optional)
+            </label>
+            <input
+              type="url"
+              placeholder="https://drive.google.com/file/d/.../view"
+              value={notesUrl}
+              onChange={(e) => setNotesUrl(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono text-xs"
+            />
+            <span className="text-[10px] text-slate-500 block">
+              Google Drive PDF link for handouts, handwritten notes, or slide deck.
+            </span>
           </div>
         </form>
 
