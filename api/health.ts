@@ -3,7 +3,12 @@ import { google } from 'googleapis';
 
 function getDriveClient() {
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-  const privateKey = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY || '';
+
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+  privateKey = privateKey.trim().replace(/^"|"$/g, '');
 
   if (!clientEmail || !privateKey || privateKey.trim() === '') {
     return null;
@@ -11,7 +16,7 @@ function getDriveClient() {
 
   try {
     const auth = new google.auth.JWT({
-      email: clientEmail,
+      email: clientEmail.trim(),
       key: privateKey,
       scopes: ['https://www.googleapis.com/auth/drive'],
     });
