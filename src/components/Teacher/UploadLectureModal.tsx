@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { User, AssignedTopic } from '../../types';
 import { StorageService } from '../../services/storage';
+import { uploadFileToDrive } from '../../services/uploadService';
 import confetti from 'canvas-confetti';
 import { UploadCloud, Link2, Play, FileText, CheckCircle2, X } from 'lucide-react';
 
@@ -39,11 +40,15 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   const [videoLocalUrl, setVideoLocalUrl] = useState<string>('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [videoDriveUrl, setVideoDriveUrl] = useState('');
+  const [videoUploadProgress, setVideoUploadProgress] = useState<number | null>(null);
+  const [videoUploadStatus, setVideoUploadStatus] = useState<string>('');
 
   // PDF Notes file & URLs
   const [notesFile, setNotesFile] = useState<File | null>(null);
   const [notesLocalUrl, setNotesLocalUrl] = useState<string>('');
   const [notesDriveUrl, setNotesDriveUrl] = useState('');
+  const [notesUploadProgress, setNotesUploadProgress] = useState<number | null>(null);
+  const [notesUploadStatus, setNotesUploadStatus] = useState<string>('');
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,10 +77,27 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       setVideoFile(f);
       const objUrl = URL.createObjectURL(f);
       setVideoLocalUrl(objUrl);
+      setVideoUploadProgress(null);
+      setVideoUploadStatus('');
       if (!title) {
         setTitle(f.name.replace(/\.[^/.]+$/, ''));
       }
       setErrorMsg('');
+    }
+  };
+
+  const handleUploadVideoToDrive = async () => {
+    if (!videoFile) return;
+    setVideoUploadProgress(10);
+    setVideoUploadStatus('Uploading to Google Drive...');
+    const result = await uploadFileToDrive(videoFile, (pct) => setVideoUploadProgress(pct));
+    if (result.success && result.driveLink) {
+      setVideoDriveUrl(result.driveLink);
+      setVideoUploadProgress(100);
+      setVideoUploadStatus('Uploaded to Google Drive ✓');
+    } else {
+      setVideoUploadProgress(null);
+      setVideoUploadStatus(result.error || 'Google Drive not configured in Vercel. Local preview active.');
     }
   };
 
@@ -85,7 +107,24 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       setNotesFile(f);
       const objUrl = URL.createObjectURL(f);
       setNotesLocalUrl(objUrl);
+      setNotesUploadProgress(null);
+      setNotesUploadStatus('');
       setErrorMsg('');
+    }
+  };
+
+  const handleUploadNotesToDrive = async () => {
+    if (!notesFile) return;
+    setNotesUploadProgress(10);
+    setNotesUploadStatus('Uploading to Google Drive...');
+    const result = await uploadFileToDrive(notesFile, (pct) => setNotesUploadProgress(pct));
+    if (result.success && result.driveLink) {
+      setNotesDriveUrl(result.driveLink);
+      setNotesUploadProgress(100);
+      setNotesUploadStatus('Uploaded to Google Drive ✓');
+    } else {
+      setNotesUploadProgress(null);
+      setNotesUploadStatus(result.error || 'Google Drive not configured in Vercel. Local preview active.');
     }
   };
 
@@ -385,24 +424,52 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 </label>
 
                 {videoFile && (
-                  <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-between text-left">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <div className="truncate">
-                        <div className="font-semibold text-slate-200 truncate">{videoFile.name}</div>
-                        <div className="text-[10px] text-slate-500">{(videoFile.size / (1024 * 1024)).toFixed(2)} MB • Ready to save</div>
+                  <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div className="truncate">
+                          <div className="font-semibold text-slate-200 truncate">{videoFile.name}</div>
+                          <div className="text-[10px] text-slate-500">{(videoFile.size / (1024 * 1024)).toFixed(2)} MB</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleUploadVideoToDrive}
+                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-xs font-medium transition-colors"
+                        >
+                          ☁️ Sync to Drive
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVideoFile(null);
+                            setVideoLocalUrl('');
+                            setVideoUploadStatus('');
+                          }}
+                          className="text-slate-400 hover:text-red-400 text-xs px-1"
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVideoFile(null);
-                        setVideoLocalUrl('');
-                      }}
-                      className="text-slate-400 hover:text-red-400 text-xs px-2 py-1"
-                    >
-                      Remove
-                    </button>
+
+                    {videoUploadProgress !== null && (
+                      <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-indigo-500 h-full transition-all duration-200"
+                          style={{ width: `${videoUploadProgress}%` }}
+                        />
+                      </div>
+                    )}
+
+                    {videoUploadStatus && (
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {videoUploadStatus}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -463,9 +530,31 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 {notesFile && (
                   <div className="flex items-center gap-2 text-emerald-400 font-medium text-[11px]">
                     <CheckCircle2 className="w-3.5 h-3.5" /> {notesFile.name} ({(notesFile.size / (1024 * 1024)).toFixed(2)} MB)
+                    <button
+                      type="button"
+                      onClick={handleUploadNotesToDrive}
+                      className="ml-2 px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded text-[10px] font-medium"
+                    >
+                      ☁️ Upload to Drive
+                    </button>
                   </div>
                 )}
               </div>
+
+              {notesUploadProgress !== null && (
+                <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-full transition-all duration-200"
+                    style={{ width: `${notesUploadProgress}%` }}
+                  />
+                </div>
+              )}
+
+              {notesUploadStatus && (
+                <div className="text-[10px] text-slate-400 font-mono">
+                  {notesUploadStatus}
+                </div>
+              )}
 
               <div>
                 <label className="block text-slate-400 font-medium mb-1 text-[11px]">Or paste Google Drive PDF Link:</label>

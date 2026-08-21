@@ -1,7 +1,15 @@
 // uploadService.ts
-// Handles real file uploads to the Express backend which then pushes to Google Drive.
+// Handles file uploads to Vercel Serverless Functions (/api/upload) or local Express backend
 
-const SERVER_URL = 'http://localhost:3001';
+const getApiBaseUrl = () => {
+  if (typeof window === 'undefined') return '';
+  // If running locally on Vite port 5173 without proxy, point to 3001
+  if (window.location.hostname === 'localhost' && window.location.port === '5173') {
+    return 'http://localhost:3001';
+  }
+  // Otherwise on Vercel production or custom domain, use relative path
+  return '';
+};
 
 export interface UploadResult {
   success: boolean;
@@ -15,18 +23,22 @@ export interface UploadResult {
 /**
  * Check whether the backend is running and Drive is configured.
  */
-export async function checkServerHealth(): Promise<{ running: boolean; driveConfigured: boolean }> {
+export async function checkServerHealth(): Promise<{ running: boolean; driveConfigured: boolean; folderId?: string | null }> {
+  const baseUrl = getApiBaseUrl();
   try {
-    const res = await fetch(`${SERVER_URL}/api/health`, { signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) {
+      return { running: false, driveConfigured: false };
+    }
     const data = await res.json();
-    return { running: true, driveConfigured: data.driveConfigured };
+    return { running: true, driveConfigured: Boolean(data.driveConfigured), folderId: data.folderId };
   } catch {
     return { running: false, driveConfigured: false };
   }
 }
 
 /**
- * Upload a file to Google Drive via the backend server.
+ * Upload a file to Google Drive via the serverless or local upload endpoint.
  * Calls onProgress(0-100) as the upload streams.
  */
 export async function uploadFileToDrive(
@@ -34,24 +46,7 @@ export async function uploadFileToDrive(
   onProgress?: (percent: number) => void
 ): Promise<UploadResult> {
   onProgress?.(5);
-
-  // Check server health first
-  const health = await checkServerHealth();
-  if (!health.running) {
-    return {
-      success: false,
-      error: 'Upload server is not running. Start it with: cd server && node index.js',
-    };
-  }
-  if (!health.driveConfigured) {
-    return {
-      success: false,
-      error: 'Google Drive credentials are not configured in server/.env yet.',
-      isConfigured: false,
-    };
-  }
-
-  onProgress?.(15);
+  const baseUrl = getApiBaseUrl();
 
   return new Promise((resolve) => {
     const formData = new FormData();
@@ -61,7 +56,7 @@ export async function uploadFileToDrive(
 
     xhr.upload.addEventListener('progress', (event) => {
       if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 80) + 15;
+        const percent = Math.round((event.loaded / event.total) * 85) + 10;
         onProgress?.(Math.min(percent, 95));
       }
     });
@@ -78,7 +73,11 @@ export async function uploadFileToDrive(
             fileName: data.fileName,
           });
         } else {
-          resolve({ success: false, error: data.error || 'Upload failed.' });
+          resolve({
+            success: false,
+            error: data.error || 'Upload failed.',
+            isConfigured: data.error?.includes('not configured') ? false : undefined,
+          });
         }
       } catch {
         resolve({ success: false, error: 'Invalid response from server.' });
@@ -86,10 +85,10 @@ export async function uploadFileToDrive(
     });
 
     xhr.addEventListener('error', () => {
-      resolve({ success: false, error: 'Network error. Is the server running?' });
+      resolve({ success: false, error: 'Network error during upload.' });
     });
 
-    xhr.open('POST', `${SERVER_URL}/api/upload`);
+    xhr.open('POST', `${baseUrl}/api/upload`);
     xhr.send(formData);
   });
 }
