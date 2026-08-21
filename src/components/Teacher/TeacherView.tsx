@@ -727,8 +727,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                     <div className="space-y-2.5">
                       <div className="flex items-start justify-between gap-2">
                         <div className="truncate flex-1">
-                          <h4 className="font-semibold text-slate-100 truncate">{topic.topicTitle}</h4>
-                          <span className="text-[11px] text-slate-400 block">{topic.subject}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.2 rounded font-mono font-bold text-[9px] bg-slate-800 text-indigo-300 border border-slate-700">
+                              {topic.unitNumber || 'UNIT 1'}
+                            </span>
+                            <h4 className="font-semibold text-slate-100 truncate">{topic.topicTitle}</h4>
+                          </div>
+                          <span className="text-[11px] text-slate-400 block mt-0.5">{topic.subject}</span>
                         </div>
                         <span className={`text-[10px] font-mono shrink-0 ${
                           deadline.isOverdue ? 'text-red-400' : deadline.isToday ? 'text-amber-400' : 'text-slate-400'

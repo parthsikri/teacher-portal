@@ -184,6 +184,7 @@ const INITIAL_ASSIGNED_TOPICS: AssignedTopic[] = [
     id: 'at-101',
     teacherId: 'AEW-T-101',
     subject: 'Data Structures & Algorithms',
+    unitNumber: 'UNIT 2',
     topicTitle: 'Advanced Graph Algorithms & Shortest Path',
     subtopics: ['Dijkstra Algorithm', 'Bellman-Ford', 'Floyd-Warshall'],
     subtopicItems: [
@@ -204,6 +205,7 @@ const INITIAL_ASSIGNED_TOPICS: AssignedTopic[] = [
     id: 'at-102',
     teacherId: 'AEW-T-101',
     subject: 'Data Structures & Algorithms',
+    unitNumber: 'UNIT 3',
     topicTitle: 'Dynamic Programming on Trees',
     subtopics: [],
     subtopicItems: [],
@@ -220,6 +222,7 @@ const INITIAL_ASSIGNED_TOPICS: AssignedTopic[] = [
     id: 'at-103',
     teacherId: 'AEW-T-102',
     subject: 'Signals & Systems',
+    unitNumber: 'UNIT 1',
     topicTitle: 'Continuous-Time Fourier Series & Transforms',
     subtopics: ['Dirichlet Conditions', 'Frequency Response', 'Parseval Relation'],
     subtopicItems: [
@@ -240,6 +243,7 @@ const INITIAL_ASSIGNED_TOPICS: AssignedTopic[] = [
     id: 'at-104',
     teacherId: 'AEW-T-103',
     subject: 'Thermodynamics',
+    unitNumber: 'UNIT 2',
     topicTitle: 'Second Law of Thermodynamics & Entropy',
     subtopics: [],
     subtopicItems: [],
@@ -537,6 +541,7 @@ export const StorageService = {
   addAssignedTopic(topic: {
     teacherId: string;
     subject: string;
+    unitNumber?: string;
     topicTitle: string;
     subtopics?: string[];
     subtopicItems?: SubtopicItem[];
@@ -562,6 +567,7 @@ export const StorageService = {
       id: `at-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       teacherId: topic.teacherId.trim().toUpperCase(),
       subject: topic.subject.trim(),
+      unitNumber: topic.unitNumber?.trim() || 'UNIT 1',
       topicTitle: topic.topicTitle.trim(),
       subtopics: subtopicNames,
       subtopicItems: items,
@@ -585,6 +591,7 @@ export const StorageService = {
     commonProps: {
       teacherId: string;
       subject: string;
+      unitNumber?: string;
       deadlineDate: string;
       priority?: 'high' | 'medium' | 'normal';
       notes?: string;

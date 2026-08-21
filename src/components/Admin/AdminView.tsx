@@ -66,6 +66,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Standalone Assign Topic Modal State (Supports Comma Separated Topics)
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignTeacherId, setAssignTeacherId] = useState(teachers[0]?.teacherId || '');
+  const [assignUnitNumber, setAssignUnitNumber] = useState('UNIT 1');
   const [assignTopicInput, setAssignTopicInput] = useState('');
   const [assignDeadline, setAssignDeadline] = useState(new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]);
   const [assignPriority, setAssignPriority] = useState<'high' | 'medium' | 'normal'>('high');
@@ -215,6 +216,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     StorageService.addMultipleAssignedTopics(parsedTopicList, {
       teacherId: assignTeacherId,
       subject: targetTeacher?.subject || 'Engineering',
+      unitNumber: assignUnitNumber.trim() || 'UNIT 1',
       deadlineDate: assignDeadline,
       priority: assignPriority,
       notes: assignNotes.trim() || undefined,
@@ -1826,20 +1828,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <form onSubmit={handleAssignTopicSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Select Faculty Member *</label>
-                <select
-                  value={assignTeacherId}
-                  onChange={(e) => setAssignTeacherId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
-                  required
-                >
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.teacherId}>
-                      {t.name} ({t.teacherId}) - {t.subject}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Faculty Member *</label>
+                  <select
+                    value={assignTeacherId}
+                    onChange={(e) => setAssignTeacherId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
+                    required
+                  >
+                    {teachers.map((t) => (
+                      <option key={t.id} value={t.teacherId}>
+                        {t.name} ({t.teacherId}) - {t.subject}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Target Unit *</label>
+                  <select
+                    value={assignUnitNumber}
+                    onChange={(e) => setAssignUnitNumber(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                  >
+                    <option value="UNIT 1">UNIT 1</option>
+                    <option value="UNIT 2">UNIT 2</option>
+                    <option value="UNIT 3">UNIT 3</option>
+                    <option value="UNIT 4">UNIT 4</option>
+                    <option value="UNIT 5">UNIT 5</option>
+                    <option value="UNIT 6">UNIT 6</option>
+                  </select>
+                </div>
               </div>
 
               <div>

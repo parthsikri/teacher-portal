@@ -62,6 +62,7 @@ export interface AssignedTopic {
   id: string;
   teacherId: string;
   subject: string;
+  unitNumber?: string;                  // e.g. "UNIT 1", "UNIT 2", "UNIT 3"
   topicTitle: string;
   subtopics: string[];                  // Subtopic names list
   subtopicItems?: SubtopicItem[];       // Detailed subtopics with individual deadlines

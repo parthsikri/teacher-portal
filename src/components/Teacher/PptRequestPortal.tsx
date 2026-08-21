@@ -3,7 +3,7 @@ import type { User, PptRequest, AssignedTopic } from '../../types';
 import { StorageService } from '../../services/storage';
 import { 
   FileSpreadsheet, Plus, Download, Clock, CheckCircle2, 
-  ExternalLink, Calendar, Search, X, Info
+  ExternalLink, Calendar, Search, X, CheckSquare, Square
 } from 'lucide-react';
 
 interface PptRequestPortalProps {
@@ -37,16 +37,50 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
 
   const minDate = defaultDate;
 
-  // Form State
+  // Minimal Form State
   const [unitNumber, setUnitNumber] = useState('UNIT 1');
-  const [topicTitle, setTopicTitle] = useState('');
-  const [selectedTopicId, setSelectedTopicId] = useState('');
-  const [targetExam, setTargetExam] = useState('University End-Term (All PYQs)');
-  const [yearRange, setYearRange] = useState('Last 5 Years (2019–2024)');
+  const [selectedTopicTitles, setSelectedTopicTitles] = useState<string[]>([]);
+  const [customTopicTitle, setCustomTopicTitle] = useState('');
   const [lectureDate, setLectureDate] = useState(defaultDate);
-  const [estimatedQuestions, setEstimatedQuestions] = useState(8);
-  const [referenceUrl, setReferenceUrl] = useState('');
   const [specialInstructions, setSpecialInstructions] = useState('');
+
+  // Filter topics for the currently chosen Unit
+  const topicsForChosenUnit = useMemo(() => {
+    return assignedTopics.filter(
+      (t) => (t.unitNumber || 'UNIT 1').toUpperCase() === unitNumber.toUpperCase()
+    );
+  }, [assignedTopics, unitNumber]);
+
+  // Is all topics in unit selected?
+  const isAllTopicsSelected = useMemo(() => {
+    if (topicsForChosenUnit.length === 0) return false;
+    return topicsForChosenUnit.every((t) => selectedTopicTitles.includes(t.topicTitle));
+  }, [topicsForChosenUnit, selectedTopicTitles]);
+
+  const handleToggleSelectAllUnit = () => {
+    if (isAllTopicsSelected) {
+      // Unselect all
+      setSelectedTopicTitles([]);
+    } else {
+      // Select all topics in this unit
+      const allTitles = topicsForChosenUnit.map((t) => t.topicTitle);
+      setSelectedTopicTitles(allTitles);
+    }
+  };
+
+  const handleToggleTopic = (title: string) => {
+    if (selectedTopicTitles.includes(title)) {
+      setSelectedTopicTitles(selectedTopicTitles.filter((t) => t !== title));
+    } else {
+      setSelectedTopicTitles([...selectedTopicTitles, title]);
+    }
+  };
+
+  const handleUnitChange = (newUnit: string) => {
+    setUnitNumber(newUnit);
+    setSelectedTopicTitles([]);
+    setCustomTopicTitle('');
+  };
 
   const refreshRequests = () => {
     const list = StorageService.getTeacherPptRequests(teacher.teacherId);
@@ -54,27 +88,25 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
     onRefreshData?.();
   };
 
-  const handleTopicSelect = (topicId: string) => {
-    setSelectedTopicId(topicId);
-    const found = assignedTopics.find((t) => t.id === topicId);
-    if (found) {
-      setTopicTitle(found.topicTitle);
-      if (found.deadlineDate && found.deadlineDate >= minDate) {
-        setLectureDate(found.deadlineDate);
-      }
-    }
-  };
-
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topicTitle.trim()) {
-      alert('Please enter or select a topic title.');
+
+    // Determine final topic title(s)
+    let finalTopicTitle = '';
+    if (isAllTopicsSelected && topicsForChosenUnit.length > 1) {
+      finalTopicTitle = `All Unit Topics: ${topicsForChosenUnit.map((t) => t.topicTitle).join(', ')}`;
+    } else if (selectedTopicTitles.length > 0) {
+      finalTopicTitle = selectedTopicTitles.join(', ');
+    } else if (customTopicTitle.trim()) {
+      finalTopicTitle = customTopicTitle.trim();
+    } else {
+      alert('Please select at least one topic or enter a custom topic title.');
       return;
     }
 
     if (lectureDate < minDate) {
       const confirmEarly = window.confirm(
-        'Notice: Presentations should ideally be requested at least 2 days in advance. Would you like to submit this urgent request anyway?'
+        'Notice: Presentations should ideally be requested at least 2 days in advance. Would you like to submit this request anyway?'
       );
       if (!confirmEarly) return;
     }
@@ -84,21 +116,16 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
       teacherName: teacher.name,
       subject: teacher.subject || teacher.department,
       unitNumber: unitNumber.trim() || 'UNIT 1',
-      topicTitle: topicTitle.trim(),
-      targetExam: targetExam.trim(),
-      yearRange: yearRange.trim(),
+      topicTitle: finalTopicTitle,
       lectureDate,
-      estimatedQuestions: Number(estimatedQuestions) || 8,
-      referenceUrl: referenceUrl.trim() || undefined,
+      estimatedQuestions: selectedTopicTitles.length > 1 ? selectedTopicTitles.length * 4 : 8,
       specialInstructions: specialInstructions.trim() || undefined,
     });
 
     setShowCreateModal(false);
-    setTopicTitle('');
-    setSelectedTopicId('');
+    setSelectedTopicTitles([]);
+    setCustomTopicTitle('');
     setSpecialInstructions('');
-    setReferenceUrl('');
-    setEstimatedQuestions(8);
     refreshRequests();
 
     setToastMessage('PYQ Deck Request submitted to the slide design team.');
@@ -118,8 +145,7 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
       const matchesSearch =
         !searchQuery ||
         r.topicTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.unitNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (r.targetExam && r.targetExam.toLowerCase().includes(searchQuery.toLowerCase()));
+        r.unitNumber.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
 
@@ -150,12 +176,16 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
             Topic-wise PYQ Slide Decks
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Request topic-specific Previous Year Questions (PYQs) compiled and formatted by the academic design team.
+            Request previous year questions (PYQs) compiled and formatted by the academic design team.
           </p>
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => {
+            setSelectedTopicTitles([]);
+            setCustomTopicTitle('');
+            setShowCreateModal(true);
+          }}
           className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow transition-colors flex items-center gap-2 self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" /> Request PYQ Deck
@@ -169,10 +199,10 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
         </div>
         <div className="space-y-1 text-xs">
           <div className="font-semibold text-slate-200">
-            2-Day Advance Turnaround Policy
+            2-Day Turnaround Policy
           </div>
           <p className="text-slate-400 leading-relaxed text-[11px]">
-            The design team collects all previous year university and competitive exam questions for your selected topic, verifies solutions, and formats them into clean 16:9 slides. Please submit your topic request at least <strong>2 days prior</strong> to your scheduled recording date.
+            The design team collects all previous year university and competitive exam questions for your selected topics, verifies solutions, and formats them into clean 16:9 slides. Please submit your request at least <strong>2 days prior</strong> to your scheduled recording.
           </p>
         </div>
       </div>
@@ -237,7 +267,7 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
           <input
             type="text"
-            placeholder="Search topic, unit, or exam..."
+            placeholder="Search topic or unit..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-700 w-full sm:w-60"
@@ -254,7 +284,7 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
           <div className="space-y-1">
             <h3 className="font-semibold text-sm text-slate-200">No PYQ Deck Requests Found</h3>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Submit your topic 2 days prior to lecture recording and our team will assemble all relevant PYQ slides.
+              Select a Unit and topics 2 days prior to lecture recording to receive your slide deck.
             </p>
           </div>
           <button
@@ -321,11 +351,6 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
                     </h4>
 
                     <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
-                      {req.targetExam && (
-                        <span className="text-slate-300">
-                          <strong>Target:</strong> {req.targetExam} {req.yearRange ? `(${req.yearRange})` : ''}
-                        </span>
-                      )}
                       <span className="flex items-center gap-1 font-mono text-slate-400">
                         <Calendar className="w-3 h-3 text-slate-400" /> Recording Date: {req.lectureDate}
                       </span>
@@ -383,12 +408,12 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
         </div>
       )}
 
-      {/* REQUEST MODAL */}
+      {/* QUICK & COMPACT REQUEST MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="font-bold text-sm text-slate-100">Request PYQ Presentation Deck</h3>
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-slate-100">Request Topic PYQ Slide Deck</h3>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-white"
@@ -399,15 +424,7 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
 
             <form onSubmit={handleCreateSubmit} className="p-5 space-y-4 text-xs">
               
-              {/* Notice */}
-              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 flex items-start gap-2 text-[11px]">
-                <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                <span>
-                  Our content team gathers and formats all relevant PYQs for this topic into ready-to-use lecture slides. Minimum 2 days advance notice.
-                </span>
-              </div>
-
-              {/* Subject & Unit */}
+              {/* Subject & Unit Selection */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-400 font-medium mb-1">Subject</label>
@@ -420,11 +437,11 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Unit Number *</label>
+                  <label className="block text-slate-400 font-medium mb-1">Select Unit *</label>
                   <select
                     value={unitNumber}
-                    onChange={(e) => setUnitNumber(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-slate-700"
+                    onChange={(e) => handleUnitChange(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none focus:border-indigo-500"
                   >
                     <option value="UNIT 1">UNIT 1</option>
                     <option value="UNIT 2">UNIT 2</option>
@@ -436,129 +453,104 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
                 </div>
               </div>
 
-              {/* Select From Assigned Topic */}
-              <div>
-                <label className="block text-slate-400 font-medium mb-1">
-                  Select from Syllabus (Optional)
-                </label>
-                <select
-                  value={selectedTopicId}
-                  onChange={(e) => handleTopicSelect(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-slate-700"
-                >
-                  <option value="">-- Choose Syllabus Topic or Type Below --</option>
-                  {assignedTopics.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.topicTitle} (Due: {t.deadlineDate})
-                    </option>
-                  ))}
-                </select>
+              {/* Topic Picker with "Select All in Unit" */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-semibold">
+                    Topics in {unitNumber}
+                  </label>
+
+                  {topicsForChosenUnit.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAllUnit}
+                      className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"
+                    >
+                      {isAllTopicsSelected ? (
+                        <>
+                          <CheckSquare className="w-3.5 h-3.5" /> Deselect All
+                        </>
+                      ) : (
+                        <>
+                          <Square className="w-3.5 h-3.5" /> Select All Topics in {unitNumber} ({topicsForChosenUnit.length})
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {topicsForChosenUnit.length > 0 ? (
+                  <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5 max-h-36 overflow-y-auto">
+                    {topicsForChosenUnit.map((topic) => {
+                      const isSelected = selectedTopicTitles.includes(topic.topicTitle);
+                      return (
+                        <label
+                          key={topic.id}
+                          className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer transition-colors ${
+                            isSelected ? 'bg-indigo-950/40 text-indigo-200' : 'hover:bg-slate-900 text-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleTopic(topic.topicTitle)}
+                            className="rounded border-slate-700 text-indigo-600 focus:ring-0"
+                          />
+                          <span className="text-xs truncate">{topic.topicTitle}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-400 italic text-[11px]">
+                    No pre-assigned topics found in {unitNumber}. You can enter a topic title below.
+                  </div>
+                )}
               </div>
 
+              {/* Or Custom Topic Title */}
               <div>
                 <label className="block text-slate-400 font-medium mb-1">
-                  Topic Title / Concept *
+                  Or Custom Topic Title (If not listed above)
                 </label>
                 <input
                   type="text"
-                  required
                   placeholder="e.g. Dynamic Programming on Trees & Rerooting"
-                  value={topicTitle}
-                  onChange={(e) => setTopicTitle(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-slate-700 font-medium"
+                  value={customTopicTitle}
+                  onChange={(e) => setCustomTopicTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 font-medium text-xs"
                 />
               </div>
 
-              {/* Target Exam & Years */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">Target Exam</label>
-                  <select
-                    value={targetExam}
-                    onChange={(e) => setTargetExam(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-slate-700"
-                  >
-                    <option value="University End-Term (All PYQs)">University End-Term (All PYQs)</option>
-                    <option value="GATE / Competitive Exam PYQs">GATE / Competitive Exam PYQs</option>
-                    <option value="Semester Mid-Term PYQs">Semester Mid-Term PYQs</option>
-                    <option value="Standard Curriculum & University PYQs">Standard Curriculum & University PYQs</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">PYQ Year Range</label>
-                  <select
-                    value={yearRange}
-                    onChange={(e) => setYearRange(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-slate-700"
-                  >
-                    <option value="Last 5 Years (2019–2024)">Last 5 Years (2019–2024)</option>
-                    <option value="Last 10 Years (2014–2024)">Last 10 Years (2014–2024)</option>
-                    <option value="Recent 2023–2024 Only">Recent 2023–2024 Only</option>
-                    <option value="All Available PYQs">All Available PYQs</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Scheduled Date & Questions Count */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">
-                    Scheduled Lecture Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    min={minDate}
-                    value={lectureDate}
-                    onChange={(e) => setLectureDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-slate-700 font-mono"
-                  />
-                  <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    Min 2 days advance (≥ {minDate})
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 font-medium mb-1">
-                    Estimated PYQ Count
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={30}
-                    value={estimatedQuestions}
-                    onChange={(e) => setEstimatedQuestions(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-slate-700 font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Reference Material URL */}
+              {/* Scheduled Recording Date */}
               <div>
                 <label className="block text-slate-400 font-medium mb-1">
-                  Specific Question Sheet / Reference Link (Optional)
+                  Scheduled Lecture Recording Date *
                 </label>
                 <input
-                  type="url"
-                  placeholder="https://drive.google.com/..."
-                  value={referenceUrl}
-                  onChange={(e) => setReferenceUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-slate-700"
+                  type="date"
+                  required
+                  min={minDate}
+                  value={lectureDate}
+                  onChange={(e) => setLectureDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs"
                 />
+                <span className="text-[10px] text-slate-500 mt-0.5 block">
+                  Please submit at least 2 days in advance (≥ {minDate})
+                </span>
               </div>
 
-              {/* Special Instructions */}
+              {/* Notes for Slide Team */}
               <div>
                 <label className="block text-slate-400 font-medium mb-1">
-                  Notes / Specific Questions for Slide Team
+                  Notes / Focus Areas for Slide Team (Optional)
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="e.g. Include 2023 End-Term 10-marker questions, step-by-step trace tables."
+                  placeholder="e.g. Please include 2023 End-Term 10-mark questions."
                   value={specialInstructions}
                   onChange={(e) => setSpecialInstructions(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-slate-700 resize-none"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 resize-none text-xs"
                 />
               </div>
 
@@ -566,13 +558,13 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg transition-colors"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg transition-colors text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors text-xs"
                 >
                   Submit Request →
                 </button>
