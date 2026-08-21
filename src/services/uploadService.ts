@@ -80,7 +80,22 @@ export async function uploadFileToDrive(
           });
         }
       } catch {
-        resolve({ success: false, error: 'Invalid response from server.' });
+        if (xhr.status === 413) {
+          resolve({
+            success: false,
+            error: 'File size exceeds serverless limit (max 50MB). Please paste Drive or YouTube link for large videos.',
+          });
+        } else if (xhr.status >= 500) {
+          resolve({
+            success: false,
+            error: 'Server error during upload. Please verify Google Drive environment variables in Vercel settings.',
+          });
+        } else {
+          resolve({
+            success: false,
+            error: `Server responded with status ${xhr.status}. Please check Vercel Google Drive credentials.`,
+          });
+        }
       }
     });
 
