@@ -1,15 +1,15 @@
 import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest } from '../types';
 
-const LECTURES_KEY = 'aew_portal_lectures_prod_v1';
-const USERS_KEY = 'aew_portal_users_prod_v1';
-const CURRENT_USER_KEY = 'aew_portal_session_prod_v1';
-const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_prod_v1';
-const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_prod_v1';
-const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_prod_v1';
-const PPT_REQUESTS_KEY = 'aew_ppt_requests_prod_v1';
+const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
+const USERS_KEY = 'aew_portal_users_prod_v2';
+const CURRENT_USER_KEY = 'aew_portal_session_prod_v2';
+const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_prod_v2';
+const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_prod_v2';
+const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_prod_v2';
+const PPT_REQUESTS_KEY = 'aew_ppt_requests_prod_v2';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
-// Initial Registered Faculty & Admin Roster with Daily Recording Target Minutes
+// Initial Registered Administrator (Portal starts completely clean for new teachers)
 const INITIAL_USERS: User[] = [
   {
     id: 'u-admin',
@@ -24,237 +24,52 @@ const INITIAL_USERS: User[] = [
     dailyTargetMinutes: 9999,
     dailyLimit: 999,
   },
-  {
-    id: 'u-101',
-    teacherId: 'AEW-T-101',
-    username: 'harish_mehta',
-    password: 'teach123',
-    name: 'Dr. Harish Mehta',
-    email: 'harish.cs@aew.com',
-    role: 'teacher',
-    department: 'Computer Science & Engg',
-    subject: 'Data Structures & Algorithms',
-    dailyTargetMinutes: 120, // 2 Hours required daily
-    dailyLimit: 4,
-  },
-  {
-    id: 'u-102',
-    teacherId: 'AEW-T-102',
-    username: 'sneha_sharma',
-    password: 'teach123',
-    name: 'Prof. Sneha Sharma',
-    email: 'sneha.ece@aew.com',
-    role: 'teacher',
-    department: 'Electronics & Comm Engg',
-    subject: 'Signals & Systems',
-    dailyTargetMinutes: 90, // 1.5 Hours required daily
-    dailyLimit: 4,
-  },
-  {
-    id: 'u-103',
-    teacherId: 'AEW-T-103',
-    username: 'rajesh_kulkarni',
-    password: 'teach123',
-    name: 'Dr. Rajesh Kulkarni',
-    email: 'rajesh.mech@aew.com',
-    role: 'teacher',
-    department: 'Mechanical Engineering',
-    subject: 'Thermodynamics',
-    dailyTargetMinutes: 120, // 2 Hours required daily
-    dailyLimit: 4,
-  },
-  {
-    id: 'u-104',
-    teacherId: 'AEW-T-104',
-    username: 'ananya_iyer',
-    password: 'teach123',
-    name: 'Prof. Ananya Iyer',
-    email: 'ananya.ee@aew.com',
-    role: 'teacher',
-    department: 'Electrical Engineering',
-    subject: 'Power Systems',
-    dailyTargetMinutes: 90,
-    dailyLimit: 4,
-  },
-  {
-    id: 'u-105',
-    teacherId: 'AEW-T-105',
-    username: 'vikram_malhotra',
-    password: 'teach123',
-    name: 'Dr. Vikram Malhotra',
-    email: 'vikram.civil@aew.com',
-    role: 'teacher',
-    department: 'Civil Engineering',
-    subject: 'Structural Analysis',
-    dailyTargetMinutes: 120,
-    dailyLimit: 4,
-  },
-];
-
-// Initial Subject References
-const INITIAL_SUBJECT_REFERENCES: SubjectReference[] = [
-  {
-    id: 'sref-1',
-    subjectName: 'Data Structures & Algorithms',
-    department: 'Computer Science & Engg',
-    title: 'Master DSA Curriculum & Standard Reference Notes',
-    referenceUrl: 'https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ',
-    notes: 'Follow CLRS 4th Edition Chapters 1-12 and standard AEW lecture slides.',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'sref-2',
-    subjectName: 'Signals & Systems',
-    department: 'Electronics & Comm Engg',
-    title: 'Signals & Systems Lecture Reference Drive',
-    referenceUrl: 'https://drive.google.com/drive/folders/1bCdEfGhIjKlMnOpQrStUvWxYz',
-    notes: 'Oppenheim & Willsky standard syllabus reference and Fourier transform problem sets.',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'sref-3',
-    subjectName: 'Thermodynamics',
-    department: 'Mechanical Engineering',
-    title: 'Thermodynamics Master Drive Material',
-    referenceUrl: 'https://drive.google.com/drive/folders/1cDeFgHiJkLmNoPqRsTuVwXyZa',
-    notes: 'Cengel & Boles Engineering Thermodynamics 9th Edition reference formulas.',
-    updatedAt: new Date().toISOString(),
-  }
-];
-
-// Initial Assigned Syllabus Topics
-const INITIAL_ASSIGNED_TOPICS: AssignedTopic[] = [
-  {
-    id: 'at-101',
-    teacherId: 'AEW-T-101',
-    subject: 'Data Structures & Algorithms',
-    unitNumber: 'UNIT 2',
-    topicTitle: 'Advanced Graph Algorithms & Shortest Path',
-    subtopics: ['Dijkstra Algorithm', 'Bellman-Ford', 'Floyd-Warshall'],
-    subtopicItems: [
-      { id: 'sub-1', name: 'Dijkstra Algorithm', deadlineDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], status: 'pending' },
-      { id: 'sub-2', name: 'Bellman-Ford', deadlineDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0], status: 'pending' },
-      { id: 'sub-3', name: 'Floyd-Warshall', deadlineDate: new Date(Date.now() + 86400000 * 6).toISOString().split('T')[0], status: 'pending' }
-    ],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'approved',
-    assignedBy: 'Admin',
-    deadlineDate: new Date(Date.now() + 86400000 * 6).toISOString().split('T')[0],
-    status: 'pending',
-    priority: 'high',
-    notes: 'Please cover time complexity analysis with Fibonacci Heaps.',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'at-102',
-    teacherId: 'AEW-T-101',
-    subject: 'Data Structures & Algorithms',
-    unitNumber: 'UNIT 3',
-    topicTitle: 'Dynamic Programming on Trees',
-    subtopics: [],
-    subtopicItems: [],
-    proposedSubtopics: ['Tree Rerooting DP', 'Subtree Sums & Heights', 'Binary Lifting for LCA'],
-    subtopicsApprovalState: 'pending_admin_approval',
-    assignedBy: 'Admin',
-    deadlineDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
-    status: 'pending',
-    priority: 'high',
-    notes: 'Include minimum 2 competitive programming problems.',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'at-103',
-    teacherId: 'AEW-T-102',
-    subject: 'Signals & Systems',
-    unitNumber: 'UNIT 1',
-    topicTitle: 'Continuous-Time Fourier Series & Transforms',
-    subtopics: ['Dirichlet Conditions', 'Frequency Response', 'Parseval Relation'],
-    subtopicItems: [
-      { id: 'sub-4', name: 'Dirichlet Conditions', deadlineDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0], status: 'pending' },
-      { id: 'sub-5', name: 'Frequency Response', deadlineDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], status: 'pending' },
-      { id: 'sub-6', name: 'Parseval Relation', deadlineDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0], status: 'pending' }
-    ],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'approved',
-    assignedBy: 'Admin',
-    deadlineDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
-    status: 'pending',
-    priority: 'high',
-    notes: 'Solve numericals on duality property.',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'at-104',
-    teacherId: 'AEW-T-103',
-    subject: 'Thermodynamics',
-    unitNumber: 'UNIT 2',
-    topicTitle: 'Second Law of Thermodynamics & Entropy',
-    subtopics: [],
-    subtopicItems: [],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'pending_teacher_input',
-    assignedBy: 'Admin',
-    deadlineDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
-    status: 'pending',
-    priority: 'normal',
-    notes: 'Please propose subtopics for admin approval.',
-    createdAt: new Date().toISOString(),
-  }
 ];
 
 export const StorageService = {
-  // Collects all registered users (seeded with full initial roster)
+  // Collects all registered users
   getUsers(): User[] {
     const userMap = new Map<string, User>();
 
-    // 1. Seed with initial registered faculty & admin
+    // 1. Seed with initial admin
     INITIAL_USERS.forEach((u) => {
       userMap.set(u.teacherId.toUpperCase(), { ...u });
     });
 
-    // 2. Collect from localStorage overrides
-    const keysToCheck = [
-      'aew_portal_users_v4',
-      'aew_portal_users_v5',
-      'aew_portal_users_v6',
-      USERS_KEY,
-    ];
-
-    keysToCheck.forEach((k) => {
-      const data = localStorage.getItem(k);
-      if (data) {
-        try {
-          const parsed = JSON.parse(data);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((u: User) => {
-              if (u && u.teacherId) {
-                const cleanId = u.teacherId.trim().toUpperCase();
-                const existing: Partial<User> = userMap.get(cleanId) || {};
-                userMap.set(cleanId, {
-                  ...existing,
-                  ...u,
-                  id: u.id || existing.id || `u-${Date.now()}`,
-                  teacherId: cleanId,
-                  username: (u.username || existing.username || cleanId.toLowerCase()).trim().toLowerCase().replace(/\s+/g, '_'),
-                  password: (u.password || existing.password || (u.role === 'admin' ? 'admin123' : 'teach123')).trim(),
-                  name: (u.name || existing.name || cleanId).trim(),
-                  role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : 'teacher'),
-                  email: (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`).trim(),
-                  department: u.department || existing.department || 'Engineering',
-                  subject: u.subject || existing.subject || 'Engineering',
-                  dailyTargetMinutes: u.dailyTargetMinutes || existing.dailyTargetMinutes || (u.dailyLimit ? u.dailyLimit * 30 : 120),
-                  dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
-                  hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
-                  dailyLimit: u.dailyLimit || existing.dailyLimit || 4,
-                });
-              }
-            });
-          }
-        } catch {
-          // ignore
+    // 2. Read registered users from storage
+    const data = localStorage.getItem(USERS_KEY);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((u: User) => {
+            if (u && u.teacherId) {
+              const cleanId = u.teacherId.trim().toUpperCase();
+              const existing: Partial<User> = userMap.get(cleanId) || {};
+              userMap.set(cleanId, {
+                ...existing,
+                ...u,
+                id: u.id || existing.id || `u-${Date.now()}`,
+                teacherId: cleanId,
+                username: (u.username || existing.username || cleanId.toLowerCase()).trim().toLowerCase().replace(/\s+/g, '_'),
+                password: (u.password || existing.password || (u.role === 'admin' ? 'admin123' : 'teach123')).trim(),
+                name: (u.name || existing.name || cleanId).trim(),
+                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : 'teacher'),
+                email: (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`).trim(),
+                department: u.department || existing.department || 'Engineering',
+                subject: u.subject || existing.subject || 'Engineering',
+                dailyTargetMinutes: u.dailyTargetMinutes || existing.dailyTargetMinutes || 120,
+                dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
+                hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
+                dailyLimit: u.dailyLimit || existing.dailyLimit || 4,
+              });
+            }
+          });
         }
+      } catch {
+        // ignore
       }
-    });
+    }
 
     const allUsers = Array.from(userMap.values());
     localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
@@ -359,15 +174,12 @@ export const StorageService = {
   // ─── SUBJECT REFERENCE MATERIALS (WHOLE SUBJECT) ────────────────────────────
   getSubjectReferences(): SubjectReference[] {
     const data = localStorage.getItem(SUBJECT_REFERENCES_KEY);
-    if (!data) {
-      this.saveSubjectReferences(INITIAL_SUBJECT_REFERENCES);
-      return INITIAL_SUBJECT_REFERENCES;
-    }
+    if (!data) return [];
     try {
       const parsed = JSON.parse(data);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_SUBJECT_REFERENCES;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_SUBJECT_REFERENCES;
+      return [];
     }
   },
 
@@ -424,59 +236,16 @@ export const StorageService = {
 
   // ─── ASSIGNED TOPICS WITH SUBTOPIC DEADLINES ────────────────────────────────
   getAssignedTopics(): AssignedTopic[] {
-    const topicMap = new Map<string, AssignedTopic>();
-
-    // 1. Seed with initial assigned topics
-    INITIAL_ASSIGNED_TOPICS.forEach((t) => {
-      topicMap.set(t.id, { ...t });
-    });
-
-    // 2. Collect from localStorage
-    const keysToCheck = [
-      'aew_portal_assigned_topics_v5',
-      'aew_portal_assigned_topics_v6',
-      ASSIGNED_TOPICS_KEY,
-    ];
-
-    keysToCheck.forEach((k) => {
-      const data = localStorage.getItem(k);
-      if (data) {
-        try {
-          const parsed = JSON.parse(data);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((t: AssignedTopic) => {
-              if (t && t.id) {
-                const subtopicStrings = Array.isArray(t.subtopics) ? t.subtopics : [];
-                
-                let items: SubtopicItem[] = Array.isArray(t.subtopicItems) && t.subtopicItems.length > 0
-                  ? t.subtopicItems
-                  : subtopicStrings.map((name, idx) => ({
-                      id: `sub-${idx}-${Date.now()}`,
-                      name,
-                      deadlineDate: t.deadlineDate || new Date().toISOString().split('T')[0],
-                      status: t.status === 'completed' ? 'completed' : 'pending',
-                    }));
-
-                topicMap.set(t.id, {
-                  ...t,
-                  subtopics: subtopicStrings,
-                  subtopicItems: items,
-                  proposedSubtopics: Array.isArray(t.proposedSubtopics) ? t.proposedSubtopics : [],
-                  subtopicsApprovalState: t.subtopicsApprovalState || (subtopicStrings.length > 0 ? 'approved' : 'pending_teacher_input'),
-                });
-              }
-            });
-          }
-        } catch {
-          // ignore
-        }
-      }
-    });
-
-    const allTopics = Array.from(topicMap.values());
-    localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(allTopics));
-    return allTopics;
+    const data = localStorage.getItem(ASSIGNED_TOPICS_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   },
+
 
   saveAssignedTopics(topics: AssignedTopic[]): void {
     localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(topics));
