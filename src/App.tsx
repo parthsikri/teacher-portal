@@ -100,7 +100,7 @@ export const App: React.FC = () => {
 
           {/* MAIN APPLICATION VIEW — sidebar is fixed, so we just pad-left to offset */}
           <div className="min-h-screen md:pl-64 lg:pl-72" style={{ overflowX: 'hidden' }}>
-            <main key={refreshKey} className="pt-16 md:pt-4 pb-16">
+            <main className="pt-16 md:pt-4 pb-16">
               {currentPage === 'ppt_generator' ? (
                 <PptGenerator
                   userSubject={currentUser.subject || currentUser.department}
@@ -111,6 +111,7 @@ export const App: React.FC = () => {
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
                   onRefreshData={handleRefreshData}
+                  refreshTrigger={refreshKey}
                 />
               ) : (
                 <TeacherView
@@ -119,6 +120,7 @@ export const App: React.FC = () => {
                   onPageChange={handlePageChange}
                   onOpenUpload={handleOpenUpload}
                   onOpenCommitmentModal={() => setShowCommitmentModal(true)}
+                  refreshTrigger={refreshKey}
                 />
               )}
             </main>

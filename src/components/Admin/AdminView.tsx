@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest } from '../../types';
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
@@ -13,13 +13,14 @@ import {
 interface AdminViewProps {
   currentPage: string;
   onPageChange: (page: string) => void;
-  onRefreshData: () => void;
+  onRefreshData?: () => void;
+  refreshTrigger?: number;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ 
   currentPage, 
   onPageChange, 
-  onRefreshData 
+  refreshTrigger
 }) => {
   const [teachers, setTeachers] = useState<User[]>(StorageService.getTeachers());
   const [lectures, setLectures] = useState<Lecture[]>(StorageService.getLectures());
@@ -115,8 +116,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setAssignedTopics(StorageService.getAssignedTopics());
     setSubjectReferences(StorageService.getSubjectReferences());
     setPptRequests(StorageService.getPptRequests());
-    onRefreshData();
   };
+
+  useEffect(() => {
+    refreshState();
+  }, [refreshTrigger]);
 
   const handleOpenFulfillModal = (req: PptRequest) => {
     setFulfillingRequest(req);

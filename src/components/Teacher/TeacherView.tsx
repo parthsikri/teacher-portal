@@ -16,6 +16,7 @@ interface TeacherViewProps {
   onPageChange: (page: string) => void;
   onOpenUpload: (prefillTopic?: AssignedTopic) => void;
   onOpenCommitmentModal?: () => void;
+  refreshTrigger?: number;
 }
 
 export const TeacherView: React.FC<TeacherViewProps> = ({ 
@@ -24,11 +25,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   onPageChange, 
   onOpenUpload,
   onOpenCommitmentModal,
+  refreshTrigger,
 }) => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [topicFilter, setTopicFilter] = useState<'all' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
   const [acknowledgedRemarks, setAcknowledgedRemarks] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setRefreshKey((prev) => prev + 1);
+  }, [refreshTrigger]);
 
   // Real-time ticking countdown for today's submission deadline
   const [timeRemaining, setTimeRemaining] = useState(() =>
