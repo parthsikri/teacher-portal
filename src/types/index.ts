@@ -43,7 +43,7 @@ export type SubtopicApprovalState =
 export interface SubtopicItem {
   id: string;
   name: string;
-  deadlineDate: string;       // Individual submission deadline (YYYY-MM-DD)
+  deadlineDate?: string;       // Optional legacy support
   status?: 'pending' | 'completed';
 }
 

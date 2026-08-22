@@ -340,7 +340,7 @@ export const StorageService = {
     return topics[index];
   },
 
-  // Admin approves proposed subtopics with custom individual deadlines
+  // Admin approves proposed subtopics
   approveSubtopics(
     topicId: string, 
     approvedSubtopics?: string[],
@@ -359,15 +359,11 @@ export const StorageService = {
 
     const finalItems: SubtopicItem[] = customItems && customItems.length > 0
       ? customItems
-      : finalNames.map((name, idx) => {
-          const existingItem = topic.subtopicItems?.find((item) => item.name.toLowerCase() === name.toLowerCase());
-          return {
-            id: existingItem?.id || `sub-${idx}-${Date.now()}`,
-            name,
-            deadlineDate: existingItem?.deadlineDate || topic.deadlineDate,
-            status: existingItem?.status || 'pending',
-          };
-        });
+      : finalNames.map((name, idx) => ({
+          id: `sub-${idx}-${Date.now()}`,
+          name,
+          status: 'pending',
+        }));
 
     topics[index] = {
       ...topics[index],
@@ -380,51 +376,25 @@ export const StorageService = {
     return topics[index];
   },
 
-  // Admin directly updates deadline of a specific subtopic
-  updateSubtopicDeadline(
+  // Admin updates subtopic list
+  updateSubtopicsList(
     topicId: string, 
-    subtopicIdOrName: string, 
-    newDeadline: string
+    subtopics: string[]
   ): AssignedTopic | null {
     const topics = this.getAssignedTopics();
     const index = topics.findIndex((t) => t.id === topicId);
     if (index === -1) return null;
 
-    const topic = topics[index];
-    const items = topic.subtopicItems || topic.subtopics.map((name, i) => ({
-      id: `sub-${i}-${Date.now()}`,
+    const cleanNames = subtopics.map((s) => s.trim()).filter((s) => s.length > 0);
+    const subtopicItems: SubtopicItem[] = cleanNames.map((name, idx) => ({
+      id: `sub-${idx}-${Date.now()}`,
       name,
-      deadlineDate: topic.deadlineDate,
-      status: 'pending' as const,
+      status: 'pending',
     }));
 
-    const updatedItems = items.map((st) => {
-      if (st.id === subtopicIdOrName || st.name.toLowerCase() === subtopicIdOrName.toLowerCase()) {
-        return { ...st, deadlineDate: newDeadline };
-      }
-      return st;
-    });
-
     topics[index] = {
       ...topics[index],
-      subtopicItems: updatedItems,
-    };
-    this.saveAssignedTopics(topics);
-    return topics[index];
-  },
-
-  // Admin updates all subtopic items and their individual deadlines at once
-  updateAllSubtopicDeadlines(
-    topicId: string, 
-    subtopicItems: SubtopicItem[]
-  ): AssignedTopic | null {
-    const topics = this.getAssignedTopics();
-    const index = topics.findIndex((t) => t.id === topicId);
-    if (index === -1) return null;
-
-    topics[index] = {
-      ...topics[index],
-      subtopics: subtopicItems.map((s) => s.name),
+      subtopics: cleanNames,
       subtopicItems,
     };
     this.saveAssignedTopics(topics);

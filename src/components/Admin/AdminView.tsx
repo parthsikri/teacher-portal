@@ -5,9 +5,9 @@ import { VideoModal } from '../Common/VideoModal';
 import { 
   Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
-  Key, Lock, User as UserIcon, Check, EyeOff, CheckCircle2, 
+  Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
-  Users, CalendarDays, FileSpreadsheet
+  Users, FileSpreadsheet
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -80,9 +80,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [refUrl, setRefUrl] = useState('');
   const [refNotes, setRefNotes] = useState('');
 
-  // Modal State for Editing Individual Subtopic Deadlines
-  const [editingDeadlinesTopic, setEditingDeadlinesTopic] = useState<AssignedTopic | null>(null);
-  const [subtopicDeadlinesList, setSubtopicDeadlinesList] = useState<SubtopicItem[]>([]);
 
   // Subtopic Review & Approval Modal State
   const [reviewingTopic, setReviewingTopic] = useState<AssignedTopic | null>(null);
@@ -255,38 +252,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   };
 
-  // Open Subtopic Deadlines Manager Modal
-  const handleOpenDeadlinesModal = (topic: AssignedTopic) => {
-    setEditingDeadlinesTopic(topic);
-    const items: SubtopicItem[] = topic.subtopicItems && topic.subtopicItems.length > 0
-      ? topic.subtopicItems
-      : topic.subtopics.map((name, i) => ({
-          id: `sub-${i}-${Date.now()}`,
-          name,
-          deadlineDate: topic.deadlineDate,
-          status: topic.status === 'completed' ? 'completed' : 'pending',
-        }));
-
-    setSubtopicDeadlinesList(JSON.parse(JSON.stringify(items)));
-  };
-
-  // Update specific subtopic deadline date in list
-  const handleSubtopicDateChange = (index: number, newDate: string) => {
-    const updated = [...subtopicDeadlinesList];
-    updated[index].deadlineDate = newDate;
-    setSubtopicDeadlinesList(updated);
-  };
-
-  // Save All Subtopic Deadlines
-  const handleSaveSubtopicDeadlines = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingDeadlinesTopic) return;
-
-    StorageService.updateAllSubtopicDeadlines(editingDeadlinesTopic.id, subtopicDeadlinesList);
-    setEditingDeadlinesTopic(null);
-    refreshState();
-  };
-
   // Open Review Subtopics Modal
   const handleOpenReviewModal = (topic: AssignedTopic) => {
     setReviewingTopic(topic);
@@ -294,15 +259,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
       ? topic.proposedSubtopics
       : topic.subtopics || [];
 
-    const items: SubtopicItem[] = names.map((name, idx) => {
-      const existing = topic.subtopicItems?.find((s) => s.name.toLowerCase() === name.toLowerCase());
-      return {
-        id: existing?.id || `sub-rev-${idx}-${Date.now()}`,
-        name,
-        deadlineDate: existing?.deadlineDate || topic.deadlineDate,
-        status: 'pending',
-      };
-    });
+    const items: SubtopicItem[] = names.map((name, idx) => ({
+      id: `sub-rev-${idx}-${Date.now()}`,
+      name,
+      status: 'pending',
+    }));
 
     setReviewSubtopicItems(items);
     setReviewSubtopicInput('');
@@ -323,7 +284,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
         updated.push({
           id: `sub-rev-${Date.now()}-${i}`,
           name,
-          deadlineDate: reviewingTopic.deadlineDate,
           status: 'pending',
         });
       }
@@ -335,12 +295,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const handleRemoveReviewItem = (index: number) => {
     setReviewSubtopicItems(reviewSubtopicItems.filter((_, i) => i !== index));
-  };
-
-  const handleReviewDateChange = (index: number, newDate: string) => {
-    const updated = [...reviewSubtopicItems];
-    updated[index].deadlineDate = newDate;
-    setReviewSubtopicItems(updated);
   };
 
   // Direct 1-Click Approve Subtopics
@@ -817,12 +771,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 const isUnderReview = approvalState === 'pending_admin_approval';
                 const isRevision = approvalState === 'revision_requested';
 
-                const subtopicItems = topic.subtopicItems || topic.subtopics.map((name) => ({
-                  id: name,
-                  name,
-                  deadlineDate: topic.deadlineDate,
-                  status: isCompleted ? ('completed' as const) : ('pending' as const),
-                }));
 
                 return (
                   <div
@@ -878,33 +826,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         )}
                       </div>
 
-                      {/* Subtopics with individual deadline badges */}
+                      {/* Subtopics */}
                       <div className="space-y-1.5">
                         <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
-                          <span>Subtopics & Deadlines:</span>
-                          {isApproved && (
-                            <button
-                              onClick={() => handleOpenDeadlinesModal(topic)}
-                              className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-bold"
-                            >
-                              <CalendarDays className="w-3 h-3" /> Edit Deadlines
-                            </button>
-                          )}
+                          <span>Subtopics Breakdown:</span>
+                          <span className="text-[10px] text-indigo-400 font-mono">
+                            {topic.subtopics?.length || 0} subtopics
+                          </span>
                         </div>
 
-                        {subtopicItems.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {subtopicItems.map((st, idx) => (
-                              <div
+                        {topic.subtopics && topic.subtopics.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {topic.subtopics.map((st, idx) => (
+                              <span
                                 key={idx}
-                                className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs"
+                                className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-200 font-medium"
                               >
-                                <span className="font-semibold text-slate-200 truncate mr-2">#{st.name}</span>
-                                <span className="font-mono text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 shrink-0 flex items-center gap-1">
-                                  <Clock className="w-2.5 h-2.5 text-amber-400" />
-                                  {st.deadlineDate || topic.deadlineDate}
-                                </span>
-                              </div>
+                                #{st}
+                              </span>
                             ))}
                           </div>
                         ) : (
@@ -929,7 +868,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             onClick={() => handleOpenReviewModal(topic)}
                             className="flex-1 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1"
                           >
-                            <Edit3 className="w-3.5 h-3.5" /> Review & Set Dates
+                            <Edit3 className="w-3.5 h-3.5" /> Review Subtopics
                           </button>
                           <button
                             onClick={() => handleDirectApprove(topic.id)}
@@ -942,10 +881,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                       {isApproved && (
                         <button
-                          onClick={() => handleOpenDeadlinesModal(topic)}
+                          onClick={() => handleOpenReviewModal(topic)}
                           className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                         >
-                          <CalendarDays className="w-3.5 h-3.5" /> Change Subtopic Deadlines
+                          <Edit3 className="w-3.5 h-3.5" /> Manage Subtopics
                         </button>
                       )}
 
@@ -1337,71 +1276,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: EDIT SUBTOPIC DEADLINES (ADMIN EXCLUSIVE) */}
-      {editingDeadlinesTopic && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4 text-indigo-400" />
-                  Manage Subtopic Submission Deadlines
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Set independent submission deadlines for each subtopic in this syllabus module
-                </p>
-              </div>
-              <button onClick={() => setEditingDeadlinesTopic(null)} className="text-slate-400 hover:text-slate-100">✕</button>
-            </div>
-
-            <div className="p-4 bg-slate-950 border border-indigo-500/20 rounded-2xl space-y-1">
-              <span className="text-[11px] font-bold text-indigo-400">{editingDeadlinesTopic.teacherId} • {editingDeadlinesTopic.subject}</span>
-              <h4 className="font-extrabold text-sm text-slate-100">{editingDeadlinesTopic.topicTitle}</h4>
-            </div>
-
-            <form onSubmit={handleSaveSubtopicDeadlines} className="space-y-4 text-xs">
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                <label className="block text-slate-300 font-bold">Subtopic Submission Deadlines:</label>
-
-                {subtopicDeadlinesList.map((item, idx) => (
-                  <div key={idx} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 shadow-inner">
-                    <div className="font-bold text-slate-200 truncate flex-1">
-                      #{item.name}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="date"
-                        value={item.deadlineDate}
-                        onChange={(e) => handleSubtopicDateChange(idx, e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-100 text-xs focus:outline-none focus:border-indigo-500 font-mono"
-                        required
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setEditingDeadlinesTopic(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-slate-200 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold rounded-xl shadow-md transition-all flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" /> Save Subtopic Deadlines
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADMIN REVIEWS & APPROVES SUBTOPICS + SETS INDIVIDUAL DEADLINES */}
+      {/* MODAL: ADMIN REVIEWS & MANAGES SUBTOPICS */}
       {reviewingTopic && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-200">
@@ -1409,22 +1284,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div>
                 <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Review & Approve Subtopics + Deadlines
+                  Review & Manage Subtopics
                 </h3>
                 <p className="text-xs text-slate-400">{reviewingTopic.teacherId} • {reviewingTopic.subject}</p>
               </div>
               <button onClick={() => setReviewingTopic(null)} className="text-slate-400 hover:text-slate-100">✕</button>
             </div>
 
-            <div className="p-4 bg-slate-950 border border-purple-500/20 rounded-2xl space-y-1.5">
+            <div className="p-4 bg-slate-950 border border-purple-500/20 rounded-2xl space-y-1">
               <h4 className="font-extrabold text-sm text-slate-100">{reviewingTopic.topicTitle}</h4>
-              <div className="text-xs text-slate-400">Module Target: <strong className="text-amber-400">{reviewingTopic.deadlineDate}</strong></div>
+              <p className="text-xs text-slate-400">Faculty pace their recording deliveries using daily recording targets and upload cutoff timers.</p>
             </div>
 
             <div className="space-y-4 text-xs">
               <div className="space-y-2">
                 <label className="block text-slate-300 font-bold">
-                  Proposed Subtopics & Individual Deadlines:
+                  Subtopics List:
                 </label>
 
                 <div className="flex gap-2">
@@ -1460,22 +1335,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         className="px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between gap-2 text-xs"
                       >
                         <span className="font-semibold text-purple-200 truncate flex-1">#{st.name}</span>
-                        
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="date"
-                            value={st.deadlineDate}
-                            onChange={(e) => handleReviewDateChange(i, e.target.value)}
-                            className="bg-slate-900 border border-purple-500/40 rounded-lg px-2 py-1 text-slate-100 text-[11px] focus:outline-none font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveReviewItem(i)}
-                            className="text-slate-400 hover:text-red-400 font-bold p-1"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReviewItem(i)}
+                          className="text-slate-400 hover:text-red-400 font-bold p-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))
                   )}
@@ -1515,15 +1381,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
               ) : null}
 
               <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowRevisionInput(true)}
-                  className="px-3.5 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl font-bold transition-colors"
-                >
-                  ⚠️ Request Changes
-                </button>
+                {!showRevisionInput && reviewingTopic.subtopicsApprovalState === 'pending_admin_approval' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRevisionInput(true)}
+                    className="px-3.5 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl font-bold transition-colors"
+                  >
+                    ⚠️ Request Changes
+                  </button>
+                )}
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ml-auto">
                   <button
                     type="button"
                     onClick={() => setReviewingTopic(null)}
@@ -1537,7 +1405,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     disabled={reviewSubtopicItems.length === 0}
                     className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-4 h-4" /> Approve Subtopics & Deadlines
+                    <CheckCircle2 className="w-4 h-4" /> Approve & Save Subtopics
                   </button>
                 </div>
               </div>
