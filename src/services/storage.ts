@@ -136,6 +136,35 @@ export const StorageService = {
     return updatedUser;
   },
 
+  updateAdminCredentials(data: {
+    username?: string;
+    password?: string;
+    name?: string;
+    email?: string;
+  }): User | null {
+    const users = this.getUsers();
+    const adminIndex = users.findIndex((u) => u.role === 'admin' || u.teacherId.toUpperCase().startsWith('ADMIN'));
+    if (adminIndex === -1) return null;
+
+    const updatedAdmin: User = {
+      ...users[adminIndex],
+      username: data.username ? data.username.trim().toLowerCase().replace(/\s+/g, '_') : users[adminIndex].username,
+      password: data.password ? data.password.trim() : users[adminIndex].password,
+      name: data.name ? data.name.trim() : users[adminIndex].name,
+      email: data.email ? data.email.trim() : users[adminIndex].email,
+    };
+
+    users[adminIndex] = updatedAdmin;
+    this.saveUsers(users);
+
+    const current = this.getCurrentUser();
+    if (current && (current.role === 'admin' || current.id === updatedAdmin.id)) {
+      this.setCurrentUser(updatedAdmin);
+    }
+
+    return updatedAdmin;
+  },
+
   removeTeacher(teacherId: string): void {
     const cleanId = teacherId.trim().toUpperCase();
     const users = this.getUsers().filter((u) => u.teacherId.toUpperCase() !== cleanId);
@@ -259,7 +288,7 @@ export const StorageService = {
     subtopics?: string[];
     subtopicItems?: SubtopicItem[];
     assignedBy?: string;
-    deadlineDate: string;
+    deadlineDate?: string;
     priority?: 'high' | 'medium' | 'normal';
     notes?: string;
   }): AssignedTopic {
@@ -272,7 +301,6 @@ export const StorageService = {
       : subtopicNames.map((name, idx) => ({
           id: `sub-${idx}-${Date.now()}`,
           name,
-          deadlineDate: topic.deadlineDate,
           status: 'pending',
         }));
 
@@ -305,7 +333,7 @@ export const StorageService = {
       teacherId: string;
       subject: string;
       unitNumber?: string;
-      deadlineDate: string;
+      deadlineDate?: string;
       priority?: 'high' | 'medium' | 'normal';
       notes?: string;
     }
@@ -577,17 +605,11 @@ export const StorageService = {
     return users[index];
   },
 
-  // Verifies if an upload right now is on time (checks both topic deadline and the teacher's standard daily cutoff time)
-  isUploadOnTime(teacherId: string, topicDeadlineDate: string): boolean {
+  // Verifies if an upload right now is on time (checks teacher's standard daily cutoff time)
+  isUploadOnTime(teacherId: string, _topicDeadlineDate?: string): boolean {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
 
-    // 1. Check topic deadline date
-    if (topicDeadlineDate < todayStr) {
-      return false;
-    }
-
-    // 2. Check teacher's permanent daily upload cutoff time (set once on first login)
+    // Check teacher's permanent daily upload cutoff time (set once on first login)
     const users = this.getUsers();
     const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
     const cutoffTime = teacher?.dailyUploadCutoffTime;

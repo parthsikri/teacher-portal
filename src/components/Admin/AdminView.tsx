@@ -68,9 +68,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [assignTeacherId, setAssignTeacherId] = useState(teachers[0]?.teacherId || '');
   const [assignUnitNumber, setAssignUnitNumber] = useState('UNIT 1');
   const [assignTopicInput, setAssignTopicInput] = useState('');
-  const [assignDeadline, setAssignDeadline] = useState(new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]);
   const [assignPriority, setAssignPriority] = useState<'high' | 'medium' | 'normal'>('high');
   const [assignNotes, setAssignNotes] = useState('');
+
+  // Admin Credentials Modal State
+  const [showAdminProfileModal, setShowAdminProfileModal] = useState(false);
+  const [adminUsername, setAdminUsername] = useState('admin');
+  const [adminPassword, setAdminPassword] = useState('admin123');
+  const [adminName, setAdminName] = useState('Academic Operations Admin');
+  const [adminEmail, setAdminEmail] = useState('admin@aew.com');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // Subject Reference Modal State
   const [showSubjectRefModal, setShowSubjectRefModal] = useState(false);
@@ -203,6 +210,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
     refreshState();
   };
 
+  // Open Admin Credentials Modal
+  const handleOpenAdminProfileModal = () => {
+    const adminUser = StorageService.getUsers().find((u) => u.role === 'admin') || StorageService.getCurrentUser();
+    if (adminUser) {
+      setAdminUsername(adminUser.username || 'admin');
+      setAdminPassword(adminUser.password || 'admin123');
+      setAdminName(adminUser.name || 'Academic Operations Admin');
+      setAdminEmail(adminUser.email || 'admin@aew.com');
+    }
+    setShowAdminProfileModal(true);
+  };
+
+  // Save Admin Credentials
+  const handleSaveAdminProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminUsername.trim() || !adminPassword.trim()) {
+      alert('Username and password cannot be empty.');
+      return;
+    }
+
+    StorageService.updateAdminCredentials({
+      username: adminUsername.trim(),
+      password: adminPassword.trim(),
+      name: adminName.trim(),
+      email: adminEmail.trim(),
+    });
+
+    setShowAdminProfileModal(false);
+    alert('✓ Admin login credentials updated successfully! You can now log in with these new credentials.');
+    refreshState();
+  };
+
   // Admin Assigns Topics (Supports Multiple Comma-Separated Topics)
   const handleAssignTopicSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +253,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
       teacherId: assignTeacherId,
       subject: targetTeacher?.subject || 'Engineering',
       unitNumber: assignUnitNumber.trim() || 'UNIT 1',
-      deadlineDate: assignDeadline,
       priority: assignPriority,
       notes: assignNotes.trim() || undefined,
     });
@@ -405,6 +443,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleOpenAdminProfileModal}
+                className="px-4 py-3 rounded-2xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700 text-slate-200 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
+              >
+                <Key className="w-4 h-4 text-indigo-400" /> Admin ID & Password
+              </button>
               <button
                 onClick={() => {
                   if (teachers.length === 0) {
@@ -1764,29 +1808,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Target Completion Deadline *</label>
-                  <input
-                    type="date"
-                    value={assignDeadline}
-                    onChange={(e) => setAssignDeadline(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Priority</label>
-                  <select
-                    value={assignPriority}
-                    onChange={(e) => setAssignPriority(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                  >
-                    <option value="high">High Priority</option>
-                    <option value="medium">Medium Priority</option>
-                    <option value="normal">Normal</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Priority</label>
+                <select
+                  value={assignPriority}
+                  onChange={(e) => setAssignPriority(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="high">High Priority</option>
+                  <option value="medium">Medium Priority</option>
+                  <option value="normal">Normal</option>
+                </select>
               </div>
 
               <div>
@@ -2086,6 +2118,99 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-md"
                 >
                   Save & Deliver to Faculty
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN CREDENTIALS & SECURITY SETTINGS */}
+      {showAdminProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-100">Admin Login & Credentials</h3>
+                  <p className="text-xs text-slate-400">Update your administrator username and password</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAdminProfileModal(false)} className="text-slate-400 hover:text-slate-100">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveAdminProfile} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Admin Username / Login ID *</label>
+                <input
+                  type="text"
+                  value={adminUsername}
+                  onChange={(e) => setAdminUsername(e.target.value)}
+                  placeholder="e.g. admin or ops_manager"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold">Admin Password *</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
+                  >
+                    {showAdminPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    {showAdminPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <input
+                  type={showAdminPassword ? 'text' : 'password'}
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter new strong password"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={adminName}
+                    onChange={(e) => setAdminName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Contact Email</label>
+                  <input
+                    type="email"
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminProfileModal(false)}
+                  className="px-4 py-2 text-slate-400 hover:text-slate-200 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl shadow-lg shadow-purple-600/20"
+                >
+                  Save New Admin Credentials
                 </button>
               </div>
             </form>

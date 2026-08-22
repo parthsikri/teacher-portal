@@ -155,10 +155,10 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         {/* FORM BODY */}
         <form onSubmit={handleSubmit} id="lecture-upload-form" className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
           {prefillTopic && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-xl flex items-center gap-2">
+            <div className="p-3 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs rounded-xl flex items-center gap-2">
               <span className="text-sm">📌</span>
               <div>
-                <strong>Assigned Topic:</strong> {prefillTopic.topicTitle} (Due: {prefillTopic.deadlineDate})
+                <strong>Assigned Topic:</strong> {prefillTopic.topicTitle} ({prefillTopic.unitNumber || 'UNIT 1'})
               </div>
             </div>
           )}
@@ -206,7 +206,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Scheduled Date</label>
+                <label className="block text-slate-400 font-medium mb-1">Recording Date</label>
                 <input
                   type="date"
                   value={deadlineDate}

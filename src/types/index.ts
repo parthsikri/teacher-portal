@@ -70,7 +70,7 @@ export interface AssignedTopic {
   subtopicsApprovalState: SubtopicApprovalState;
   adminFeedback?: string;               // Admin revision remark
   assignedBy: string;
-  deadlineDate: string;                 // Overall Topic Deadline (YYYY-MM-DD)
+  deadlineDate?: string;                 // Optional legacy module deadline
   status: 'pending' | 'in_progress' | 'completed';
   priority: 'high' | 'medium' | 'normal';
   notes?: string;
@@ -88,7 +88,7 @@ export interface Lecture {
   primaryTopic: string;
   subtopics: string[];
   durationMinutes: number;    // Lecture duration recorded in minutes (e.g. 45, 60, 90)
-  deadlineDate: string;       // YYYY-MM-DD
+  deadlineDate?: string;       // Optional legacy date
   status: 'on_time' | 'overdue';
   youtubeUrl?: string;
   driveUrl?: string;

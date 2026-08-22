@@ -188,19 +188,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     setTimeout(() => setCopiedToast(null), 2000);
   };
 
-  const getDeadlineText = (deadlineDate: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(deadlineDate);
-    target.setHours(0, 0, 0, 0);
-    const diffTime = target.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return { text: `${Math.abs(diffDays)}d overdue`, isOverdue: true };
-    if (diffDays === 0) return { text: 'Due today', isToday: true };
-    if (diffDays === 1) return { text: 'Due tomorrow', isNear: true };
-    return { text: `Due in ${diffDays}d`, isNormal: true };
-  };
 
   const handleOpenProposeModal = (topic: AssignedTopic) => {
     setProposingTopic(topic);
@@ -400,8 +388,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   )}
                 </div>
                 <div className="font-semibold text-slate-100 flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-slate-800 text-indigo-300 border border-slate-700">
+                    {nextUrgentTopic.unitNumber || 'UNIT 1'}
+                  </span>
                   <span>{nextUrgentTopic.topicTitle}</span>
-                  <span className="text-[11px] text-slate-400 font-mono">Due {nextUrgentTopic.deadlineDate}</span>
                 </div>
               </div>
 
@@ -713,7 +703,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {filteredTopics.map((topic) => {
                 const isCompleted = topic.status === 'completed';
-                const deadline = getDeadlineText(topic.deadlineDate);
                 const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
                 const isApproved = approvalState === 'approved';
                 const isUnderReview = approvalState === 'pending_admin_approval';
@@ -735,11 +724,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           </div>
                           <span className="text-[11px] text-slate-400 block mt-0.5">{topic.subject}</span>
                         </div>
-                        <span className={`text-[10px] font-mono shrink-0 ${
-                          deadline.isOverdue ? 'text-red-400' : deadline.isToday ? 'text-amber-400' : 'text-slate-400'
-                        }`}>
-                          {deadline.text}
-                        </span>
                       </div>
 
                       {/* Status indicator */}
