@@ -1,60 +1,49 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+/**
+ * supabase.ts
+ *
+ * This file is intentionally kept minimal.
+ * NO Supabase credentials are stored here — they are kept server-side only
+ * in the Vercel serverless function (api/cloud-sync.ts) via environment variables.
+ *
+ * All database reads and writes go through /api/cloud-sync (secure, server-side).
+ * This file is retained only so the DatabaseSettingsModal can test a user-provided
+ * connection before storing it. No keys are bundled into the frontend JS.
+ */
+
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL_KEY = 'aew_supabase_url_prod_v2';
 const SUPABASE_KEY_KEY = 'aew_supabase_key_prod_v2';
 
-// Default Supabase project credentials
-const DEFAULT_SUPABASE_URL = 'https://yczcnpsdmhftvpwdenoy.supabase.co';
-const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemNucHNkbWhmdHZwd2Rlbm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODMwNjQsImV4cCI6MjEwMjk1OTA2NH0.H_qomZFkVTfIsvmSkS9UUWn5hNjP9h1kGB3YEpPA3Vk';
-
-const ENV_SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
-const ENV_SUPABASE_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
-
-let supabaseInstance: SupabaseClient | null = null;
-
 export const SupabaseService = {
-  getConfig(): { url: string; key: string } {
-    if (typeof window === 'undefined') {
-      return { url: ENV_SUPABASE_URL, key: ENV_SUPABASE_KEY };
-    }
-    const localUrl = localStorage.getItem(SUPABASE_URL_KEY) || ENV_SUPABASE_URL;
-    const localKey = localStorage.getItem(SUPABASE_KEY_KEY) || ENV_SUPABASE_KEY;
-    return { url: localUrl.trim() || DEFAULT_SUPABASE_URL, key: localKey.trim() || DEFAULT_SUPABASE_KEY };
-  },
-
+  /**
+   * Save user-provided config to localStorage (only used by DatabaseSettingsModal).
+   * These are NOT used for actual data sync (which goes through /api/cloud-sync).
+   */
   saveConfig(url: string, key: string): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(SUPABASE_URL_KEY, url.trim());
     localStorage.setItem(SUPABASE_KEY_KEY, key.trim());
-    supabaseInstance = null; // reset client
+  },
+
+  getConfig(): { url: string; key: string } {
+    if (typeof window === 'undefined') return { url: '', key: '' };
+    return {
+      url: localStorage.getItem(SUPABASE_URL_KEY) || '',
+      key: localStorage.getItem(SUPABASE_KEY_KEY) || '',
+    };
   },
 
   isConfigured(): boolean {
-    const { url, key } = this.getConfig();
-    return Boolean(url && key && url.startsWith('https://') && key.length > 20);
+    // Always false — sync is done server-side via /api/cloud-sync
+    return false;
   },
 
-  getClient(): SupabaseClient | null {
-    if (supabaseInstance) return supabaseInstance;
-
-    const { url, key } = this.getConfig();
-    if (!url || !key || !url.startsWith('https://') || key.length < 20) {
-      return null;
-    }
-
-    try {
-      supabaseInstance = createClient(url, key, {
-        auth: {
-          persistSession: false,
-        },
-      });
-      return supabaseInstance;
-    } catch (err) {
-      console.warn('[Supabase] Failed to initialize client:', err);
-      return null;
-    }
-  },
-
+  /**
+   * Test a user-supplied Supabase connection (used only in DatabaseSettingsModal UI).
+   * This is the ONLY place the anon key touches the browser, and only when the admin
+   * explicitly pastes it to test. The key is never used for ongoing sync.
+   */
   async testConnection(url: string, key: string): Promise<{ success: boolean; message: string }> {
     try {
       const tempClient = createClient(url.trim(), key.trim(), {
@@ -67,10 +56,15 @@ export const SupabaseService = {
         .limit(1);
 
       if (error) {
-        if (error.code === '42P01' || error.message.includes('relation') || error.message.includes('does not exist')) {
+        if (
+          error.code === '42P01' ||
+          error.message.includes('relation') ||
+          error.message.includes('does not exist')
+        ) {
           return {
             success: false,
-            message: 'Connected to Supabase, but the "portal_master_state" table has not been created yet. Please run the SQL schema script in your Supabase SQL Editor.',
+            message:
+              'Connected to Supabase, but the "portal_master_state" table has not been created yet. Please run the SQL schema script in your Supabase SQL Editor.',
           };
         }
         return { success: false, message: error.message };
@@ -82,55 +76,7 @@ export const SupabaseService = {
     }
   },
 
-  async fetchMasterState(): Promise<any | null> {
-    const client = this.getClient();
-    if (!client) return null;
-
-    try {
-      const { data, error } = await client
-        .from('portal_master_state')
-        .select('data, updated_at')
-        .eq('id', 'aew_portal_master')
-        .single();
-
-      if (error) {
-        console.warn('[Supabase] Fetch error:', error.message);
-        return null;
-      }
-
-      return data?.data || null;
-    } catch (err) {
-      console.warn('[Supabase] Fetch exception:', err);
-      return null;
-    }
-  },
-
-  async saveMasterState(state: any): Promise<boolean> {
-    const client = this.getClient();
-    if (!client) return false;
-
-    try {
-      const { error } = await client
-        .from('portal_master_state')
-        .upsert(
-          {
-            id: 'aew_portal_master',
-            version: 2,
-            data: state,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        );
-
-      if (error) {
-        console.warn('[Supabase] Save error:', error.message);
-        return false;
-      }
-
-      return true;
-    } catch (err) {
-      console.warn('[Supabase] Save exception:', err);
-      return false;
-    }
-  },
+  // These are no-ops: actual data sync is server-side via /api/cloud-sync
+  async fetchMasterState(): Promise<null> { return null; },
+  async saveMasterState(_state: any): Promise<boolean> { return false; },
 };

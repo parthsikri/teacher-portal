@@ -1,5 +1,4 @@
 import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest } from '../types';
-import { SupabaseService } from './supabase';
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
 const USERS_KEY = 'aew_portal_users_prod_v2';
@@ -1001,20 +1000,8 @@ export const StorageService = {
   },
 
   async syncFromCloud(): Promise<boolean> {
-    // 1. If Supabase is configured, pull directly from Postgres
-    if (SupabaseService.isConfigured()) {
-      try {
-        const state = await SupabaseService.fetchMasterState();
-        if (state) {
-          this.importMasterState(state);
-          return true;
-        }
-      } catch (err) {
-        console.warn('[Supabase] Pull error, falling back to serverless API:', err);
-      }
-    }
-
-    // 2. Fallback to Serverless API
+    // All sync goes through the secure Vercel serverless API.
+    // The API handler talks to Supabase server-side - no credentials in the browser.
     try {
       const res = await fetch('/api/cloud-sync', {
         headers: { 'Accept': 'application/json' },
@@ -1035,17 +1022,8 @@ export const StorageService = {
   async syncToCloud(): Promise<boolean> {
     const payload = this.exportMasterState();
 
-    // 1. If Supabase is configured, push directly to Postgres
-    if (SupabaseService.isConfigured()) {
-      try {
-        const saved = await SupabaseService.saveMasterState(payload);
-        if (saved) return true;
-      } catch (err) {
-        console.warn('[Supabase] Push error, falling back to serverless API:', err);
-      }
-    }
-
-    // 2. Fallback to Serverless API
+    // All sync goes through the secure Vercel serverless API.
+    // The API handler talks to Supabase server-side - no credentials in the browser.
     try {
       const res = await fetch('/api/cloud-sync', {
         method: 'POST',
