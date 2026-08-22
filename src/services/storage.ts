@@ -361,12 +361,12 @@ export const StorageService = {
       notes: topic.notes,
       createdAt: new Date().toISOString(),
     };
-    topics.unshift(newTopic);
+    topics.push(newTopic);
     this.saveAssignedTopics(topics);
     return newTopic;
   },
 
-  // Bulk add topics separated by commas or lines
+  // Bulk add topics separated by commas or lines (preserves exact forward order)
   addMultipleAssignedTopics(
     titles: string[],
     commonProps: {
@@ -378,17 +378,34 @@ export const StorageService = {
       notes?: string;
     }
   ): AssignedTopic[] {
+    const topics = this.getAssignedTopics();
     const createdList: AssignedTopic[] = [];
     const cleanTitles = titles.map((t) => t.trim()).filter((t) => t.length > 0);
+    const now = Date.now();
 
-    cleanTitles.forEach((title) => {
-      const newTopic = this.addAssignedTopic({
-        ...commonProps,
+    cleanTitles.forEach((title, idx) => {
+      const newTopic: AssignedTopic = {
+        id: `at-${now + idx}-${Math.floor(Math.random() * 1000)}`,
+        teacherId: commonProps.teacherId.trim().toUpperCase(),
+        subject: commonProps.subject.trim(),
+        unitNumber: commonProps.unitNumber?.trim() || 'UNIT 1',
         topicTitle: title,
-      });
+        subtopics: [],
+        subtopicItems: [],
+        proposedSubtopics: [],
+        subtopicsApprovalState: 'pending_teacher_input',
+        assignedBy: 'Admin',
+        deadlineDate: commonProps.deadlineDate,
+        status: 'pending',
+        priority: commonProps.priority || 'high',
+        notes: commonProps.notes,
+        createdAt: new Date(now + idx * 1000).toISOString(),
+      };
+      topics.push(newTopic);
       createdList.push(newTopic);
     });
 
+    this.saveAssignedTopics(topics);
     return createdList;
   },
 
