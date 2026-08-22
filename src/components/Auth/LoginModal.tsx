@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, Database } from 'lucide-react';
+import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, Database, RefreshCw } from 'lucide-react';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 
 interface LoginModalProps {
@@ -14,11 +14,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(true); // Start true — sync on mount
   const [showDbModal, setShowDbModal] = useState(false);
 
-  // Sync latest cloud credentials on modal load
+  // Sync latest cloud credentials on modal load — AWAIT it before allowing login
   useEffect(() => {
-    StorageService.syncFromCloud().catch(() => {});
+    setIsSyncing(true);
+    StorageService.syncFromCloud()
+      .catch(() => {})
+      .finally(() => setIsSyncing(false));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,37 +40,33 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
     setIsAuthenticating(true);
 
-    // 1. Check current users
-    let currentUsers = StorageService.getUsers();
-    let match = currentUsers.find((u) => {
+    // Always do a fresh cloud sync before checking credentials
+    // This ensures a new teacher onboarded from another device is found
+    try {
+      await StorageService.syncFromCloud();
+    } catch {
+      // If sync fails, proceed with locally cached data
+    }
+
+    const currentUsers = StorageService.getUsers();
+
+    const match = currentUsers.find((u) => {
       const uTeacherId = (u.teacherId || '').toLowerCase();
       const uUsername = (u.username || '').toLowerCase();
       const uEmail = (u.email || '').toLowerCase();
       return uTeacherId === query || uUsername === query || uEmail === query;
     });
 
-    // 2. If not found or password doesn't match, fetch latest cloud database immediately
-    if (!match || (match.password && match.password !== inputPass)) {
-      await StorageService.syncFromCloud();
-      currentUsers = StorageService.getUsers();
-      match = currentUsers.find((u) => {
-        const uTeacherId = (u.teacherId || '').toLowerCase();
-        const uUsername = (u.username || '').toLowerCase();
-        const uEmail = (u.email || '').toLowerCase();
-        return uTeacherId === query || uUsername === query || uEmail === query;
-      });
-    }
-
     if (!match) {
-      setErrorMsg('Invalid credentials. Please verify your Username / Teacher ID and Password.');
+      setErrorMsg('Account not found. Please check your Teacher ID / Username, or contact Admin.');
       setIsAuthenticating(false);
       return;
     }
 
-    // 3. Verify Password
+    // Verify Password
     const expectedPassword = (match.password || (match.role === 'admin' ? 'admin123' : 'teach123')).trim();
     if (expectedPassword !== inputPass) {
-      setErrorMsg('Invalid credentials. Please verify your Username / Teacher ID and Password.');
+      setErrorMsg('Incorrect password. Please try again.');
       setIsAuthenticating(false);
       return;
     }
@@ -87,6 +87,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             Sign in to manage lectures, syllabus milestones, and curriculum pacing.
           </p>
         </div>
+
+        {/* Syncing indicator */}
+        {isSyncing && (
+          <div className="flex items-center justify-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl py-2.5 px-4">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            <span>Fetching latest credentials from database…</span>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs text-center font-medium">
@@ -137,10 +145,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
           <button
             type="submit"
-            disabled={isAuthenticating}
+            disabled={isAuthenticating || isSyncing}
             className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shadow-lg shadow-indigo-600/30 transition-all text-xs disabled:opacity-50"
           >
-            {isAuthenticating ? 'Authenticating...' : 'Sign In to Portal'}
+            {isAuthenticating
+              ? 'Authenticating…'
+              : isSyncing
+              ? 'Loading portal data…'
+              : 'Sign In to Portal'}
           </button>
         </form>
 
@@ -163,7 +175,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             onClose={() => setShowDbModal(false)}
             onSuccess={() => {
               setShowDbModal(false);
-              StorageService.syncFromCloud().catch(() => {});
+              setIsSyncing(true);
+              StorageService.syncFromCloud()
+                .catch(() => {})
+                .finally(() => setIsSyncing(false));
             }}
           />
         )}
