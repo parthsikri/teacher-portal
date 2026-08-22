@@ -68,11 +68,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount} New` : undefined,
     },
     { 
-      id: 'ppt_generator', 
-      label: 'AI PPT Generator', 
-      icon: FileSpreadsheet,
-    },
-    { 
       id: 'ppt_requests', 
       label: 'PYQ Slide Decks', 
       icon: BookMarked,
