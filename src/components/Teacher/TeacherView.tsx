@@ -82,12 +82,12 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   // On-time lecture submission statistics
   const onTimeStats = useMemo(() => {
     return StorageService.getOnTimeSubmissionStats(teacher.teacherId);
-  }, [teacher.teacherId, refreshKey, lectures]);
+  }, [teacher.teacherId, refreshKey]);
 
   // Admin update notification counts
   const adminNotifications = useMemo(() => {
     return StorageService.getTeacherAdminNotificationCounts(teacher.teacherId);
-  }, [teacher.teacherId, refreshKey, assignedTopics, lectures, pptRequests]);
+  }, [teacher.teacherId, refreshKey]);
 
   const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
   const targetMinutes = teacher.dailyTargetMinutes || 120;

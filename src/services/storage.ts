@@ -7,6 +7,7 @@ const ASSIGNED_TOPICS_KEY = 'aew_portal_assigned_topics_prod_v2';
 const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_prod_v2';
 const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_prod_v2';
 const PPT_REQUESTS_KEY = 'aew_ppt_requests_prod_v2';
+const DELETED_IDS_KEY = 'aew_deleted_ids_prod_v2';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
 // Initial Registered Administrator (Portal starts completely clean for new teachers)
@@ -178,8 +179,31 @@ export const StorageService = {
     return updatedAdmin;
   },
 
+  getDeletedIds(): string[] {
+    const data = localStorage.getItem(DELETED_IDS_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addDeletedId(id: string): void {
+    if (!id) return;
+    const clean = id.trim().toUpperCase();
+    const list = this.getDeletedIds();
+    if (!list.includes(clean)) {
+      list.push(clean);
+      localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(list));
+      triggerBackgroundCloudSync();
+    }
+  },
+
   removeTeacher(teacherId: string): void {
     const cleanId = teacherId.trim().toUpperCase();
+    this.addDeletedId(cleanId);
     const users = this.getUsers().filter((u) => u.teacherId.toUpperCase() !== cleanId);
     this.saveUsers(users);
   },
@@ -264,6 +288,7 @@ export const StorageService = {
   },
 
   removeSubjectReference(id: string): void {
+    this.addDeletedId(id);
     const refs = this.getSubjectReferences().filter((r) => r.id !== id);
     this.saveSubjectReferences(refs);
   },
@@ -469,6 +494,7 @@ export const StorageService = {
   },
 
   removeAssignedTopic(topicId: string): void {
+    this.addDeletedId(topicId);
     const topics = this.getAssignedTopics().filter((t) => t.id !== topicId);
     this.saveAssignedTopics(topics);
   },
@@ -527,20 +553,37 @@ export const StorageService = {
     return newRemark;
   },
 
-  // Total recording minutes completed today by the teacher
+  // Total recording minutes completed today by the teacher (Timezone aware)
   getMinutesRecordedToday(teacherId: string): number {
     const lectures = this.getLectures();
-    const today = new Date().toISOString().split('T')[0];
-    const todayLectures = lectures.filter(
-      (l) => l.teacherId.toUpperCase() === teacherId.toUpperCase() && l.createdAt.startsWith(today)
-    );
+    const now = new Date();
+    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayIso = now.toISOString().split('T')[0];
+
+    const todayLectures = lectures.filter((l) => {
+      if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
+      if (!l.createdAt) return false;
+      const lDate = new Date(l.createdAt);
+      const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
+      return lDateLocal === todayLocal || l.createdAt.startsWith(todayLocal) || l.createdAt.startsWith(todayIso);
+    });
+
     return todayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
   },
 
   getUploadsToday(teacherId: string): number {
     const lectures = this.getLectures();
-    const today = new Date().toISOString().split('T')[0];
-    return lectures.filter((l) => l.teacherId.toUpperCase() === teacherId.toUpperCase() && l.createdAt.startsWith(today)).length;
+    const now = new Date();
+    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayIso = now.toISOString().split('T')[0];
+
+    return lectures.filter((l) => {
+      if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
+      if (!l.createdAt) return false;
+      const lDate = new Date(l.createdAt);
+      const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
+      return lDateLocal === todayLocal || l.createdAt.startsWith(todayLocal) || l.createdAt.startsWith(todayIso);
+    }).length;
   },
 
   // ─── DAILY UPLOAD TIME COMMITMENT (PROMISED DELIVERY TIME) ─────────────────
@@ -739,6 +782,7 @@ export const StorageService = {
   },
 
   deletePptRequest(id: string): void {
+    this.addDeletedId(id);
     const list = this.getPptRequests().filter((r) => r.id !== id);
     this.savePptRequests(list);
   },
@@ -870,7 +914,7 @@ export const StorageService = {
         try {
           localStorage.setItem(`${PDF_STORE_PREFIX}${lectureId}`, base64);
           resolve(base64);
-        } catch (err) {
+        } catch {
           reject(new Error('PDF file is too large to store locally. Please use a Google Drive link instead.'));
         }
       };
@@ -892,6 +936,7 @@ export const StorageService = {
     return {
       version: 2,
       updatedAt: new Date().toISOString(),
+      deletedIds: this.getDeletedIds(),
       users: this.getUsers(),
       assignedTopics: this.getAssignedTopics(),
       lectures: this.getLectures(),
@@ -904,12 +949,25 @@ export const StorageService = {
   importMasterState(state: any): void {
     if (!state || typeof state !== 'object') return;
 
+    const deletedIds = new Set<string>([
+      ...this.getDeletedIds(),
+      ...(Array.isArray(state.deletedIds) ? state.deletedIds.map((id: string) => id.toUpperCase()) : []),
+    ]);
+
+    if (deletedIds.size > 0) {
+      localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(deletedIds)));
+    }
+
     if (Array.isArray(state.users) && state.users.length > 0) {
       const existingUsers = this.getUsers();
       const userMap = new Map<string, User>();
-      existingUsers.forEach((u) => userMap.set(u.teacherId.toUpperCase(), u));
+      existingUsers.forEach((u) => {
+        if (!deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
+          userMap.set(u.teacherId.toUpperCase(), u);
+        }
+      });
       state.users.forEach((u: User) => {
-        if (u && u.teacherId) {
+        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
           userMap.set(u.teacherId.toUpperCase(), u);
         }
       });
@@ -917,15 +975,18 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.assignedTopics)) {
-      localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(state.assignedTopics));
+      const filtered = state.assignedTopics.filter((t: AssignedTopic) => !deletedIds.has(t.id));
+      localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(filtered));
     }
 
     if (Array.isArray(state.lectures)) {
-      localStorage.setItem(LECTURES_KEY, JSON.stringify(state.lectures));
+      const filtered = state.lectures.filter((l: Lecture) => !deletedIds.has(l.id));
+      localStorage.setItem(LECTURES_KEY, JSON.stringify(filtered));
     }
 
     if (Array.isArray(state.subjectReferences)) {
-      localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(state.subjectReferences));
+      const filtered = state.subjectReferences.filter((r: SubjectReference) => !deletedIds.has(r.id));
+      localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(filtered));
     }
 
     if (Array.isArray(state.dailyCommitments)) {
@@ -933,7 +994,8 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.pptRequests)) {
-      localStorage.setItem(PPT_REQUESTS_KEY, JSON.stringify(state.pptRequests));
+      const filtered = state.pptRequests.filter((p: PptRequest) => !deletedIds.has(p.id));
+      localStorage.setItem(PPT_REQUESTS_KEY, JSON.stringify(filtered));
     }
   },
 

@@ -903,12 +903,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     </div>
 
                     <div className="pt-2 border-t border-slate-950 space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-[11px] font-mono text-slate-400">
-                          Module Target: <strong className="text-slate-200">{topic.deadlineDate}</strong>
-                        </span>
-                      </div>
-
                       {/* Quick Actions */}
                       {isUnderReview && (
                         <div className="flex items-center gap-2">

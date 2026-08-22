@@ -142,7 +142,7 @@ export const AiPptService = {
     
     // Split by question numbers like "1.", "Q1:", "Question 1", or double linebreaks
     const chunks = rawText
-      .split(/\n(?=(?:Q\d+[:.]|\d+[\.\)]|Question\s*\d+[:.]))/i)
+      .split(/\n(?=(?:Q\d+[:.]|\d+[.)]|Question\s*\d+[:.]))/i)
       .map((s) => s.trim())
       .filter((s) => s.length > 5);
 

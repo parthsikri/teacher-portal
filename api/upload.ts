@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import Busboy from 'busboy';
-import { Readable, PassThrough } from 'stream';
+import { Readable } from 'stream';
 
 export const config = {
   api: {

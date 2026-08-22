@@ -10,14 +10,12 @@ interface VideoModalProps {
 }
 
 export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose }) => {
-  if (!lecture) return null;
-
-  const ytEmbed = getYouTubeEmbedUrl(lecture.youtubeUrl);
-  const driveEmbed = getDriveEmbedUrl(lecture.driveUrl);
-  const notesEmbed = getDriveEmbedUrl(lecture.notesUrl);
-  const dppEmbed = getDriveEmbedUrl(lecture.dppUrl);
-  const localFileUrl = lecture.localFileUrl;
-  const isPdfFile = lecture.fileName?.toLowerCase().endsWith('.pdf') || lecture.notesUrl?.includes('.pdf');
+  const ytEmbed = getYouTubeEmbedUrl(lecture?.youtubeUrl);
+  const driveEmbed = getDriveEmbedUrl(lecture?.driveUrl);
+  const notesEmbed = getDriveEmbedUrl(lecture?.notesUrl);
+  const dppEmbed = getDriveEmbedUrl(lecture?.dppUrl);
+  const localFileUrl = lecture?.localFileUrl;
+  const isPdfFile = lecture?.fileName?.toLowerCase().endsWith('.pdf') || lecture?.notesUrl?.includes('.pdf');
 
   const availableTabs: ('local' | 'youtube' | 'drive' | 'notes' | 'dpp')[] = [];
   if (localFileUrl) availableTabs.push('local');
@@ -29,6 +27,8 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose }) => {
   const [activeTab, setActiveTab] = useState<'local' | 'youtube' | 'drive' | 'notes' | 'dpp'>(
     availableTabs[0] || 'local'
   );
+
+  if (!lecture) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-in fade-in duration-200">

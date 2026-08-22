@@ -6,7 +6,7 @@
  */
 export function getYouTubeEmbedUrl(url?: string): string | null {
   if (!url) return null;
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   if (match && match[2].length === 11) {
     return `https://www.youtube-nocookie.com/embed/${match[2]}?autoplay=1&rel=0`;
@@ -20,7 +20,7 @@ export function getYouTubeEmbedUrl(url?: string): string | null {
  */
 export function getDriveEmbedUrl(url?: string): string | null {
   if (!url) return null;
-  const driveRegex = /\/file\/d\/([^\/]+)/;
+  const driveRegex = /\/file\/d\/([^/]+)/;
   const match = url.match(driveRegex);
   if (match && match[1]) {
     return `https://drive.google.com/file/d/${match[1]}/preview`;
@@ -38,7 +38,7 @@ export function isValidUrl(string: string): boolean {
   try {
     new URL(string);
     return true;
-  } catch (_) {
+  } catch {
     return false;
   }
 }

@@ -10,6 +10,7 @@ let inMemoryStateCache: any = null;
 const DEFAULT_STATE = {
   version: 2,
   updatedAt: new Date().toISOString(),
+  deletedIds: [],
   users: [
     {
       id: 'u-admin',
@@ -31,6 +32,159 @@ const DEFAULT_STATE = {
   dailyCommitments: [],
   pptRequests: [],
 };
+
+function mergeMasterStates(current: any, incoming: any): any {
+  if (!current) return incoming || DEFAULT_STATE;
+  if (!incoming) return current || DEFAULT_STATE;
+
+  const deletedIds = new Set<string>([
+    ...(Array.isArray(current.deletedIds) ? current.deletedIds : []),
+    ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds : []),
+  ]);
+
+  // Merge Users
+  const userMap = new Map<string, any>();
+  if (Array.isArray(current.users)) {
+    current.users.forEach((u: any) => {
+      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
+        userMap.set(u.teacherId.toUpperCase(), u);
+      }
+    });
+  }
+  if (Array.isArray(incoming.users)) {
+    incoming.users.forEach((u: any) => {
+      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
+        const existing = userMap.get(u.teacherId.toUpperCase());
+        userMap.set(u.teacherId.toUpperCase(), {
+          ...existing,
+          ...u,
+        });
+      }
+    });
+  }
+
+  // Ensure Admin user always exists
+  const hasAdmin = Array.from(userMap.values()).some((u) => u.role === 'admin');
+  if (!hasAdmin) {
+    userMap.set('ADMIN-01', DEFAULT_STATE.users[0]);
+  }
+
+  // Merge Assigned Topics
+  const topicMap = new Map<string, any>();
+  if (Array.isArray(current.assignedTopics)) {
+    current.assignedTopics.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id)) topicMap.set(t.id, t);
+    });
+  }
+  if (Array.isArray(incoming.assignedTopics)) {
+    incoming.assignedTopics.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id)) {
+        const existing = topicMap.get(t.id);
+        topicMap.set(t.id, {
+          ...existing,
+          ...t,
+          subtopicsApprovalState: (t.subtopicsApprovalState === 'approved' || existing?.subtopicsApprovalState === 'approved')
+            ? 'approved'
+            : (t.subtopicsApprovalState || existing?.subtopicsApprovalState || 'pending_teacher_input'),
+          subtopics: (t.subtopics && t.subtopics.length > 0) ? t.subtopics : (existing?.subtopics || []),
+        });
+      }
+    });
+  }
+
+  // Merge Lectures
+  const lectureMap = new Map<string, any>();
+  if (Array.isArray(current.lectures)) {
+    current.lectures.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id)) lectureMap.set(l.id, l);
+    });
+  }
+  if (Array.isArray(incoming.lectures)) {
+    incoming.lectures.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id)) {
+        const existing = lectureMap.get(l.id);
+        lectureMap.set(l.id, {
+          ...existing,
+          ...l,
+          adminRemarks: [
+            ...(existing?.adminRemarks || []),
+            ...(l.adminRemarks || []).filter((r: any) => !(existing?.adminRemarks || []).some((er: any) => er.id === r.id)),
+          ],
+        });
+      }
+    });
+  }
+
+  // Merge Subject References
+  const refMap = new Map<string, any>();
+  if (Array.isArray(current.subjectReferences)) {
+    current.subjectReferences.forEach((r: any) => {
+      if (r && (r.id || r.subjectName) && !deletedIds.has(r.id)) {
+        refMap.set(r.id || r.subjectName.toLowerCase(), r);
+      }
+    });
+  }
+  if (Array.isArray(incoming.subjectReferences)) {
+    incoming.subjectReferences.forEach((r: any) => {
+      if (r && (r.id || r.subjectName) && !deletedIds.has(r.id)) {
+        refMap.set(r.id || r.subjectName.toLowerCase(), {
+          ...refMap.get(r.id || r.subjectName.toLowerCase()),
+          ...r,
+        });
+      }
+    });
+  }
+
+  // Merge Daily Commitments
+  const commitmentMap = new Map<string, any>();
+  if (Array.isArray(current.dailyCommitments)) {
+    current.dailyCommitments.forEach((c: any) => {
+      if (c && c.teacherId && c.date) {
+        commitmentMap.set(`${c.teacherId.toUpperCase()}_${c.date}`, c);
+      }
+    });
+  }
+  if (Array.isArray(incoming.dailyCommitments)) {
+    incoming.dailyCommitments.forEach((c: any) => {
+      if (c && c.teacherId && c.date) {
+        commitmentMap.set(`${c.teacherId.toUpperCase()}_${c.date}`, {
+          ...commitmentMap.get(`${c.teacherId.toUpperCase()}_${c.date}`),
+          ...c,
+        });
+      }
+    });
+  }
+
+  // Merge PPT Requests
+  const pptMap = new Map<string, any>();
+  if (Array.isArray(current.pptRequests)) {
+    current.pptRequests.forEach((p: any) => {
+      if (p && p.id && !deletedIds.has(p.id)) pptMap.set(p.id, p);
+    });
+  }
+  if (Array.isArray(incoming.pptRequests)) {
+    incoming.pptRequests.forEach((p: any) => {
+      if (p && p.id && !deletedIds.has(p.id)) {
+        pptMap.set(p.id, {
+          ...pptMap.get(p.id),
+          ...p,
+        });
+      }
+    });
+  }
+
+  return {
+    version: 2,
+    updatedAt: new Date().toISOString(),
+    deletedIds: Array.from(deletedIds),
+    users: Array.from(userMap.values()),
+    assignedTopics: Array.from(topicMap.values()),
+    lectures: Array.from(lectureMap.values()),
+    subjectReferences: Array.from(refMap.values()),
+    dailyCommitments: Array.from(commitmentMap.values()),
+    pptRequests: Array.from(pptMap.values()),
+  };
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
@@ -65,13 +219,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      // If upstream failed or empty, fallback to in-memory or default
       return res.status(200).json({
         success: true,
         source: inMemoryStateCache ? 'memory' : 'default',
         data: inMemoryStateCache || DEFAULT_STATE,
       });
-    } catch (err: any) {
+    } catch {
       return res.status(200).json({
         success: true,
         source: inMemoryStateCache ? 'memory' : 'default',
@@ -80,7 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // POST: Sync/Save the latest portal state across all devices
+  // POST: Sync/Save the latest portal state across all devices with smart merging
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -90,17 +243,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Missing data payload' });
       }
 
-      const mergedData = {
-        version: 2,
-        updatedAt: new Date().toISOString(),
-        users: Array.isArray(incomingData.users) && incomingData.users.length > 0 ? incomingData.users : (inMemoryStateCache?.users || DEFAULT_STATE.users),
-        assignedTopics: Array.isArray(incomingData.assignedTopics) ? incomingData.assignedTopics : (inMemoryStateCache?.assignedTopics || []),
-        lectures: Array.isArray(incomingData.lectures) ? incomingData.lectures : (inMemoryStateCache?.lectures || []),
-        subjectReferences: Array.isArray(incomingData.subjectReferences) ? incomingData.subjectReferences : (inMemoryStateCache?.subjectReferences || []),
-        dailyCommitments: Array.isArray(incomingData.dailyCommitments) ? incomingData.dailyCommitments : (inMemoryStateCache?.dailyCommitments || []),
-        pptRequests: Array.isArray(incomingData.pptRequests) ? incomingData.pptRequests : (inMemoryStateCache?.pptRequests || []),
-      };
+      // Fetch latest cloud state to merge against
+      let currentCloudData = inMemoryStateCache;
+      try {
+        const fetchCurrent = await fetch(`${RESTFUL_API_BASE}/${MASTER_CLOUD_ID}`, {
+          headers: { 'Accept': 'application/json' },
+        });
+        if (fetchCurrent.ok) {
+          const cJson = await fetchCurrent.json();
+          if (cJson && cJson.data) {
+            currentCloudData = cJson.data;
+          }
+        }
+      } catch {
+        // use memory cache
+      }
 
+      const mergedData = mergeMasterStates(currentCloudData, incomingData);
       inMemoryStateCache = mergedData;
 
       // Update cloud store asynchronously
