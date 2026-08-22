@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck } from 'lucide-react';
@@ -14,7 +14,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Sync latest cloud credentials on modal load
+  useEffect(() => {
+    StorageService.syncFromCloud().catch(() => {});
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -29,16 +34,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
     setIsAuthenticating(true);
 
-    const currentUsers = StorageService.getUsers();
-
-    // Strict credential matching (Username, Teacher ID, or Email)
-    const match = currentUsers.find((u) => {
+    // 1. Check current users
+    let currentUsers = StorageService.getUsers();
+    let match = currentUsers.find((u) => {
       const uTeacherId = (u.teacherId || '').toLowerCase();
       const uUsername = (u.username || '').toLowerCase();
       const uEmail = (u.email || '').toLowerCase();
-
       return uTeacherId === query || uUsername === query || uEmail === query;
     });
+
+    // 2. If not found or password doesn't match, fetch latest cloud database immediately
+    if (!match || (match.password && match.password !== inputPass)) {
+      await StorageService.syncFromCloud();
+      currentUsers = StorageService.getUsers();
+      match = currentUsers.find((u) => {
+        const uTeacherId = (u.teacherId || '').toLowerCase();
+        const uUsername = (u.username || '').toLowerCase();
+        const uEmail = (u.email || '').toLowerCase();
+        return uTeacherId === query || uUsername === query || uEmail === query;
+      });
+    }
 
     if (!match) {
       setErrorMsg('Invalid credentials. Please verify your Username / Teacher ID and Password.');
@@ -46,7 +61,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    // Verify Password
+    // 3. Verify Password
     const expectedPassword = (match.password || (match.role === 'admin' ? 'admin123' : 'teach123')).trim();
     if (expectedPassword !== inputPass) {
       setErrorMsg('Invalid credentials. Please verify your Username / Teacher ID and Password.');

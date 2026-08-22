@@ -26,6 +26,18 @@ const INITIAL_USERS: User[] = [
   },
 ];
 
+let syncDebounceTimer: any = null;
+
+function triggerBackgroundCloudSync() {
+  if (typeof window === 'undefined') return;
+  if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(() => {
+    StorageService.syncToCloud().catch((err) => {
+      console.warn('[CloudSync] Background push error:', err);
+    });
+  }, 400);
+}
+
 export const StorageService = {
   // Collects all registered users
   getUsers(): User[] {
@@ -78,6 +90,7 @@ export const StorageService = {
 
   saveUsers(users: User[]): void {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    triggerBackgroundCloudSync();
   },
 
   getTeachers(): User[] {
@@ -214,6 +227,7 @@ export const StorageService = {
 
   saveSubjectReferences(refs: SubjectReference[]): void {
     localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(refs));
+    triggerBackgroundCloudSync();
   },
 
   addOrUpdateSubjectReference(ref: {
@@ -278,6 +292,7 @@ export const StorageService = {
 
   saveAssignedTopics(topics: AssignedTopic[]): void {
     localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(topics));
+    triggerBackgroundCloudSync();
   },
 
   addAssignedTopic(topic: {
@@ -472,6 +487,7 @@ export const StorageService = {
 
   saveLectures(lectures: Lecture[]): void {
     localStorage.setItem(LECTURES_KEY, JSON.stringify(lectures));
+    triggerBackgroundCloudSync();
   },
 
   addLecture(lecture: Omit<Lecture, 'id' | 'createdAt' | 'adminRemarks'>): Lecture {
@@ -541,6 +557,7 @@ export const StorageService = {
 
   saveDailyCommitments(commitments: DailyCommitment[]): void {
     localStorage.setItem(DAILY_COMMITMENTS_KEY, JSON.stringify(commitments));
+    triggerBackgroundCloudSync();
   },
 
   getDailyCommitment(teacherId: string, date?: string): DailyCommitment | null {
@@ -656,6 +673,7 @@ export const StorageService = {
 
   savePptRequests(requests: PptRequest[]): void {
     localStorage.setItem(PPT_REQUESTS_KEY, JSON.stringify(requests));
+    triggerBackgroundCloudSync();
   },
 
   getTeacherPptRequests(teacherId: string): PptRequest[] {
@@ -867,5 +885,117 @@ export const StorageService = {
 
   removePdf(lectureId: string): void {
     localStorage.removeItem(`${PDF_STORE_PREFIX}${lectureId}`);
+  },
+
+  // ─── MASTER CLOUD PERSISTENCE & MULTI-DEVICE SYNC ───────────────────────────
+  exportMasterState() {
+    return {
+      version: 2,
+      updatedAt: new Date().toISOString(),
+      users: this.getUsers(),
+      assignedTopics: this.getAssignedTopics(),
+      lectures: this.getLectures(),
+      subjectReferences: this.getSubjectReferences(),
+      dailyCommitments: this.getDailyCommitments(),
+      pptRequests: this.getPptRequests(),
+    };
+  },
+
+  importMasterState(state: any): void {
+    if (!state || typeof state !== 'object') return;
+
+    if (Array.isArray(state.users) && state.users.length > 0) {
+      const existingUsers = this.getUsers();
+      const userMap = new Map<string, User>();
+      existingUsers.forEach((u) => userMap.set(u.teacherId.toUpperCase(), u));
+      state.users.forEach((u: User) => {
+        if (u && u.teacherId) {
+          userMap.set(u.teacherId.toUpperCase(), u);
+        }
+      });
+      localStorage.setItem(USERS_KEY, JSON.stringify(Array.from(userMap.values())));
+    }
+
+    if (Array.isArray(state.assignedTopics)) {
+      localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(state.assignedTopics));
+    }
+
+    if (Array.isArray(state.lectures)) {
+      localStorage.setItem(LECTURES_KEY, JSON.stringify(state.lectures));
+    }
+
+    if (Array.isArray(state.subjectReferences)) {
+      localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(state.subjectReferences));
+    }
+
+    if (Array.isArray(state.dailyCommitments)) {
+      localStorage.setItem(DAILY_COMMITMENTS_KEY, JSON.stringify(state.dailyCommitments));
+    }
+
+    if (Array.isArray(state.pptRequests)) {
+      localStorage.setItem(PPT_REQUESTS_KEY, JSON.stringify(state.pptRequests));
+    }
+  },
+
+  async syncFromCloud(): Promise<boolean> {
+    try {
+      const res = await fetch('/api/cloud-sync', {
+        headers: { 'Accept': 'application/json' },
+      });
+      if (!res.ok) return false;
+      const json = await res.json();
+      if (json && json.data) {
+        this.importMasterState(json.data);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn('[CloudSync] Sync pull error:', err);
+      return false;
+    }
+  },
+
+  async syncToCloud(): Promise<boolean> {
+    try {
+      const payload = this.exportMasterState();
+      const res = await fetch('/api/cloud-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: payload }),
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('[CloudSync] Sync push error:', err);
+      return false;
+    }
+  },
+
+  initCloudSync(onUpdate?: () => void): () => void {
+    if (typeof window === 'undefined') return () => {};
+
+    // Initial fetch on mount
+    this.syncFromCloud().then((success) => {
+      if (success && onUpdate) onUpdate();
+    });
+
+    // Periodic sync every 15 seconds
+    const interval = setInterval(() => {
+      this.syncFromCloud().then((success) => {
+        if (success && onUpdate) onUpdate();
+      });
+    }, 15000);
+
+    // Sync on tab focus
+    const handleFocus = () => {
+      this.syncFromCloud().then((success) => {
+        if (success && onUpdate) onUpdate();
+      });
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   },
 };

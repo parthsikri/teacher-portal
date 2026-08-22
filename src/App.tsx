@@ -19,6 +19,15 @@ export const App: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
   useEffect(() => {
+    // Initialize real-time cross-device cloud sync
+    const cleanup = StorageService.initCloudSync(() => {
+      const user = StorageService.getCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+      }
+      setRefreshKey((prev) => prev + 1);
+    });
+
     const user = StorageService.getCurrentUser();
     setCurrentUser(user);
     if (user) {
@@ -31,6 +40,10 @@ export const App: React.FC = () => {
         }
       }
     }
+
+    return () => {
+      cleanup();
+    };
   }, []);
 
   const handleLoginSuccess = (user: User) => {
