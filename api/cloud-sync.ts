@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Master Cloud Persistence Record ID
-const MASTER_CLOUD_ID = 'ff8081819ff5b11001a0283fe6f0742c';
-const RESTFUL_API_BASE = 'https://api.restful-api.dev/objects';
+// Supabase Production PostgreSQL Database Configuration
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://yczcnpsdmhftvpwdenoy.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemNucHNkbWhmdHZwd2Rlbm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODMwNjQsImV4cCI6MjEwMjk1OTA2NH0.H_qomZFkVTfIsvmSkS9UUWn5hNjP9h1kGB3YEpPA3Vk';
 
-// In-memory fallback cache in case of upstream network delay
+// In-memory fallback cache
 let inMemoryStateCache: any = null;
 
 const DEFAULT_STATE = {
@@ -63,7 +63,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Ensure Admin user always exists
+  // Ensure Admin always exists
   const hasAdmin = Array.from(userMap.values()).some((u) => u.role === 'admin');
   if (!hasAdmin) {
     userMap.set('ADMIN-01', DEFAULT_STATE.users[0]);
@@ -200,21 +200,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  // GET: Fetch the latest shared portal state
+  // GET: Fetch the latest shared portal state from Supabase PostgreSQL
   if (req.method === 'GET') {
     try {
-      const upstreamRes = await fetch(`${RESTFUL_API_BASE}/${MASTER_CLOUD_ID}`, {
-        headers: { 'Accept': 'application/json' },
+      const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Accept': 'application/json',
+        },
       });
 
-      if (upstreamRes.ok) {
-        const json = await upstreamRes.json();
-        if (json && json.data) {
-          inMemoryStateCache = json.data;
+      if (dbRes.ok) {
+        const rows = await dbRes.json();
+        if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
+          inMemoryStateCache = rows[0].data;
           return res.status(200).json({
             success: true,
-            source: 'cloud',
-            data: json.data,
+            source: 'supabase',
+            data: rows[0].data,
           });
         }
       }
@@ -233,7 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // POST: Sync/Save the latest portal state across all devices with smart merging
+  // POST: Sync/Save the latest portal state across all devices to Supabase
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -243,41 +247,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Missing data payload' });
       }
 
-      // Fetch latest cloud state to merge against
+      // Fetch latest cloud state from Supabase
       let currentCloudData = inMemoryStateCache;
       try {
-        const fetchCurrent = await fetch(`${RESTFUL_API_BASE}/${MASTER_CLOUD_ID}`, {
-          headers: { 'Accept': 'application/json' },
+        const fetchCurrent = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Accept': 'application/json',
+          },
         });
         if (fetchCurrent.ok) {
-          const cJson = await fetchCurrent.json();
-          if (cJson && cJson.data) {
-            currentCloudData = cJson.data;
+          const rows = await fetchCurrent.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
+            currentCloudData = rows[0].data;
           }
         }
       } catch {
-        // use memory cache
+        // fallback to memory cache
       }
 
       const mergedData = mergeMasterStates(currentCloudData, incomingData);
       inMemoryStateCache = mergedData;
 
-      // Update cloud store asynchronously
+      // Update Supabase PostgreSQL table
       try {
-        await fetch(`${RESTFUL_API_BASE}/${MASTER_CLOUD_ID}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates',
+          },
           body: JSON.stringify({
-            name: 'aew_portal_master_state',
+            id: 'aew_portal_master',
+            version: 2,
             data: mergedData,
+            updated_at: new Date().toISOString(),
           }),
         });
       } catch (upstreamErr) {
-        console.warn('Failed to update remote cloud store, saved to cache:', upstreamErr);
+        console.warn('Failed to update Supabase, saved to cache:', upstreamErr);
       }
 
       return res.status(200).json({
         success: true,
+        source: 'supabase',
         updatedAt: mergedData.updatedAt,
         data: mergedData,
       });

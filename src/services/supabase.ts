@@ -3,9 +3,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL_KEY = 'aew_supabase_url_prod_v2';
 const SUPABASE_KEY_KEY = 'aew_supabase_key_prod_v2';
 
-// Default Supabase project credentials (if configured via env variables)
-const ENV_SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
-const ENV_SUPABASE_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
+// Default Supabase project credentials
+const DEFAULT_SUPABASE_URL = 'https://yczcnpsdmhftvpwdenoy.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemNucHNkbWhmdHZwd2Rlbm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODMwNjQsImV4cCI6MjEwMjk1OTA2NH0.H_qomZFkVTfIsvmSkS9UUWn5hNjP9h1kGB3YEpPA3Vk';
+
+const ENV_SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+const ENV_SUPABASE_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -16,7 +19,7 @@ export const SupabaseService = {
     }
     const localUrl = localStorage.getItem(SUPABASE_URL_KEY) || ENV_SUPABASE_URL;
     const localKey = localStorage.getItem(SUPABASE_KEY_KEY) || ENV_SUPABASE_KEY;
-    return { url: localUrl.trim(), key: localKey.trim() };
+    return { url: localUrl.trim() || DEFAULT_SUPABASE_URL, key: localKey.trim() || DEFAULT_SUPABASE_KEY };
   },
 
   saveConfig(url: string, key: string): void {
