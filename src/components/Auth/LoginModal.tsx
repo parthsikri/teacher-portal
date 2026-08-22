@@ -104,11 +104,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div className="space-y-1.5">
-            <label className="block text-slate-300 font-semibold">Teacher ID / Username / Email</label>
+            <label className="block text-slate-300 font-semibold">Username</label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="e.g. AEW-T-101, admin, or email"
+                placeholder="Enter your username"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-100 focus:outline-none focus:border-indigo-500 shadow-inner font-mono"
