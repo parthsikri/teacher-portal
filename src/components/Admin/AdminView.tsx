@@ -2,12 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest } from '../../types';
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
+import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { 
   Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
   Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
-  Users, FileSpreadsheet
+  Users, FileSpreadsheet, Database
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -79,6 +80,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [adminName, setAdminName] = useState('Academic Operations Admin');
   const [adminEmail, setAdminEmail] = useState('admin@aew.com');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showDbModal, setShowDbModal] = useState(false);
 
   // Subject Reference Modal State
   const [showSubjectRefModal, setShowSubjectRefModal] = useState(false);
@@ -447,6 +449,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setShowDbModal(true)}
+                className="px-4 py-3 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
+              >
+                <Database className="w-4 h-4 text-emerald-400" /> Database (Supabase)
+              </button>
               <button
                 onClick={handleOpenAdminProfileModal}
                 className="px-4 py-3 rounded-2xl bg-slate-950/80 hover:bg-slate-800 border border-slate-700 text-slate-200 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
@@ -2220,6 +2228,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <VideoModal
           lecture={selectedLectureForPreview}
           onClose={() => setSelectedLectureForPreview(null)}
+        />
+      )}
+
+      {showDbModal && (
+        <DatabaseSettingsModal
+          onClose={() => setShowDbModal(false)}
+          onSuccess={() => refreshState()}
         />
       )}
     </div>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, Database } from 'lucide-react';
+import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 
 interface LoginModalProps {
   onLoginSuccess: (user: User) => void;
@@ -13,6 +14,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [showDbModal, setShowDbModal] = useState(false);
 
   // Sync latest cloud credentials on modal load
   useEffect(() => {
@@ -74,48 +76,44 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-7 md:p-8 shadow-2xl space-y-6 my-8 animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Header */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in duration-200">
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-600 flex items-center justify-center font-bold text-white text-lg shadow-md">
-            AEW
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 mb-1">
+            <Lock className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-bold text-slate-100 tracking-tight">Apna Engineering Wallah</h2>
-          <p className="text-xs text-slate-400 font-medium">Faculty & Academic Operations Portal</p>
+          <h2 className="text-xl font-black text-slate-100 tracking-tight">Academic Portal Login</h2>
+          <p className="text-xs text-slate-400">
+            Sign in to manage lectures, syllabus milestones, and curriculum pacing.
+          </p>
         </div>
 
-        {errorMsg ? (
-          <div className="p-3.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl font-medium text-center flex items-center gap-2 justify-center">
-            <span>⚠️</span>
-            <span>{errorMsg}</span>
+        {errorMsg && (
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs text-center font-medium">
+            {errorMsg}
           </div>
-        ) : null}
+        )}
 
-        {/* Secure Standard Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div>
-            <label className="block text-slate-300 font-semibold mb-1.5 flex items-center gap-1.5">
-              <UserIcon className="w-3.5 h-3.5 text-indigo-400" />
-              Username or Teacher ID
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. harish_mehta or AEW-T-101"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-indigo-500 shadow-inner"
-              autoComplete="username"
-              required
-            />
+          <div className="space-y-1.5">
+            <label className="block text-slate-300 font-semibold">Teacher ID / Username / Email</label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="e.g. AEW-T-101, admin, or email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-100 focus:outline-none focus:border-indigo-500 shadow-inner font-mono"
+                autoComplete="username"
+                autoFocus
+                required
+              />
+              <UserIcon className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-slate-300 font-semibold mb-1.5 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-indigo-400" />
-              Password
-            </label>
+          <div className="space-y-1.5">
+            <label className="block text-slate-300 font-semibold">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -146,12 +144,29 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* Security badge */}
-        <div className="pt-3 border-t border-slate-800/80 text-center">
-          <p className="text-[11px] text-slate-500 flex items-center justify-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Secure Academic Session Authentication
-          </p>
+        {/* Security & Database Configuration */}
+        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Secure Academic Auth
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowDbModal(true)}
+            className="text-slate-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition-colors"
+          >
+            <Database className="w-3.5 h-3.5 text-emerald-400" /> Database Settings
+          </button>
         </div>
+
+        {showDbModal && (
+          <DatabaseSettingsModal
+            onClose={() => setShowDbModal(false)}
+            onSuccess={() => {
+              setShowDbModal(false);
+              StorageService.syncFromCloud().catch(() => {});
+            }}
+          />
+        )}
       </div>
     </div>
   );
