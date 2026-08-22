@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, Database, RefreshCw } from 'lucide-react';
-import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
+import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, RefreshCw } from 'lucide-react';
 
 interface LoginModalProps {
   onLoginSuccess: (user: User) => void;
@@ -15,7 +14,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true); // Start true — sync on mount
-  const [showDbModal, setShowDbModal] = useState(false);
 
   // Sync latest cloud credentials on modal load — AWAIT it before allowing login
   useEffect(() => {
@@ -156,32 +154,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* Security & Database Configuration */}
-        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+        {/* Secure Academic Authentication Footer */}
+        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-center text-[11px] text-slate-500">
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Secure Academic Auth
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Secure Academic Authentication
           </span>
-          <button
-            type="button"
-            onClick={() => setShowDbModal(true)}
-            className="text-slate-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition-colors"
-          >
-            <Database className="w-3.5 h-3.5 text-emerald-400" /> Database Settings
-          </button>
         </div>
-
-        {showDbModal && (
-          <DatabaseSettingsModal
-            onClose={() => setShowDbModal(false)}
-            onSuccess={() => {
-              setShowDbModal(false);
-              setIsSyncing(true);
-              StorageService.syncFromCloud()
-                .catch(() => {})
-                .finally(() => setIsSyncing(false));
-            }}
-          />
-        )}
       </div>
     </div>
   );
