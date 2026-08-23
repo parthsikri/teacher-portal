@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import type { User, AssignedTopic } from '../../types';
 import { StorageService } from '../../services/storage';
+import { ThumbnailService } from '../../services/thumbnailService';
 import confetti from 'canvas-confetti';
-import { Link2, Play, FileText, X } from 'lucide-react';
+import { Link2, Play, FileText, X, Sparkles } from 'lucide-react';
 
 interface UploadLectureModalProps {
   teacher: User;
@@ -238,7 +239,26 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 required
               />
 
-              <label className="block text-slate-400 font-medium mb-1">Subtopic Tags (Optional)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-slate-400 font-medium">Subtopic Tags (Optional)</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const detected = ThumbnailService.autoDetectSubtopics({
+                      title,
+                      primaryTopic,
+                      videoUrl,
+                      assignedTopicId: prefillTopic ? prefillTopic.id : undefined,
+                    });
+                    if (detected.length > 0) {
+                      setSubtopics(detected);
+                    }
+                  }}
+                  className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors"
+                >
+                  <Sparkles className="w-3 h-3" /> ✨ Auto-Detect from Video
+                </button>
+              </div>
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"

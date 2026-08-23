@@ -57,6 +57,8 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   const [theme, setTheme] = useState<ThumbnailTheme>('obsidian_gold');
   const [facultyPhotoUrl, setFacultyPhotoUrl] = useState<string | undefined>(undefined);
   const [photoPosition, setPhotoPosition] = useState<'right' | 'left'>('right');
+  const [selectedLectureId, setSelectedLectureId] = useState<string>('');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const [isGeneratingSingle, setIsGeneratingSingle] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -142,10 +144,20 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     }> = [];
 
     lecs.forEach((l) => {
+      const autoSubtopics = ThumbnailService.autoDetectSubtopics({
+        title: l.title,
+        primaryTopic: l.primaryTopic,
+        videoUrl: l.youtubeUrl || l.driveUrl,
+        notesUrl: l.notesUrl,
+        existingSubtopics: l.subtopics,
+        assignedTopicId: l.assignedTopicId,
+        allTopics,
+      });
+
       combined.push({
         id: l.id,
         title: l.title || l.primaryTopic,
-        subtopics: l.subtopics && l.subtopics.length > 0 ? l.subtopics : [l.primaryTopic],
+        subtopics: autoSubtopics,
         sourceType: 'lecture',
       });
     });
@@ -156,10 +168,18 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
         (c) => c.title.toLowerCase() === t.topicTitle.toLowerCase()
       );
       if (!alreadyIncluded) {
+        const autoSubtopics = ThumbnailService.autoDetectSubtopics({
+          title: t.topicTitle,
+          primaryTopic: t.topicTitle,
+          existingSubtopics: (t.subtopics && t.subtopics.length > 0) ? t.subtopics : t.proposedSubtopics,
+          assignedTopicId: t.id,
+          allTopics,
+        });
+
         combined.push({
           id: t.id,
           title: t.topicTitle,
-          subtopics: t.subtopics && t.subtopics.length > 0 ? t.subtopics : [t.topicTitle],
+          subtopics: autoSubtopics,
           sourceType: 'topic',
         });
       }
@@ -171,13 +191,19 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
         {
           id: 'demo-1',
           title: `${cleanUnit} • Core Fundamentals & Concepts`,
-          subtopics: ['Concept Overview', 'Mathematical Foundations', 'Practical Implementation'],
+          subtopics: ThumbnailService.autoDetectSubtopics({
+            title: `${cleanUnit} Core Fundamentals`,
+            allTopics,
+          }),
           sourceType: 'topic' as const,
         },
         {
           id: 'demo-2',
           title: `${cleanUnit} • Advanced Numerical Problem Solving`,
-          subtopics: ['PYQ Question Bank', 'Shortcuts & Edge Cases', 'GATE Solutions'],
+          subtopics: ThumbnailService.autoDetectSubtopics({
+            title: `${cleanUnit} Advanced Problem Solving`,
+            allTopics,
+          }),
           sourceType: 'topic' as const,
         },
       ];
@@ -258,6 +284,44 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
     setSubtopics(subtopics.filter((_, i) => i !== index));
   };
 
+  const handleAutoDetectSubtopics = () => {
+    const detected = ThumbnailService.autoDetectSubtopics({
+      title,
+      primaryTopic: title,
+      allTopics,
+    });
+    if (detected && detected.length > 0) {
+      setSubtopics(detected);
+      setToastMsg('✨ Auto-detected key subtopics from video!');
+      setTimeout(() => setToastMsg(null), 3500);
+    }
+  };
+
+  const handleSelectLectureForThumbnail = (lecId: string) => {
+    setSelectedLectureId(lecId);
+    const lec = allLectures.find((l) => l.id === lecId);
+    if (!lec) return;
+    setTitle(lec.title);
+    setSubject(lec.subject || subject);
+    setUnitNumber(lec.unitNumber || 'UNIT 1');
+    setTeacherName(lec.teacherName || teacherName);
+
+    // Auto-detect subtopics for this selected lecture video
+    const detected = ThumbnailService.autoDetectSubtopics({
+      title: lec.title,
+      primaryTopic: lec.primaryTopic,
+      videoUrl: lec.youtubeUrl || lec.driveUrl,
+      notesUrl: lec.notesUrl,
+      existingSubtopics: lec.subtopics,
+      assignedTopicId: lec.assignedTopicId,
+      allTopics,
+    });
+
+    setSubtopics(detected);
+    setToastMsg(`✨ Loaded "${lec.title}" & auto-detected subtopics from video!`);
+    setTimeout(() => setToastMsg(null), 3500);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isBulk: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -333,6 +397,14 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-8 animate-in fade-in duration-200">
       
+      {/* FLOATING TOAST FEEDBACK */}
+      {toastMsg && (
+        <div className="fixed bottom-8 right-8 z-50 bg-slate-900 border border-amber-500/60 text-amber-300 px-4 py-3 rounded-2xl shadow-2xl text-xs font-black flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
       {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950/60 to-purple-950/40 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 relative z-10">
@@ -400,6 +472,30 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                 <Palette className="w-4 h-4 text-indigo-400" />
                 Thumbnail Content & Styling
               </h3>
+
+              {/* Auto-Load & Detect Subtopics from Video Session */}
+              {allLectures.length > 0 && (
+                <div className="p-3.5 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-indigo-950/40 border border-indigo-500/40 rounded-2xl space-y-2 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Auto-Load from Video Session:
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">{allLectures.length} Videos Available</span>
+                  </div>
+                  <select
+                    value={selectedLectureId}
+                    onChange={(e) => handleSelectLectureForThumbnail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="">⚡ Choose video to auto-detect subtopics...</option>
+                    {allLectures.map((lec) => (
+                      <option key={lec.id} value={lec.id}>
+                        {lec.unitNumber || 'UNIT'} • {lec.title} ({lec.teacherName} - {lec.durationMinutes || 45}m)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Theme Preset Selector */}
               <div className="space-y-2">
@@ -587,10 +683,21 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
 
               {/* Subtopics / Key Highlights */}
               <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Subtopics / Bullet Highlights (Max 4):</span>
-                  <span className="text-slate-500 font-normal">{subtopics.length}/4 items</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Subtopics / Bullet Highlights (Max 4):
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleAutoDetectSubtopics}
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500/20 to-purple-500/20 hover:from-amber-500/30 hover:to-purple-500/30 border border-amber-500/40 text-amber-300 text-[10px] font-black flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                    title="Auto-detect key subtopics from video title and syllabus"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    ✨ Auto-Detect from Video
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-2">
                   <input

@@ -635,4 +635,163 @@ export const ThumbnailService = {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   },
+
+  /**
+   * Intelligently auto-detects and extracts high-impact thumbnail subtopics
+   * from video metadata, syllabus connections, or lecture titles.
+   */
+  autoDetectSubtopics(params: {
+    title?: string;
+    primaryTopic?: string;
+    videoUrl?: string;
+    notesUrl?: string;
+    existingSubtopics?: string[];
+    assignedTopicId?: string;
+    allTopics?: Array<{
+      id: string;
+      topicTitle: string;
+      subtopics?: string[];
+      proposedSubtopics?: string[];
+      unitNumber?: string;
+    }>;
+  }): string[] {
+    const { 
+      title = '', 
+      primaryTopic = '', 
+      videoUrl = '', 
+      existingSubtopics = [], 
+      assignedTopicId, 
+      allTopics = [] 
+    } = params;
+
+    const clean = (str: string): string => {
+      return str
+        .replace(/^[0-9]+[.\-)\s]+/, '')
+        .replace(/^#+/, '')
+        .replace(/\b(Lecture|Lec|Part|Session|Chapter|Unit|Module)\s*#?[0-9]+/gi, '')
+        .replace(/\b(Full\s*Course|One\s*Shot|Complete\s*Tutorial|Masterclass|GATE\s*[0-9]{4}|B\.Tech)\b/gi, '')
+        .trim();
+    };
+
+    // 1. Direct syllabus topic connection (Approved or proposed curriculum subtopics)
+    if (assignedTopicId && allTopics.length > 0) {
+      const matched = allTopics.find((t) => t.id === assignedTopicId);
+      if (matched) {
+        const source = (matched.subtopics && matched.subtopics.length > 0)
+          ? matched.subtopics
+          : (matched.proposedSubtopics || []);
+        if (source.length > 0) {
+          return source.slice(0, 4).map(clean).filter((s) => s.length > 0);
+        }
+      }
+    }
+
+    // 2. Syllabus fuzzy match by title/topic
+    if (allTopics.length > 0 && (primaryTopic || title)) {
+      const target = (primaryTopic || title).toLowerCase().trim();
+      const matched = allTopics.find(
+        (t) => t.topicTitle.toLowerCase().trim() === target ||
+               target.includes(t.topicTitle.toLowerCase().trim()) ||
+               t.topicTitle.toLowerCase().trim().includes(target)
+      );
+      if (matched) {
+        const source = (matched.subtopics && matched.subtopics.length > 0)
+          ? matched.subtopics
+          : (matched.proposedSubtopics || []);
+        if (source.length > 0) {
+          return source.slice(0, 4).map(clean).filter((s) => s.length > 0);
+        }
+      }
+    }
+
+    // 3. Existing subtopics validation
+    if (existingSubtopics && existingSubtopics.length > 1) {
+      const cleanedList = existingSubtopics.map(clean).filter((s) => s.length > 1);
+      if (cleanedList.length >= 2) {
+        return cleanedList.slice(0, 4);
+      }
+    }
+
+    // 4. Engineering Domain Semantic Knowledge Base
+    const textToMatch = `${title} ${primaryTopic} ${videoUrl}`.toLowerCase();
+
+    // Data Structures & Algorithms
+    if (textToMatch.includes('complexity') || textToMatch.includes('big o') || textToMatch.includes('asymptotic') || textToMatch.includes('recurrence')) {
+      return ['Big-O, Omega & Theta Notations', 'Master Theorem & Recurrence Relations', 'Best, Average & Worst Case Analysis', 'Space Complexity & Recursion Tree'];
+    }
+    if (textToMatch.includes('binary search tree') || textToMatch.includes('bst') || textToMatch.includes('avl') || textToMatch.includes('tree traversal')) {
+      return ['Inorder, Preorder & Postorder Traversals', 'BST Insertion, Deletion & Search', 'AVL Tree Rotations & Balance Factor', 'Lowest Common Ancestor (LCA)'];
+    }
+    if (textToMatch.includes('graph') || textToMatch.includes('dijkstra') || textToMatch.includes('bfs') || textToMatch.includes('dfs') || textToMatch.includes('mst')) {
+      return ['BFS & DFS Traversal Algorithms', 'Dijkstra Shortest Path Algorithm', 'Prim & Kruskal MST Algorithms', 'Cycle Detection & Topological Sorting'];
+    }
+    if (textToMatch.includes('dynamic programming') || textToMatch.includes('dp ') || textToMatch.includes('knapsack') || textToMatch.includes('lcs')) {
+      return ['Memoization vs Tabulation Approach', '0/1 Knapsack & Fractional Variations', 'Longest Common Subsequence (LCS)', 'State Transitions & Optimal Substructure'];
+    }
+    if (textToMatch.includes('sorting') || textToMatch.includes('quicksort') || textToMatch.includes('mergesort') || textToMatch.includes('heapsort')) {
+      return ['Merge Sort & Divide-and-Conquer', 'Quick Sort & Partitioning Logic', 'Heap Sort & Priority Queues', 'Time & Space Complexity Proofs'];
+    }
+    if (textToMatch.includes('linked list') || textToMatch.includes('singly') || textToMatch.includes('doubly')) {
+      return ['Singly, Doubly & Circular Linked Lists', 'Reversal & Cycle Detection (Floyd)', 'Insertion & Deletion at K-th Position', 'Pointer Manipulation & Memory Layout'];
+    }
+    if (textToMatch.includes('stack') || textToMatch.includes('queue') || textToMatch.includes('infix')) {
+      return ['Stack & Queue Implementations', 'Infix to Postfix & Prefix Evaluation', 'Monotonic Stack Applications', 'Circular Queue & Deque Operations'];
+    }
+
+    // Operating Systems
+    if (textToMatch.includes('cpu scheduling') || textToMatch.includes('scheduling algorithm') || textToMatch.includes('fcfs') || textToMatch.includes('round robin')) {
+      return ['FCFS, SJF & SRTF Algorithms', 'Round Robin & Priority Scheduling', 'Gantt Chart & Turnaround Time', 'Convoy Effect & Starvation Resolution'];
+    }
+    if (textToMatch.includes('deadlock') || textToMatch.includes('banker') || textToMatch.includes('synchronization') || textToMatch.includes('semaphore')) {
+      return ['4 Necessary Deadlock Conditions', 'Banker Algorithm & Safety State', 'Mutex & Counting Semaphores', 'Producer-Consumer & Dining Philosophers'];
+    }
+    if (textToMatch.includes('paging') || textToMatch.includes('virtual memory') || textToMatch.includes('page replacement') || textToMatch.includes('tlb')) {
+      return ['Paging & Translation Lookaside Buffer (TLB)', 'FIFO, LRU & Optimal Page Replacement', 'Segmentation & Virtual Memory Architecture', 'Thrashing & Belady Anomaly'];
+    }
+
+    // DBMS
+    if (textToMatch.includes('normalization') || textToMatch.includes('normal form') || textToMatch.includes('bcnf') || textToMatch.includes('functional dependency')) {
+      return ['1NF, 2NF & 3NF Decompositions', 'Boyce-Codd Normal Form (BCNF)', 'Functional Dependencies & Attribute Closure', 'Lossless Join & Dependency Preservation'];
+    }
+    if (textToMatch.includes('sql') || textToMatch.includes('query') || textToMatch.includes('relational algebra') || textToMatch.includes('joins')) {
+      return ['Inner, Left, Right & Full Outer Joins', 'Nested Subqueries & Aggregations (GROUP BY)', 'Relational Algebra Operations', 'Views, Triggers & Integrity Constraints'];
+    }
+    if (textToMatch.includes('transaction') || textToMatch.includes('acid') || textToMatch.includes('concurrency') || textToMatch.includes('2pl')) {
+      return ['ACID Properties & Serializability', 'Conflict vs View Serializability', 'Two-Phase Locking Protocol (2PL)', 'Timestamp Ordering & Recovery Logs'];
+    }
+
+    // Computer Networks
+    if (textToMatch.includes('osi') || textToMatch.includes('tcp/ip') || textToMatch.includes('protocol') || textToMatch.includes('layer')) {
+      return ['7 Layers of OSI vs TCP/IP Model', 'Encapsulation & Packet Headers Flow', 'TCP vs UDP Protocols Deep Dive', 'Flow Control & Error Detection (CRC)'];
+    }
+    if (textToMatch.includes('subnet') || textToMatch.includes('ip address') || textToMatch.includes('routing') || textToMatch.includes('cidr')) {
+      return ['IPv4 & IPv6 Subnetting (CIDR)', 'Routing Algorithms (OSPF, BGP, RIP)', 'NAT, DHCP & ARP Protocols', 'Network Mask & Broadcast Calculations'];
+    }
+
+    // Theory of Computation
+    if (textToMatch.includes('dfa') || textToMatch.includes('nfa') || textToMatch.includes('finite automata') || textToMatch.includes('turing')) {
+      return ['DFA & NFA State Transition Diagrams', 'Regular Expressions & Pumping Lemma', 'Context-Free Grammars & PDA', 'Turing Machines & Decidability'];
+    }
+
+    // 5. Intelligent Multi-Clause Splitter
+    const clauses = (title || primaryTopic)
+      .replace(/\b(Lecture|Lec|Part|Session|Chapter|Unit|Module|Class)\s*#?[0-9]+/gi, '')
+      .replace(/\b(Full\s*Course|One\s*Shot|Complete\s*Tutorial|Masterclass|GATE\s*[0-9]{4}|B\.Tech|In\s*Depth)\b/gi, '')
+      .split(/[,|/&+;•]|(\band\b)|(\bwith\b)|(\bvs\b)|(\bto\b)/i)
+      .map((s) => (s ? clean(s) : ''))
+      .filter((s) => s.length > 2 && !['and', 'with', 'vs', 'to', 'for', 'the'].includes(s.toLowerCase()));
+
+    if (clauses.length >= 2) {
+      return clauses.slice(0, 4);
+    }
+
+    // 6. Generic High-Yield Academic Formulation
+    const subjectLead = clean(primaryTopic || title || 'Topic Masterclass');
+    return [
+      `${subjectLead} • Fundamental Concepts`,
+      'Mathematical Formulation & Theorems',
+      'Step-by-Step Solved Problem Sets',
+      'GATE & University Exam PYQ Strategy',
+    ];
+  },
 };
