@@ -45,7 +45,18 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     };
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
+
+    const handleStorageChange = () => {
+      setRefreshKey((k) => k + 1);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleStorageChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleStorageChange);
+    };
   }, [teacher.teacherId, refreshKey]);
 
   const lectures = useMemo(() => {

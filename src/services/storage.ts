@@ -572,21 +572,20 @@ export const StorageService = {
   },
 
   // Teacher acknowledges an admin directive / remark on a lecture
-  acknowledgeAdminRemark(lectureId: string, remarkId: string, teacherName: string): boolean {
+  acknowledgeAdminRemark(_lectureId: string, remarkId: string, teacherName: string): boolean {
     const lectures = this.getLectures();
     let found = false;
 
     for (const lec of lectures) {
-      if (lec.id === lectureId || !lectureId) {
-        const remark = lec.adminRemarks?.find((r) => r.id === remarkId);
-        if (remark) {
-          remark.isAcknowledged = true;
-          remark.acknowledgedAt = new Date().toISOString();
-          remark.acknowledgedByName = teacherName;
-          remark.isNewAckForAdmin = true;
-          found = true;
-          break;
-        }
+      if (!lec.adminRemarks) continue;
+      const remark = lec.adminRemarks.find((r) => r.id === remarkId);
+      if (remark) {
+        remark.isAcknowledged = true;
+        remark.acknowledgedAt = new Date().toISOString();
+        remark.acknowledgedByName = teacherName;
+        remark.isNewAckForAdmin = true;
+        found = true;
+        break;
       }
     }
 
@@ -597,21 +596,20 @@ export const StorageService = {
   },
 
   // Teacher reverts or untoggles acknowledgment (if needed)
-  unacknowledgeAdminRemark(lectureId: string, remarkId: string): boolean {
+  unacknowledgeAdminRemark(_lectureId: string, remarkId: string): boolean {
     const lectures = this.getLectures();
     let found = false;
 
     for (const lec of lectures) {
-      if (lec.id === lectureId || !lectureId) {
-        const remark = lec.adminRemarks?.find((r) => r.id === remarkId);
-        if (remark) {
-          remark.isAcknowledged = false;
-          remark.acknowledgedAt = undefined;
-          remark.acknowledgedByName = undefined;
-          remark.isNewAckForAdmin = false;
-          found = true;
-          break;
-        }
+      if (!lec.adminRemarks) continue;
+      const remark = lec.adminRemarks.find((r) => r.id === remarkId);
+      if (remark) {
+        remark.isAcknowledged = false;
+        remark.acknowledgedAt = undefined;
+        remark.acknowledgedByName = undefined;
+        remark.isNewAckForAdmin = false;
+        found = true;
+        break;
       }
     }
 

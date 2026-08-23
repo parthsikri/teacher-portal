@@ -128,7 +128,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   useEffect(() => {
     refreshState();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, currentPage]);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      refreshState();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleStorageChange);
+    const interval = setInterval(refreshState, 2500);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleOpenFulfillModal = (req: PptRequest) => {
     setFulfillingRequest(req);
