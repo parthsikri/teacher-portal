@@ -6,7 +6,7 @@ import { PptRequestPortal } from './PptRequestPortal';
 import { 
   Search, FileText, Plus, Play,
   Edit3, ExternalLink, Copy, Check, ChevronRight,
-  Clock, CheckCircle, AlertCircle,
+  Clock, CheckCircle, AlertTriangle, MessageSquare,
   FileSpreadsheet, Award
 } from 'lucide-react';
 
@@ -28,7 +28,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   refreshTrigger,
 }) => {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [topicFilter, setTopicFilter] = useState<'all' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
+  const [topicFilter, setTopicFilter] = useState<'all' | 'revision_needed' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
   const [acknowledgedRemarks, setAcknowledgedRemarks] = useState<Set<string>>(new Set());
 
@@ -123,6 +123,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   }, [lectures]);
 
   // Topic category breakdowns
+  const revisionTopics = useMemo(() => {
+    return assignedTopics.filter((t) => {
+      const s = t.subtopicsApprovalState || 'pending_teacher_input';
+      return t.status !== 'completed' && s === 'revision_requested';
+    });
+  }, [assignedTopics]);
+
   const needsActionTopics = assignedTopics.filter((t) => {
     const s = t.subtopicsApprovalState || 'pending_teacher_input';
     return t.status !== 'completed' && (s === 'pending_teacher_input' || s === 'revision_requested');
@@ -140,10 +147,11 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
   // Next active deliverable
   const nextUrgentTopic = useMemo(() => {
+    if (revisionTopics.length > 0) return revisionTopics[0];
     if (readyToDeliverTopics.length > 0) return readyToDeliverTopics[0];
     if (needsActionTopics.length > 0) return needsActionTopics[0];
     return assignedTopics.find((t) => t.status !== 'completed');
-  }, [readyToDeliverTopics, needsActionTopics, assignedTopics]);
+  }, [revisionTopics, readyToDeliverTopics, needsActionTopics, assignedTopics]);
 
   // Filtered Topics
   const filteredTopics = useMemo(() => {
@@ -161,6 +169,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       const approval = topic.subtopicsApprovalState || 'pending_teacher_input';
       const isCompleted = topic.status === 'completed';
 
+      if (topicFilter === 'revision_needed') return !isCompleted && approval === 'revision_requested';
       if (topicFilter === 'needs_action') return !isCompleted && (approval === 'pending_teacher_input' || approval === 'revision_requested');
       if (topicFilter === 'in_review') return !isCompleted && approval === 'pending_admin_approval';
       if (topicFilter === 'ready_to_deliver') return !isCompleted && approval === 'approved';
@@ -381,17 +390,64 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             );
           })()}
 
+          {/* 1.5 REVISION REQUESTED ALERT BANNER (IF ANY TOPIC HAS REVISION REQUESTED) */}
+          {revisionTopics.length > 0 && (
+            <div className="bg-gradient-to-r from-rose-950/80 via-red-950/60 to-slate-900 border-2 border-rose-500/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-xl shadow-rose-950/40 animate-pulse">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-rose-600/30 border border-rose-500/50 text-rose-400 flex items-center justify-center shrink-0 shadow-inner">
+                  <AlertTriangle className="w-5 h-5 animate-bounce" />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white uppercase tracking-wider shadow-sm">
+                      🔴 Action Required: {revisionTopics.length} Revision{revisionTopics.length === 1 ? '' : 's'}
+                    </span>
+                    <span className="text-[11px] text-rose-300 font-bold hidden sm:inline">Admin Feedback Received</span>
+                  </div>
+                  <p className="font-extrabold text-slate-100 text-sm sm:text-base">
+                    {revisionTopics.length === 1 
+                      ? `Admin requested revisions for "${revisionTopics[0].topicTitle}" (${revisionTopics[0].unitNumber || 'UNIT 1'})`
+                      : `Admin requested revisions on ${revisionTopics.length} syllabus topics.`}
+                  </p>
+                  {revisionTopics[0].adminFeedback && (
+                    <p className="text-[11px] text-rose-200/90 italic truncate max-w-xl">
+                      Admin Note: "{revisionTopics[0].adminFeedback}"
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  onPageChange('syllabus');
+                  setTopicFilter('revision_needed');
+                }}
+                className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-rose-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center"
+              >
+                View & Resubmit Topics →
+              </button>
+            </div>
+          )}
+
           {/* ACTIVE PRIORITY NOTIFICATION (IF ANY) */}
           {nextUrgentTopic && (
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className={`border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+              nextUrgentTopic.subtopicsApprovalState === 'revision_requested'
+                ? 'bg-rose-950/30 border-rose-500/60 shadow-lg shadow-rose-950/20'
+                : 'bg-slate-900/60 border-slate-800/80'
+            }`}>
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Priority Deliverable</span>
-                  {adminNotifications.syllabus > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-rose-500 text-white animate-pulse">
-                      1 NEW
+                  {nextUrgentTopic.subtopicsApprovalState === 'revision_requested' ? (
+                    <span className="px-2 py-0.2 rounded-full text-[9px] font-black bg-rose-600 text-white animate-pulse">
+                      REVISION NEEDED
                     </span>
-                  )}
+                  ) : adminNotifications.syllabus > 0 ? (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-500 text-slate-950">
+                      NEW
+                    </span>
+                  ) : null}
                 </div>
                 <div className="font-semibold text-slate-100 flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-slate-800 text-indigo-300 border border-slate-700">
@@ -407,6 +463,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors flex items-center gap-1 shrink-0"
                 >
                   Deliver Session →
+                </button>
+              ) : nextUrgentTopic.subtopicsApprovalState === 'revision_requested' ? (
+                <button
+                  onClick={() => handleOpenProposeModal(nextUrgentTopic)}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0 shadow-md shadow-rose-600/30"
+                >
+                  <Edit3 className="w-3 h-3" /> Resubmit Subtopics →
                 </button>
               ) : (
                 <button
@@ -637,15 +700,47 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
             <button
               onClick={() => onOpenUpload()}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-md"
             >
               <Plus className="w-3.5 h-3.5" /> Upload Lecture
             </button>
           </div>
 
+          {/* RED REVISION NOTIFICATION ALERT BANNER AT TOP OF SYLLABUS LIST */}
+          {revisionTopics.length > 0 && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-rose-950/90 via-red-950/70 to-slate-900 border-2 border-rose-500/80 shadow-xl shadow-rose-950/40 space-y-3 animate-pulse">
+              <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-600/30 border border-rose-500/50 text-rose-300 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-rose-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-rose-100 flex items-center gap-2">
+                      🔴 Action Required: Admin Requested Revision on {revisionTopics.length} Topic{revisionTopics.length === 1 ? '' : 's'}
+                    </h3>
+                    <p className="text-xs text-rose-200/80 mt-0.5">
+                      The academic administrator reviewed your proposed syllabus subtopics and requested modifications with specific feedback.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setTopicFilter('revision_needed')}
+                  className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all shadow-md ${
+                    topicFilter === 'revision_needed'
+                      ? 'bg-white text-rose-900 shadow-white/20'
+                      : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30'
+                  }`}
+                >
+                  {topicFilter === 'revision_needed' ? '✓ Showing Revision Topics' : 'Filter Revision Topics →'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Filters & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-1 text-xs">
+            <div className="flex flex-wrap gap-1.5 text-xs">
               <button
                 onClick={() => setTopicFilter('all')}
                 className={`px-3 py-1.5 rounded-lg transition-colors font-medium ${
@@ -654,6 +749,22 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               >
                 All ({assignedTopics.length})
               </button>
+
+              {/* Dedicated Red Revision Filter Pill */}
+              {revisionTopics.length > 0 && (
+                <button
+                  onClick={() => setTopicFilter('revision_needed')}
+                  className={`px-3 py-1.5 rounded-lg transition-all font-bold flex items-center gap-1.5 ${
+                    topicFilter === 'revision_needed'
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
+                      : 'bg-rose-500/15 text-rose-300 border border-rose-500/40 hover:bg-rose-500/25'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  🔴 Revision Needed ({revisionTopics.length})
+                </button>
+              )}
+
               <button
                 onClick={() => setTopicFilter('needs_action')}
                 className={`px-3 py-1.5 rounded-lg transition-colors font-medium ${
@@ -706,7 +817,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               No topics match this filter.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredTopics.map((topic) => {
                 const isCompleted = topic.status === 'completed';
                 const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
@@ -717,42 +828,78 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 return (
                   <div
                     key={topic.id}
-                    className="bg-slate-900/40 border border-slate-800/70 rounded-xl p-4 space-y-3.5 flex flex-col justify-between text-xs hover:border-slate-700 transition-colors"
+                    className={`rounded-2xl p-4.5 space-y-3.5 flex flex-col justify-between text-xs transition-all relative overflow-hidden ${
+                      isRevision
+                        ? 'border-2 border-rose-500/80 bg-gradient-to-br from-rose-950/40 via-slate-900/95 to-slate-900/90 shadow-xl shadow-rose-950/30 hover:border-rose-400'
+                        : 'bg-slate-900/40 border border-slate-800/70 hover:border-slate-700'
+                    }`}
                   >
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="truncate flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.2 rounded font-mono font-bold text-[9px] bg-slate-800 text-indigo-300 border border-slate-700">
+                            <span className={`px-1.5 py-0.2 rounded font-mono font-bold text-[9px] border ${
+                              isRevision
+                                ? 'bg-rose-950/80 text-rose-300 border-rose-500/40'
+                                : 'bg-slate-800 text-indigo-300 border-slate-700'
+                            }`}>
                               {topic.unitNumber || 'UNIT 1'}
                             </span>
-                            <h4 className="font-semibold text-slate-100 truncate">{topic.topicTitle}</h4>
+                            <h4 className="font-bold text-slate-100 truncate text-sm">{topic.topicTitle}</h4>
                           </div>
                           <span className="text-[11px] text-slate-400 block mt-0.5">{topic.subject}</span>
                         </div>
+
+                        {/* Top Notification Badge for Revision */}
+                        {isRevision && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white shadow-md shadow-rose-600/30 flex items-center gap-1 shrink-0 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                            REVISION
+                          </span>
+                        )}
                       </div>
 
                       {/* Status indicator */}
                       <div className="flex items-center gap-1.5 text-[11px]">
                         {isCompleted ? (
-                          <span className="text-emerald-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Delivered</span>
+                          <span className="text-emerald-400 font-bold flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Delivered</span>
                         ) : isApproved ? (
-                          <span className="text-emerald-400 flex items-center gap-1">● Ready to Record</span>
+                          <span className="text-emerald-400 font-bold flex items-center gap-1">● Ready to Record</span>
                         ) : isUnderReview ? (
-                          <span className="text-purple-300 flex items-center gap-1"><Clock className="w-3 h-3" /> In Admin Review</span>
+                          <span className="text-purple-300 font-bold flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> In Admin Review</span>
                         ) : isRevision ? (
-                          <span className="text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Revision Needed</span>
+                          <span className="text-rose-400 font-black flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" /> 🔴 Admin Requested Revision</span>
                         ) : (
-                          <span className="text-amber-400 flex items-center gap-1">○ Subtopics Needed</span>
+                          <span className="text-amber-400 font-medium flex items-center gap-1">○ Subtopics Needed</span>
                         )}
                       </div>
 
+                      {/* Admin Feedback Box with Red Alert styling */}
+                      {isRevision && topic.adminFeedback && (
+                        <div className="p-3 bg-rose-950/60 rounded-xl border border-rose-500/40 text-xs space-y-1 shadow-inner">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-rose-400">
+                            <MessageSquare className="w-3 h-3 text-rose-400" />
+                            Admin Revision Notes:
+                          </div>
+                          <p className="text-slate-100 font-medium italic text-[11px] leading-relaxed">
+                            "{topic.adminFeedback}"
+                          </p>
+                        </div>
+                      )}
+
                       {/* Subtopics */}
-                      <div className="space-y-1 pt-1">
+                      <div className="space-y-1 pt-0.5">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                          {isRevision ? 'Proposed Subtopics for Revision:' : 'Subtopics:'}
+                        </span>
                         {((isUnderReview || isRevision) ? topic.proposedSubtopics : topic.subtopics)?.length ? (
                           <div className="flex flex-wrap gap-1">
                             {((isUnderReview || isRevision) ? topic.proposedSubtopics! : topic.subtopics).map((st, i) => (
-                              <span key={i} className="px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800/80 text-[10px] text-slate-300">
+                              <span key={i} className={`px-2 py-0.5 rounded text-[10px] ${
+                                isRevision
+                                  ? 'bg-rose-950/40 border border-rose-500/30 text-rose-200'
+                                  : 'bg-slate-950/80 border border-slate-800/80 text-slate-300'
+                              }`}>
                                 #{st}
                               </span>
                             ))}
@@ -761,39 +908,40 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           <p className="text-[10px] text-slate-500 italic">No subtopics defined yet.</p>
                         )}
                       </div>
-
-                      {isRevision && topic.adminFeedback && (
-                        <div className="p-2 bg-red-950/20 rounded-lg border border-red-500/20 text-[11px] text-red-300 italic">
-                          "{topic.adminFeedback}"
-                        </div>
-                      )}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800/50">
+                    <div className="pt-3 border-t border-slate-800/60">
                       {isCompleted ? (
-                        <div className="text-center text-[11px] text-emerald-400 font-medium py-0.5">
+                        <div className="text-center text-[11px] text-emerald-400 font-medium py-1">
                           ✓ Completed
                         </div>
                       ) : isApproved ? (
                         <button
                           onClick={() => onOpenUpload(topic)}
-                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors shadow-md text-xs flex items-center justify-center gap-1.5"
                         >
                           Upload Lecture →
                         </button>
                       ) : isUnderReview ? (
                         <button
                           onClick={() => handleOpenProposeModal(topic)}
-                          className="w-full py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-purple-300 font-medium rounded-lg transition-colors"
+                          className="w-full py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-purple-300 font-semibold rounded-xl transition-colors text-xs flex items-center justify-center gap-1.5"
                         >
                           Edit Proposal
+                        </button>
+                      ) : isRevision ? (
+                        <button
+                          onClick={() => handleOpenProposeModal(topic)}
+                          className="w-full py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black rounded-xl transition-all shadow-lg shadow-rose-600/30 text-xs flex items-center justify-center gap-1.5"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" /> Resubmit Revised Subtopics →
                         </button>
                       ) : (
                         <button
                           onClick={() => handleOpenProposeModal(topic)}
-                          className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg transition-colors"
+                          className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl transition-colors text-xs flex items-center justify-center gap-1.5"
                         >
-                          {isRevision ? 'Resubmit Subtopics' : '+ Propose Subtopics'}
+                          + Propose Subtopics
                         </button>
                       )}
                     </div>

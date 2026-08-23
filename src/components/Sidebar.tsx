@@ -43,6 +43,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ).length
     : 0;
 
+  const teacherRevisionCount = currentUser.role === 'teacher'
+    ? StorageService.getAssignedTopics().filter(
+        (t) => t.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase() &&
+               t.status !== 'completed' &&
+               t.subtopicsApprovalState === 'revision_requested'
+      ).length
+    : 0;
+
   const teacherPptReadyCount = currentUser.role === 'teacher'
     ? StorageService.getTeacherPptRequests(currentUser.teacherId).filter(
         (r) => r.status === 'completed' && r.isNewForTeacher
@@ -65,7 +73,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'syllabus', 
       label: 'Syllabus & Topics', 
       icon: Layers,
-      badge: teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount} New` : undefined,
+      badge: teacherRevisionCount > 0 
+        ? `${teacherRevisionCount} Revision` 
+        : (teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount} New` : undefined),
+      badgeColor: teacherRevisionCount > 0 
+        ? 'bg-rose-600 text-white font-black animate-pulse shadow-md shadow-rose-600/40' 
+        : 'bg-amber-500/20 text-amber-300',
     },
     { 
       id: 'ppt_requests', 
@@ -181,7 +194,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 {item.badge && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    (item as any).badgeColor || 'bg-amber-500/20 text-amber-300'
+                  }`}>
                     {item.badge}
                   </span>
                 )}

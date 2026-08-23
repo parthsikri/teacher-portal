@@ -496,6 +496,7 @@ export const StorageService = {
       ...topics[index],
       subtopicsApprovalState: 'revision_requested',
       adminFeedback: feedback.trim(),
+      isNewFromAdmin: true,
     };
     this.saveAssignedTopics(topics);
     return topics[index];
@@ -882,6 +883,7 @@ export const StorageService = {
   // ─── ADMIN NOTIFICATION BADGES FOR TEACHER ───────────────────────────────────
   getTeacherAdminNotificationCounts(teacherId: string): {
     syllabus: number;
+    revisions: number;
     directives: number;
     resources: number;
     ppt: number;
@@ -896,6 +898,14 @@ export const StorageService = {
              (t.subtopicsApprovalState === 'pending_teacher_input' || t.subtopicsApprovalState === 'revision_requested')
     );
     const syllabus = assignedTopics.length;
+
+    // Specifically count revision requests
+    const revisionTopics = this.getAssignedTopics().filter(
+      (t) => t.teacherId.toUpperCase() === cleanId &&
+             t.status !== 'completed' &&
+             t.subtopicsApprovalState === 'revision_requested'
+    );
+    const revisions = revisionTopics.length;
 
     // 2. Directives: Unread/New remarks from admin on teacher's lectures
     const lectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
@@ -915,6 +925,7 @@ export const StorageService = {
 
     return {
       syllabus,
+      revisions,
       directives,
       resources,
       ppt,
