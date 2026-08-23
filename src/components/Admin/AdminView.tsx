@@ -9,7 +9,7 @@ import {
   Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Image as ImageIcon
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -1663,11 +1663,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                   </span>
                                 </div>
 
-                                <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                                  <span>Unit Total Duration:</span>
-                                  <strong className="text-amber-300 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                                    {unitGroup.totalDuration} min ({Math.round((unitGroup.totalDuration / 60) * 10) / 10} hrs)
-                                  </strong>
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                  <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                                    <span>Unit Duration:</span>
+                                    <strong className="text-amber-300 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                                      {unitGroup.totalDuration} min ({Math.round((unitGroup.totalDuration / 60) * 10) / 10} hrs)
+                                    </strong>
+                                  </div>
+
+                                  <button
+                                    onClick={() => onPageChange('thumbnail_generator')}
+                                    className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                                  >
+                                    <ImageIcon className="w-3.5 h-3.5" /> Unit Thumbnails & ZIP
+                                  </button>
                                 </div>
                               </div>
 
@@ -1720,6 +1729,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                                       {/* Action Buttons */}
                                       <div className="flex items-center gap-2 shrink-0 self-end md:self-start">
+                                        <button
+                                          onClick={() => onPageChange('thumbnail_generator')}
+                                          className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-xs hover:bg-amber-500/25 flex items-center gap-1.5 transition-colors shadow-sm"
+                                        >
+                                          <ImageIcon className="w-3.5 h-3.5" /> 16:9 Thumbnail
+                                        </button>
+
                                         {lec.notesUrl && (
                                           <a
                                             href={lec.notesUrl}

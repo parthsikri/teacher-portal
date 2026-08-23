@@ -8,7 +8,7 @@ import {
   Search, FileText, Plus, Play,
   Edit3, ExternalLink, Copy, Check, ChevronRight,
   Clock, CheckCircle, AlertTriangle, MessageSquare,
-  FileSpreadsheet, Award
+  FileSpreadsheet, Award, Image as ImageIcon
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -1066,6 +1066,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                     <span className="text-[11px] text-slate-500">{new Date(lec.createdAt).toLocaleDateString()}</span>
                     
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onPageChange('thumbnail_generator')}
+                        className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-md text-xs font-medium flex items-center gap-1 transition-colors"
+                      >
+                        <ImageIcon className="w-3 h-3" /> Thumbnail
+                      </button>
+
                       {lec.notesUrl && (
                         <a
                           href={lec.notesUrl}

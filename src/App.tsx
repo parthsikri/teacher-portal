@@ -9,6 +9,7 @@ import { UploadLectureModal } from './components/Teacher/UploadLectureModal';
 import { DailyCommitmentModal } from './components/Teacher/DailyCommitmentModal';
 
 import { PptGenerator } from './components/Common/PptGenerator';
+import { ThumbnailStudio } from './components/Common/ThumbnailStudio';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -104,6 +105,12 @@ export const App: React.FC = () => {
                 <PptGenerator
                   userSubject={currentUser.subject || currentUser.department}
                   userName={currentUser.name}
+                />
+              ) : currentPage === 'thumbnail_generator' ? (
+                <ThumbnailStudio
+                  initialSubject={currentUser.subject || currentUser.department}
+                  initialTeacherName={currentUser.role === 'teacher' ? currentUser.name : undefined}
+                  initialTeacherId={currentUser.role === 'teacher' ? currentUser.teacherId : undefined}
                 />
               ) : currentUser.role === 'admin' ? (
                 <AdminView
