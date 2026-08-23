@@ -585,13 +585,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return a.localeCompare(b);
     };
 
-    // Convert map to array and filter out teachers with 0 lectures if query or filter is active
+    // Convert map to array and filter
     return Array.from(teacherMap.values())
       .filter((t) => {
-        if (q || selectedUnitLectureFilter !== 'all') {
-          return t.totalLectures > 0;
+        if (selectedTeacherLectureFilter !== 'all') {
+          return true; // Show specifically selected teacher
         }
-        return true;
+        // In "All Faculty" view, only display teachers who have delivered lectures
+        return t.totalLectures > 0;
       })
       .map((t) => {
         const unitsArray = Array.from(t.unitMap.values()).sort((a, b) => sortUnits(a.unitName, b.unitName));
