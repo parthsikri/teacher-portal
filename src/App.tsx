@@ -95,7 +95,6 @@ export const App: React.FC = () => {
             onPageChange={handlePageChange}
             onLogout={handleLogout}
             onRefreshData={handleRefreshData}
-            onOpenCommitmentModal={() => setShowCommitmentModal(true)}
           />
 
           {/* MAIN APPLICATION VIEW — sidebar is fixed, so we just pad-left to offset */}
@@ -119,7 +118,6 @@ export const App: React.FC = () => {
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
                   onOpenUpload={handleOpenUpload}
-                  onOpenCommitmentModal={() => setShowCommitmentModal(true)}
                   refreshTrigger={refreshKey}
                 />
               )}

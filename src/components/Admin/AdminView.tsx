@@ -717,9 +717,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               {teachers.map((t) => {
                 const commitment = StorageService.getDailyCommitment(t.teacherId);
+                const backlog = StorageService.getPreviousDayBacklog(t.teacherId);
                 const recordedMins = StorageService.getMinutesRecordedToday(t.teacherId);
-                const targetMins = t.dailyTargetMinutes || 120;
-                const isMet = recordedMins >= targetMins;
+                const targetMins = backlog.cumulativeRequired;
+                const isMet = backlog.isCumulativeTargetMet;
 
                 const formatTime = (time24?: string) => {
                   if (!time24) return '';
@@ -762,6 +763,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           {recordedMins} / {targetMins} min {isMet ? '✓' : ''}
                         </span>
                       </div>
+
+                      {backlog.yesterdayBacklog > 0 && !isMet && (
+                        <div className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          ⚠️ {backlog.yesterdayBacklog}m backlog from yesterday
+                        </div>
+                      )}
 
                       {commitment?.note && (
                         <p className="text-[10px] text-slate-400 italic bg-slate-900/60 p-1.5 rounded border border-slate-800/60 truncate">
@@ -1071,16 +1078,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           </div>
                         </div>
 
-                        <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/80">
-                          <span>Recorded Today:</span>
-                          <span className={
-                            StorageService.getMinutesRecordedToday(t.teacherId) >= (t.dailyTargetMinutes || 120)
-                              ? 'text-emerald-400 font-bold'
-                              : 'text-slate-300 font-bold'
-                          }>
-                            {StorageService.getMinutesRecordedToday(t.teacherId)} / {t.dailyTargetMinutes || 120} min
-                          </span>
-                        </div>
+                        {(() => {
+                          const backlog = StorageService.getPreviousDayBacklog(t.teacherId);
+                          const recorded = StorageService.getMinutesRecordedToday(t.teacherId);
+                          const isMet = backlog.isCumulativeTargetMet;
+
+                          return (
+                            <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                              <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                                <span>{backlog.yesterdayBacklog > 0 ? "Cumulative Target:" : "Recorded Today:"}</span>
+                                <span className={isMet ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>
+                                  {recorded} / {backlog.cumulativeRequired} min {isMet ? '✓' : ''}
+                                </span>
+                              </div>
+                              {backlog.yesterdayBacklog > 0 && !isMet && (
+                                <div className="text-[10px] text-amber-400 font-bold">
+                                  ⚠️ {backlog.yesterdayBacklog}m backlog from yesterday
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* PERMANENT DAILY UPLOAD CUTOFF TIME */}

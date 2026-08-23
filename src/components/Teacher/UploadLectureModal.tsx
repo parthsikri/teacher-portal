@@ -17,8 +17,9 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const backlogInfo = StorageService.getPreviousDayBacklog(teacher.teacherId);
   const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
-  const targetMinutes = teacher.dailyTargetMinutes || 120;
+  const targetMinutes = backlogInfo.cumulativeRequired;
 
   // Form fields
   const [title, setTitle] = useState(prefillTopic ? prefillTopic.topicTitle : '');
@@ -159,6 +160,15 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <span className="text-sm">📌</span>
               <div>
                 <strong>Assigned Topic:</strong> {prefillTopic.topicTitle} ({prefillTopic.unitNumber || 'UNIT 1'})
+              </div>
+            </div>
+          )}
+
+          {backlogInfo.yesterdayBacklog > 0 && !backlogInfo.isBacklogFulfilled && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-xl flex items-center gap-2">
+              <span className="text-sm">⚠️</span>
+              <div>
+                <strong>Non-Reset Active:</strong> You have {backlogInfo.backlogRemaining}m pending from yesterday. Today's upload will first fulfill yesterday's backlog before resetting today's target.
               </div>
             </div>
           )}

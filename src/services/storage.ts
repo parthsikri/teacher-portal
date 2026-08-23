@@ -828,7 +828,75 @@ export const StorageService = {
     };
   },
 
-  // ─── TIME REMAINING TO SUBMIT TODAY'S LECTURE ─────────────────────────────────
+  // Total recording minutes completed on a specific date (YYYY-MM-DD)
+  getMinutesRecordedOnDate(teacherId: string, targetDateStr: string): number {
+    const lectures = this.getLectures();
+    return lectures
+      .filter((l) => {
+        if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
+        if (!l.createdAt) return false;
+        const lDate = new Date(l.createdAt);
+        const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
+        return lDateLocal === targetDateStr || l.createdAt.startsWith(targetDateStr);
+      })
+      .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+  },
+
+  // Calculate unfulfilled lecture minutes from previous day(s) that must be fulfilled before target reset
+  getPreviousDayBacklog(teacherId: string): {
+    yesterdayDateStr: string;
+    yesterdayRecorded: number;
+    yesterdayTarget: number;
+    yesterdayBacklog: number;
+    minutesRecordedToday: number;
+    backlogRemaining: number;
+    isBacklogFulfilled: boolean;
+    effectiveTodayProgress: number;
+    todayTarget: number;
+    cumulativeRequired: number;
+    isCumulativeTargetMet: boolean;
+  } {
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayDateStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const todayTarget = teacher?.dailyTargetMinutes || 120;
+    const yesterdayTarget = todayTarget;
+
+    const yesterdayRecorded = this.getMinutesRecordedOnDate(teacherId, yesterdayDateStr);
+    
+    // Check if teacher had past history before today
+    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const hasPastHistory = this.getLectures().some(l => l.teacherId.toUpperCase() === teacherId.toUpperCase() && !l.createdAt.startsWith(todayLocal)) ||
+      this.getAssignedTopics().some(t => t.teacherId.toUpperCase() === teacherId.toUpperCase() && !t.createdAt.startsWith(todayLocal));
+
+    const yesterdayBacklog = hasPastHistory ? Math.max(0, yesterdayTarget - yesterdayRecorded) : 0;
+    const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
+
+    const backlogRemaining = Math.max(0, yesterdayBacklog - minutesRecordedToday);
+    const isBacklogFulfilled = yesterdayBacklog === 0 || minutesRecordedToday >= yesterdayBacklog;
+    const effectiveTodayProgress = isBacklogFulfilled ? (minutesRecordedToday - yesterdayBacklog) : 0;
+    const cumulativeRequired = yesterdayBacklog + todayTarget;
+    const isCumulativeTargetMet = minutesRecordedToday >= cumulativeRequired;
+
+    return {
+      yesterdayDateStr,
+      yesterdayRecorded,
+      yesterdayTarget,
+      yesterdayBacklog,
+      minutesRecordedToday,
+      backlogRemaining,
+      isBacklogFulfilled,
+      effectiveTodayProgress,
+      todayTarget,
+      cumulativeRequired,
+      isCumulativeTargetMet,
+    };
+  },
+
+  // ─── TIME REMAINING TO SUBMIT TODAY'S LECTURE & BACKLOG STATUS ────────────────
   getTodayTimeRemaining(teacherId: string): {
     hours: number;
     minutes: number;
@@ -839,6 +907,11 @@ export const StorageService = {
     isTargetMet: boolean;
     minutesRecordedToday: number;
     targetMinutes: number;
+    yesterdayBacklog: number;
+    backlogRemaining: number;
+    isBacklogFulfilled: boolean;
+    effectiveTodayProgress: number;
+    cumulativeRequired: number;
   } {
     const now = new Date();
     const users = this.getUsers();
@@ -846,9 +919,10 @@ export const StorageService = {
     const commitment = this.getDailyCommitment(teacherId);
     const cutoffTime = teacher?.dailyUploadCutoffTime || commitment?.promisedTime || '20:00';
 
+    const backlogInfo = this.getPreviousDayBacklog(teacherId);
     const targetMinutes = teacher?.dailyTargetMinutes || 120;
     const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
-    const isTargetMet = minutesRecordedToday >= targetMinutes;
+    const isTargetMet = backlogInfo.isCumulativeTargetMet;
 
     const [hours, minutes] = cutoffTime.split(':').map(Number);
     const deadlineObj = new Date();
@@ -877,6 +951,11 @@ export const StorageService = {
       isTargetMet,
       minutesRecordedToday,
       targetMinutes,
+      yesterdayBacklog: backlogInfo.yesterdayBacklog,
+      backlogRemaining: backlogInfo.backlogRemaining,
+      isBacklogFulfilled: backlogInfo.isBacklogFulfilled,
+      effectiveTodayProgress: backlogInfo.effectiveTodayProgress,
+      cumulativeRequired: backlogInfo.cumulativeRequired,
     };
   },
 

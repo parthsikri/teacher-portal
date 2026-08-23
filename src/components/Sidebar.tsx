@@ -12,7 +12,6 @@ interface SidebarProps {
   onPageChange: (page: string) => void;
   onLogout: () => void;
   onRefreshData: () => void;
-  onOpenCommitmentModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -20,7 +19,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentPage,
   onPageChange,
   onLogout,
-  onOpenCommitmentModal,
 }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -62,9 +60,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         .reduce((sum, lec) => sum + (lec.adminRemarks?.length || 0), 0)
     : 0;
 
+  const backlogInfo = currentUser.role === 'teacher' ? StorageService.getPreviousDayBacklog(currentUser.teacherId) : null;
   const minutesRecordedToday = currentUser.role === 'teacher' ? StorageService.getMinutesRecordedToday(currentUser.teacherId) : 0;
-  const targetMinutes = currentUser.role === 'teacher' ? (currentUser.dailyTargetMinutes || 120) : 0;
-  const isTargetReached = minutesRecordedToday >= targetMinutes;
+  const targetMinutes = currentUser.role === 'teacher' ? (backlogInfo?.cumulativeRequired || currentUser.dailyTargetMinutes || 120) : 0;
+  const isTargetReached = currentUser.role === 'teacher' ? (backlogInfo?.isCumulativeTargetMet ?? (minutesRecordedToday >= targetMinutes)) : false;
 
   // Teacher Navigation Links
   const teacherNavItems = [
@@ -211,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="space-y-2">
               <div className="p-3 bg-slate-950/60 border border-slate-800/70 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Daily Target</span>
+                  <span>{backlogInfo && backlogInfo.yesterdayBacklog > 0 ? "Cumulative Goal:" : "Daily Target:"}</span>
                   <span className={isTargetReached ? 'text-emerald-400 font-bold' : 'text-slate-200 font-semibold'}>
                     {minutesRecordedToday} / {targetMinutes} min
                   </span>
@@ -222,13 +221,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     style={{ width: `${Math.min(100, (minutesRecordedToday / (targetMinutes || 1)) * 100)}%` }}
                   />
                 </div>
+                {backlogInfo && backlogInfo.yesterdayBacklog > 0 && !backlogInfo.isCumulativeTargetMet && (
+                  <div className="text-[10px] text-amber-400/90 font-medium">
+                    ⚠️ Includes {backlogInfo.yesterdayBacklog}m backlog from yesterday
+                  </div>
+                )}
               </div>
 
-              {/* PERMANENT DAILY CUTOFF SHORTCUT */}
+              {/* PERMANENT DAILY CUTOFF DISPLAY (LOCKED & READ-ONLY) */}
               {(() => {
-                const cutoff = currentUser.dailyUploadCutoffTime || StorageService.getDailyCommitment(currentUser.teacherId)?.promisedTime;
+                const cutoff = currentUser.dailyUploadCutoffTime || StorageService.getDailyCommitment(currentUser.teacherId)?.promisedTime || '20:00';
                 const formatTime = (time24?: string) => {
-                  if (!time24) return '';
+                  if (!time24) return '08:00 PM';
                   const [hours, minutes] = time24.split(':').map(Number);
                   const period = hours >= 12 ? 'PM' : 'AM';
                   const formattedHours = hours % 12 || 12;
@@ -237,16 +241,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 };
 
                 return (
-                  <button
-                    onClick={onOpenCommitmentModal}
-                    className="w-full py-1.5 px-2.5 rounded-lg bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 text-slate-300 text-[11px] flex items-center justify-between transition-colors"
-                    title="View daily upload cutoff schedule"
+                  <div
+                    className="w-full py-1.5 px-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-slate-300 text-[11px] flex items-center justify-between"
                   >
-                    <span className="text-slate-400">Daily Cutoff:</span>
+                    <span className="text-slate-400">Fixed Daily Cutoff:</span>
                     <span className="font-mono text-amber-400 font-bold">
-                      {cutoff ? formatTime(cutoff) : 'Set Cutoff →'}
+                      {formatTime(cutoff)}
                     </span>
-                  </button>
+                  </div>
                 );
               })()}
             </div>
