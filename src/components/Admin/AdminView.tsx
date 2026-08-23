@@ -59,9 +59,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   // Academic Directives & Teacher Acknowledgments Tracker State
+  const [refreshCounter, setRefreshCounter] = useState(0);
   const [directiveFilter, setDirectiveFilter] = useState<'all' | 'acknowledged' | 'pending'>('all');
-  const ackStats = useMemo(() => StorageService.getAdminRemarkAckStats(), [lectures]);
-  const allDirectives = useMemo(() => StorageService.getAllDirectivesWithLectures(), [lectures]);
+  const ackStats = useMemo(() => StorageService.getAdminRemarkAckStats(), [lectures, refreshCounter]);
+  const allDirectives = useMemo(() => StorageService.getAllDirectivesWithLectures(), [lectures, refreshCounter]);
   
   const filteredDirectives = useMemo(() => {
     if (directiveFilter === 'acknowledged') return allDirectives.filter((d) => d.remark.isAcknowledged);
@@ -144,12 +145,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
     return list.length > 0 ? list : ['Data Structures & Algorithms', 'Thermodynamics', 'Signals & Systems'];
   }, [teachers]);
 
+
   const refreshState = () => {
     setTeachers(StorageService.getTeachers());
     setLectures(StorageService.getLectures());
     setAssignedTopics(StorageService.getAssignedTopics());
     setSubjectReferences(StorageService.getSubjectReferences());
     setPptRequests(StorageService.getPptRequests());
+    setRefreshCounter((c) => c + 1);
   };
 
   useEffect(() => {
@@ -471,15 +474,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
     return 'UNIT 1';
   };
 
-  // Distinct list of available units across lectures and syllabus
+  // Distinct list of available units — scoped to the active teacher filter
   const allAvailableUnits = useMemo(() => {
     const unitSet = new Set<string>();
-    lectures.forEach((l) => {
+    const scopedLectures = selectedTeacherLectureFilter !== 'all'
+      ? lectures.filter((l) => l.teacherId.toUpperCase() === selectedTeacherLectureFilter.toUpperCase())
+      : lectures;
+    scopedLectures.forEach((l) => {
       unitSet.add(resolveLectureUnit(l, assignedTopics));
     });
-    assignedTopics.forEach((t) => {
-      if (t.unitNumber) unitSet.add(t.unitNumber.trim().toUpperCase());
-    });
+    // Only include syllabus units in "all teachers" view (keeps unit bar focused)
+    if (selectedTeacherLectureFilter === 'all') {
+      assignedTopics.forEach((t) => {
+        if (t.unitNumber) unitSet.add(t.unitNumber.trim().toUpperCase());
+      });
+    } else {
+      // Scope syllabus units to selected teacher
+      assignedTopics.filter((t) => t.teacherId.toUpperCase() === selectedTeacherLectureFilter.toUpperCase()).forEach((t) => {
+        if (t.unitNumber) unitSet.add(t.unitNumber.trim().toUpperCase());
+      });
+    }
     const arr = Array.from(unitSet);
     const num = (s: string) => parseInt(s.replace(/[^0-9]/g, ''), 10);
     return arr.sort((a, b) => {
@@ -488,7 +502,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       if (!isNaN(na) && !isNaN(nb)) return na - nb;
       return a.localeCompare(b);
     });
-  }, [lectures, assignedTopics]);
+  }, [lectures, assignedTopics, selectedTeacherLectureFilter]);
 
   // Hierarchically group lectures by Teacher -> then Unit-wise
   const teacherOrganizedLectures = useMemo(() => {
@@ -914,9 +928,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             {/* DIRECTIVES LIST */}
             {filteredDirectives.length === 0 ? (
-              <div className="p-8 text-center bg-slate-950/60 border border-slate-800 rounded-2xl text-slate-400 text-xs space-y-1">
-                <p className="font-semibold text-slate-300">No directives found under this filter.</p>
-                <p className="text-[11px] text-slate-500">Post quality feedback or action directives on any delivered lecture in Lecture Audits.</p>
+              <div className="p-8 text-center bg-slate-950/60 border border-slate-800 rounded-2xl text-slate-400 text-xs space-y-3">
+                <div className="text-3xl">{allDirectives.length === 0 ? '📋' : '🔍'}</div>
+                <div>
+                  <p className="font-semibold text-slate-300">
+                    {allDirectives.length === 0 ? 'No Academic Directives Posted Yet' : 'No Directives Match This Filter'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {allDirectives.length === 0
+                      ? 'Open Lecture Audits, inspect a faculty recording, and click "Write Directive" to post your first quality directive.'
+                      : 'Try switching to All or a different filter tab to view other directives.'}
+                  </p>
+                </div>
+                {allDirectives.length === 0 && (
+                  <button
+                    onClick={() => onPageChange('admin_lectures')}
+                    className="px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 font-bold rounded-xl text-xs transition-colors mx-auto"
+                  >
+                    Go to Lecture Audits →
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

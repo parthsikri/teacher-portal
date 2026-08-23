@@ -502,6 +502,40 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           )}
 
+          {/* ADMIN DIRECTIVES ALERT — shown when teacher has unacknowledged directives */}
+          {teacherRemarks.filter((r) => !r.isAcknowledged).length > 0 && (() => {
+            const unread = teacherRemarks.filter((r) => !r.isAcknowledged);
+            const first = unread[0];
+            return (
+              <div className="bg-gradient-to-r from-indigo-950/80 via-purple-950/60 to-slate-900 border-2 border-indigo-500/70 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-xl shadow-indigo-950/30">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/50 text-indigo-400 flex items-center justify-center shrink-0 shadow-inner">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-600 text-white uppercase tracking-wider shadow-sm animate-pulse">
+                        📌 {unread.length} Directive{unread.length > 1 ? 's' : ''} Awaiting Acknowledgment
+                      </span>
+                    </div>
+                    <p className="font-bold text-slate-100 text-sm truncate max-w-xs sm:max-w-md">
+                      Re: {first?.lectureTitle} — &quot;{(first?.remark || '').slice(0, 70)}{(first?.remark?.length || 0) > 70 ? '…' : ''}&quot;
+                    </p>
+                    <p className="text-[11px] text-indigo-200/70 italic">
+                      Review and acknowledge {unread.length > 1 ? 'all directives' : 'this directive'} from Academic Operations
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onPageChange('directives')}
+                  className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-indigo-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" /> View &amp; Acknowledge →
+                </button>
+              </div>
+            );
+          })()}
+
           {/* ACTIVE PRIORITY NOTIFICATION (IF ANY) */}
           {nextUrgentTopic && (
             <div className={`border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
@@ -1131,6 +1165,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           <div className="flex items-start justify-between gap-2">
                             <div className="truncate flex-1">
                               <h4 className="font-semibold text-slate-100 truncate">{lec.title}</h4>
+                              {lec.adminRemarks?.some((r) => !r.isAcknowledged) && (
+                                <button
+                                  onClick={() => onPageChange('directives')}
+                                  className="text-[9px] font-black text-amber-300 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 mt-0.5 w-fit hover:bg-amber-500/30 transition-colors"
+                                >
+                                  ⚠️ {lec.adminRemarks.filter((r) => !r.isAcknowledged).length} Directive{lec.adminRemarks.filter((r) => !r.isAcknowledged).length > 1 ? 's' : ''} — Tap to Acknowledge
+                                </button>
+                              )}
                               <span className="text-[11px] text-slate-400">{lec.subject}</span>
                             </div>
                             <span className={`text-[10px] font-medium shrink-0 ${
