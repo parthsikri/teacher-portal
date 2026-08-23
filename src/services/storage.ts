@@ -672,6 +672,51 @@ export const StorageService = {
     }
   },
 
+  // Returns all administrative directives attached to lectures, with live acknowledgment statuses
+  getAllDirectivesWithLectures(): Array<{
+    remark: AdminRemark;
+    lectureId: string;
+    lectureTitle: string;
+    teacherId: string;
+    teacherName: string;
+    subject: string;
+    unitNumber?: string;
+  }> {
+    const lectures = this.getLectures();
+    const list: Array<{
+      remark: AdminRemark;
+      lectureId: string;
+      lectureTitle: string;
+      teacherId: string;
+      teacherName: string;
+      subject: string;
+      unitNumber?: string;
+    }> = [];
+
+    lectures.forEach((lec) => {
+      lec.adminRemarks?.forEach((rem) => {
+        list.push({
+          remark: rem,
+          lectureId: lec.id,
+          lectureTitle: lec.title,
+          teacherId: lec.teacherId,
+          teacherName: lec.teacherName,
+          subject: lec.subject,
+          unitNumber: lec.unitNumber,
+        });
+      });
+    });
+
+    // Sort: unread/new acks first, then by timestamp desc
+    return list.sort((a, b) => {
+      if (a.remark.isNewAckForAdmin && !b.remark.isNewAckForAdmin) return -1;
+      if (!a.remark.isNewAckForAdmin && b.remark.isNewAckForAdmin) return 1;
+      const timeA = a.remark.acknowledgedAt || a.remark.createdAt || '';
+      const timeB = b.remark.acknowledgedAt || b.remark.createdAt || '';
+      return timeB.localeCompare(timeA);
+    });
+  },
+
   // Total recording minutes completed today by the teacher (Timezone aware)
   getMinutesRecordedToday(teacherId: string): number {
     const lectures = this.getLectures();

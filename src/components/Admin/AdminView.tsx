@@ -58,8 +58,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
     });
   };
 
+  // Academic Directives & Teacher Acknowledgments Tracker State
+  const [directiveFilter, setDirectiveFilter] = useState<'all' | 'acknowledged' | 'pending'>('all');
+  const ackStats = useMemo(() => StorageService.getAdminRemarkAckStats(), [lectures]);
+  const allDirectives = useMemo(() => StorageService.getAllDirectivesWithLectures(), [lectures]);
+  
+  const filteredDirectives = useMemo(() => {
+    if (directiveFilter === 'acknowledged') return allDirectives.filter((d) => d.remark.isAcknowledged);
+    if (directiveFilter === 'pending') return allDirectives.filter((d) => !d.remark.isAcknowledged);
+    return allDirectives;
+  }, [allDirectives, directiveFilter]);
+
   useEffect(() => {
-    if (currentPage === 'admin_lectures') {
+    if (currentPage === 'admin_lectures' || currentPage === 'admin_dashboard') {
       StorageService.markAdminAcksAsRead();
     }
   }, [currentPage]);
@@ -704,7 +715,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           {/* METRICS STATS OVERVIEW */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <div 
               onClick={() => onPageChange('admin_faculty')}
               className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 space-y-1.5 shadow-lg cursor-pointer hover:border-indigo-500/40 transition-all"
@@ -714,7 +725,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <Users className="w-4 h-4 text-indigo-400" />
               </div>
               <div className="text-3xl font-black text-slate-100">{teachers.length}</div>
-              <div className="text-[11px] text-indigo-400 font-medium">Manage faculty roster ➔</div>
+              <div className="text-[11px] text-indigo-400 font-medium">Manage roster ➔</div>
             </div>
 
             <div 
@@ -726,7 +737,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <Layers className="w-4 h-4 text-amber-400" />
               </div>
               <div className="text-3xl font-black text-amber-400">{assignedTopics.length}</div>
-              <div className="text-[11px] text-amber-300/80 font-medium">View syllabus tracker ➔</div>
+              <div className="text-[11px] text-amber-300/80 font-medium">Syllabus tracker ➔</div>
             </div>
 
             <div 
@@ -738,7 +749,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <Clock className="w-4 h-4 text-purple-400" />
               </div>
               <div className="text-3xl font-black text-purple-300">{pendingApprovalTopics.length}</div>
-              <div className="text-[11px] text-purple-400 font-medium">Subtopic proposals inbox ➔</div>
+              <div className="text-[11px] text-purple-400 font-medium">Review inbox ➔</div>
             </div>
 
             <div 
@@ -750,7 +761,30 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <Video className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-3xl font-black text-slate-100">{lectures.length}</div>
-              <div className="text-[11px] text-emerald-400 font-medium">Audit video sessions ➔</div>
+              <div className="text-[11px] text-emerald-400 font-medium">Audit sessions ➔</div>
+            </div>
+
+            <div 
+              onClick={() => onPageChange('admin_lectures')}
+              className="bg-slate-900/90 border border-indigo-500/40 rounded-3xl p-5 space-y-1.5 shadow-lg cursor-pointer hover:border-indigo-500/80 transition-all bg-indigo-950/15 relative overflow-hidden"
+            >
+              {ackStats.newAcks > 0 && (
+                <div className="absolute top-2 right-2 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </div>
+              )}
+              <div className="text-xs text-indigo-300 font-semibold flex items-center justify-between">
+                <span>Directives & Acks</span>
+                <MessageCircle className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div className="text-3xl font-black text-indigo-300">
+                {ackStats.acknowledged}/{ackStats.total}
+              </div>
+              <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                {ackStats.total > 0 ? Math.round((ackStats.acknowledged / ackStats.total) * 100) : 100}% Acknowledged
+              </div>
             </div>
           </div>
 
@@ -812,6 +846,175 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
             </div>
           )}
+
+          {/* ACADEMIC DIRECTIVES & FACULTY ACKNOWLEDGMENTS TRACKER */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                    <MessageCircle className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black text-slate-100">
+                        Academic Directives & Teacher Acknowledgments Feed
+                      </h3>
+                      {ackStats.newAcks > 0 && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                          🔔 {ackStats.newAcks} New Acknowledged
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Live audit of instructions posted to faculty recordings and their verified acknowledgment receipts
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* STATS BADGES & FILTER TABS */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                  <button
+                    onClick={() => setDirectiveFilter('all')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                      directiveFilter === 'all'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    All ({allDirectives.length})
+                  </button>
+                  <button
+                    onClick={() => setDirectiveFilter('acknowledged')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                      directiveFilter === 'acknowledged'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-emerald-300'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Acknowledged ({ackStats.acknowledged})
+                  </button>
+                  <button
+                    onClick={() => setDirectiveFilter('pending')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                      directiveFilter === 'pending'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-amber-300'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    Pending ({ackStats.pending})
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* DIRECTIVES LIST */}
+            {filteredDirectives.length === 0 ? (
+              <div className="p-8 text-center bg-slate-950/60 border border-slate-800 rounded-2xl text-slate-400 text-xs space-y-1">
+                <p className="font-semibold text-slate-300">No directives found under this filter.</p>
+                <p className="text-[11px] text-slate-500">Post quality feedback or action directives on any delivered lecture in Lecture Audits.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredDirectives.map((item) => {
+                  const isAck = item.remark.isAcknowledged;
+
+                  return (
+                    <div
+                      key={item.remark.id}
+                      className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-3.5 shadow-md ${
+                        isAck
+                          ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/20 border-emerald-500/40 hover:border-emerald-500/60'
+                          : 'bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/20 border-amber-500/40 hover:border-amber-500/60'
+                      }`}
+                    >
+                      {/* TOP: FACULTY & LECTURE INFO */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center font-bold text-xs text-indigo-300">
+                              👨‍🏫
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-100 leading-tight">
+                                {item.teacherName}
+                              </h4>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {item.teacherId} • {item.subject}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* ACKNOWLEDGMENT BADGE */}
+                          {isAck ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              Acknowledged
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 animate-pulse">
+                              <Clock className="w-3.5 h-3.5 text-amber-400" />
+                              Pending Action
+                            </span>
+                          )}
+                        </div>
+
+                        {/* LECTURE TITLE */}
+                        <div className="px-3 py-1.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex items-center justify-between gap-2">
+                          <span className="truncate font-semibold flex items-center gap-1.5">
+                            <Video className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            {item.lectureTitle}
+                          </span>
+                          {item.unitNumber && (
+                            <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[9px] font-bold shrink-0">
+                              {item.unitNumber}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* DIRECTIVE TEXT */}
+                        <div className="p-3 bg-purple-950/20 border border-purple-500/30 rounded-xl text-xs text-purple-200 italic leading-relaxed">
+                          "{item.remark.remarkText}"
+                        </div>
+                      </div>
+
+                      {/* BOTTOM: RECEIPT TIMESTAMP & ACTIONS */}
+                      <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
+                        {isAck ? (
+                          <div className="text-emerald-400 text-[10px] font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span>
+                              Acknowledged by <strong>{item.remark.acknowledgedByName || item.teacherName}</strong>
+                              {item.remark.acknowledgedAt && ` on ${new Date(item.remark.acknowledgedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-amber-400/90 text-[10px] font-medium flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>Awaiting teacher to acknowledge on Teacher Portal</span>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setSelectedTeacherLectureFilter(item.teacherId);
+                            onPageChange('admin_lectures');
+                          }}
+                          className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 self-end sm:self-auto cursor-pointer"
+                        >
+                          Audit Lecture ➔
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* TEACHER TOPIC PYQ DECK REQUESTS QUEUE */}
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
