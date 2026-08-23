@@ -53,6 +53,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     `${userSubject} - Previous Year Questions (PYQs) Bank`
   );
   const [includeUnitDividers, setIncludeUnitDividers] = useState<boolean>(true);
+  const [includeTopicDividers, setIncludeTopicDividers] = useState<boolean>(true);
   const [directPyqRows, setDirectPyqRows] = useState<DirectPyqRow[]>([]);
   const [directFileName, setDirectFileName] = useState<string>('');
   const [directSearchQuery, setDirectSearchQuery] = useState<string>('');
@@ -156,6 +157,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     return AiPptService.sortDirectPyqs(directPyqRows, syllabusTopicsList);
   }, [directPyqRows, syllabusTopicsList]);
 
+  // Grouped by Unit -> Topics -> Questions
+  const unitQuestionGroups = useMemo(() => {
+    return AiPptService.groupAndSortPyqsByUnitAndTopic(directPyqRows, syllabusTopicsList);
+  }, [directPyqRows, syllabusTopicsList]);
+
   // Unique units from parsed PYQs
   const detectedUnits = useMemo(() => {
     const set = new Set<string>();
@@ -165,18 +171,36 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     return Array.from(set).sort((a, b) => AiPptService.extractUnitNumber(a) - AiPptService.extractUnitNumber(b));
   }, [directPyqRows]);
 
-  // Filtered PYQs for table view
-  const filteredDirectPyqs = useMemo(() => {
-    return sortedDirectPyqs.filter((r) => {
-      const matchUnit = selectedUnitFilter === 'all' || r.unitNumber === selectedUnitFilter;
-      const matchSearch =
-        !directSearchQuery ||
-        r.questionText.toLowerCase().includes(directSearchQuery.toLowerCase()) ||
-        r.mappedTopic.toLowerCase().includes(directSearchQuery.toLowerCase()) ||
-        r.yearExam.toLowerCase().includes(directSearchQuery.toLowerCase());
-      return matchUnit && matchSearch;
-    });
-  }, [sortedDirectPyqs, selectedUnitFilter, directSearchQuery]);
+  // Filtered unit groups based on unit selector and search query
+  const filteredUnitGroups = useMemo(() => {
+    return unitQuestionGroups
+      .filter((uGroup) => selectedUnitFilter === 'all' || uGroup.unitNumber === selectedUnitFilter)
+      .map((uGroup) => {
+        if (!directSearchQuery.trim()) return uGroup;
+        const q = directSearchQuery.toLowerCase();
+        const filteredTopics = uGroup.topicGroups
+          .map((tGroup) => {
+            const matchingQuestions = tGroup.questions.filter(
+              (r) =>
+                r.questionText.toLowerCase().includes(q) ||
+                r.mappedTopic.toLowerCase().includes(q) ||
+                r.yearExam.toLowerCase().includes(q)
+            );
+            return {
+              ...tGroup,
+              questions: matchingQuestions,
+            };
+          })
+          .filter((tGroup) => tGroup.questions.length > 0);
+
+        return {
+          ...uGroup,
+          totalQuestions: filteredTopics.reduce((acc, t) => acc + t.questions.length, 0),
+          topicGroups: filteredTopics,
+        };
+      })
+      .filter((uGroup) => uGroup.topicGroups.length > 0);
+  }, [unitQuestionGroups, selectedUnitFilter, directSearchQuery]);
 
   // ════════════════════════════════════════════════════════════════════════════
   // DIRECT PYQ HANDLERS (NO DEEPSEEK)
@@ -277,6 +301,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         pyqs: directPyqRows,
         syllabusTopicsOrder: syllabusTopicsList,
         includeUnitDividers,
+        includeTopicDividers,
       });
 
       setGeneratedDeck(deck);
@@ -679,15 +704,27 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 </div>
 
                 {/* Include Unit Transition Slides */}
-                <label className="flex items-center gap-2 pt-1 text-slate-300 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={includeUnitDividers}
-                    onChange={(e) => setIncludeUnitDividers(e.target.checked)}
-                    className="rounded border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4"
-                  />
-                  <span>Include Unit Transition / Divider Slides (UNIT 1, UNIT 2...)</span>
-                </label>
+                <div className="space-y-2 pt-1">
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={includeUnitDividers}
+                      onChange={(e) => setIncludeUnitDividers(e.target.checked)}
+                      className="rounded border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4"
+                    />
+                    <span>Include Unit Divider Slides (UNIT 1, UNIT 2...)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={includeTopicDividers}
+                      onChange={(e) => setIncludeTopicDividers(e.target.checked)}
+                      className="rounded border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4"
+                    />
+                    <span>Include Topic Section Slides (combining topic questions)</span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -995,6 +1032,32 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                       </div>
                     )}
 
+                    {/* 2b. TOPIC SECTION DIVIDER SLIDE */}
+                    {activeSlide?.type === 'topic_divider' && (
+                      <div className="p-6 rounded-2xl bg-slate-900/95 border-2 border-emerald-500/40 text-center space-y-3 my-auto shadow-xl">
+                        <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
+                          {activeSlide.badge || 'TOPIC SECTION'}
+                        </span>
+                        <h2 className="text-xl md:text-2xl font-black text-white">
+                          {activeSlide.title}
+                        </h2>
+                        {activeSlide.subtitle && (
+                          <p className="text-xs text-slate-400">
+                            {activeSlide.subtitle}
+                          </p>
+                        )}
+                        {activeSlide.bullets && activeSlide.bullets.length > 0 && (
+                          <div className="flex flex-wrap justify-center gap-1.5 pt-2 max-w-lg mx-auto">
+                            {activeSlide.bullets.map((t, idx) => (
+                              <span key={idx} className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-lg text-[10px] text-amber-300 font-medium">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* 3. DIRECT PYQ QUESTION CARD */}
                     {(activeSlide?.type === 'direct_pyq' || activeSlide?.pyqDetails) && (
                       <div className="space-y-3">
@@ -1149,29 +1212,78 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   </div>
                 </div>
 
-                {/* Table list */}
-                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-                  {filteredDirectPyqs.map((q, idx) => (
-                    <div
-                      key={q.id || idx}
-                      className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80 space-y-1 text-xs"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono font-bold text-indigo-300">
-                            {q.unitNumber}
-                          </span>
-                          <span className="font-bold text-slate-200 truncate">{q.mappedTopic}</span>
-                        </div>
-                        <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono shrink-0">
-                          {q.yearExam}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 line-clamp-2">
-                        {q.questionText}
-                      </p>
+                {/* Unit -> Topic Grouped Breakdown */}
+                <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
+                  {filteredUnitGroups.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500 italic">
+                      No questions match the current filter or search criteria.
                     </div>
-                  ))}
+                  ) : (
+                    filteredUnitGroups.map((uGroup) => (
+                      <div
+                        key={uGroup.unitNumber}
+                        className="p-3 bg-slate-950/90 rounded-2xl border border-indigo-500/20 space-y-2.5"
+                      >
+                        {/* Unit Header */}
+                        <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white text-xs font-mono font-bold">
+                              {uGroup.unitNumber}
+                            </span>
+                            <span className="text-xs text-slate-200 font-bold">
+                              {uGroup.totalQuestions} {uGroup.totalQuestions === 1 ? 'Question' : 'Questions'} • {uGroup.topicGroups.length} {uGroup.topicGroups.length === 1 ? 'Topic' : 'Topics'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Topic Groups inside this Unit */}
+                        <div className="space-y-2">
+                          {uGroup.topicGroups.map((tGroup, tIdx) => (
+                            <div
+                              key={tIdx}
+                              className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold shrink-0">
+                                    Topic #{tIdx + 1}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-100 truncate">
+                                    {tGroup.topicName}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-amber-400 font-mono font-bold shrink-0">
+                                  {tGroup.questions.length} {tGroup.questions.length === 1 ? 'PYQ' : 'PYQs Combined'}
+                                </span>
+                              </div>
+
+                              {/* Questions belonging to this topic */}
+                              <div className="space-y-1 pl-2 border-l-2 border-slate-800">
+                                {tGroup.questions.map((q, qIdx) => (
+                                  <div
+                                    key={q.id || qIdx}
+                                    className="p-2 bg-slate-950/80 rounded-lg text-xs space-y-0.5"
+                                  >
+                                    <div className="flex items-center justify-between text-[10px]">
+                                      <span className="text-slate-400 font-medium font-mono">
+                                        Q{qIdx + 1} of {tGroup.questions.length}
+                                      </span>
+                                      <span className="text-emerald-400 font-mono">
+                                        {q.yearExam} {q.marks ? `[${q.marks}]` : ''}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                                      {q.questionText}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}

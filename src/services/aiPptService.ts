@@ -2,6 +2,19 @@ import * as XLSX from 'xlsx';
 import PptxGenJS from 'pptxgenjs';
 import { jsPDF } from 'jspdf';
 
+export interface TopicQuestionGroup {
+  topicName: string;
+  topicOrderIndex: number;
+  questions: DirectPyqRow[];
+}
+
+export interface UnitQuestionGroup {
+  unitNumber: string;
+  unitOrderNumber: number;
+  totalQuestions: number;
+  topicGroups: TopicQuestionGroup[];
+}
+
 export interface DirectPyqRow {
   id: string;
   yearExam: string;
@@ -23,7 +36,7 @@ export interface PyqItem {
 
 export interface AiSlide {
   slideNumber: number;
-  type: 'title' | 'unit_divider' | 'direct_pyq' | 'first_principles' | 'concept_card' | 'two_column' | 'step_by_step' | 'pyq_solution' | 'common_mistakes' | 'summary' | string;
+  type: 'title' | 'unit_divider' | 'topic_divider' | 'direct_pyq' | 'first_principles' | 'concept_card' | 'two_column' | 'step_by_step' | 'pyq_solution' | 'common_mistakes' | 'summary' | string;
   badge?: string;
   title: string;
   subtitle?: string;
@@ -197,15 +210,19 @@ export const AiPptService = {
   },
 
   /**
-   * Sorts PYQs:
-   * 1. Unitwise (UNIT 1, UNIT 2, UNIT 3...)
-   * 2. Within each unit, in exact order of dashboard syllabus topics!
+   * Groups questions:
+   * 1. By Unit (Unit 1, Unit 2, Unit 3...)
+   * 2. Within each unit, combines all questions of each Mapped Topic together.
+   * 3. Orders topics in each unit according to the dashboard syllabus order.
    */
-  sortDirectPyqs(pyqs: DirectPyqRow[], syllabusTopicsOrder: string[] = []): DirectPyqRow[] {
+  groupAndSortPyqsByUnitAndTopic(
+    pyqs: DirectPyqRow[],
+    syllabusTopicsOrder: string[] = []
+  ): UnitQuestionGroup[] {
     const cleanSyllabusList = syllabusTopicsOrder.map((t) => t.trim().toLowerCase()).filter(Boolean);
 
-    const getTopicOrderIndex = (topic: string) => {
-      const cleanTopic = topic.trim().toLowerCase();
+    const getTopicRank = (topicName: string): number => {
+      const cleanTopic = topicName.trim().toLowerCase();
       if (!cleanTopic) return 9999;
 
       // Exact match
@@ -219,34 +236,82 @@ export const AiPptService = {
       return 9999;
     };
 
-    return [...pyqs].sort((a, b) => {
-      // 1. Sort by Unit number
-      const unitNumA = AiPptService.extractUnitNumber(a.unitNumber);
-      const unitNumB = AiPptService.extractUnitNumber(b.unitNumber);
-      if (unitNumA !== unitNumB) {
-        return unitNumA - unitNumB;
-      }
-
-      // Unit string fallback
-      if (a.unitNumber.localeCompare(b.unitNumber) !== 0) {
-        return a.unitNumber.localeCompare(b.unitNumber);
-      }
-
-      // 2. Sort by Syllabus Topic order index
-      const topicRankA = getTopicOrderIndex(a.mappedTopic);
-      const topicRankB = getTopicOrderIndex(b.mappedTopic);
-
-      if (topicRankA !== topicRankB) {
-        return topicRankA - topicRankB;
-      }
-
-      // 3. Fallback: alphabetical by Mapped Topic
-      return a.mappedTopic.localeCompare(b.mappedTopic);
+    // 1. Group by unit
+    const unitMap = new Map<string, DirectPyqRow[]>();
+    pyqs.forEach((q) => {
+      const unit = q.unitNumber || 'UNIT 1';
+      if (!unitMap.has(unit)) unitMap.set(unit, []);
+      unitMap.get(unit)!.push(q);
     });
+
+    const unitGroups: UnitQuestionGroup[] = [];
+
+    unitMap.forEach((questionsInUnit, unitName) => {
+      // 2. Within unit, group by topic
+      const topicMap = new Map<string, DirectPyqRow[]>();
+      questionsInUnit.forEach((q) => {
+        const topic = q.mappedTopic?.trim() || 'General Concept';
+        if (!topicMap.has(topic)) topicMap.set(topic, []);
+        topicMap.get(topic)!.push(q);
+      });
+
+      const topicGroups: TopicQuestionGroup[] = [];
+      topicMap.forEach((questionsInTopic, topicName) => {
+        topicGroups.push({
+          topicName,
+          topicOrderIndex: getTopicRank(topicName),
+          questions: questionsInTopic,
+        });
+      });
+
+      // Sort topic groups by syllabus order, then alphabetically
+      topicGroups.sort((a, b) => {
+        if (a.topicOrderIndex !== b.topicOrderIndex) {
+          return a.topicOrderIndex - b.topicOrderIndex;
+        }
+        return a.topicName.localeCompare(b.topicName);
+      });
+
+      unitGroups.push({
+        unitNumber: unitName,
+        unitOrderNumber: AiPptService.extractUnitNumber(unitName),
+        totalQuestions: questionsInUnit.length,
+        topicGroups,
+      });
+    });
+
+    // Sort units naturally (UNIT 1 < UNIT 2 < UNIT 10)
+    unitGroups.sort((a, b) => {
+      if (a.unitOrderNumber !== b.unitOrderNumber) {
+        return a.unitOrderNumber - b.unitOrderNumber;
+      }
+      return a.unitNumber.localeCompare(b.unitNumber);
+    });
+
+    return unitGroups;
+  },
+
+  /**
+   * Sorts PYQs: combines all questions of a topic together, and all topics of a unit together.
+   */
+  sortDirectPyqs(pyqs: DirectPyqRow[], syllabusTopicsOrder: string[] = []): DirectPyqRow[] {
+    const unitGroups = this.groupAndSortPyqsByUnitAndTopic(pyqs, syllabusTopicsOrder);
+    const flattened: DirectPyqRow[] = [];
+
+    unitGroups.forEach((uGroup) => {
+      uGroup.topicGroups.forEach((tGroup) => {
+        tGroup.questions.forEach((q) => {
+          flattened.push(q);
+        });
+      });
+    });
+
+    return flattened;
   },
 
   /**
    * Deterministically generates a presentation deck from PYQs without DeepSeek / AI
+   * Combines all questions of a topic, then all topics of a unit!
    */
   generateDirectPyqDeck(params: {
     subject: string;
@@ -254,6 +319,7 @@ export const AiPptService = {
     pyqs: DirectPyqRow[];
     syllabusTopicsOrder?: string[];
     includeUnitDividers?: boolean;
+    includeTopicDividers?: boolean;
   }): AiGeneratedDeck {
     const {
       subject,
@@ -261,85 +327,98 @@ export const AiPptService = {
       pyqs,
       syllabusTopicsOrder = [],
       includeUnitDividers = true,
+      includeTopicDividers = true,
     } = params;
 
-    const sortedPyqs = this.sortDirectPyqs(pyqs, syllabusTopicsOrder);
-
-    // Group by unit to compute summary
-    const unitMap = new Map<string, DirectPyqRow[]>();
-    sortedPyqs.forEach((q) => {
-      const u = q.unitNumber || 'UNIT 1';
-      if (!unitMap.has(u)) unitMap.set(u, []);
-      unitMap.get(u)!.push(q);
-    });
+    const unitGroups = this.groupAndSortPyqsByUnitAndTopic(pyqs, syllabusTopicsOrder);
+    const totalQuestions = pyqs.length;
 
     const slides: AiSlide[] = [];
     let slideCounter = 1;
 
     // 1. Title Cover Slide
+    const unitNames = unitGroups.map((u) => u.unitNumber).join(', ');
     slides.push({
       slideNumber: slideCounter++,
       type: 'title',
       badge: 'PREVIOUS YEAR QUESTIONS BANK',
       title: deckTitle,
-      subtitle: `${subject} • Complete Exam Analysis & Solutions`,
+      subtitle: `${subject} • Unitwise & Topic-wise Question Bank`,
       bullets: [
-        `Curriculum Units: ${Array.from(unitMap.keys()).join(', ')}`,
-        `Total Examination Questions: ${sortedPyqs.length} PYQs`,
-        `Organized in Exact Syllabus Order • Apna Engineering Wallah`,
+        `Curriculum Units: ${unitNames || 'All Units'}`,
+        `Total Examination Questions: ${totalQuestions} PYQs`,
+        `Grouped by Topic in Exact Syllabus Order • Apna Engineering Wallah`,
       ],
       calloutTip: 'Apna Engineering Wallah Academic Content Studio',
     });
 
-    // 2. Unit Transition Slides & Question Slides
-    let currentUnit = '';
+    // 2. Iterate Unit Groups -> Topic Groups -> Questions
+    let globalQuestionCounter = 1;
 
-    sortedPyqs.forEach((pyq, qIdx) => {
-      const unit = pyq.unitNumber || 'UNIT 1';
-
-      // Insert unit divider slide when unit changes
-      if (includeUnitDividers && unit !== currentUnit) {
-        currentUnit = unit;
-        const unitQuestions = unitMap.get(unit) || [];
-        const uniqueTopics = Array.from(new Set(unitQuestions.map((q) => q.mappedTopic).filter(Boolean)));
-
+    unitGroups.forEach((uGroup) => {
+      // 2a. Unit Transition Divider Slide
+      if (includeUnitDividers) {
+        const topicsList = uGroup.topicGroups.map((t) => `${t.topicName} (${t.questions.length}Q)`);
         slides.push({
           slideNumber: slideCounter++,
           type: 'unit_divider',
-          badge: unit,
-          title: `${unit}: Examination Question Bank`,
-          subtitle: `${unitQuestions.length} Questions • ${subject}`,
-          bullets: uniqueTopics.slice(0, 8).map((t) => `• ${t}`),
-          calloutTip: `${unitQuestions.length} High-Yield Exam Questions`,
+          badge: uGroup.unitNumber,
+          title: `${uGroup.unitNumber}: Examination Question Bank`,
+          subtitle: `${uGroup.totalQuestions} Questions across ${uGroup.topicGroups.length} Topics • ${subject}`,
+          bullets: topicsList,
+          calloutTip: `${uGroup.totalQuestions} High-Yield PYQs in ${uGroup.unitNumber}`,
         });
       }
 
-      // Add Question Slide
-      slides.push({
-        slideNumber: slideCounter++,
-        type: 'direct_pyq',
-        badge: `${unit} • ${pyq.mappedTopic || 'Core Topic'}`,
-        title: `Q${qIdx + 1}: ${pyq.mappedTopic || 'Question'}`,
-        subtitle: pyq.yearExam ? `Exam: ${pyq.yearExam}${pyq.marks ? ` [${pyq.marks}]` : ''}` : undefined,
-        pyqDetails: {
-          examYear: pyq.yearExam,
-          marks: pyq.marks,
-          question: pyq.questionText,
-          stepByStepSolution: pyq.solution
-            ? [pyq.solution]
-            : ['Detailed solution, key formulas, and step-by-step derivation for student practice.'],
-        },
-        calloutTip: `Exam: ${pyq.yearExam || 'PYQ'} • Target Unit: ${unit}`,
+      // 2b. Iterate Topic Groups inside this Unit
+      uGroup.topicGroups.forEach((tGroup, tIdx) => {
+        // Topic Section Divider Slide
+        if (includeTopicDividers) {
+          const questionExamYears = tGroup.questions.map(
+            (q, qNum) => `${qNum + 1}. ${q.yearExam}${q.marks ? ` [${q.marks}]` : ''}`
+          );
+
+          slides.push({
+            slideNumber: slideCounter++,
+            type: 'topic_divider',
+            badge: `${uGroup.unitNumber} • TOPIC ${tIdx + 1}`,
+            title: `Topic: ${tGroup.topicName}`,
+            subtitle: `${tGroup.questions.length} Previous Year Questions • ${subject}`,
+            bullets: questionExamYears.slice(0, 8),
+            calloutTip: `Topic ${tIdx + 1} of ${uGroup.topicGroups.length} in ${uGroup.unitNumber}`,
+          });
+        }
+
+        // 2c. Question Slides for this Topic
+        tGroup.questions.forEach((pyq, qIdxInTopic) => {
+          slides.push({
+            slideNumber: slideCounter++,
+            type: 'direct_pyq',
+            badge: `${uGroup.unitNumber} • ${tGroup.topicName}`,
+            title: `${tGroup.topicName} — Question ${qIdxInTopic + 1} of ${tGroup.questions.length}`,
+            subtitle: pyq.yearExam ? `Exam: ${pyq.yearExam}${pyq.marks ? ` [${pyq.marks}]` : ''}` : undefined,
+            pyqDetails: {
+              examYear: pyq.yearExam,
+              marks: pyq.marks,
+              question: pyq.questionText,
+              stepByStepSolution: pyq.solution
+                ? [pyq.solution]
+                : ['Detailed solution, key formulas, and step-by-step derivation for student practice.'],
+            },
+            calloutTip: `Overall Question #${globalQuestionCounter} • ${pyq.yearExam || 'Exam PYQ'}`,
+          });
+          globalQuestionCounter++;
+        });
       });
     });
 
     return {
       deckTitle,
       subject,
-      unit: Array.from(unitMap.keys()).join(', '),
-      topicTitle: `${sortedPyqs.length} Exam PYQs`,
-      summary: `Comprehensive presentation of ${sortedPyqs.length} previous year questions mapped unitwise and ordered by syllabus.`,
-      relevantPyqCount: sortedPyqs.length,
+      unit: unitNames,
+      topicTitle: `${totalQuestions} Exam PYQs`,
+      summary: `Comprehensive presentation of ${totalQuestions} previous year questions combined topic-wise and unit-wise in syllabus order.`,
+      relevantPyqCount: totalQuestions,
       slides,
       generatedAt: new Date().toISOString(),
     };
@@ -682,6 +761,81 @@ export const AiPptService = {
             color: themeColors.accentSecondary,
             fontFace: 'Arial',
             lineSpacing: 16,
+          });
+        }
+      }
+
+      // ── TYPE: TOPIC DIVIDER ──────────────────────────────────────────
+      else if (slide.type === 'topic_divider') {
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 1.0,
+          y: 1.2,
+          w: 8.0,
+          h: 3.4,
+          fill: { color: themeColors.cardBg },
+          line: { color: themeColors.accentSecondary, width: 1.5 },
+          rectRadius: 0.15,
+        });
+
+        // Topic badge pill
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 1.3,
+          y: 1.5,
+          w: 2.6,
+          h: 0.4,
+          fill: { color: themeColors.badgeBg },
+          line: { color: themeColors.accentSecondary, width: 1 },
+          rectRadius: 0.1,
+        });
+
+        pptSlide.addText(slide.badge || 'TOPIC SECTION', {
+          x: 1.3,
+          y: 1.5,
+          w: 2.6,
+          h: 0.4,
+          fontSize: 11,
+          bold: true,
+          color: themeColors.badgeText,
+          align: 'center',
+          fontFace: 'Arial',
+        });
+
+        // Topic Title
+        pptSlide.addText(slide.title, {
+          x: 1.3,
+          y: 2.05,
+          w: 7.4,
+          h: 0.65,
+          fontSize: 20,
+          bold: true,
+          color: themeColors.textPrimary,
+          fontFace: 'Arial',
+        });
+
+        if (slide.subtitle) {
+          pptSlide.addText(slide.subtitle, {
+            x: 1.3,
+            y: 2.7,
+            w: 7.4,
+            h: 0.35,
+            fontSize: 12,
+            italic: true,
+            color: themeColors.textSecondary,
+            fontFace: 'Arial',
+          });
+        }
+
+        if (slide.bullets && slide.bullets.length > 0) {
+          const qList = slide.bullets.join('\n');
+          pptSlide.addText(`Questions in this Topic:\n${qList}`, {
+            x: 1.3,
+            y: 3.15,
+            w: 7.4,
+            h: 1.2,
+            fontSize: 10,
+            color: themeColors.accentSecondary,
+            fontFace: 'Arial',
+            lineSpacing: 14,
           });
         }
       }
