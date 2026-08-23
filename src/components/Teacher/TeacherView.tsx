@@ -3,6 +3,7 @@ import type { User, Lecture, AssignedTopic } from '../../types';
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { PptRequestPortal } from './PptRequestPortal';
+import confetti from 'canvas-confetti';
 import { 
   Search, FileText, Plus, Play,
   Edit3, ExternalLink, Copy, Check, ChevronRight,
@@ -28,7 +29,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [topicFilter, setTopicFilter] = useState<'all' | 'revision_needed' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
-  const [acknowledgedRemarks, setAcknowledgedRemarks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setRefreshKey((prev) => prev + 1);
@@ -97,15 +97,29 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
   // Admin remarks for this teacher
   const teacherRemarks = useMemo(() => {
-    const remarks: { id: string; remark: string; adminName: string; lectureTitle: string; date: string }[] = [];
+    const remarks: { 
+      id: string; 
+      lectureId: string;
+      remark: string; 
+      adminName: string; 
+      lectureTitle: string; 
+      date: string;
+      isAcknowledged?: boolean;
+      acknowledgedAt?: string;
+      acknowledgedByName?: string;
+    }[] = [];
     lectures.forEach((lec) => {
       lec.adminRemarks?.forEach((rem) => {
         remarks.push({
           id: rem.id,
+          lectureId: lec.id,
           remark: rem.remarkText,
           adminName: rem.adminName,
           lectureTitle: lec.title,
           date: new Date(rem.createdAt).toLocaleDateString(),
+          isAcknowledged: rem.isAcknowledged,
+          acknowledgedAt: rem.acknowledgedAt,
+          acknowledgedByName: rem.acknowledgedByName,
         });
       });
     });
@@ -238,11 +252,21 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     setRefreshKey((k) => k + 1);
   };
 
-  const toggleAcknowledgeRemark = (id: string) => {
-    const next = new Set(acknowledgedRemarks);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setAcknowledgedRemarks(next);
+  const handleAcknowledgeRemark = (lectureId: string, remarkId: string, currentAck?: boolean) => {
+    if (currentAck) {
+      StorageService.unacknowledgeAdminRemark(lectureId, remarkId);
+      setCopiedToast('Acknowledgment reverted');
+    } else {
+      StorageService.acknowledgeAdminRemark(lectureId, remarkId, teacher.name);
+      setCopiedToast('✓ Directive acknowledged and sent to Academic Operations!');
+      try {
+        confetti({ particleCount: 40, spread: 60, origin: { y: 0.65 } });
+      } catch {
+        // ignore
+      }
+    }
+    setTimeout(() => setCopiedToast(null), 3000);
+    setRefreshKey((k) => k + 1);
   };
 
   return (
@@ -1108,9 +1132,23 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       {/* ─── ADMIN DIRECTIVES ─── */}
       {currentPage === 'directives' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-xl font-bold text-slate-100 tracking-tight">Admin Directives ({teacherRemarks.length})</h2>
-            <p className="text-xs text-slate-400">Feedback and guidance notes from academic operations</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-indigo-400" />
+                Admin Directives & Feedback ({teacherRemarks.length})
+              </h2>
+              <p className="text-xs text-slate-400">
+                Official quality guidelines and improvement remarks from academic operations
+              </p>
+            </div>
+
+            {teacherRemarks.some((r) => !r.isAcknowledged) && (
+              <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 w-fit">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                {teacherRemarks.filter((r) => !r.isAcknowledged).length} Action Required (Unacknowledged)
+              </span>
+            )}
           </div>
 
           {teacherRemarks.length === 0 ? (
@@ -1118,30 +1156,67 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               No directives posted yet.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {teacherRemarks.map((rem) => {
-                const isAck = acknowledgedRemarks.has(rem.id);
+                const isAck = !!rem.isAcknowledged;
                 return (
-                  <div key={rem.id} className="bg-slate-900/40 border border-slate-800/70 rounded-xl p-4 space-y-3 flex flex-col justify-between text-xs">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-200 truncate">Re: {rem.lectureTitle}</span>
-                        <span className="text-[10px] text-slate-500">{rem.date}</span>
+                  <div 
+                    key={rem.id} 
+                    className={`border rounded-2xl p-5 space-y-4 flex flex-col justify-between text-xs transition-all shadow-sm ${
+                      isAck
+                        ? 'bg-slate-900/40 border-emerald-500/30 shadow-emerald-950/10'
+                        : 'bg-gradient-to-br from-amber-950/20 via-slate-900/60 to-slate-900/40 border-amber-500/40 shadow-lg shadow-amber-950/20'
+                    }`}
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-slate-200 truncate flex items-center gap-1.5">
+                          📹 Re: {rem.lectureTitle}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500 shrink-0">{rem.date}</span>
                       </div>
-                      <p className="text-slate-300 italic bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/60">
+
+                      <div className="flex items-center gap-2">
+                        {isAck ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3 text-emerald-400" />
+                            Acknowledged by you {rem.acknowledgedAt ? `(${new Date(rem.acknowledgedAt).toLocaleDateString()})` : ''}
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 border border-amber-400 flex items-center gap-1 shadow-sm animate-pulse">
+                            ⚠️ Acknowledgment Required
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-slate-200 italic bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80 leading-relaxed font-normal">
                         "{rem.remark}"
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800/50 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400">From: {rem.adminName}</span>
+                    <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        Posted by: <strong className="text-slate-300">{rem.adminName}</strong>
+                      </span>
+
                       <button
-                        onClick={() => toggleAcknowledgeRemark(rem.id)}
-                        className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                          isAck ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-300 bg-slate-800 hover:text-white'
+                        onClick={() => handleAcknowledgeRemark(rem.lectureId, rem.id, isAck)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                          isAck 
+                            ? 'text-emerald-400 bg-emerald-500/10 hover:bg-rose-500/10 hover:text-rose-300 border border-emerald-500/20 hover:border-rose-500/30' 
+                            : 'bg-gradient-to-r from-amber-500 via-amber-400 to-indigo-500 text-slate-950 hover:opacity-95 shadow-md shadow-amber-500/20'
                         }`}
+                        title={isAck ? 'Click to revert acknowledgment if needed' : 'Click to acknowledge directive'}
                       >
-                        {isAck ? '✓ Acknowledged' : 'Acknowledge'}
+                        {isAck ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" /> Acknowledged ✓
+                          </>
+                        ) : (
+                          <>
+                            <span>✍️</span> Acknowledge Directive
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>

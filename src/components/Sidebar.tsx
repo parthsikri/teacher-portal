@@ -57,8 +57,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const teacherUnacknowledgedDirectivesCount = currentUser.role === 'teacher'
     ? StorageService.getLectures().filter((l) => l.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase())
-        .reduce((sum, lec) => sum + (lec.adminRemarks?.length || 0), 0)
+        .reduce((sum, lec) => sum + (lec.adminRemarks?.filter((r) => !r.isAcknowledged).length || 0), 0)
     : 0;
+
+  const adminRemarkStats = currentUser.role === 'admin'
+    ? StorageService.getAdminRemarkAckStats()
+    : null;
 
   const backlogInfo = currentUser.role === 'teacher' ? StorageService.getPreviousDayBacklog(currentUser.teacherId) : null;
   const minutesRecordedToday = currentUser.role === 'teacher' ? StorageService.getMinutesRecordedToday(currentUser.teacherId) : 0;
@@ -91,7 +95,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'directives', 
       label: 'Admin Directives', 
       icon: MessageSquare,
-      badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount}` : undefined,
+      badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount} New` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 font-bold',
     },
   ];
 
@@ -112,7 +117,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
     { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
-    { id: 'admin_lectures', label: 'Lecture Audits', icon: Video },
+    { 
+      id: 'admin_lectures', 
+      label: 'Lecture Audits', 
+      icon: Video,
+      badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold',
+    },
   ];
 
   const navItems = currentUser.role === 'admin' ? adminNavItems : teacherNavItems;

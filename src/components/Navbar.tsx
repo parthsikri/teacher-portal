@@ -41,6 +41,15 @@ export const Navbar: React.FC<NavbarProps> = ({
       ).length
     : 0;
 
+  const teacherUnacknowledgedDirectivesCount = currentUser?.role === 'teacher'
+    ? StorageService.getLectures().filter((l) => l.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase())
+        .reduce((sum, lec) => sum + (lec.adminRemarks?.filter(r => !r.isAcknowledged).length || 0), 0)
+    : 0;
+
+  const adminRemarkStats = currentUser?.role === 'admin'
+    ? StorageService.getAdminRemarkAckStats()
+    : null;
+
   // Teacher Navigation Links
   const teacherNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -57,7 +66,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
     { id: 'resources', label: 'Subject Resources', icon: BookMarked },
-    { id: 'directives', label: 'Admin Directives', icon: MessageSquare },
+    { 
+      id: 'directives', 
+      label: 'Admin Directives', 
+      icon: MessageSquare,
+      badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount}` : undefined,
+      badgeColor: 'bg-amber-500 text-slate-950 font-bold',
+    },
   ];
 
   // Admin Navigation Links
@@ -72,7 +87,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
     { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
     { id: 'admin_resources', label: 'Subject Library', icon: BookMarked },
-    { id: 'admin_lectures', label: 'Lecture Audits', icon: Video },
+    { 
+      id: 'admin_lectures', 
+      label: 'Lecture Audits', 
+      icon: Video,
+      badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
+      badgeColor: 'bg-emerald-500 text-white font-bold',
+    },
   ];
 
   const currentNavItems = currentUser?.role === 'admin' ? adminNavItems : teacherNavItems;

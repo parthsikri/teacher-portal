@@ -571,6 +571,105 @@ export const StorageService = {
     return newRemark;
   },
 
+  // Teacher acknowledges an admin directive / remark on a lecture
+  acknowledgeAdminRemark(lectureId: string, remarkId: string, teacherName: string): boolean {
+    const lectures = this.getLectures();
+    let found = false;
+
+    for (const lec of lectures) {
+      if (lec.id === lectureId || !lectureId) {
+        const remark = lec.adminRemarks?.find((r) => r.id === remarkId);
+        if (remark) {
+          remark.isAcknowledged = true;
+          remark.acknowledgedAt = new Date().toISOString();
+          remark.acknowledgedByName = teacherName;
+          remark.isNewAckForAdmin = true;
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (found) {
+      this.saveLectures(lectures);
+    }
+    return found;
+  },
+
+  // Teacher reverts or untoggles acknowledgment (if needed)
+  unacknowledgeAdminRemark(lectureId: string, remarkId: string): boolean {
+    const lectures = this.getLectures();
+    let found = false;
+
+    for (const lec of lectures) {
+      if (lec.id === lectureId || !lectureId) {
+        const remark = lec.adminRemarks?.find((r) => r.id === remarkId);
+        if (remark) {
+          remark.isAcknowledged = false;
+          remark.acknowledgedAt = undefined;
+          remark.acknowledgedByName = undefined;
+          remark.isNewAckForAdmin = false;
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (found) {
+      this.saveLectures(lectures);
+    }
+    return found;
+  },
+
+  // Admin counts for directive acknowledgments
+  getAdminRemarkAckStats(): {
+    total: number;
+    acknowledged: number;
+    pending: number;
+    newAcks: number;
+  } {
+    const lectures = this.getLectures();
+    let total = 0;
+    let acknowledged = 0;
+    let pending = 0;
+    let newAcks = 0;
+
+    lectures.forEach((lec) => {
+      lec.adminRemarks?.forEach((rem) => {
+        total++;
+        if (rem.isAcknowledged) {
+          acknowledged++;
+          if (rem.isNewAckForAdmin) {
+            newAcks++;
+          }
+        } else {
+          pending++;
+        }
+      });
+    });
+
+    return { total, acknowledged, pending, newAcks };
+  },
+
+  // Admin marks new directive acknowledgments as viewed
+  markAdminAcksAsRead(): void {
+    const lectures = this.getLectures();
+    let changed = false;
+
+    lectures.forEach((lec) => {
+      lec.adminRemarks?.forEach((rem) => {
+        if (rem.isNewAckForAdmin) {
+          rem.isNewAckForAdmin = false;
+          changed = true;
+        }
+      });
+    });
+
+    if (changed) {
+      this.saveLectures(lectures);
+    }
+  },
+
   // Total recording minutes completed today by the teacher (Timezone aware)
   getMinutesRecordedToday(teacherId: string): number {
     const lectures = this.getLectures();
@@ -976,11 +1075,11 @@ export const StorageService = {
     );
     const revisions = revisionTopics.length;
 
-    // 2. Directives: Unread/New remarks from admin on teacher's lectures
+    // 2. Directives: Unacknowledged remarks from admin on teacher's lectures
     const lectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
     let directives = 0;
     lectures.forEach((lec) => {
-      directives += lec.adminRemarks?.length || 0;
+      directives += lec.adminRemarks?.filter((r) => !r.isAcknowledged).length || 0;
     });
 
     // 3. PPT: Ready completed PPTs waiting for download

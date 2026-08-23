@@ -32,6 +32,10 @@ export interface AdminRemark {
   adminName: string;
   remarkText: string;
   createdAt: string;
+  isAcknowledged?: boolean;         // true when teacher acknowledges this remark
+  acknowledgedAt?: string;          // ISO timestamp when acknowledged
+  acknowledgedByName?: string;      // Name of the teacher who acknowledged
+  isNewAckForAdmin?: boolean;       // Notification badge flag for Admin
 }
 
 export type SubtopicApprovalState = 

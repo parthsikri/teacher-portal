@@ -43,6 +43,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [searchLectureQuery, setSearchLectureQuery] = useState('');
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
 
+  useEffect(() => {
+    if (currentPage === 'admin_lectures') {
+      StorageService.markAdminAcksAsRead();
+    }
+  }, [currentPage]);
+
   // Add Teacher Modal state with Credentials
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTeacherId, setNewTeacherId] = useState(`AEW-T-10${teachers.length + 1}`);
@@ -1333,15 +1339,53 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   )}
 
                   {lec.adminRemarks && lec.adminRemarks.length > 0 && (
-                    <div className="pt-3 border-t border-slate-800 space-y-2">
-                      <span className="text-xs font-bold text-purple-400 flex items-center gap-1">
-                        💬 Posted Admin Directives:
-                      </span>
-                      {lec.adminRemarks.map((rem) => (
-                        <div key={rem.id} className="text-xs text-slate-200 italic bg-purple-500/10 p-3 rounded-xl border border-purple-500/20">
-                          "{rem.remarkText}" — <span className="text-[10px] text-slate-400 font-normal">{rem.adminName}</span>
-                        </div>
-                      ))}
+                    <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                          💬 Posted Admin Directives ({lec.adminRemarks.length}):
+                        </span>
+                        {lec.adminRemarks.some((r) => r.isAcknowledged) && (
+                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            {lec.adminRemarks.filter((r) => r.isAcknowledged).length} Acknowledged
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {lec.adminRemarks.map((rem) => (
+                          <div 
+                            key={rem.id} 
+                            className={`text-xs p-3.5 rounded-xl border space-y-2 transition-all ${
+                              rem.isAcknowledged 
+                                ? 'bg-gradient-to-r from-emerald-950/20 via-slate-900/60 to-slate-900/40 border-emerald-500/30 shadow-sm' 
+                                : 'bg-purple-950/20 border-purple-500/30'
+                            }`}
+                          >
+                            <div className="text-slate-200 italic font-medium leading-relaxed">
+                              "{rem.remarkText}"
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-[10px]">
+                              <span className="text-slate-400 font-normal">
+                                Posted by <strong className="text-slate-300">{rem.adminName}</strong>
+                              </span>
+
+                              {rem.isAcknowledged ? (
+                                <span className="font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1 shadow-sm">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  ✓ Acknowledged by {rem.acknowledgedByName || lec.teacherName} {rem.acknowledgedAt ? `on ${new Date(rem.acknowledgedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  ⏳ Pending Teacher Acknowledgment
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
