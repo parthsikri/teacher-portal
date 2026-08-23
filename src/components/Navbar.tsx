@@ -3,7 +3,7 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users
+  Users, FileSpreadsheet, Image as ImageIcon
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -65,6 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         : 'bg-amber-500 text-slate-950 font-bold',
     },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
+    { id: 'thumbnail_generator', label: '16:9 Thumbnails', icon: ImageIcon },
     { id: 'resources', label: 'Subject Resources', icon: BookMarked },
     { 
       id: 'directives', 
@@ -84,6 +85,16 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: Layers,
       badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
       badgeColor: 'bg-purple-500 text-white animate-pulse',
+    },
+    { 
+      id: 'ppt_generator', 
+      label: 'PYQ PPT Generator', 
+      icon: FileSpreadsheet,
+    },
+    { 
+      id: 'thumbnail_generator', 
+      label: '16:9 Thumbnail Studio', 
+      icon: ImageIcon,
     },
     { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
     { id: 'admin_resources', label: 'Subject Library', icon: BookMarked },

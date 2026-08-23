@@ -654,6 +654,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             <div className="flex flex-wrap items-center gap-3">
               <button
+                onClick={() => onPageChange('thumbnail_generator')}
+                className="px-4 py-3 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
+              >
+                <ImageIcon className="w-4 h-4 text-amber-400" /> 16:9 Thumbnail Studio
+              </button>
+              <button
                 onClick={() => onPageChange('ppt_generator')}
                 className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-xl shadow-indigo-600/30 transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
               >
