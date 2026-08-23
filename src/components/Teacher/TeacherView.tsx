@@ -8,7 +8,7 @@ import {
   Search, FileText, Plus, Play,
   Edit3, ExternalLink, Copy, Check, ChevronRight,
   Clock, CheckCircle, AlertTriangle, MessageSquare,
-  FileSpreadsheet, Award, Image as ImageIcon
+  FileSpreadsheet, Award, Image as ImageIcon, Folder
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -211,6 +211,54 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       return true;
     });
   }, [lectures, searchLectureQuery, lectureFilterTab]);
+
+  // Resolve Unit for a lecture
+  const resolveLectureUnit = (lec: Lecture, topics: AssignedTopic[]): string => {
+    if (lec.unitNumber && lec.unitNumber.trim()) {
+      return lec.unitNumber.trim().toUpperCase();
+    }
+    if (lec.assignedTopicId) {
+      const matched = topics.find((t) => t.id === lec.assignedTopicId);
+      if (matched?.unitNumber && matched.unitNumber.trim()) {
+        return matched.unitNumber.trim().toUpperCase();
+      }
+    }
+    const matchedByTitle = topics.find(
+      (t) => t.topicTitle.toLowerCase() === lec.primaryTopic.toLowerCase()
+    );
+    if (matchedByTitle?.unitNumber && matchedByTitle.unitNumber.trim()) {
+      return matchedByTitle.unitNumber.trim().toUpperCase();
+    }
+    const match = `${lec.title} ${lec.primaryTopic}`.match(/\b(UNIT|MODULE)\s*([0-9IVX]+)/i);
+    if (match) {
+      return `UNIT ${match[2].toUpperCase()}`;
+    }
+    return 'UNIT 1';
+  };
+
+  // Group filtered lectures strictly unit-wise
+  const unitGroupedLectures = useMemo(() => {
+    const map = new Map<string, { unitName: string; lectures: Lecture[]; totalDuration: number }>();
+
+    filteredLectures.forEach((lec) => {
+      const uName = resolveLectureUnit(lec, assignedTopics);
+      if (!map.has(uName)) {
+        map.set(uName, { unitName: uName, lectures: [], totalDuration: 0 });
+      }
+      const group = map.get(uName)!;
+      group.lectures.push(lec);
+      group.totalDuration += (lec.durationMinutes || 45);
+    });
+
+    const sortUnits = (a: string, b: string) => {
+      const numA = parseInt(a.replace(/[^0-9]/g, ''), 10);
+      const numB = parseInt(b.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b);
+    };
+
+    return Array.from(map.values()).sort((a, b) => sortUnits(a.unitName, b.unitName));
+  }, [filteredLectures, assignedTopics]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -1035,61 +1083,100 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           </div>
 
-          {filteredLectures.length === 0 ? (
+          {unitGroupedLectures.length === 0 ? (
             <div className="p-8 text-center bg-slate-900/30 border border-slate-800/60 rounded-xl text-slate-400 text-xs italic">
               No lecture recordings found.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {filteredLectures.map((lec) => (
-                <div key={lec.id} className="bg-slate-900/40 border border-slate-800/70 rounded-xl p-4 space-y-3 flex flex-col justify-between text-xs">
-                  <div className="space-y-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="truncate flex-1">
-                        <h4 className="font-semibold text-slate-100 truncate">{lec.title}</h4>
-                        <span className="text-[11px] text-slate-400">{lec.subject}</span>
+            <div className="space-y-6">
+              {unitGroupedLectures.map((unitGroup) => (
+                <div 
+                  key={unitGroup.unitName}
+                  className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 md:p-5 space-y-4 shadow-md"
+                >
+                  {/* UNIT HEADER RIBBON */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                    <div className="flex items-center gap-2.5">
+                      <div className="px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-extrabold text-xs flex items-center gap-1.5 shadow-sm">
+                        <Folder className="w-3.5 h-3.5 text-amber-400" />
+                        {unitGroup.unitName}
                       </div>
-                      <span className={`text-[10px] font-medium shrink-0 ${
-                        lec.status === 'on_time' ? 'text-emerald-400' : 'text-red-400'
-                      }`}>
-                        {lec.status === 'on_time' ? '✓ On-Time' : 'Overdue'}
+                      <span className="text-xs font-bold text-slate-200">
+                        {unitGroup.lectures.length} {unitGroup.lectures.length === 1 ? 'Lecture' : 'Lectures'} Delivered
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                      <span>Topic: <strong className="text-slate-300 font-normal">{lec.primaryTopic}</strong></span>
-                      <span className="font-mono text-slate-400">{lec.durationMinutes || 45}m</span>
+                    <div className="flex items-center gap-3">
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        <span>Unit Total:</span>
+                        <strong className="text-amber-300 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                          {unitGroup.totalDuration} min
+                        </strong>
+                      </div>
+
+                      <button
+                        onClick={() => onPageChange('thumbnail_generator')}
+                        className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" /> Unit Thumbnails
+                      </button>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-800/50 flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-slate-500">{new Date(lec.createdAt).toLocaleDateString()}</span>
-                    
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => onPageChange('thumbnail_generator')}
-                        className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-md text-xs font-medium flex items-center gap-1 transition-colors"
-                      >
-                        <ImageIcon className="w-3 h-3" /> Thumbnail
-                      </button>
+                  {/* LECTURES IN THIS UNIT */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {unitGroup.lectures.map((lec) => (
+                      <div key={lec.id} className="bg-slate-950/70 border border-slate-800/70 rounded-xl p-4 space-y-3 flex flex-col justify-between text-xs hover:border-slate-700 transition-all">
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="truncate flex-1">
+                              <h4 className="font-semibold text-slate-100 truncate">{lec.title}</h4>
+                              <span className="text-[11px] text-slate-400">{lec.subject}</span>
+                            </div>
+                            <span className={`text-[10px] font-medium shrink-0 ${
+                              lec.status === 'on_time' ? 'text-emerald-400' : 'text-red-400'
+                            }`}>
+                              {lec.status === 'on_time' ? '✓ On-Time' : 'Overdue'}
+                            </span>
+                          </div>
 
-                      {lec.notesUrl && (
-                        <a
-                          href={lec.notesUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-md text-xs font-medium flex items-center gap-1"
-                        >
-                          <FileText className="w-3 h-3" /> Notes
-                        </a>
-                      )}
-                      <button
-                        onClick={() => setSelectedLectureForPreview(lec)}
-                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-md text-xs flex items-center gap-1 transition-colors"
-                      >
-                        <Play className="w-2.5 h-2.5 fill-white" /> Watch
-                      </button>
-                    </div>
+                          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                            <span>Topic: <strong className="text-slate-300 font-normal">{lec.primaryTopic}</strong></span>
+                            <span className="font-mono text-slate-400">{lec.durationMinutes || 45}m</span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/50 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-slate-500">{new Date(lec.createdAt).toLocaleDateString()}</span>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => onPageChange('thumbnail_generator')}
+                              className="px-2 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-md text-xs font-medium flex items-center gap-1 transition-colors"
+                            >
+                              <ImageIcon className="w-3 h-3" /> Thumbnail
+                            </button>
+
+                            {lec.notesUrl && (
+                              <a
+                                href={lec.notesUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-md text-xs font-medium flex items-center gap-1"
+                              >
+                                <FileText className="w-3 h-3" /> Notes
+                              </a>
+                            )}
+                            <button
+                              onClick={() => setSelectedLectureForPreview(lec)}
+                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-md text-xs flex items-center gap-1 transition-colors"
+                            >
+                              <Play className="w-2.5 h-2.5 fill-white" /> Watch
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
