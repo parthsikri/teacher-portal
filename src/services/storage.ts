@@ -536,8 +536,12 @@ export const StorageService = {
 
   addLecture(lecture: Omit<Lecture, 'id' | 'createdAt' | 'adminRemarks'>): Lecture {
     const lectures = this.getLectures();
+    const topic = lecture.assignedTopicId ? this.getAssignedTopics().find(t => t.id === lecture.assignedTopicId) : null;
+    const unitNumber = lecture.unitNumber || topic?.unitNumber || undefined;
+
     const newLec: Lecture = {
       ...lecture,
+      unitNumber,
       durationMinutes: lecture.durationMinutes || 45,
       id: `lec-${Date.now()}`,
       adminRemarks: [],

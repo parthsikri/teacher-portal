@@ -102,6 +102,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         driveUrl: driveVideoLink,
         notesUrl: notesUrl.trim() || undefined,
         assignedTopicId: prefillTopic ? prefillTopic.id : undefined,
+        unitNumber: prefillTopic ? (prefillTopic.unitNumber || 'UNIT 1') : undefined,
       });
 
       if (isOnTime) {

@@ -8,7 +8,8 @@ import {
   Eye, MessageCircle, Clock, X, 
   Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
-  Users, FileSpreadsheet, Database
+  Users, FileSpreadsheet, Database, Folder,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -42,6 +43,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [searchTeacherQuery, setSearchTeacherQuery] = useState('');
   const [searchLectureQuery, setSearchLectureQuery] = useState('');
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
+
+  // Unit-wise and Teacher-wise Lecture Organization filters
+  const [selectedTeacherLectureFilter, setSelectedTeacherLectureFilter] = useState<string>('all');
+  const [selectedUnitLectureFilter, setSelectedUnitLectureFilter] = useState<string>('all');
+  const [collapsedTeacherIds, setCollapsedTeacherIds] = useState<Set<string>>(new Set());
+
+  const toggleCollapseTeacher = (teacherId: string) => {
+    setCollapsedTeacherIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(teacherId)) next.delete(teacherId);
+      else next.add(teacherId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (currentPage === 'admin_lectures') {
@@ -416,17 +431,184 @@ export const AdminView: React.FC<AdminViewProps> = ({
     );
   }, [teachers, searchTeacherQuery]);
 
-  const filteredLectures = useMemo(() => {
-    const q = searchLectureQuery.toLowerCase().trim();
-    if (!q) return lectures;
-    return lectures.filter(
-      (l) =>
-        l.title.toLowerCase().includes(q) ||
-        l.teacherName.toLowerCase().includes(q) ||
-        l.teacherId.toLowerCase().includes(q) ||
-        l.primaryTopic.toLowerCase().includes(q)
+  // Helper function to resolve unit name for any lecture
+  const resolveLectureUnit = (lec: Lecture, topics: AssignedTopic[]): string => {
+    if (lec.unitNumber && lec.unitNumber.trim()) {
+      return lec.unitNumber.trim().toUpperCase();
+    }
+    if (lec.assignedTopicId) {
+      const matchedTopic = topics.find((t) => t.id === lec.assignedTopicId);
+      if (matchedTopic?.unitNumber && matchedTopic.unitNumber.trim()) {
+        return matchedTopic.unitNumber.trim().toUpperCase();
+      }
+    }
+    const matchedByTitle = topics.find(
+      (t) =>
+        t.teacherId.toUpperCase() === lec.teacherId.toUpperCase() &&
+        t.topicTitle.toLowerCase() === lec.primaryTopic.toLowerCase()
     );
-  }, [lectures, searchLectureQuery]);
+    if (matchedByTitle?.unitNumber && matchedByTitle.unitNumber.trim()) {
+      return matchedByTitle.unitNumber.trim().toUpperCase();
+    }
+
+    const combined = `${lec.title} ${lec.primaryTopic}`;
+    const match = combined.match(/\b(UNIT|MODULE)\s*([0-9IVX]+)/i);
+    if (match) {
+      return `UNIT ${match[2].toUpperCase()}`;
+    }
+
+    return 'UNIT 1';
+  };
+
+  // Distinct list of available units across lectures and syllabus
+  const allAvailableUnits = useMemo(() => {
+    const unitSet = new Set<string>();
+    lectures.forEach((l) => {
+      unitSet.add(resolveLectureUnit(l, assignedTopics));
+    });
+    assignedTopics.forEach((t) => {
+      if (t.unitNumber) unitSet.add(t.unitNumber.trim().toUpperCase());
+    });
+    const arr = Array.from(unitSet);
+    const num = (s: string) => parseInt(s.replace(/[^0-9]/g, ''), 10);
+    return arr.sort((a, b) => {
+      const na = num(a);
+      const nb = num(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+  }, [lectures, assignedTopics]);
+
+  // Hierarchically group lectures by Teacher -> then Unit-wise
+  const teacherOrganizedLectures = useMemo(() => {
+    const q = searchLectureQuery.toLowerCase().trim();
+
+    // 1. First filter lectures by query
+    let filtered = lectures;
+    if (q) {
+      filtered = filtered.filter((l) => {
+        const u = resolveLectureUnit(l, assignedTopics).toLowerCase();
+        return (
+          l.title.toLowerCase().includes(q) ||
+          l.teacherName.toLowerCase().includes(q) ||
+          l.teacherId.toLowerCase().includes(q) ||
+          l.subject.toLowerCase().includes(q) ||
+          l.primaryTopic.toLowerCase().includes(q) ||
+          u.includes(q) ||
+          l.subtopics.some((st) => st.toLowerCase().includes(q))
+        );
+      });
+    }
+
+    // 2. Filter by teacher if selected
+    if (selectedTeacherLectureFilter !== 'all') {
+      filtered = filtered.filter(
+        (l) => l.teacherId.toUpperCase() === selectedTeacherLectureFilter.toUpperCase()
+      );
+    }
+
+    // 3. Filter by unit if selected
+    if (selectedUnitLectureFilter !== 'all') {
+      filtered = filtered.filter(
+        (l) => resolveLectureUnit(l, assignedTopics) === selectedUnitLectureFilter
+      );
+    }
+
+    // 4. Group by Teacher
+    const teacherMap = new Map<
+      string,
+      {
+        teacherId: string;
+        teacherName: string;
+        department: string;
+        subject: string;
+        totalLectures: number;
+        totalDuration: number;
+        unitMap: Map<string, { unitName: string; lectures: Lecture[]; totalDuration: number }>;
+      }
+    >();
+
+    // If teacher filter is set, seed matching teacher
+    teachers.forEach((t) => {
+      if (selectedTeacherLectureFilter === 'all' || selectedTeacherLectureFilter.toUpperCase() === t.teacherId.toUpperCase()) {
+        teacherMap.set(t.teacherId.toUpperCase(), {
+          teacherId: t.teacherId,
+          teacherName: t.name,
+          department: t.department,
+          subject: t.subject,
+          totalLectures: 0,
+          totalDuration: 0,
+          unitMap: new Map(),
+        });
+      }
+    });
+
+    // Populate with filtered lectures
+    filtered.forEach((lec) => {
+      const cleanTId = lec.teacherId.toUpperCase();
+      if (!teacherMap.has(cleanTId)) {
+        const teacherObj = teachers.find((t) => t.teacherId.toUpperCase() === cleanTId);
+        teacherMap.set(cleanTId, {
+          teacherId: lec.teacherId,
+          teacherName: teacherObj?.name || lec.teacherName,
+          department: teacherObj?.department || lec.department,
+          subject: teacherObj?.subject || lec.subject,
+          totalLectures: 0,
+          totalDuration: 0,
+          unitMap: new Map(),
+        });
+      }
+
+      const tData = teacherMap.get(cleanTId)!;
+      tData.totalLectures += 1;
+      tData.totalDuration += (lec.durationMinutes || 45);
+
+      const unitName = resolveLectureUnit(lec, assignedTopics);
+      if (!tData.unitMap.has(unitName)) {
+        tData.unitMap.set(unitName, {
+          unitName,
+          lectures: [],
+          totalDuration: 0,
+        });
+      }
+
+      const uData = tData.unitMap.get(unitName)!;
+      uData.lectures.push(lec);
+      uData.totalDuration += (lec.durationMinutes || 45);
+    });
+
+    // Natural sort helper for Units
+    const sortUnits = (a: string, b: string) => {
+      const numA = parseInt(a.replace(/[^0-9]/g, ''), 10);
+      const numB = parseInt(b.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b);
+    };
+
+    // Convert map to array and filter out teachers with 0 lectures if query or filter is active
+    return Array.from(teacherMap.values())
+      .filter((t) => {
+        if (q || selectedUnitLectureFilter !== 'all') {
+          return t.totalLectures > 0;
+        }
+        return true;
+      })
+      .map((t) => {
+        const unitsArray = Array.from(t.unitMap.values()).sort((a, b) => sortUnits(a.unitName, b.unitName));
+        unitsArray.forEach((u) => {
+          u.lectures.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        });
+        return {
+          teacherId: t.teacherId,
+          teacherName: t.teacherName,
+          department: t.department,
+          subject: t.subject,
+          totalLectures: t.totalLectures,
+          totalDuration: t.totalDuration,
+          units: unitsArray,
+        };
+      });
+  }, [lectures, assignedTopics, teachers, searchLectureQuery, selectedTeacherLectureFilter, selectedUnitLectureFilter]);
 
   const filteredAssignedTopics = useMemo(() => {
     const q = searchTopicQuery.toLowerCase().trim();
@@ -1237,174 +1419,429 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* PAGE 5: 🎬 LECTURE SUBMISSIONS & DIRECTIVES AUDIT */}
+      {/* PAGE 5: 🎬 LECTURE SUBMISSIONS & DIRECTIVES AUDIT (ORGANIZED BY TEACHER & UNITWISE) */}
       {currentPage === 'admin_lectures' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2">
-                <Video className="w-5 h-5 text-purple-400" /> Lecture Submissions Audit & Quality Directives ({lectures.length})
+          
+          {/* HEADER & GLOBAL STATS */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+            <div className="space-y-1">
+              <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2.5">
+                <Video className="w-6 h-6 text-purple-400" />
+                Faculty Lecture Directory & Quality Audits
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Review video streams, inspect PDF lecture notes, and write improvement directives for faculty.
+              <p className="text-xs text-slate-400">
+                All submitted sessions organized by Faculty and Unit with real-time directives & teacher acknowledgments.
               </p>
             </div>
 
-            <div className="relative w-full md:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search lectures..."
-                value={searchLectureQuery}
-                onChange={(e) => setSearchLectureQuery(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-purple-500"
-              />
+            {/* Quick Metrics Pills */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-300 font-semibold flex items-center gap-1.5">
+                <Video className="w-3.5 h-3.5 text-indigo-400" />
+                <strong>{lectures.length}</strong> Total Lectures
+              </span>
+              <span className="px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-300 font-semibold flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <strong>{lectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0)}m</strong> Total Time
+              </span>
+              <span className="px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-300 font-semibold flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-purple-400" />
+                <strong>{teachers.length}</strong> Faculty Members
+              </span>
             </div>
           </div>
 
-          {filteredLectures.length === 0 ? (
+          {/* SEARCH & DUAL FILTER CONTROLS */}
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search by lecture title, topic, subtopic, faculty name, or unit..."
+                  value={searchLectureQuery}
+                  onChange={(e) => setSearchLectureQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-8 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-purple-500 shadow-inner"
+                />
+                {searchLectureQuery && (
+                  <button 
+                    onClick={() => setSearchLectureQuery('')} 
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {(selectedTeacherLectureFilter !== 'all' || selectedUnitLectureFilter !== 'all' || searchLectureQuery) && (
+                <button
+                  onClick={() => {
+                    setSelectedTeacherLectureFilter('all');
+                    setSelectedUnitLectureFilter('all');
+                    setSearchLectureQuery('');
+                  }}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors shrink-0 flex items-center gap-1.5"
+                >
+                  <X className="w-3.5 h-3.5" /> Reset Filters
+                </button>
+              )}
+            </div>
+
+            {/* 1. TEACHER FILTER BAR */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Users className="w-3 h-3 text-indigo-400" />
+                Filter by Faculty Member:
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSelectedTeacherLectureFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    selectedTeacherLectureFilter === 'all'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/30'
+                      : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  }`}
+                >
+                  <span>🌟 All Faculty</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900/60 font-mono">
+                    {lectures.length}
+                  </span>
+                </button>
+
+                {teachers.map((t) => {
+                  const tLecs = lectures.filter((l) => l.teacherId.toUpperCase() === t.teacherId.toUpperCase());
+                  const isSelected = selectedTeacherLectureFilter.toUpperCase() === t.teacherId.toUpperCase();
+
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedTeacherLectureFilter(isSelected ? 'all' : t.teacherId)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 border border-amber-400'
+                          : 'bg-slate-950/80 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>👨‍🏫 {t.name}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                        isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {tLecs.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. UNIT FILTER BAR */}
+            {allAvailableUnits.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Folder className="w-3 h-3 text-amber-400" />
+                  Filter by Unit / Module:
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setSelectedUnitLectureFilter('all')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      selectedUnitLectureFilter === 'all'
+                        ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    All Units
+                  </button>
+
+                  {allAvailableUnits.map((unit) => {
+                    const isSelected = selectedUnitLectureFilter === unit;
+                    return (
+                      <button
+                        key={unit}
+                        onClick={() => setSelectedUnitLectureFilter(isSelected ? 'all' : unit)}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                          isSelected
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 font-bold shadow-sm'
+                            : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        <span>📦 {unit}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* TEACHER-GROUPED & UNITWISE LECTURES LIST */}
+          {teacherOrganizedLectures.length === 0 ? (
             <div className="p-16 text-center bg-slate-950 rounded-3xl border border-slate-800 space-y-3">
               <div className="text-4xl">📂</div>
-              <div className="font-bold text-slate-200 text-base">No Lecture Submissions Found</div>
-              <p className="text-xs text-slate-400">Delivered sessions from faculty will appear here for review.</p>
+              <div className="font-bold text-slate-200 text-base">No Lecture Submissions Matching Filters</div>
+              <p className="text-xs text-slate-400">Try clearing the search query or teacher/unit filter to view all lectures.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredLectures.map((lec) => (
-                <div key={lec.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-lg">
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="font-bold text-amber-400">
-                          👨‍🏫 {lec.teacherName} ({lec.teacherId})
-                        </span>
-                        <span className="text-slate-600">•</span>
-                        <span className="text-slate-400">{lec.subject}</span>
+            <div className="space-y-8">
+              {teacherOrganizedLectures.map((teacherGroup) => {
+                const isCollapsed = collapsedTeacherIds.has(teacherGroup.teacherId.toUpperCase());
+
+                return (
+                  <div 
+                    key={teacherGroup.teacherId} 
+                    className="bg-slate-950/70 border-2 border-slate-800/90 rounded-3xl overflow-hidden shadow-xl transition-all"
+                  >
+                    {/* TEACHER ACCORDION HEADER BANNER */}
+                    <div 
+                      onClick={() => toggleCollapseTeacher(teacherGroup.teacherId.toUpperCase())}
+                      className="p-5 md:p-6 bg-gradient-to-r from-slate-900 via-slate-900/90 to-purple-950/30 border-b border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-400 flex items-center justify-center font-black text-slate-950 text-lg shadow-lg shadow-indigo-950/40 shrink-0">
+                          👨‍🏫
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <h3 className="text-base md:text-lg font-black text-slate-100 tracking-tight">
+                              {teacherGroup.teacherName}
+                            </h3>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              {teacherGroup.teacherId}
+                            </span>
+                            <span className="text-slate-600">•</span>
+                            <span className="text-xs font-semibold text-amber-400">
+                              {teacherGroup.subject}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400">{teacherGroup.department}</p>
+                        </div>
                       </div>
 
-                      <h4 className="text-base font-extrabold text-slate-100">{lec.title}</h4>
-
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-1">
-                        <span className="font-semibold text-slate-300">Topic: {lec.primaryTopic}</span>
-                        <span className="text-slate-600">•</span>
-                        {lec.subtopics.map((st, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
-                            #{st}
+                      <div className="flex items-center gap-3 self-end md:self-center">
+                        <div className="flex items-center gap-2 text-xs font-semibold">
+                          <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-xl text-slate-200">
+                            📹 {teacherGroup.totalLectures} Lectures
                           </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {lec.notesUrl && (
-                        <a
-                          href={lec.notesUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs hover:bg-emerald-600/30 flex items-center gap-1.5 transition-colors"
-                        >
-                          <FileText className="w-4 h-4" /> Open Notes PDF
-                        </a>
-                      )}
-
-                      <button
-                        onClick={() => setSelectedLectureForPreview(lec)}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-md"
-                      >
-                        <Eye className="w-4 h-4" /> Inspect Video
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setRemarkingLectureId(remarkingLectureId === lec.id ? null : lec.id);
-                          setRemarkInput('');
-                        }}
-                        className="px-4 py-2 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 font-bold text-xs hover:bg-purple-600/30 flex items-center gap-1.5 transition-colors"
-                      >
-                        <MessageCircle className="w-4 h-4" /> Write Directive
-                      </button>
-                    </div>
-                  </div>
-
-                  {remarkingLectureId === lec.id && (
-                    <div className="p-4 bg-purple-950/30 border border-purple-500/40 rounded-2xl space-y-3 text-xs shadow-inner">
-                      <div className="font-bold text-purple-200">Post Directive / Improvement Remark for {lec.teacherName}:</div>
-                      <textarea
-                        rows={2}
-                        placeholder="e.g. Solve 2 additional numerical problems on space complexity in the next lecture."
-                        value={remarkInput}
-                        onChange={(e) => setRemarkInput(e.target.value)}
-                        className="w-full bg-slate-950 border border-purple-500/40 rounded-xl p-3 text-slate-100 focus:outline-none"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setRemarkingLectureId(null)}
-                          className="px-4 py-1.5 text-slate-400 hover:text-slate-200"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => handleSendAdminRemark(lec.id)}
-                          className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-md"
-                        >
-                          Post Directive
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {lec.adminRemarks && lec.adminRemarks.length > 0 && (
-                    <div className="pt-3 border-t border-slate-800 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
-                          💬 Posted Admin Directives ({lec.adminRemarks.length}):
-                        </span>
-                        {lec.adminRemarks.some((r) => r.isAcknowledged) && (
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                            {lec.adminRemarks.filter((r) => r.isAcknowledged).length} Acknowledged
+                          <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-xl text-amber-300">
+                            ⏱️ {teacherGroup.totalDuration}m ({Math.floor(teacherGroup.totalDuration / 60)}h {teacherGroup.totalDuration % 60}m)
                           </span>
+                          <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 font-bold">
+                            📦 {teacherGroup.units.length} Units Active
+                          </span>
+                        </div>
+
+                        <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-100 shrink-0">
+                          {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* TEACHER CONTENT: UNIT-WISE BREAKDOWN */}
+                    {!isCollapsed && (
+                      <div className="p-5 md:p-6 space-y-6">
+                        {teacherGroup.units.length === 0 ? (
+                          <div className="p-8 text-center bg-slate-900/40 border border-slate-800/60 rounded-2xl text-slate-400 text-xs italic">
+                            No lecture sessions delivered yet by {teacherGroup.teacherName}.
+                          </div>
+                        ) : (
+                          teacherGroup.units.map((unitGroup) => (
+                            <div 
+                              key={unitGroup.unitName} 
+                              className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-md space-y-4 p-4 md:p-5"
+                            >
+                              {/* UNIT HEADER RIBBON */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="px-3 py-1 rounded-xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/40 text-indigo-300 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                                    <Folder className="w-3.5 h-3.5 text-indigo-400" />
+                                    {unitGroup.unitName}
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-200">
+                                    {unitGroup.lectures.length} {unitGroup.lectures.length === 1 ? 'Lecture' : 'Lectures'} Delivered
+                                  </span>
+                                </div>
+
+                                <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                                  <span>Unit Total Duration:</span>
+                                  <strong className="text-amber-300 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                                    {unitGroup.totalDuration} min ({Math.round((unitGroup.totalDuration / 60) * 10) / 10} hrs)
+                                  </strong>
+                                </div>
+                              </div>
+
+                              {/* LECTURES IN THIS UNIT */}
+                              <div className="space-y-3.5">
+                                {unitGroup.lectures.map((lec) => (
+                                  <div 
+                                    key={lec.id} 
+                                    className="bg-slate-950/90 border border-slate-800/80 hover:border-slate-700/90 rounded-2xl p-4 md:p-5 space-y-3.5 transition-all shadow-sm"
+                                  >
+                                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                      <div className="space-y-1.5 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                            {unitGroup.unitName}
+                                          </span>
+                                          <span className="font-bold text-amber-400">
+                                            ⏱️ {lec.durationMinutes || 45} min
+                                          </span>
+                                          <span className="text-slate-600">•</span>
+                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                            lec.status === 'on_time'
+                                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                          }`}>
+                                            {lec.status === 'on_time' ? '✓ On-Time Submission' : '⚠️ Overdue'}
+                                          </span>
+                                          <span className="text-slate-600">•</span>
+                                          <span className="text-[10px] text-slate-500 font-mono">
+                                            {new Date(lec.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                          </span>
+                                        </div>
+
+                                        <h4 className="text-base font-extrabold text-slate-100">{lec.title}</h4>
+
+                                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-0.5">
+                                          <span className="font-semibold text-slate-300">Topic: {lec.primaryTopic}</span>
+                                          {lec.subtopics && lec.subtopics.length > 0 && (
+                                            <>
+                                              <span className="text-slate-600">•</span>
+                                              {lec.subtopics.map((st, i) => (
+                                                <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
+                                                  #{st}
+                                                </span>
+                                              ))}
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Action Buttons */}
+                                      <div className="flex items-center gap-2 shrink-0 self-end md:self-start">
+                                        {lec.notesUrl && (
+                                          <a
+                                            href={lec.notesUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="px-3 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs hover:bg-emerald-600/30 flex items-center gap-1.5 transition-colors"
+                                          >
+                                            <FileText className="w-3.5 h-3.5" /> Notes PDF
+                                          </a>
+                                        )}
+
+                                        <button
+                                          onClick={() => setSelectedLectureForPreview(lec)}
+                                          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-md"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" /> Inspect Video
+                                        </button>
+
+                                        <button
+                                          onClick={() => {
+                                            setRemarkingLectureId(remarkingLectureId === lec.id ? null : lec.id);
+                                            setRemarkInput('');
+                                          }}
+                                          className="px-3.5 py-2 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 font-bold text-xs hover:bg-purple-600/30 flex items-center gap-1.5 transition-colors"
+                                        >
+                                          <MessageCircle className="w-3.5 h-3.5" /> Write Directive
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Inline Write Directive Form */}
+                                    {remarkingLectureId === lec.id && (
+                                      <div className="p-4 bg-purple-950/30 border border-purple-500/40 rounded-2xl space-y-3 text-xs shadow-inner">
+                                        <div className="font-bold text-purple-200">
+                                          Post Directive / Quality Remark for {lec.teacherName}:
+                                        </div>
+                                        <textarea
+                                          rows={2}
+                                          placeholder="e.g. Solve 2 additional numerical problems on this unit topic in the next session."
+                                          value={remarkInput}
+                                          onChange={(e) => setRemarkInput(e.target.value)}
+                                          className="w-full bg-slate-950 border border-purple-500/40 rounded-xl p-3 text-slate-100 focus:outline-none"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                          <button
+                                            onClick={() => setRemarkingLectureId(null)}
+                                            className="px-4 py-1.5 text-slate-400 hover:text-slate-200"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            onClick={() => handleSendAdminRemark(lec.id)}
+                                            className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-md"
+                                          >
+                                            Post Directive
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Posted Admin Directives with Teacher Acknowledgment Status */}
+                                    {lec.adminRemarks && lec.adminRemarks.length > 0 && (
+                                      <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                                            💬 Posted Admin Directives ({lec.adminRemarks.length}):
+                                          </span>
+                                          {lec.adminRemarks.some((r) => r.isAcknowledged) && (
+                                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                              {lec.adminRemarks.filter((r) => r.isAcknowledged).length} Acknowledged
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                          {lec.adminRemarks.map((rem) => (
+                                            <div 
+                                              key={rem.id} 
+                                              className={`text-xs p-3.5 rounded-xl border space-y-2 transition-all ${
+                                                rem.isAcknowledged 
+                                                  ? 'bg-gradient-to-r from-emerald-950/20 via-slate-900/60 to-slate-900/40 border-emerald-500/30 shadow-sm' 
+                                                  : 'bg-purple-950/20 border-purple-500/30'
+                                              }`}
+                                            >
+                                              <div className="text-slate-200 italic font-medium leading-relaxed">
+                                                "{rem.remarkText}"
+                                              </div>
+
+                                              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-[10px]">
+                                                <span className="text-slate-400 font-normal">
+                                                  Posted by <strong className="text-slate-300">{rem.adminName}</strong>
+                                                </span>
+
+                                                {rem.isAcknowledged ? (
+                                                  <span className="font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1 shadow-sm">
+                                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                                    ✓ Acknowledged by {rem.acknowledgedByName || lec.teacherName} {rem.acknowledgedAt ? `on ${new Date(rem.acknowledgedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                                                  </span>
+                                                ) : (
+                                                  <span className="font-semibold text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
+                                                    <Clock className="w-3 h-3 text-amber-400" />
+                                                    ⏳ Pending Teacher Acknowledgment
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))
                         )}
                       </div>
-
-                      <div className="space-y-2">
-                        {lec.adminRemarks.map((rem) => (
-                          <div 
-                            key={rem.id} 
-                            className={`text-xs p-3.5 rounded-xl border space-y-2 transition-all ${
-                              rem.isAcknowledged 
-                                ? 'bg-gradient-to-r from-emerald-950/20 via-slate-900/60 to-slate-900/40 border-emerald-500/30 shadow-sm' 
-                                : 'bg-purple-950/20 border-purple-500/30'
-                            }`}
-                          >
-                            <div className="text-slate-200 italic font-medium leading-relaxed">
-                              "{rem.remarkText}"
-                            </div>
-
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-[10px]">
-                              <span className="text-slate-400 font-normal">
-                                Posted by <strong className="text-slate-300">{rem.adminName}</strong>
-                              </span>
-
-                              {rem.isAcknowledged ? (
-                                <span className="font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1 shadow-sm">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                  ✓ Acknowledged by {rem.acknowledgedByName || lec.teacherName} {rem.acknowledgedAt ? `on ${new Date(rem.acknowledgedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
-                                </span>
-                              ) : (
-                                <span className="font-semibold text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-amber-400" />
-                                  ⏳ Pending Teacher Acknowledgment
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

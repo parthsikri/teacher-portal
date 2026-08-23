@@ -101,6 +101,7 @@ export interface Lecture {
   localFileUrl?: string;
   fileName?: string;
   assignedTopicId?: string;
+  unitNumber?: string;        // e.g. "UNIT 1", "UNIT 2", "UNIT 3"
   adminRemarks: AdminRemark[];
   createdAt: string;
 }
