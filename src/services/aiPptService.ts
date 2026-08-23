@@ -336,20 +336,20 @@ export const AiPptService = {
     const slides: AiSlide[] = [];
     let slideCounter = 1;
 
-    // 1. Title Cover Slide
+    // 1. Title Cover Slide (Clean Executive Academic Design)
     const unitNames = unitGroups.map((u) => u.unitNumber).join(', ');
     slides.push({
       slideNumber: slideCounter++,
       type: 'title',
-      badge: 'PREVIOUS YEAR QUESTIONS BANK',
-      title: deckTitle,
-      subtitle: `${subject} • Unitwise & Topic-wise Question Bank`,
+      badge: 'UNIVERSITY & COMPETITIVE EXAMINATION SERIES',
+      title: subject.toUpperCase(),
+      subtitle: `Topic-Mapped Previous Year Questions (PYQ Bank) • Comprehensive Solutions`,
       bullets: [
-        `Curriculum Units: ${unitNames || 'All Units'}`,
-        `Total Examination Questions: ${totalQuestions} PYQs`,
-        `Grouped by Topic in Exact Syllabus Order • Apna Engineering Wallah`,
+        `Curriculum Scope: ${unitNames || 'Complete Syllabus Units'}`,
+        `Problem Set: ${totalQuestions} Curated Examination Questions`,
+        `Curriculum Mapping: Unit-Wise & Topic-Wise Chronological Sequence`,
       ],
-      calloutTip: 'Apna Engineering Wallah Academic Content Studio',
+      calloutTip: `Academic Session • Department of Computer Science & Engineering`,
     });
 
     // 2. Iterate Unit Groups -> Topic Groups -> Questions
@@ -358,15 +358,17 @@ export const AiPptService = {
     unitGroups.forEach((uGroup) => {
       // 2a. Unit Transition Divider Slide
       if (includeUnitDividers) {
-        const topicsList = uGroup.topicGroups.map((t) => `${t.topicName} (${t.questions.length}Q)`);
+        const topicsList = uGroup.topicGroups.map(
+          (t, idx) => `${String(idx + 1).padStart(2, '0')}. ${t.topicName} (${t.questions.length} ${t.questions.length === 1 ? 'PYQ' : 'PYQs'})`
+        );
         slides.push({
           slideNumber: slideCounter++,
           type: 'unit_divider',
-          badge: uGroup.unitNumber,
-          title: `${uGroup.unitNumber}: Examination Question Bank`,
+          badge: `MODULE / ${uGroup.unitNumber}`,
+          title: `${uGroup.unitNumber} — Core Examination Problem Sets`,
           subtitle: `${uGroup.totalQuestions} Questions across ${uGroup.topicGroups.length} Topics • ${subject}`,
           bullets: topicsList,
-          calloutTip: `${uGroup.totalQuestions} High-Yield PYQs in ${uGroup.unitNumber}`,
+          calloutTip: `Target: Mid-Term, University End-Term & Technical Examinations`,
         });
       }
 
@@ -375,17 +377,17 @@ export const AiPptService = {
         // Topic Section Divider Slide
         if (includeTopicDividers) {
           const questionExamYears = tGroup.questions.map(
-            (q, qNum) => `${qNum + 1}. ${q.yearExam}${q.marks ? ` [${q.marks}]` : ''}`
+            (q, qNum) => `Problem ${qNum + 1}: ${q.yearExam}${q.marks ? ` [${q.marks}]` : ''}`
           );
 
           slides.push({
             slideNumber: slideCounter++,
             type: 'topic_divider',
-            badge: `${uGroup.unitNumber} • TOPIC ${tIdx + 1}`,
-            title: `Topic: ${tGroup.topicName}`,
-            subtitle: `${tGroup.questions.length} Previous Year Questions • ${subject}`,
-            bullets: questionExamYears.slice(0, 8),
-            calloutTip: `Topic ${tIdx + 1} of ${uGroup.topicGroups.length} in ${uGroup.unitNumber}`,
+            badge: `${uGroup.unitNumber} ‣ TOPIC ${tIdx + 1}`,
+            title: tGroup.topicName,
+            subtitle: `Problem Set (${tGroup.questions.length} ${tGroup.questions.length === 1 ? 'Question' : 'Questions'}) • ${subject}`,
+            bullets: questionExamYears,
+            calloutTip: `Focus: Core Analytical Formulations, Proofs & Working Derivations`,
           });
         }
 
@@ -395,17 +397,21 @@ export const AiPptService = {
             slideNumber: slideCounter++,
             type: 'direct_pyq',
             badge: `${uGroup.unitNumber} • ${tGroup.topicName}`,
-            title: `${tGroup.topicName} — Question ${qIdxInTopic + 1} of ${tGroup.questions.length}`,
-            subtitle: pyq.yearExam ? `Exam: ${pyq.yearExam}${pyq.marks ? ` [${pyq.marks}]` : ''}` : undefined,
+            title: `${tGroup.topicName} — Problem ${qIdxInTopic + 1} of ${tGroup.questions.length}`,
+            subtitle: pyq.yearExam ? `${pyq.yearExam}${pyq.marks ? ` • Weightage: ${pyq.marks}` : ''}` : undefined,
             pyqDetails: {
               examYear: pyq.yearExam,
               marks: pyq.marks,
               question: pyq.questionText,
               stepByStepSolution: pyq.solution
                 ? [pyq.solution]
-                : ['Detailed solution, key formulas, and step-by-step derivation for student practice.'],
+                : [
+                    'Step 1: Identify given parameters, problem constraints & base assumptions.',
+                    'Step 2: Apply core theoretical principles and step-by-step mathematical derivation.',
+                    'Step 3: State final solution with Time & Space Complexity verification.',
+                  ],
             },
-            calloutTip: `Overall Question #${globalQuestionCounter} • ${pyq.yearExam || 'Exam PYQ'}`,
+            calloutTip: `${uGroup.unitNumber} • Topic: ${tGroup.topicName} • Problem #${globalQuestionCounter}`,
           });
           globalQuestionCounter++;
         });
@@ -428,81 +434,66 @@ export const AiPptService = {
    * Generates and downloads a pre-formatted Excel template for PYQs
    */
   downloadSamplePyqExcel(subjectName: string = 'Data Structures & Algorithms'): void {
-    const headers = ['Year & Exam', 'Unit Number', 'Mapped Topic', 'Full Question Text'];
-    
     const sampleRows = [
-      [
-        'GATE 2023 [8 Marks]',
-        'UNIT 1',
-        'Asymptotic Notations',
-        'Find the tight asymptotic time complexity of the recurrence relation T(n) = 2T(n/2) + n log n using the Master Theorem or recursion tree method.'
-      ],
-      [
-        'End-Term 2022 [10 Marks]',
-        'UNIT 1',
-        'Array Operations & Searching',
-        'Explain binary search algorithm on a sorted array of size N. Prove its worst-case time complexity O(log N) and trace with array [3, 9, 14, 19, 25, 31, 42] searching for key 25.'
-      ],
-      [
-        'Mid-Term 2023 [5 Marks]',
-        'UNIT 1',
-        'Time & Space Complexity',
-        'Compare Time Complexity vs Space Complexity trade-offs with an example of Fibonacci sequence computation using recursion vs dynamic programming.'
-      ],
-      [
-        'GATE 2021 [6 Marks]',
-        'UNIT 2',
-        'Singly Linked Lists',
-        'Write an algorithm to reverse a singly linked list in-place in O(N) time and O(1) auxiliary space. Provide pseudocode with pointer diagram.'
-      ],
-      [
-        'End-Term 2021 [8 Marks]',
-        'UNIT 2',
-        'Doubly Linked Lists',
-        'Describe insertion and deletion operations at an arbitrary position in a Doubly Linked List. Highlight pointer rewiring steps.'
-      ],
-      [
-        'University Exam 2022 [10 Marks]',
-        'UNIT 3',
-        'Stack Applications & Infix to Postfix',
-        'Convert the given Infix expression into Postfix notation using a Stack: ((A + B) * C - (D - E)) ^ (F + G). Show the stack status at each token.'
-      ],
-      [
-        'GATE 2022 [8 Marks]',
-        'UNIT 3',
-        'Circular Queue Implementation',
-        'Explain why linear queue suffers from false overflow. How does circular queue overcome this using modulo arithmetic? Write enqueue and dequeue procedures.'
-      ],
-      [
-        'End-Term 2023 [12 Marks]',
-        'UNIT 4',
-        'Binary Search Trees',
-        'Construct a Binary Search Tree (BST) by inserting the keys in order: [45, 12, 67, 34, 89, 23, 56]. Show tree balance and explain deletion of a node with two children.'
-      ],
-      [
-        'GATE 2020 [10 Marks]',
-        'UNIT 5',
-        'Dijkstra Shortest Path Algorithm',
-        'Apply Dijkstra algorithm on the given directed weighted graph to find shortest distances from source node S to all other vertices. Provide the step-by-step priority queue table.'
-      ],
+      {
+        'Year & Exam': 'GATE CS 2023',
+        'Unit Number': 'UNIT 1',
+        'Mapped Topic': 'Asymptotic Notations & Complexity',
+        'Full Question Text': 'Find the time complexity of the recurrence relation T(n) = 2T(n/2) + n*log(n) using Master Theorem or recursion tree method.',
+        'Marks / Weightage': '8 Marks',
+        'Faculty Solution / Notes': 'Using Master Theorem Case 2: a=2, b=2, f(n)=n*log(n). n^(log_b(a)) = n^1 = n. Since f(n) = Theta(n*log(n)), T(n) = Theta(n * (log n)^2).'
+      },
+      {
+        'Year & Exam': 'University End-Term Dec 2022',
+        'Unit Number': 'UNIT 1',
+        'Mapped Topic': 'Asymptotic Notations & Complexity',
+        'Full Question Text': 'Explain the formal mathematical definitions of Big-O, Big-Omega, and Big-Theta notations with suitable asymptotic graphs.',
+        'Marks / Weightage': '10 Marks',
+        'Faculty Solution / Notes': '1. Big-O (Upper Bound): 0 <= f(n) <= c*g(n) for all n >= n0. 2. Big-Omega (Lower Bound): 0 <= c*g(n) <= f(n). 3. Big-Theta (Tight Bound): c1*g(n) <= f(n) <= c2*g(n).'
+      },
+      {
+        'Year & Exam': 'Mid-Term Exam 2021',
+        'Unit Number': 'UNIT 1',
+        'Mapped Topic': 'Array Operations & Searching',
+        'Full Question Text': 'Write an efficient iterative algorithm for Binary Search in a sorted 1D array. Derive its best-case and worst-case time complexities.',
+        'Marks / Weightage': '6 Marks',
+        'Faculty Solution / Notes': 'Binary Search reduces search space by half at each step: T(n) = T(n/2) + O(1). Best Case: O(1). Worst Case: O(log n). Auxiliary Space: O(1).'
+      },
+      {
+        'Year & Exam': 'GATE CS 2022',
+        'Unit Number': 'UNIT 2',
+        'Mapped Topic': 'Singly Linked Lists',
+        'Full Question Text': 'Given a singly linked list with head pointer, write an algorithm to reverse the linked list in-place using O(1) extra space.',
+        'Marks / Weightage': '8 Marks',
+        'Faculty Solution / Notes': 'Use 3 pointers: prev = NULL, curr = head, next = NULL. Loop while curr != NULL: next = curr->next, curr->next = prev, prev = curr, curr = next. Return prev.'
+      },
+      {
+        'Year & Exam': 'End-Term May 2023',
+        'Unit Number': 'UNIT 2',
+        'Mapped Topic': 'Stack Applications & Infix to Postfix',
+        'Full Question Text': 'Convert the given infix expression to postfix using stack operator precedence: (A + B) * (C - D) / E ^ F.',
+        'Marks / Weightage': '10 Marks',
+        'Faculty Solution / Notes': 'Operator Precedence: ^ > *,/ > +,-. Trace table with stack symbols. Final Postfix Expression: A B + C D - * E F ^ /.'
+      }
     ];
 
-    const worksheetData = [headers, ...sampleRows];
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-
-    // Set custom column widths
+    const worksheet = XLSX.utils.json_to_sheet(sampleRows);
+    
+    // Set nice column widths
     worksheet['!cols'] = [
-      { wch: 25 }, // Year & Exam
-      { wch: 15 }, // Unit Number
-      { wch: 30 }, // Mapped Topic
-      { wch: 75 }, // Full Question Text
+      { wch: 24 }, // Year & Exam
+      { wch: 14 }, // Unit Number
+      { wch: 32 }, // Mapped Topic
+      { wch: 60 }, // Full Question Text
+      { wch: 18 }, // Marks
+      { wch: 50 }, // Solution
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'PYQ_Questions');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'PYQ_Bank');
 
-    const cleanSub = subjectName.replace(/[^a-zA-Z0-9]/g, '_');
-    XLSX.writeFile(workbook, `AEW_PYQ_Template_${cleanSub}.xlsx`);
+    const cleanName = (subjectName || 'Course').replace(/[^a-zA-Z0-9]/g, '_');
+    XLSX.writeFile(workbook, `${cleanName}_PYQ_Template.xlsx`);
   },
 
   /**
@@ -535,16 +526,46 @@ export const AiPptService = {
   },
 
   /**
-   * Calls the DeepSeek presentation generator API
+   * Alias for generatePpt (calls DeepSeek LLM)
    */
   async generateDeck(params: {
     subject: string;
     unit: string;
     topicTitle: string;
-    pyqList?: PyqItem[];
-    customInstructions?: string;
-    targetAudience?: string;
+    subtopics?: string[];
+    pedagogyMode?: string;
     slideCount?: number;
+    customInstructions?: string;
+    pyqs?: PyqItem[];
+    pyqList?: PyqItem[];
+    apiKey?: string;
+    targetAudience?: string;
+  }): Promise<{ success: boolean; deck?: AiGeneratedDeck; error?: string; needsApiKey?: boolean }> {
+    return this.generatePpt({
+      subject: params.subject,
+      unit: params.unit,
+      topicTitle: params.topicTitle,
+      subtopics: params.subtopics,
+      pedagogyMode: params.pedagogyMode,
+      slideCount: params.slideCount,
+      customInstructions: params.customInstructions,
+      pyqs: params.pyqs || params.pyqList,
+      apiKey: params.apiKey,
+    });
+  },
+
+  /**
+   * Calls DeepSeek LLM to generate pedagogy-driven slides
+   */
+  async generatePpt(params: {
+    subject: string;
+    unit: string;
+    topicTitle: string;
+    subtopics?: string[];
+    pedagogyMode?: string;
+    slideCount?: number;
+    customInstructions?: string;
+    pyqs?: PyqItem[];
     apiKey?: string;
   }): Promise<{ success: boolean; deck?: AiGeneratedDeck; error?: string; needsApiKey?: boolean }> {
     const activeApiKey = params.apiKey || this.getStoredApiKey();
@@ -645,14 +666,138 @@ export const AiPptService = {
       const pptSlide = pptx.addSlide();
       pptSlide.background = { color: themeColors.bg };
 
-      // Top Bar: Badge & Subject Context
+      // ── 1. TYPE: TITLE / COVER SLIDE (Executive Academic Style) ───────
+      if (slide.type === 'title') {
+        // Top Series Badge Pill
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 0.8,
+          y: 0.75,
+          w: 8.4,
+          h: 0.38,
+          fill: { color: themeColors.badgeBg },
+          line: { color: themeColors.accentPrimary, width: 1 },
+          rectRadius: 0.08,
+        });
+
+        pptSlide.addText(slide.badge || 'UNIVERSITY & COMPETITIVE EXAMINATION SERIES', {
+          x: 0.8,
+          y: 0.75,
+          w: 8.4,
+          h: 0.38,
+          fontSize: 10,
+          bold: true,
+          color: themeColors.badgeText,
+          align: 'center',
+          fontFace: 'Arial',
+        });
+
+        // Subject Title
+        pptSlide.addText(deck.subject || slide.title, {
+          x: 0.8,
+          y: 1.3,
+          w: 8.4,
+          h: 0.9,
+          fontSize: 26,
+          bold: true,
+          color: themeColors.textPrimary,
+          align: 'center',
+          fontFace: 'Arial',
+        });
+
+        // Decorative Accent Line
+        pptSlide.addShape(pptx.ShapeType.line, {
+          x: 2.5,
+          y: 2.3,
+          w: 5.0,
+          h: 0.0,
+          line: { color: themeColors.accentPrimary, width: 2 },
+        });
+
+        // Subtitle
+        pptSlide.addText(slide.subtitle || 'Previous Year Questions (PYQ Bank) • Topic-Mapped Solutions', {
+          x: 0.8,
+          y: 2.45,
+          w: 8.4,
+          h: 0.45,
+          fontSize: 12,
+          italic: true,
+          color: themeColors.textSecondary,
+          align: 'center',
+          fontFace: 'Arial',
+        });
+
+        // 3 Info Cards
+        const cardW = 2.6;
+        const cardH = 1.1;
+        const cardGap = 0.3;
+        const startX = 0.8;
+        const cardY = 3.15;
+
+        const infoItems = [
+          { label: 'CURRICULUM MODULES', val: deck.unit || 'All Units', col: themeColors.accentPrimary },
+          { label: 'PROBLEM SET SIZE', val: `${deck.relevantPyqCount || 0} Examination PYQs`, col: themeColors.accentSecondary },
+          { label: 'SYLLABUS MAPPING', val: 'Unit & Topic Sequence', col: themeColors.badgeText },
+        ];
+
+        infoItems.forEach((info, idx) => {
+          const cx = startX + idx * (cardW + cardGap);
+          pptSlide.addShape(pptx.ShapeType.roundRect, {
+            x: cx,
+            y: cardY,
+            w: cardW,
+            h: cardH,
+            fill: { color: themeColors.cardBg },
+            line: { color: themeColors.cardBorder, width: 1 },
+            rectRadius: 0.1,
+          });
+
+          pptSlide.addText(info.label, {
+            x: cx,
+            y: cardY + 0.15,
+            w: cardW,
+            h: 0.25,
+            fontSize: 8,
+            bold: true,
+            color: info.col,
+            align: 'center',
+            fontFace: 'Arial',
+          });
+
+          pptSlide.addText(info.val, {
+            x: cx + 0.1,
+            y: cardY + 0.45,
+            w: cardW - 0.2,
+            h: 0.5,
+            fontSize: 11,
+            bold: true,
+            color: themeColors.textPrimary,
+            align: 'center',
+            fontFace: 'Arial',
+          });
+        });
+
+        // Bottom Footer
+        pptSlide.addText('Apna Engineering Wallah • Faculty Lecture & Problem Repository', {
+          x: 0.8,
+          y: 4.85,
+          w: 8.4,
+          h: 0.3,
+          fontSize: 9,
+          color: themeColors.textSecondary,
+          align: 'center',
+          fontFace: 'Arial',
+        });
+        return;
+      }
+
+      // Top Breadcrumb Bar for Slides 2..N
       if (slide.badge || deck.subject) {
         pptSlide.addText(
           `${(slide.badge || 'CONCEPT').toUpperCase()}  •  ${deck.subject} (${deck.unit})`,
           {
             x: 0.8,
             y: 0.4,
-            w: 8.4,
+            w: 7.2,
             h: 0.3,
             fontSize: 10,
             bold: true,
@@ -690,159 +835,101 @@ export const AiPptService = {
 
       const contentStartY = slide.subtitle ? 1.75 : 1.45;
 
-      // ── TYPE: UNIT DIVIDER ──────────────────────────────────────────
+      // ── 2. TYPE: UNIT DIVIDER ─────────────────────────────────────────
       if (slide.type === 'unit_divider') {
         pptSlide.addShape(pptx.ShapeType.roundRect, {
-          x: 1.0,
-          y: 1.2,
-          w: 8.0,
-          h: 3.4,
+          x: 0.8,
+          y: contentStartY,
+          w: 8.4,
+          h: 3.1,
           fill: { color: themeColors.cardBg },
-          line: { color: themeColors.accentPrimary, width: 2 },
-          rectRadius: 0.15,
+          line: { color: themeColors.accentPrimary, width: 1.5 },
+          rectRadius: 0.12,
         });
 
-        // Large unit pill
-        pptSlide.addShape(pptx.ShapeType.roundRect, {
-          x: 1.3,
-          y: 1.5,
-          w: 2.2,
-          h: 0.45,
-          fill: { color: themeColors.badgeBg },
-          line: { color: themeColors.accentPrimary, width: 1 },
-          rectRadius: 0.1,
-        });
-
-        pptSlide.addText(slide.badge || 'MODULE UNIT', {
-          x: 1.3,
-          y: 1.5,
-          w: 2.2,
-          h: 0.45,
-          fontSize: 12,
+        pptSlide.addText('Syllabus Topics & Examination Questions in this Unit:', {
+          x: 1.1,
+          y: contentStartY + 0.2,
+          w: 7.8,
+          h: 0.3,
+          fontSize: 11,
           bold: true,
-          color: themeColors.badgeText,
-          align: 'center',
+          color: themeColors.accentPrimary,
           fontFace: 'Arial',
         });
-
-        // Unit Header Title
-        pptSlide.addText(slide.title, {
-          x: 1.3,
-          y: 2.1,
-          w: 7.4,
-          h: 0.7,
-          fontSize: 22,
-          bold: true,
-          color: themeColors.textPrimary,
-          fontFace: 'Arial',
-        });
-
-        if (slide.subtitle) {
-          pptSlide.addText(slide.subtitle, {
-            x: 1.3,
-            y: 2.8,
-            w: 7.4,
-            h: 0.35,
-            fontSize: 12,
-            italic: true,
-            color: themeColors.textSecondary,
-            fontFace: 'Arial',
-          });
-        }
 
         if (slide.bullets && slide.bullets.length > 0) {
-          const topicList = slide.bullets.join('   •   ');
-          pptSlide.addText(`Mapped Syllabus Topics:\n${topicList}`, {
-            x: 1.3,
-            y: 3.25,
-            w: 7.4,
-            h: 1.1,
+          const half = Math.ceil(slide.bullets.length / 2);
+          const col1 = slide.bullets.slice(0, half).join('\n\n');
+          const col2 = slide.bullets.slice(half).join('\n\n');
+
+          pptSlide.addText(col1, {
+            x: 1.1,
+            y: contentStartY + 0.55,
+            w: 3.8,
+            h: 2.3,
             fontSize: 11,
-            color: themeColors.accentSecondary,
+            color: themeColors.textPrimary,
+            fontFace: 'Arial',
+            lineSpacing: 16,
+          });
+
+          if (col2) {
+            pptSlide.addText(col2, {
+              x: 5.1,
+              y: contentStartY + 0.55,
+              w: 3.8,
+              h: 2.3,
+              fontSize: 11,
+              color: themeColors.textPrimary,
+              fontFace: 'Arial',
+              lineSpacing: 16,
+            });
+          }
+        }
+      }
+
+      // ── 3. TYPE: TOPIC DIVIDER ─────────────────────────────────────────
+      else if (slide.type === 'topic_divider') {
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 0.8,
+          y: contentStartY,
+          w: 8.4,
+          h: 3.1,
+          fill: { color: themeColors.cardBg },
+          line: { color: themeColors.accentSecondary, width: 1.5 },
+          rectRadius: 0.12,
+        });
+
+        pptSlide.addText('Problem Sets Included in this Topic Series:', {
+          x: 1.1,
+          y: contentStartY + 0.2,
+          w: 7.8,
+          h: 0.3,
+          fontSize: 11,
+          bold: true,
+          color: themeColors.accentSecondary,
+          fontFace: 'Arial',
+        });
+
+        if (slide.bullets && slide.bullets.length > 0) {
+          const qList = slide.bullets.join('\n\n');
+          pptSlide.addText(qList, {
+            x: 1.1,
+            y: contentStartY + 0.55,
+            w: 7.8,
+            h: 2.3,
+            fontSize: 11,
+            color: themeColors.textPrimary,
             fontFace: 'Arial',
             lineSpacing: 16,
           });
         }
       }
 
-      // ── TYPE: TOPIC DIVIDER ──────────────────────────────────────────
-      else if (slide.type === 'topic_divider') {
-        pptSlide.addShape(pptx.ShapeType.roundRect, {
-          x: 1.0,
-          y: 1.2,
-          w: 8.0,
-          h: 3.4,
-          fill: { color: themeColors.cardBg },
-          line: { color: themeColors.accentSecondary, width: 1.5 },
-          rectRadius: 0.15,
-        });
-
-        // Topic badge pill
-        pptSlide.addShape(pptx.ShapeType.roundRect, {
-          x: 1.3,
-          y: 1.5,
-          w: 2.6,
-          h: 0.4,
-          fill: { color: themeColors.badgeBg },
-          line: { color: themeColors.accentSecondary, width: 1 },
-          rectRadius: 0.1,
-        });
-
-        pptSlide.addText(slide.badge || 'TOPIC SECTION', {
-          x: 1.3,
-          y: 1.5,
-          w: 2.6,
-          h: 0.4,
-          fontSize: 11,
-          bold: true,
-          color: themeColors.badgeText,
-          align: 'center',
-          fontFace: 'Arial',
-        });
-
-        // Topic Title
-        pptSlide.addText(slide.title, {
-          x: 1.3,
-          y: 2.05,
-          w: 7.4,
-          h: 0.65,
-          fontSize: 20,
-          bold: true,
-          color: themeColors.textPrimary,
-          fontFace: 'Arial',
-        });
-
-        if (slide.subtitle) {
-          pptSlide.addText(slide.subtitle, {
-            x: 1.3,
-            y: 2.7,
-            w: 7.4,
-            h: 0.35,
-            fontSize: 12,
-            italic: true,
-            color: themeColors.textSecondary,
-            fontFace: 'Arial',
-          });
-        }
-
-        if (slide.bullets && slide.bullets.length > 0) {
-          const qList = slide.bullets.join('\n');
-          pptSlide.addText(`Questions in this Topic:\n${qList}`, {
-            x: 1.3,
-            y: 3.15,
-            w: 7.4,
-            h: 1.2,
-            fontSize: 10,
-            color: themeColors.accentSecondary,
-            fontFace: 'Arial',
-            lineSpacing: 14,
-          });
-        }
-      }
-
-      // ── TYPE: DIRECT PYQ (EXCEL PYQ) ────────────────────────────────
+      // ── 4. TYPE: DIRECT PYQ (EXCEL PYQ) ───────────────────────────────
       else if (slide.type === 'direct_pyq' && slide.pyqDetails) {
-        // Question Card (Prominent Upper Box)
+        // Question Problem Box (Top Container)
         pptSlide.addShape(pptx.ShapeType.roundRect, {
           x: 0.8,
           y: contentStartY,
@@ -883,7 +970,7 @@ export const AiPptService = {
           lineSpacing: 18,
         });
 
-        // Working / Solution / Faculty Notes Outline Box
+        // Solution & Derivation Workspace (Bottom Box)
         pptSlide.addShape(pptx.ShapeType.roundRect, {
           x: 0.8,
           y: contentStartY + 2.15,
@@ -896,7 +983,7 @@ export const AiPptService = {
 
         const solText = (slide.pyqDetails.stepByStepSolution && slide.pyqDetails.stepByStepSolution.length > 0)
           ? slide.pyqDetails.stepByStepSolution.join('\n')
-          : 'Faculty Solution / Derivation & Trace Table:';
+          : '• Step 1: Identify parameters & constraints\n• Step 2: Apply core algorithm principles\n• Step 3: Verify Time & Space Complexity';
 
         pptSlide.addText(`💡 Faculty Notes & Solution Derivation:\n${solText}`, {
           x: 1.0,
@@ -910,7 +997,7 @@ export const AiPptService = {
         });
       }
 
-      // ── TYPE: FIRST PRINCIPLES / ANALOGY ──────────────────────────────
+      // ── 5. TYPE: FIRST PRINCIPLES / ANALOGY ─────────────────────────────
       else if (slide.type === 'first_principles' && slide.analogy) {
         // Analogy Box
         pptSlide.addShape(pptx.ShapeType.roundRect, {
@@ -950,7 +1037,7 @@ export const AiPptService = {
         }
       }
 
-      // ── TYPE: TWO COLUMN COMPARISON ──────────────────────────────────
+      // ── 6. TYPE: TWO COLUMN COMPARISON ─────────────────────────────────
       else if (slide.type === 'two_column') {
         // Left Column Box
         pptSlide.addShape(pptx.ShapeType.roundRect, {
@@ -1023,60 +1110,13 @@ export const AiPptService = {
         }
       }
 
-      // ── TYPE: PYQ SOLUTION ──────────────────────────────────────────
-      else if (slide.type === 'pyq_solution' && slide.pyqDetails) {
-        // Question Box
-        pptSlide.addShape(pptx.ShapeType.roundRect, {
-          x: 0.8,
-          y: contentStartY,
-          w: 8.4,
-          h: 1.1,
-          fill: { color: themeColors.cardBg },
-          line: { color: themeColors.accentSecondary, width: 1.5 },
-          rectRadius: 0.1,
-        });
-
-        pptSlide.addText(
-          `📝 ${slide.pyqDetails.examYear || 'Exam PYQ'}${slide.pyqDetails.marks ? ` [${slide.pyqDetails.marks}]` : ''}:\n${slide.pyqDetails.question}`,
-          {
-            x: 1.0,
-            y: contentStartY + 0.1,
-            w: 8.0,
-            h: 0.9,
-            fontSize: 11,
-            bold: true,
-            color: themeColors.textPrimary,
-            fontFace: 'Arial',
-          }
-        );
-
-        // Step-by-Step Solution
-        if (slide.pyqDetails.stepByStepSolution) {
-          const solutionText = slide.pyqDetails.stepByStepSolution
-            .map((s, idx) => `Step ${idx + 1}: ${s.replace(/\*\*/g, '')}`)
-            .join('\n\n');
-
-          pptSlide.addText(solutionText, {
-            x: 0.8,
-            y: contentStartY + 1.25,
-            w: 8.4,
-            h: 2.0,
-            fontSize: 11,
-            color: themeColors.textSecondary,
-            fontFace: 'Arial',
-            lineSpacing: 16,
-          });
-        }
-      }
-
-      // ── DEFAULT / CONCEPT / STEP-BY-STEP ─────────────────────────────
+      // ── 7. DEFAULT / CONCEPT / STEP-BY-STEP ────────────────────────────
       else {
-        // Main content card
         pptSlide.addShape(pptx.ShapeType.roundRect, {
           x: 0.8,
           y: contentStartY,
           w: 8.4,
-          h: slide.formulaOrCode ? 2.0 : 3.2,
+          h: slide.formulaOrCode ? 2.0 : 3.1,
           fill: { color: themeColors.cardBg },
           line: { color: themeColors.cardBorder, width: 1 },
           rectRadius: 0.1,
@@ -1088,7 +1128,7 @@ export const AiPptService = {
             x: 1.0,
             y: contentStartY + 0.15,
             w: 8.0,
-            h: slide.formulaOrCode ? 1.7 : 2.9,
+            h: slide.formulaOrCode ? 1.7 : 2.8,
             fontSize: 12,
             color: themeColors.textPrimary,
             fontFace: 'Arial',
@@ -1096,7 +1136,6 @@ export const AiPptService = {
           });
         }
 
-        // Formula / Code box if present
         if (slide.formulaOrCode) {
           pptSlide.addShape(pptx.ShapeType.roundRect, {
             x: 0.8,
@@ -1178,7 +1217,62 @@ export const AiPptService = {
       doc.setFillColor(bgRGB[0], bgRGB[1], bgRGB[2]);
       doc.rect(0, 0, 297, 210, 'F');
 
-      // Header Badge
+      // ── 1. TITLE / COVER SLIDE ───────────────────────────────────────
+      if (slide.type === 'title') {
+        doc.setFillColor(accentRGB[0], accentRGB[1], accentRGB[2]);
+        doc.roundedRect(20, 25, 257, 10, 2, 2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(slide.badge || 'UNIVERSITY & COMPETITIVE EXAMINATION SERIES', 148.5, 31.5, { align: 'center' });
+
+        doc.setTextColor(textPrimaryRGB[0], textPrimaryRGB[1], textPrimaryRGB[2]);
+        doc.setFontSize(24);
+        doc.setFont('helvetica', 'bold');
+        doc.text(deck.subject || slide.title, 148.5, 55, { align: 'center' });
+
+        doc.setTextColor(textSecondaryRGB[0], textSecondaryRGB[1], textSecondaryRGB[2]);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'italic');
+        doc.text(slide.subtitle || 'Topic-Mapped Solved Previous Year Questions Bank', 148.5, 68, { align: 'center' });
+
+        // Info cards
+        const cardW = 75;
+        const cardH = 35;
+        const startX = 20;
+        const gap = 16;
+        const cardY = 90;
+
+        const infoItems = [
+          { label: 'CURRICULUM MODULES', val: deck.unit || 'All Units' },
+          { label: 'PROBLEM SET SIZE', val: `${deck.relevantPyqCount || 0} Examination PYQs` },
+          { label: 'SYLLABUS MAPPING', val: 'Unit & Topic Sequence' },
+        ];
+
+        infoItems.forEach((info, cIdx) => {
+          const cx = startX + cIdx * (cardW + gap);
+          doc.setFillColor(cardBgRGB[0], cardBgRGB[1], cardBgRGB[2]);
+          doc.roundedRect(cx, cardY, cardW, cardH, 3, 3, 'F');
+
+          doc.setTextColor(accentRGB[0], accentRGB[1], accentRGB[2]);
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.text(info.label, cx + cardW / 2, cardY + 12, { align: 'center' });
+
+          doc.setTextColor(textPrimaryRGB[0], textPrimaryRGB[1], textPrimaryRGB[2]);
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+          doc.text(info.val, cx + cardW / 2, cardY + 24, { align: 'center' });
+        });
+
+        doc.setTextColor(textSecondaryRGB[0], textSecondaryRGB[1], textSecondaryRGB[2]);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Apna Engineering Wallah • Faculty Lecture & Problem Repository', 148.5, 185, { align: 'center' });
+        return;
+      }
+
+      // Header Badge for Slides 2..N
       doc.setTextColor(accentRGB[0], accentRGB[1], accentRGB[2]);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -1206,28 +1300,12 @@ export const AiPptService = {
 
       let currentY = contentY + 12;
 
-      // Analogy
-      if (slide.analogy) {
-        doc.setTextColor(accentRGB[0], accentRGB[1], accentRGB[2]);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text('💡 Real-World Analogy (Intuition):', 26, currentY);
-        currentY += 6;
-
-        doc.setTextColor(textPrimaryRGB[0], textPrimaryRGB[1], textPrimaryRGB[2]);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        const splitAnalogy = doc.splitTextToSize(slide.analogy, 245);
-        doc.text(splitAnalogy, 26, currentY);
-        currentY += splitAnalogy.length * 6 + 6;
-      }
-
       // PYQ Question
       if (slide.pyqDetails) {
         doc.setTextColor(16, 185, 129); // Emerald
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text(`📝 ${slide.pyqDetails.examYear || 'Exam PYQ'}:`, 26, currentY);
+        doc.text(`📝 ${slide.pyqDetails.examYear || 'Exam PYQ'}${slide.pyqDetails.marks ? ` [${slide.pyqDetails.marks}]` : ''}:`, 26, currentY);
         currentY += 6;
 
         doc.setTextColor(textPrimaryRGB[0], textPrimaryRGB[1], textPrimaryRGB[2]);
@@ -1248,8 +1326,8 @@ export const AiPptService = {
         }
       }
 
-      // Bullets
-      if (slide.bullets && !slide.pyqDetails) {
+      // Bullets (e.g. for Unit & Topic dividers)
+      else if (slide.bullets && slide.bullets.length > 0) {
         doc.setTextColor(textPrimaryRGB[0], textPrimaryRGB[1], textPrimaryRGB[2]);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
@@ -1260,18 +1338,6 @@ export const AiPptService = {
           doc.text(splitB, 26, currentY);
           currentY += splitB.length * 6 + 3;
         });
-      }
-
-      // Formula or Code
-      if (slide.formulaOrCode) {
-        currentY += 4;
-        doc.setFillColor(bgRGB[0], bgRGB[1], bgRGB[2]);
-        doc.roundedRect(26, currentY, 245, 18, 2, 2, 'F');
-
-        doc.setTextColor(16, 185, 129);
-        doc.setFont('courier', 'bold');
-        doc.setFontSize(10);
-        doc.text(slide.formulaOrCode, 30, currentY + 11);
       }
 
       // Callout Tip

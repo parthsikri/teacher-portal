@@ -978,83 +978,130 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   </div>
 
                   {/* SLIDE BODY */}
-                  <div className="my-auto space-y-3.5">
+                  <div className="my-auto space-y-4">
                     
-                    {/* 1. COVER / TITLE SLIDE */}
+                    {/* 1. COVER / TITLE SLIDE (Executive Academic Style) */}
                     {activeSlide?.type === 'title' && (
-                      <div className="text-center py-6 space-y-3">
-                        <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-mono font-bold">
-                          {activeSlide.badge || 'PYQ MASTER DECK'}
-                        </span>
-                        <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white">
-                          {activeSlide.title}
+                      <div className="text-center py-4 space-y-3.5">
+                        <div className="inline-block px-4 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[11px] font-mono font-bold tracking-wide">
+                          {activeSlide.badge || 'UNIVERSITY & COMPETITIVE EXAMINATION SERIES'}
+                        </div>
+                        
+                        <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase max-w-xl mx-auto">
+                          {generatedDeck.subject || activeSlide.title}
                         </h2>
-                        {activeSlide.subtitle && (
-                          <p className="text-xs text-slate-400 max-w-md mx-auto">
-                            {activeSlide.subtitle}
-                          </p>
-                        )}
-                        {activeSlide.bullets && (
-                          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                            {activeSlide.bullets.map((b, i) => (
-                              <span key={i} className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-[11px] text-slate-300">
-                                {b}
-                              </span>
-                            ))}
+
+                        <div className="w-24 h-0.5 bg-indigo-500 mx-auto rounded-full" />
+
+                        <p className="text-xs text-slate-300 max-w-lg mx-auto font-medium">
+                          {activeSlide.subtitle || 'Topic-Mapped Previous Year Examination Questions (PYQ Bank)'}
+                        </p>
+
+                        {/* 3 Executive Metadata Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 max-w-xl mx-auto">
+                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
+                            <span className="text-[9px] font-bold text-indigo-400 font-mono tracking-wider block uppercase">
+                              Curriculum Scope
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-100 block truncate">
+                              {generatedDeck.unit || 'All Units'}
+                            </span>
                           </div>
-                        )}
+
+                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
+                            <span className="text-[9px] font-bold text-emerald-400 font-mono tracking-wider block uppercase">
+                              Problem Set Size
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-100 block">
+                              {generatedDeck.relevantPyqCount || 0} Examination PYQs
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
+                            <span className="text-[9px] font-bold text-amber-400 font-mono tracking-wider block uppercase">
+                              Organization
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-100 block">
+                              Topic-Wise Sequence
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
 
                     {/* 2. UNIT DIVIDER SLIDE */}
                     {activeSlide?.type === 'unit_divider' && (
-                      <div className="p-6 rounded-2xl bg-indigo-950/30 border-2 border-indigo-500/40 text-center space-y-3 my-auto">
-                        <span className="px-3 py-1 rounded-full bg-indigo-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
-                          {activeSlide.badge}
-                        </span>
-                        <h2 className="text-2xl font-black text-white">
-                          {activeSlide.title}
-                        </h2>
-                        {activeSlide.subtitle && (
-                          <p className="text-xs text-slate-400">
-                            {activeSlide.subtitle}
-                          </p>
-                        )}
-                        {activeSlide.bullets && activeSlide.bullets.length > 0 && (
-                          <div className="flex flex-wrap justify-center gap-1.5 pt-2 max-w-lg mx-auto">
-                            {activeSlide.bullets.map((t, idx) => (
-                              <span key={idx} className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-emerald-300">
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
+                            {activeSlide.badge}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h2 className="text-xl md:text-2xl font-black text-white">
+                            {activeSlide.title}
+                          </h2>
+                          {activeSlide.subtitle && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {activeSlide.subtitle}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Topics Index Box */}
+                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">
+                            Syllabus Topics & Examination Questions in this Unit:
+                          </span>
+                          {activeSlide.bullets && activeSlide.bullets.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                              {activeSlide.bullets.map((t, idx) => (
+                                <div key={idx} className="p-1.5 bg-slate-950/80 border border-slate-800/80 rounded-lg text-[11px] text-slate-200 font-medium">
+                                  {t}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
                     {/* 2b. TOPIC SECTION DIVIDER SLIDE */}
                     {activeSlide?.type === 'topic_divider' && (
-                      <div className="p-6 rounded-2xl bg-slate-900/95 border-2 border-emerald-500/40 text-center space-y-3 my-auto shadow-xl">
-                        <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
-                          {activeSlide.badge || 'TOPIC SECTION'}
-                        </span>
-                        <h2 className="text-xl md:text-2xl font-black text-white">
-                          {activeSlide.title}
-                        </h2>
-                        {activeSlide.subtitle && (
-                          <p className="text-xs text-slate-400">
-                            {activeSlide.subtitle}
-                          </p>
-                        )}
-                        {activeSlide.bullets && activeSlide.bullets.length > 0 && (
-                          <div className="flex flex-wrap justify-center gap-1.5 pt-2 max-w-lg mx-auto">
-                            {activeSlide.bullets.map((t, idx) => (
-                              <span key={idx} className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-lg text-[10px] text-amber-300 font-medium">
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
+                            {activeSlide.badge || 'TOPIC SECTION'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h2 className="text-xl md:text-2xl font-black text-white">
+                            {activeSlide.title}
+                          </h2>
+                          {activeSlide.subtitle && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {activeSlide.subtitle}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Problem Set Index */}
+                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                            Problem Sets Included in this Topic Series:
+                          </span>
+                          {activeSlide.bullets && activeSlide.bullets.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                              {activeSlide.bullets.map((t, idx) => (
+                                <div key={idx} className="p-1.5 bg-slate-950/80 border border-slate-800/80 rounded-lg text-[11px] text-amber-300 font-medium">
+                                  {t}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -1063,12 +1110,12 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                       <div className="space-y-3">
                         <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 shadow-inner">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[11px]">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[11px]">
                               📝 {activeSlide.pyqDetails?.examYear || 'Exam Question'}
                             </span>
                             {activeSlide.pyqDetails?.marks && (
-                              <span className="font-mono text-amber-400 font-bold text-xs">
-                                [{activeSlide.pyqDetails.marks}]
+                              <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                                {activeSlide.pyqDetails.marks}
                               </span>
                             )}
                           </div>
@@ -1084,9 +1131,15 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                             <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
                             Faculty Solution & Derivation Notes:
                           </div>
-                          <p className="text-[11px] text-slate-400 italic leading-relaxed">
-                            {activeSlide.pyqDetails?.stepByStepSolution?.[0] || 'Detailed working steps, formula derivation, and step-by-step trace tables.'}
-                          </p>
+                          <div className="text-[11px] text-slate-300 space-y-0.5 pl-1 leading-relaxed">
+                            {activeSlide.pyqDetails?.stepByStepSolution && activeSlide.pyqDetails.stepByStepSolution.length > 0 ? (
+                              activeSlide.pyqDetails.stepByStepSolution.map((s, idx) => (
+                                <p key={idx} className="text-slate-300">{s}</p>
+                              ))
+                            ) : (
+                              <p className="text-slate-400 italic">Detailed working steps, formula derivation, and step-by-step trace tables.</p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1096,7 +1149,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   {/* SLIDE FOOTER */}
                   <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
                     <div className="text-[10px] text-slate-400">
-                      Apna Engineering Wallah • PYQ Master Presentation
+                      Apna Engineering Wallah • Faculty Lecture & Problem Repository
                     </div>
 
                     {isFullscreen && (
