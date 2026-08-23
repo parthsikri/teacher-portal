@@ -450,6 +450,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             <div className="flex flex-wrap items-center gap-3">
               <button
+                onClick={() => onPageChange('ppt_generator')}
+                className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-xl shadow-indigo-600/30 transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-amber-300" /> PYQ PPT Generator
+              </button>
+              <button
                 onClick={() => setShowDbModal(true)}
                 className="px-4 py-3 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
               >

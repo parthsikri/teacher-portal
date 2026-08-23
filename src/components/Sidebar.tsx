@@ -94,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { 
       id: 'ppt_generator', 
-      label: 'AI PPT Studio', 
+      label: 'PYQ PPT Generator', 
       icon: FileSpreadsheet,
       badge: adminPptRequestsQueueCount > 0 ? `${adminPptRequestsQueueCount} Req` : undefined,
     },
