@@ -79,8 +79,9 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   }, [teacher.teacherId, refreshKey, lectures]);
 
   const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
-  const targetMinutes = backlogInfo.cumulativeRequired;
-  const isTargetReached = backlogInfo.isCumulativeTargetMet;
+  const targetMinutes = teacher.dailyTargetMinutes || 120;
+  const isTargetReached = minutesRecordedToday >= targetMinutes;
+  const remainingMinutesToday = Math.max(0, targetMinutes - minutesRecordedToday);
 
   const [selectedLectureForPreview, setSelectedLectureForPreview] = useState<Lecture | null>(null);
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
@@ -287,18 +288,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           </div>
 
-          {/* 1. REAL-TIME SUBMISSION DEADLINE & TIME REMAINING BANNER (WITH NON-RESET BACKLOG RULE) */}
+          {/* 1. REAL-TIME SUBMISSION DEADLINE & TIME REMAINING BANNER */}
           {(() => {
             const isCompleted = timeRemaining.isTargetMet;
             const isPassed = timeRemaining.isPassed;
-            const hasBacklog = timeRemaining.yesterdayBacklog > 0;
+            const hasYesterdayBacklog = !timeRemaining.isYesterdayFulfilled && timeRemaining.yesterdayUnfulfilledMinutes > 0;
 
             return (
               <div className={`border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs transition-all shadow-sm ${
                 isCompleted
                   ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-slate-900/40 border-emerald-500/40 text-emerald-200 shadow-emerald-950/20'
-                  : hasBacklog && !timeRemaining.isBacklogFulfilled
-                  ? 'bg-gradient-to-r from-amber-950/40 via-slate-900/70 to-slate-900/50 border-amber-500/50 text-amber-100 shadow-amber-950/20'
                   : isPassed
                   ? 'bg-gradient-to-r from-rose-950/40 via-slate-900/60 to-slate-900/40 border-rose-500/40 text-rose-200'
                   : 'bg-gradient-to-r from-indigo-950/50 via-purple-950/30 to-slate-900/60 border-indigo-500/40 text-indigo-100 shadow-indigo-950/20'
@@ -307,13 +306,11 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 ${
                     isCompleted
                       ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
-                      : hasBacklog && !timeRemaining.isBacklogFulfilled
-                      ? 'bg-amber-500/20 border border-amber-500/30 text-amber-400 animate-pulse'
                       : isPassed
                       ? 'bg-rose-500/20 border border-rose-500/30 text-rose-400 animate-pulse'
                       : 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-300'
                   }`}>
-                    {isCompleted ? <CheckCircle className="w-5 h-5" /> : hasBacklog && !timeRemaining.isBacklogFulfilled ? <AlertTriangle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                    {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                   </div>
 
                   <div className="space-y-1 min-w-0">
@@ -326,10 +323,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                           ✓ Target Completed On-Time
                         </span>
-                      ) : hasBacklog && !timeRemaining.isBacklogFulfilled ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 border border-amber-400 shadow-sm animate-pulse">
-                          ⚠️ Daily Reset On Hold: Incomplete Previous Day
-                        </span>
                       ) : isPassed ? (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
                           ⚠️ Deadline Missed for Today
@@ -339,17 +332,19 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           ⏰ Live Countdown
                         </span>
                       )}
+
+                      {hasYesterdayBacklog && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          ⚠️ Yesterday Incomplete ({timeRemaining.yesterdayUnfulfilledMinutes}m)
+                        </span>
+                      )}
                     </div>
 
                     {/* MAIN TIME REMAINING COUNTDOWN TEXT */}
                     <div className="font-extrabold text-slate-100 text-sm sm:text-base flex flex-wrap items-baseline gap-2">
                       {isCompleted ? (
                         <span className="text-emerald-300 font-bold">
-                          All {timeRemaining.cumulativeRequired} minutes recorded! Both yesterday's quota and today's target completed.
-                        </span>
-                      ) : hasBacklog && !timeRemaining.isBacklogFulfilled ? (
-                        <span className="text-amber-300 font-bold">
-                          {timeRemaining.backlogRemaining} min pending from yesterday. Fulfill yesterday's unrecorded lectures to reset today's target!
+                          All {timeRemaining.targetMinutes} minutes recorded for today! Great job maintaining on-time delivery.
                         </span>
                       ) : isPassed ? (
                         <span className="text-rose-300 font-bold">
@@ -366,7 +361,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                     </div>
 
                     <p className="text-[11px] text-slate-400">
-                      Fixed Daily Cutoff: <strong className="text-slate-200 font-mono">{timeRemaining.cutoffDisplay}</strong> • Progress: <strong className="text-slate-200">{timeRemaining.minutesRecordedToday}/{timeRemaining.cumulativeRequired} min</strong> {hasBacklog ? `(${timeRemaining.yesterdayBacklog}m yesterday backlog + ${timeRemaining.targetMinutes}m today)` : ''}
+                      Fixed Daily Cutoff: <strong className="text-slate-200 font-mono">{timeRemaining.cutoffDisplay}</strong> • Progress: <strong className="text-slate-200">{timeRemaining.minutesRecordedToday}/{timeRemaining.targetMinutes} min</strong> ({timeRemaining.remainingMinutesToday}m remaining today)
                     </p>
                   </div>
                 </div>
@@ -480,21 +475,24 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           {/* 2. COMPREHENSIVE STATS ROW WITH ON-TIME PERCENTAGE */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             
-            {/* Card 1: Today's Recording Progress & Non-Reset Backlog Status */}
+            {/* Card 1: Today's Recording Progress */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
               <div className="text-xs text-slate-400">
-                {backlogInfo.yesterdayBacklog > 0 ? "Cumulative Goal Progress" : "Today's Recording"}
+                Today's Recording
               </div>
               <div className="text-xl font-bold text-slate-100">
                 {minutesRecordedToday} <span className="text-xs font-normal text-slate-500">/ {targetMinutes}m</span>
               </div>
-              <div className="text-[11px]">
+              <div className="text-[11px] space-y-0.5">
                 {isTargetReached ? (
-                  <span className="text-emerald-400 font-medium">Daily & Backlog Target Met ✓</span>
-                ) : !backlogInfo.isBacklogFulfilled ? (
-                  <span className="text-amber-400 font-bold">Fulfilling Yesterday ({backlogInfo.backlogRemaining}m pending)</span>
+                  <span className="text-emerald-400 font-bold">Daily Target Met ✓</span>
                 ) : (
-                  <span className="text-slate-400">{targetMinutes - minutesRecordedToday}m remaining</span>
+                  <span className="text-slate-300 font-medium">{remainingMinutesToday}m remaining</span>
+                )}
+                {backlogInfo && !backlogInfo.isYesterdayFulfilled && (
+                  <span className="text-amber-400 text-[10px] block font-medium">
+                    ⚠️ Yesterday: {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled
+                  </span>
                 )}
               </div>
             </div>

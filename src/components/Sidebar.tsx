@@ -62,8 +62,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const backlogInfo = currentUser.role === 'teacher' ? StorageService.getPreviousDayBacklog(currentUser.teacherId) : null;
   const minutesRecordedToday = currentUser.role === 'teacher' ? StorageService.getMinutesRecordedToday(currentUser.teacherId) : 0;
-  const targetMinutes = currentUser.role === 'teacher' ? (backlogInfo?.cumulativeRequired || currentUser.dailyTargetMinutes || 120) : 0;
-  const isTargetReached = currentUser.role === 'teacher' ? (backlogInfo?.isCumulativeTargetMet ?? (minutesRecordedToday >= targetMinutes)) : false;
+  const targetMinutes = currentUser.role === 'teacher' ? (currentUser.dailyTargetMinutes || 120) : 0;
+  const isTargetReached = currentUser.role === 'teacher' ? minutesRecordedToday >= targetMinutes : false;
 
   // Teacher Navigation Links
   const teacherNavItems = [
@@ -210,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="space-y-2">
               <div className="p-3 bg-slate-950/60 border border-slate-800/70 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>{backlogInfo && backlogInfo.yesterdayBacklog > 0 ? "Cumulative Goal:" : "Daily Target:"}</span>
+                  <span>Daily Target:</span>
                   <span className={isTargetReached ? 'text-emerald-400 font-bold' : 'text-slate-200 font-semibold'}>
                     {minutesRecordedToday} / {targetMinutes} min
                   </span>
@@ -221,9 +221,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     style={{ width: `${Math.min(100, (minutesRecordedToday / (targetMinutes || 1)) * 100)}%` }}
                   />
                 </div>
-                {backlogInfo && backlogInfo.yesterdayBacklog > 0 && !backlogInfo.isCumulativeTargetMet && (
-                  <div className="text-[10px] text-amber-400/90 font-medium">
-                    ⚠️ Includes {backlogInfo.yesterdayBacklog}m backlog from yesterday
+                {backlogInfo && !backlogInfo.isYesterdayFulfilled && (
+                  <div className="text-[10px] text-amber-400 font-medium">
+                    ⚠️ Yesterday: {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled
                   </div>
                 )}
               </div>
