@@ -656,7 +656,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             </div>
 
-            {/* Card 2: ON-TIME SUBMISSION PERCENTAGE */}
+            {/* Card 2: ON-TIME SUBMISSION PERCENTAGE (MINUTE-WEIGHTED) */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>On-Time Submission Rate</span>
@@ -674,8 +674,15 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 </div>
                 <span className="text-[10px] text-slate-400 font-medium">on-time</span>
               </div>
-              <div className="text-[11px] text-slate-400">
-                {onTimeStats.onTimeLectures} of {onTimeStats.totalLectures} lectures on time
+              <div className="text-[11px] text-slate-400 space-y-0.5">
+                <div>
+                  {onTimeStats.onTimeMinutes}m / {onTimeStats.totalMinutes}m delivered on time
+                </div>
+                {onTimeStats.lateMinutes > 0 && (
+                  <div className="text-amber-400 text-[10px] font-medium">
+                    ⚠️ {onTimeStats.lateMinutes}m marked late / unfulfilled
+                  </div>
+                )}
               </div>
             </div>
 

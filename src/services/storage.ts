@@ -955,11 +955,15 @@ export const StorageService = {
     this.savePptRequests(list);
   },
 
-  // ─── TEACHER ON-TIME SUBMISSION PERCENTAGE & METRICS ─────────────────────────
+  // ─── TEACHER ON-TIME SUBMISSION PERCENTAGE & METRICS (MINUTE-WEIGHTED) ──────
   getOnTimeSubmissionStats(teacherId: string): {
     totalLectures: number;
     onTimeLectures: number;
     delayedLectures: number;
+    totalMinutes: number;
+    onTimeMinutes: number;
+    lateMinutes: number;
+    pendingLateMinutesToday: number;
     onTimePercentage: number;
   } {
     const lectures = this.getLectures().filter(
@@ -968,12 +972,81 @@ export const StorageService = {
     const totalLectures = lectures.length;
     const onTimeLectures = lectures.filter((l) => l.status === 'on_time').length;
     const delayedLectures = totalLectures - onTimeLectures;
-    const onTimePercentage = totalLectures > 0 ? Math.round((onTimeLectures / totalLectures) * 100) : 100;
+
+    // 1. Delivered minutes on-time and overdue from uploaded lectures
+    const onTimeLectureMinutes = lectures
+      .filter((l) => l.status === 'on_time')
+      .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+
+    const lateLectureMinutes = lectures
+      .filter((l) => l.status === 'overdue')
+      .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+
+    // 2. Teacher daily target & cutoff checks for today
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const dailyTarget = teacher?.dailyTargetMinutes || 120;
+    const cutoffTime = teacher?.dailyUploadCutoffTime || '20:00';
+
+    const now = new Date();
+    const [hours, minutes] = cutoffTime.split(':').map(Number);
+    const cutoffDateObj = new Date();
+    cutoffDateObj.setHours(hours, minutes, 59, 999);
+    const isTodayCutoffPassed = now > cutoffDateObj;
+
+    // Recorded minutes today
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayLectures = lectures.filter((l) => {
+      if (!l.createdAt) return false;
+      const lDate = new Date(l.createdAt);
+      const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
+      return lDateLocal === todayStr || l.createdAt.startsWith(todayStr);
+    });
+    const recordedToday = todayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+
+    // If today's cutoff has passed and the target wasn't fully recorded, the remaining unuploaded portion is marked late!
+    let pendingLateMinutesToday = 0;
+    if (isTodayCutoffPassed && recordedToday < dailyTarget) {
+      pendingLateMinutesToday = Math.max(0, dailyTarget - recordedToday);
+    }
+
+    // Past unfulfilled backlog from yesterday (if any past unfulfilled days)
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const yesterdayRecorded = this.getMinutesRecordedOnDate(teacherId, yesterdayStr);
+
+    const hasHistoryBeforeYesterday = lectures.some((l) => {
+      if (!l.createdAt) return false;
+      return !l.createdAt.startsWith(todayStr) && !l.createdAt.startsWith(yesterdayStr);
+    }) || this.getAssignedTopics().some((t) => {
+      if (!t.createdAt) return false;
+      return !t.createdAt.startsWith(todayStr) && !t.createdAt.startsWith(yesterdayStr);
+    });
+
+    let pastUnfulfilledMinutes = 0;
+    if (hasHistoryBeforeYesterday && yesterdayRecorded < dailyTarget) {
+      pastUnfulfilledMinutes = Math.max(0, dailyTarget - yesterdayRecorded);
+    }
+
+    const totalOnTimeMinutes = onTimeLectureMinutes;
+    const totalLateMinutes = lateLectureMinutes + pendingLateMinutesToday + pastUnfulfilledMinutes;
+    const totalConsideredMinutes = totalOnTimeMinutes + totalLateMinutes;
+
+    let onTimePercentage = 100;
+    if (totalConsideredMinutes > 0) {
+      onTimePercentage = Math.max(0, Math.min(100, Math.round((totalOnTimeMinutes / totalConsideredMinutes) * 100)));
+    } else if (isTodayCutoffPassed) {
+      onTimePercentage = 0;
+    }
 
     return {
       totalLectures,
       onTimeLectures,
       delayedLectures,
+      totalMinutes: totalConsideredMinutes,
+      onTimeMinutes: totalOnTimeMinutes,
+      lateMinutes: totalLateMinutes,
+      pendingLateMinutesToday,
       onTimePercentage,
     };
   },

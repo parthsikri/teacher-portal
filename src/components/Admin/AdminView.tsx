@@ -1169,6 +1169,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 const recordedMins = StorageService.getMinutesRecordedToday(t.teacherId);
                 const targetMins = t.dailyTargetMinutes || 120;
                 const isMet = recordedMins >= targetMins;
+                const onTime = StorageService.getOnTimeSubmissionStats(t.teacherId);
 
                 const formatTime = (time24?: string) => {
                   if (!time24) return '';
@@ -1209,6 +1210,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <span className="text-slate-400">Progress:</span>
                         <span className={isMet ? 'text-emerald-400 font-bold' : 'text-slate-300 font-medium'}>
                           {recordedMins} / {targetMins} min {isMet ? '✓' : ''}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">On-Time Rate:</span>
+                        <span className={`font-mono font-bold ${
+                          onTime.onTimePercentage >= 90
+                            ? 'text-emerald-400'
+                            : onTime.onTimePercentage >= 75
+                            ? 'text-indigo-400'
+                            : 'text-amber-400'
+                        }`}>
+                          {onTime.onTimePercentage}% ({onTime.onTimeMinutes}m / {onTime.totalMinutes}m)
                         </span>
                       </div>
 
