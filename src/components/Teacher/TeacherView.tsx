@@ -1262,21 +1262,24 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                         </div>
                       )}
 
-                      {/* Subtopics */}
-                      <div className="space-y-1 pt-0.5">
+                      {/* Subtopics Sequence */}
+                      <div className="space-y-1.5 pt-0.5">
                         <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                          {isRevision ? 'Proposed Subtopics for Revision:' : 'Subtopics:'}
+                          {isRevision ? 'Proposed Subtopics for Revision:' : 'Subtopics Sequence:'}
                         </span>
                         {((isUnderReview || isRevision) ? topic.proposedSubtopics : topic.subtopics)?.length ? (
-                          <div className="flex flex-wrap gap-1">
+                          <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                             {((isUnderReview || isRevision) ? topic.proposedSubtopics! : topic.subtopics).map((st, i) => (
-                              <span key={i} className={`px-2 py-0.5 rounded text-[10px] ${
+                              <div key={i} className={`px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-2 ${
                                 isRevision
                                   ? 'bg-rose-950/40 border border-rose-500/30 text-rose-200'
                                   : 'bg-slate-950/80 border border-slate-800/80 text-slate-300'
                               }`}>
-                                #{st}
-                              </span>
+                                <span className="font-mono font-bold text-[10px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.2 rounded border border-indigo-500/20 shrink-0">
+                                  #{i + 1}
+                                </span>
+                                <span className="truncate flex-1">{st}</span>
+                              </div>
                             ))}
                           </div>
                         ) : (

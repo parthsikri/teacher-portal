@@ -9,7 +9,8 @@ import {
   Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
-  ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare
+  ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
+  ArrowUp, ArrowDown, Check
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -131,6 +132,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [approvalComment, setApprovalComment] = useState('');
+  const [editingSubtopicIndex, setEditingSubtopicIndex] = useState<number | null>(null);
+  const [editingSubtopicText, setEditingSubtopicText] = useState<string>('');
 
   // Parse comma-separated or newline-separated topics live for preview
   const parsedTopicList = useMemo(() => {
@@ -365,6 +368,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setRevisionFeedback('');
     setApprovalComment(topic.adminApprovalComment || '');
     setShowRevisionInput(false);
+    setEditingSubtopicIndex(null);
+    setEditingSubtopicText('');
   };
 
   // Add tag in review modal
@@ -391,6 +396,51 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const handleRemoveReviewItem = (index: number) => {
     setReviewSubtopicItems(reviewSubtopicItems.filter((_, i) => i !== index));
+    if (editingSubtopicIndex === index) {
+      setEditingSubtopicIndex(null);
+      setEditingSubtopicText('');
+    }
+  };
+
+  const handleStartEditSubtopic = (index: number, currentName: string) => {
+    setEditingSubtopicIndex(index);
+    setEditingSubtopicText(currentName);
+  };
+
+  const handleSaveEditSubtopic = (index: number) => {
+    const trimmed = editingSubtopicText.trim();
+    if (!trimmed) return;
+    const updated = [...reviewSubtopicItems];
+    updated[index] = {
+      ...updated[index],
+      name: trimmed,
+    };
+    setReviewSubtopicItems(updated);
+    setEditingSubtopicIndex(null);
+    setEditingSubtopicText('');
+  };
+
+  const handleCancelEditSubtopic = () => {
+    setEditingSubtopicIndex(null);
+    setEditingSubtopicText('');
+  };
+
+  const handleMoveSubtopicUp = (index: number) => {
+    if (index <= 0) return;
+    const updated = [...reviewSubtopicItems];
+    const temp = updated[index];
+    updated[index] = updated[index - 1];
+    updated[index - 1] = temp;
+    setReviewSubtopicItems(updated);
+  };
+
+  const handleMoveSubtopicDown = (index: number) => {
+    if (index >= reviewSubtopicItems.length - 1) return;
+    const updated = [...reviewSubtopicItems];
+    const temp = updated[index];
+    updated[index] = updated[index + 1];
+    updated[index + 1] = temp;
+    setReviewSubtopicItems(updated);
   };
 
   // Direct 1-Click Approve Subtopics (with optional comment/guidelines)
@@ -1364,24 +1414,34 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         )}
                       </div>
 
-                      {/* Subtopics */}
+                      {/* Subtopics Sequence List */}
                       <div className="space-y-1.5">
                         <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
-                          <span>Subtopics Breakdown:</span>
-                          <span className="text-[10px] text-indigo-400 font-mono">
-                            {topic.subtopics?.length || 0} subtopics
+                          <span className="flex items-center gap-1 text-slate-300">
+                            <Layers className="w-3 h-3 text-purple-400" />
+                            Subtopics Sequence ({topic.subtopics?.length || topic.proposedSubtopics?.length || 0}):
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReviewModal(topic)}
+                            className="text-[10px] text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5 hover:underline"
+                          >
+                            <Edit3 className="w-2.5 h-2.5" /> Edit / Reorder
+                          </button>
                         </div>
 
-                        {topic.subtopics && topic.subtopics.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {topic.subtopics.map((st, idx) => (
-                              <span
+                        {(topic.subtopics && topic.subtopics.length > 0) || (topic.proposedSubtopics && topic.proposedSubtopics.length > 0) ? (
+                          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                            {(topic.subtopics && topic.subtopics.length > 0 ? topic.subtopics : topic.proposedSubtopics || []).map((st, idx) => (
+                              <div
                                 key={idx}
-                                className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-200 font-medium"
+                                className="px-2.5 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-200 font-medium flex items-center gap-2 group hover:border-purple-500/30 transition-colors"
                               >
-                                #{st}
-                              </span>
+                                <span className="font-mono font-extrabold text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded border border-purple-500/20 shrink-0">
+                                  #{idx + 1}
+                                </span>
+                                <span className="truncate flex-1">{st}</span>
+                              </div>
                             ))}
                           </div>
                         ) : (
@@ -2198,23 +2258,105 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </button>
                 </div>
 
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl max-h-60 overflow-y-auto space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                  <span>Subtopics Sequence & Order:</span>
+                  <span className="text-[10px] text-purple-300">▲/▼ Reorder • ✏️ Rename</span>
+                </div>
+
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl max-h-72 overflow-y-auto space-y-2">
                   {reviewSubtopicItems.length === 0 ? (
-                    <div className="text-slate-500 text-center italic py-3">No subtopics in list.</div>
+                    <div className="text-slate-500 text-center italic py-3">No subtopics in list. Add some above.</div>
                   ) : (
                     reviewSubtopicItems.map((st, i) => (
                       <div
-                        key={i}
-                        className="px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between gap-2 text-xs"
+                        key={st.id || i}
+                        className="px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between gap-2 text-xs transition-all hover:border-purple-500/40"
                       >
-                        <span className="font-semibold text-purple-200 truncate flex-1">#{st.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveReviewItem(i)}
-                          className="text-slate-400 hover:text-red-400 font-bold p-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Sequence Number */}
+                        <span className="font-mono font-extrabold text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded-md border border-purple-500/30 shrink-0">
+                          #{i + 1}
+                        </span>
+
+                        {/* Name or Inline Edit Input */}
+                        {editingSubtopicIndex === i ? (
+                          <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                            <input
+                              type="text"
+                              value={editingSubtopicText}
+                              onChange={(e) => setEditingSubtopicText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveEditSubtopic(i);
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEditSubtopic();
+                                }
+                              }}
+                              autoFocus
+                              className="flex-1 bg-slate-900 border border-purple-400 rounded-lg px-2 py-1 text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditSubtopic(i)}
+                              className="p-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white"
+                              title="Save Name"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelEditSubtopic}
+                              className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300"
+                              title="Cancel"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-slate-200 truncate flex-1 select-all">
+                            {st.name}
+                          </span>
+                        )}
+
+                        {/* Action Controls: Move Up, Move Down, Edit Name, Delete */}
+                        {editingSubtopicIndex !== i && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={i === 0}
+                              onClick={() => handleMoveSubtopicUp(i)}
+                              className="p-1 text-slate-400 hover:text-purple-300 hover:bg-purple-500/20 rounded-md disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                              title="Move Up in Sequence"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={i === reviewSubtopicItems.length - 1}
+                              onClick={() => handleMoveSubtopicDown(i)}
+                              className="p-1 text-slate-400 hover:text-purple-300 hover:bg-purple-500/20 rounded-md disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                              title="Move Down in Sequence"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditSubtopic(i, st.name)}
+                              className="p-1 text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 rounded-md transition-colors"
+                              title="Edit Subtopic Name"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveReviewItem(i)}
+                              className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
+                              title="Delete Subtopic"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -2298,8 +2440,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     disabled={reviewSubtopicItems.length === 0}
                     className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    {approvalComment.trim() ? 'Approve with Comment ✓' : 'Approve & Save Subtopics'}
+                    {reviewingTopic.subtopicsApprovalState === 'approved'
+                      ? (approvalComment.trim() ? 'Save Changes with Note ✓' : 'Save Sequence & Changes ✓')
+                      : (approvalComment.trim() ? 'Approve with Comment ✓' : 'Approve & Save Subtopics')}
                   </button>
                 </div>
               </div>

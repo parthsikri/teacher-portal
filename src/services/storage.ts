@@ -437,14 +437,16 @@ export const StorageService = {
     if (index === -1) return null;
 
     const topic = topics[index];
-    const finalNames = approvedSubtopics && approvedSubtopics.length > 0
-      ? approvedSubtopics
+    const finalNames = customItems && customItems.length > 0
+      ? customItems.map((c) => c.name.trim()).filter((n) => n.length > 0)
+      : approvedSubtopics && approvedSubtopics.length > 0
+      ? approvedSubtopics.map((s) => s.trim()).filter((s) => s.length > 0)
       : topic.proposedSubtopics && topic.proposedSubtopics.length > 0
       ? topic.proposedSubtopics
       : topic.subtopics;
 
     const finalItems: SubtopicItem[] = customItems && customItems.length > 0
-      ? customItems
+      ? customItems.filter((c) => c.name.trim().length > 0)
       : finalNames.map((name, idx) => ({
           id: `sub-${idx}-${Date.now()}`,
           name,
@@ -455,9 +457,10 @@ export const StorageService = {
       ...topics[index],
       subtopics: finalNames,
       subtopicItems: finalItems,
+      proposedSubtopics: finalNames,
       subtopicsApprovalState: 'approved',
       adminFeedback: undefined,
-      adminApprovalComment: adminApprovalComment?.trim() || topic.adminApprovalComment,
+      adminApprovalComment: adminApprovalComment !== undefined ? (adminApprovalComment.trim() || undefined) : topic.adminApprovalComment,
     };
     this.saveAssignedTopics(topics);
     return topics[index];
