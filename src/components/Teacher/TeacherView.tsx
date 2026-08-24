@@ -676,7 +676,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
               <div className="text-[11px] text-slate-400 space-y-0.5">
                 <div>
-                  {onTimeStats.onTimeMinutes}m / {onTimeStats.totalMinutes}m delivered on time
+                  {onTimeStats.onTimeMinutes}m on-time of {onTimeStats.totalMinutes}m target
+                </div>
+                <div className="text-[10px] text-slate-400/90 font-medium">
+                  Total Delivered: {onTimeStats.totalDeliveredMinutes}m ({Math.floor(onTimeStats.totalDeliveredMinutes / 60)}h {onTimeStats.totalDeliveredMinutes % 60}m)
                 </div>
                 {onTimeStats.lateMinutes > 0 && (
                   <div className="text-amber-400 text-[10px] font-medium">
@@ -1330,7 +1333,12 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-100 tracking-tight">Delivered Lectures ({lectures.length})</h2>
+              <h2 className="text-xl font-bold text-slate-100 tracking-tight flex flex-wrap items-center gap-2">
+                <span>Delivered Lectures ({filteredLectures.length})</span>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-slate-700 font-mono">
+                  ⏱️ {filteredLectures.reduce((s, l) => s + (l.durationMinutes || 45), 0)}m ({Math.floor(filteredLectures.reduce((s, l) => s + (l.durationMinutes || 45), 0) / 60)}h {filteredLectures.reduce((s, l) => s + (l.durationMinutes || 45), 0) % 60}m)
+                </span>
+              </h2>
               <p className="text-xs text-slate-400">All submitted lecture video recordings and PDF notes</p>
             </div>
 

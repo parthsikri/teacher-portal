@@ -960,6 +960,7 @@ export const StorageService = {
     totalLectures: number;
     onTimeLectures: number;
     delayedLectures: number;
+    totalDeliveredMinutes: number;
     totalMinutes: number;
     onTimeMinutes: number;
     lateMinutes: number;
@@ -1089,16 +1090,28 @@ export const StorageService = {
       onTimePercentage = 0;
     }
 
+    const totalDeliveredMinutes = teacherLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+
     return {
       totalLectures,
       onTimeLectures,
       delayedLectures,
+      totalDeliveredMinutes,
       totalMinutes: totalConsideredMinutes,
       onTimeMinutes: totalOnTimeMinutes,
       lateMinutes: totalLateMinutes,
       pendingLateMinutesToday,
       onTimePercentage,
     };
+  },
+
+  // Total recording minutes completed across all lectures
+  getTotalRecordedMinutes(teacherId?: string): number {
+    const lectures = this.getLectures();
+    const filtered = teacherId 
+      ? lectures.filter((l) => l.teacherId.toUpperCase() === teacherId.toUpperCase())
+      : lectures;
+    return filtered.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
   },
 
   // Total recording minutes completed on a specific date (YYYY-MM-DD)

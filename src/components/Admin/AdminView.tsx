@@ -1214,6 +1214,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </div>
 
                       <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Total Delivered:</span>
+                        <span className="font-mono font-bold text-slate-200">
+                          {onTime.totalDeliveredMinutes}m ({Math.floor(onTime.totalDeliveredMinutes / 60)}h {onTime.totalDeliveredMinutes % 60}m)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-400">On-Time Rate:</span>
                         <span className={`font-mono font-bold ${
                           onTime.onTimePercentage >= 90
@@ -1222,7 +1229,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             ? 'text-indigo-400'
                             : 'text-amber-400'
                         }`}>
-                          {onTime.onTimePercentage}% ({onTime.onTimeMinutes}m / {onTime.totalMinutes}m)
+                          {onTime.onTimePercentage}% ({onTime.onTimeMinutes}m on-time / {onTime.totalMinutes}m target)
                         </span>
                       </div>
 
@@ -1720,7 +1727,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </span>
               <span className="px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-300 font-semibold flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <strong>{lectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0)}m</strong> Total Time
+                <strong>
+                  {Math.floor(lectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0) / 60)}h {lectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0) % 60}m
+                </strong> ({lectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0)}m Total)
               </span>
               <span className="px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-300 font-semibold flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-purple-400" />
