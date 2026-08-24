@@ -86,6 +86,8 @@ function mergeMasterStates(current: any, incoming: any): any {
           const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
           const incomingTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
 
+          // Incoming wins when it's genuinely newer OR when both timestamps are missing/equal
+          // (equal timestamps = fresh push from client should always be merged in)
           if (incomingTime >= existingTime) {
             topicMap.set(t.id, {
               ...existing,

@@ -1383,11 +1383,29 @@ export const StorageService = {
           const localTime = localTopic.updatedAt ? new Date(localTopic.updatedAt).getTime() : 0;
           const cloudTime = cloudTopic.updatedAt ? new Date(cloudTopic.updatedAt).getTime() : 0;
 
-          if (localTime > cloudTime) {
-            // Local topic was updated more recently than cloud snapshot
+          // Local wins when: local is newer OR timestamps are equal (tie-break = local is authoritative)
+          // This prevents cloud polls from overwriting unsaved local edits or recent saves.
+          if (localTime >= cloudTime) {
             return localTopic;
           }
-          return cloudTopic;
+
+          // Cloud is genuinely newer — merge it in but preserve critical subtopic arrays
+          // (in case the cloud snapshot was written before the subtopic approval was pushed)
+          return {
+            ...cloudTopic,
+            subtopics: (cloudTopic.subtopics && cloudTopic.subtopics.length > 0)
+              ? cloudTopic.subtopics
+              : (localTopic.subtopics || []),
+            subtopicItems: (cloudTopic.subtopicItems && cloudTopic.subtopicItems.length > 0)
+              ? cloudTopic.subtopicItems
+              : (localTopic.subtopicItems || []),
+            proposedSubtopics: (cloudTopic.proposedSubtopics && cloudTopic.proposedSubtopics.length > 0)
+              ? cloudTopic.proposedSubtopics
+              : (localTopic.proposedSubtopics || []),
+            subtopicsApprovalState: (cloudTopic.subtopicsApprovalState === 'approved' || localTopic.subtopicsApprovalState === 'approved')
+              ? 'approved'
+              : (cloudTopic.subtopicsApprovalState || localTopic.subtopicsApprovalState || 'pending_teacher_input'),
+          };
         });
 
       // Preserve any locally created topics not in cloud yet
@@ -1399,6 +1417,7 @@ export const StorageService = {
 
       localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(mergedTopics));
     }
+
 
     if (Array.isArray(state.lectures)) {
       const localLectures = this.getLectures();
