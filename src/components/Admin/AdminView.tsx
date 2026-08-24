@@ -351,12 +351,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Open Review Subtopics Modal
   const handleOpenReviewModal = (topic: AssignedTopic) => {
     setReviewingTopic(topic);
-    const names = (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
+    // If topic is already approved or has approved subtopics, use topic.subtopics.
+    // Otherwise, if topic has proposedSubtopics awaiting review, use proposedSubtopics.
+    const names = (topic.subtopicsApprovalState === 'approved' && topic.subtopics && topic.subtopics.length > 0)
+      ? topic.subtopics
+      : (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
       ? topic.proposedSubtopics
       : topic.subtopics || [];
 
     const items: SubtopicItem[] = names.map((name, idx) => ({
-      id: `sub-rev-${idx}-${Date.now()}`,
+      id: `sub-rev-${idx}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name,
       status: 'pending',
     }));
@@ -437,7 +441,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
     const names = itemsToSave.map((c) => c.name.trim());
     const comment = customComment !== undefined ? customComment : approvalComment;
-    StorageService.approveSubtopics(topicId, names, itemsToSave, comment);
+    const updatedTopic = StorageService.approveSubtopics(topicId, names, itemsToSave, comment);
+    if (updatedTopic) {
+      setAssignedTopics((prev) => prev.map((t) => (t.id === topicId ? updatedTopic : t)));
+    }
     setReviewingTopic(null);
     setApprovalComment('');
     refreshState();

@@ -80,6 +80,7 @@ export interface AssignedTopic {
   priority: 'high' | 'medium' | 'normal';
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
   isNewFromAdmin?: boolean;             // Notification flag
 }
 

@@ -80,15 +80,32 @@ function mergeMasterStates(current: any, incoming: any): any {
     incoming.assignedTopics.forEach((t: any) => {
       if (t && t.id && !deletedIds.has(t.id)) {
         const existing = topicMap.get(t.id);
-        topicMap.set(t.id, {
-          ...existing,
-          ...t,
-          subtopicsApprovalState: (t.subtopicsApprovalState === 'approved' || existing?.subtopicsApprovalState === 'approved')
-            ? 'approved'
-            : (t.subtopicsApprovalState || existing?.subtopicsApprovalState || 'pending_teacher_input'),
-          subtopics: (t.subtopics && t.subtopics.length > 0) ? t.subtopics : (existing?.subtopics || []),
-          adminApprovalComment: t.adminApprovalComment || existing?.adminApprovalComment || undefined,
-        });
+        if (!existing) {
+          topicMap.set(t.id, t);
+        } else {
+          const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const incomingTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+
+          if (incomingTime >= existingTime) {
+            topicMap.set(t.id, {
+              ...existing,
+              ...t,
+              subtopics: (t.subtopics && t.subtopics.length > 0) ? t.subtopics : (existing.subtopics || []),
+              subtopicItems: (t.subtopicItems && t.subtopicItems.length > 0) ? t.subtopicItems : (existing.subtopicItems || []),
+              proposedSubtopics: (t.proposedSubtopics && t.proposedSubtopics.length > 0) ? t.proposedSubtopics : (existing.proposedSubtopics || []),
+              subtopicsApprovalState: (t.subtopicsApprovalState === 'approved' || existing.subtopicsApprovalState === 'approved')
+                ? 'approved'
+                : (t.subtopicsApprovalState || existing.subtopicsApprovalState || 'pending_teacher_input'),
+              adminApprovalComment: t.adminApprovalComment !== undefined ? t.adminApprovalComment : existing.adminApprovalComment,
+              updatedAt: t.updatedAt || new Date().toISOString(),
+            });
+          } else {
+            topicMap.set(t.id, {
+              ...t,
+              ...existing,
+            });
+          }
+        }
       }
     });
   }

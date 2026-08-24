@@ -9,7 +9,8 @@ import {
   Edit3, ExternalLink, Copy, Check, ChevronRight,
   Clock, CheckCircle, AlertTriangle, MessageSquare,
   FileSpreadsheet, Award, Image as ImageIcon, Folder,
-  CheckCircle2, MessageCircle, Video
+  CheckCircle2, MessageCircle, Video,
+  ArrowUp, ArrowDown, Trash2
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -318,31 +319,62 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     if (!raw) return;
 
     const items = raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
-    const updated = [...proposedSubtopicList];
-
-    items.forEach((item) => {
-      if (!updated.includes(item)) {
-        updated.push(item);
-      }
+    setProposedSubtopicList((prev) => {
+      const updated = [...prev];
+      items.forEach((item) => {
+        if (!updated.includes(item)) {
+          updated.push(item);
+        }
+      });
+      return updated;
     });
-
-    setProposedSubtopicList(updated);
     setSubtopicInput('');
   };
 
+  const handleUpdateProposedSubtopic = (index: number, newName: string) => {
+    setProposedSubtopicList((prev) => {
+      const updated = [...prev];
+      updated[index] = newName;
+      return updated;
+    });
+  };
+
   const handleRemoveProposedTag = (index: number) => {
-    setProposedSubtopicList(proposedSubtopicList.filter((_, i) => i !== index));
+    setProposedSubtopicList((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMoveProposedUp = (index: number) => {
+    if (index <= 0) return;
+    setProposedSubtopicList((prev) => {
+      const updated = [...prev];
+      const temp = updated[index];
+      updated[index] = updated[index - 1];
+      updated[index - 1] = temp;
+      return updated;
+    });
+  };
+
+  const handleMoveProposedDown = (index: number) => {
+    setProposedSubtopicList((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const updated = [...prev];
+      const temp = updated[index];
+      updated[index] = updated[index + 1];
+      updated[index + 1] = temp;
+      return updated;
+    });
   };
 
   const handleSubmitProposedSubtopics = (e: React.FormEvent) => {
     e.preventDefault();
     if (!proposingTopic) return;
-    if (proposedSubtopicList.length === 0) {
-      alert('Please add at least one subtopic.');
+    const cleanList = proposedSubtopicList.map((s) => s.trim()).filter((s) => s.length > 0);
+    if (cleanList.length === 0) {
+      alert('Please add at least one valid subtopic.');
       return;
     }
 
-    StorageService.proposeSubtopics(proposingTopic.id, proposedSubtopicList);
+    StorageService.proposeSubtopics(proposingTopic.id, cleanList);
     setProposingTopic(null);
     setRefreshKey((k) => k + 1);
   };
@@ -1826,24 +1858,55 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-lg min-h-[60px]">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl max-h-72 overflow-y-auto space-y-2">
                 {proposedSubtopicList.length === 0 ? (
-                  <p className="text-slate-500 italic text-center py-2">No subtopics added yet.</p>
+                  <p className="text-slate-500 italic text-center py-4 text-xs">No subtopics added yet. Type above and click + Add.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {proposedSubtopicList.map((st, idx) => (
-                      <span key={idx} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-200 flex items-center gap-1.5 text-xs">
-                        #{st}
+                  proposedSubtopicList.map((st, idx) => (
+                    <div
+                      key={idx}
+                      className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <span className="font-mono font-extrabold text-[10px] text-indigo-400 bg-indigo-950/80 px-2 py-1 rounded-md border border-indigo-500/30 shrink-0">
+                        #{idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={st}
+                        onChange={(e) => handleUpdateProposedSubtopic(idx, e.target.value)}
+                        placeholder={`Subtopic #${idx + 1} title...`}
+                        className="flex-1 bg-slate-950 border border-slate-700/80 focus:border-indigo-400 rounded-lg px-2.5 py-1 text-slate-100 text-xs font-semibold focus:outline-none"
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveProposedUp(idx)}
+                          className="p-1 text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 border border-slate-700 rounded-md disabled:opacity-20 transition-all cursor-pointer disabled:cursor-not-allowed"
+                          title="Move Up"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === proposedSubtopicList.length - 1}
+                          onClick={() => handleMoveProposedDown(idx)}
+                          className="p-1 text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 border border-slate-700 rounded-md disabled:opacity-20 transition-all cursor-pointer disabled:cursor-not-allowed"
+                          title="Move Down"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleRemoveProposedTag(idx)}
-                          className="text-slate-400 hover:text-red-400"
+                          className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/20 border border-slate-700 rounded-md transition-all cursor-pointer"
+                          title="Delete Subtopic"
                         >
-                          ✕
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </span>
-                    ))}
-                  </div>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
 

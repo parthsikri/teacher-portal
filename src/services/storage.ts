@@ -360,6 +360,7 @@ export const StorageService = {
       priority: topic.priority || 'high',
       notes: topic.notes,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     topics.push(newTopic);
     this.saveAssignedTopics(topics);
@@ -400,6 +401,7 @@ export const StorageService = {
         priority: commonProps.priority || 'high',
         notes: commonProps.notes,
         createdAt: new Date(now + idx * 1000).toISOString(),
+        updatedAt: new Date(now + idx * 1000).toISOString(),
       };
       topics.push(newTopic);
       createdList.push(newTopic);
@@ -420,6 +422,7 @@ export const StorageService = {
       proposedSubtopics,
       subtopicsApprovalState: 'pending_admin_approval',
       adminFeedback: undefined,
+      updatedAt: new Date().toISOString(),
     };
     this.saveAssignedTopics(topics);
     return topics[index];
@@ -461,6 +464,7 @@ export const StorageService = {
       subtopicsApprovalState: 'approved',
       adminFeedback: undefined,
       adminApprovalComment: adminApprovalComment !== undefined ? (adminApprovalComment.trim() || undefined) : topic.adminApprovalComment,
+      updatedAt: new Date().toISOString(),
     };
     this.saveAssignedTopics(topics);
     this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate subtopics approval push error:', err));
@@ -487,6 +491,8 @@ export const StorageService = {
       ...topics[index],
       subtopics: cleanNames,
       subtopicItems,
+      proposedSubtopics: cleanNames,
+      updatedAt: new Date().toISOString(),
     };
     this.saveAssignedTopics(topics);
     return topics[index];
@@ -503,6 +509,7 @@ export const StorageService = {
       subtopicsApprovalState: 'revision_requested',
       adminFeedback: feedback.trim(),
       isNewFromAdmin: true,
+      updatedAt: new Date().toISOString(),
     };
     this.saveAssignedTopics(topics);
     return topics[index];
@@ -513,6 +520,7 @@ export const StorageService = {
     const index = topics.findIndex((t) => t.id === topicId);
     if (index !== -1) {
       topics[index].status = status;
+      topics[index].updatedAt = new Date().toISOString();
       this.saveAssignedTopics(topics);
     }
   },
@@ -1362,8 +1370,34 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.assignedTopics)) {
-      const filtered = state.assignedTopics.filter((t: AssignedTopic) => !deletedIds.has(t.id));
-      localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(filtered));
+      const localTopics = this.getAssignedTopics();
+      const localMap = new Map<string, AssignedTopic>();
+      localTopics.forEach((t) => localMap.set(t.id, t));
+
+      const mergedTopics = state.assignedTopics
+        .filter((t: AssignedTopic) => !deletedIds.has(t.id))
+        .map((cloudTopic: AssignedTopic) => {
+          const localTopic = localMap.get(cloudTopic.id);
+          if (!localTopic) return cloudTopic;
+
+          const localTime = localTopic.updatedAt ? new Date(localTopic.updatedAt).getTime() : 0;
+          const cloudTime = cloudTopic.updatedAt ? new Date(cloudTopic.updatedAt).getTime() : 0;
+
+          if (localTime > cloudTime) {
+            // Local topic was updated more recently than cloud snapshot
+            return localTopic;
+          }
+          return cloudTopic;
+        });
+
+      // Preserve any locally created topics not in cloud yet
+      localTopics.forEach((locTopic) => {
+        if (!deletedIds.has(locTopic.id) && !mergedTopics.some((mt: AssignedTopic) => mt.id === locTopic.id)) {
+          mergedTopics.unshift(locTopic);
+        }
+      });
+
+      localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(mergedTopics));
     }
 
     if (Array.isArray(state.lectures)) {
