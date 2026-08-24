@@ -10,7 +10,7 @@ import {
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
-  ArrowUp, ArrowDown, Check
+  ArrowUp, ArrowDown
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -132,8 +132,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [approvalComment, setApprovalComment] = useState('');
-  const [editingSubtopicIndex, setEditingSubtopicIndex] = useState<number | null>(null);
-  const [editingSubtopicText, setEditingSubtopicText] = useState<string>('');
 
   // Parse comma-separated or newline-separated topics live for preview
   const parsedTopicList = useMemo(() => {
@@ -368,8 +366,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setRevisionFeedback('');
     setApprovalComment(topic.adminApprovalComment || '');
     setShowRevisionInput(false);
-    setEditingSubtopicIndex(null);
-    setEditingSubtopicText('');
   };
 
   // Add tag in review modal
@@ -378,76 +374,70 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (!raw || !reviewingTopic) return;
 
     const names = raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
-    const updated = [...reviewSubtopicItems];
-
-    names.forEach((name, i) => {
-      if (!updated.some((item) => item.name.toLowerCase() === name.toLowerCase())) {
+    setReviewSubtopicItems((prev) => {
+      const updated = [...prev];
+      names.forEach((name, i) => {
         updated.push({
-          id: `sub-rev-${Date.now()}-${i}`,
+          id: `sub-rev-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
           name,
           status: 'pending',
         });
-      }
+      });
+      return updated;
     });
 
-    setReviewSubtopicItems(updated);
     setReviewSubtopicInput('');
   };
 
+  const handleUpdateSubtopicName = (index: number, newName: string) => {
+    setReviewSubtopicItems((prev) => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = {
+          ...updated[index],
+          name: newName,
+        };
+      }
+      return updated;
+    });
+  };
+
   const handleRemoveReviewItem = (index: number) => {
-    setReviewSubtopicItems(reviewSubtopicItems.filter((_, i) => i !== index));
-    if (editingSubtopicIndex === index) {
-      setEditingSubtopicIndex(null);
-      setEditingSubtopicText('');
-    }
-  };
-
-  const handleStartEditSubtopic = (index: number, currentName: string) => {
-    setEditingSubtopicIndex(index);
-    setEditingSubtopicText(currentName);
-  };
-
-  const handleSaveEditSubtopic = (index: number) => {
-    const trimmed = editingSubtopicText.trim();
-    if (!trimmed) return;
-    const updated = [...reviewSubtopicItems];
-    updated[index] = {
-      ...updated[index],
-      name: trimmed,
-    };
-    setReviewSubtopicItems(updated);
-    setEditingSubtopicIndex(null);
-    setEditingSubtopicText('');
-  };
-
-  const handleCancelEditSubtopic = () => {
-    setEditingSubtopicIndex(null);
-    setEditingSubtopicText('');
+    setReviewSubtopicItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleMoveSubtopicUp = (index: number) => {
     if (index <= 0) return;
-    const updated = [...reviewSubtopicItems];
-    const temp = updated[index];
-    updated[index] = updated[index - 1];
-    updated[index - 1] = temp;
-    setReviewSubtopicItems(updated);
+    setReviewSubtopicItems((prev) => {
+      const updated = [...prev];
+      const temp = updated[index];
+      updated[index] = updated[index - 1];
+      updated[index - 1] = temp;
+      return updated;
+    });
   };
 
   const handleMoveSubtopicDown = (index: number) => {
-    if (index >= reviewSubtopicItems.length - 1) return;
-    const updated = [...reviewSubtopicItems];
-    const temp = updated[index];
-    updated[index] = updated[index + 1];
-    updated[index + 1] = temp;
-    setReviewSubtopicItems(updated);
+    setReviewSubtopicItems((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const updated = [...prev];
+      const temp = updated[index];
+      updated[index] = updated[index + 1];
+      updated[index + 1] = temp;
+      return updated;
+    });
   };
 
   // Direct 1-Click Approve Subtopics (with optional comment/guidelines)
   const handleDirectApprove = (topicId: string, customItems?: SubtopicItem[], customComment?: string) => {
-    const names = customItems ? customItems.map((c) => c.name) : undefined;
+    const itemsToSave = (customItems || reviewSubtopicItems).filter((item) => item.name && item.name.trim().length > 0);
+    if (itemsToSave.length === 0) {
+      alert('Please provide at least one valid subtopic name before saving.');
+      return;
+    }
+    const names = itemsToSave.map((c) => c.name.trim());
     const comment = customComment !== undefined ? customComment : approvalComment;
-    StorageService.approveSubtopics(topicId, names, customItems, comment);
+    StorageService.approveSubtopics(topicId, names, itemsToSave, comment);
     setReviewingTopic(null);
     setApprovalComment('');
     refreshState();
@@ -2260,103 +2250,63 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                 <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
                   <span>Subtopics Sequence & Order:</span>
-                  <span className="text-[10px] text-purple-300">▲/▼ Reorder • ✏️ Rename</span>
+                  <span className="text-[10px] text-purple-300">▲/▼ Reorder • Type in box to rename</span>
                 </div>
 
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl max-h-72 overflow-y-auto space-y-2">
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl max-h-80 overflow-y-auto space-y-2.5">
                   {reviewSubtopicItems.length === 0 ? (
-                    <div className="text-slate-500 text-center italic py-3">No subtopics in list. Add some above.</div>
+                    <div className="text-slate-500 text-center italic py-4">No subtopics in list. Add some above.</div>
                   ) : (
                     reviewSubtopicItems.map((st, i) => (
                       <div
                         key={st.id || i}
-                        className="px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between gap-2 text-xs transition-all hover:border-purple-500/40"
+                        className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-purple-500/40 flex items-center justify-between gap-2.5 text-xs transition-all shadow-sm"
                       >
                         {/* Sequence Number */}
-                        <span className="font-mono font-extrabold text-[10px] text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded-md border border-purple-500/30 shrink-0">
-                          #{i + 1}
-                        </span>
-
-                        {/* Name or Inline Edit Input */}
-                        {editingSubtopicIndex === i ? (
-                          <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                            <input
-                              type="text"
-                              value={editingSubtopicText}
-                              onChange={(e) => setEditingSubtopicText(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleSaveEditSubtopic(i);
-                                } else if (e.key === 'Escape') {
-                                  handleCancelEditSubtopic();
-                                }
-                              }}
-                              autoFocus
-                              className="flex-1 bg-slate-900 border border-purple-400 rounded-lg px-2 py-1 text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleSaveEditSubtopic(i)}
-                              className="p-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white"
-                              title="Save Name"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleCancelEditSubtopic}
-                              className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300"
-                              title="Cancel"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="font-semibold text-slate-200 truncate flex-1 select-all">
-                            {st.name}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="font-mono font-extrabold text-[11px] text-purple-300 bg-purple-950/80 px-2 py-1 rounded-md border border-purple-500/40">
+                            #{i + 1}
                           </span>
-                        )}
+                        </div>
 
-                        {/* Action Controls: Move Up, Move Down, Edit Name, Delete */}
-                        {editingSubtopicIndex !== i && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              disabled={i === 0}
-                              onClick={() => handleMoveSubtopicUp(i)}
-                              className="p-1 text-slate-400 hover:text-purple-300 hover:bg-purple-500/20 rounded-md disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
-                              title="Move Up in Sequence"
-                            >
-                              <ArrowUp className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={i === reviewSubtopicItems.length - 1}
-                              onClick={() => handleMoveSubtopicDown(i)}
-                              className="p-1 text-slate-400 hover:text-purple-300 hover:bg-purple-500/20 rounded-md disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
-                              title="Move Down in Sequence"
-                            >
-                              <ArrowDown className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleStartEditSubtopic(i, st.name)}
-                              className="p-1 text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/20 rounded-md transition-colors"
-                              title="Edit Subtopic Name"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveReviewItem(i)}
-                              className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
-                              title="Delete Subtopic"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                        {/* Direct Editable Subtopic Name Input */}
+                        <input
+                          type="text"
+                          value={st.name}
+                          onChange={(e) => handleUpdateSubtopicName(i, e.target.value)}
+                          placeholder={`Subtopic #${i + 1} title...`}
+                          className="flex-1 bg-slate-950/90 border border-slate-700/80 focus:border-purple-400 rounded-lg px-3 py-1.5 text-slate-100 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-400 transition-colors"
+                        />
+
+                        {/* Action Controls: Move Up, Move Down, Delete */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            disabled={i === 0}
+                            onClick={() => handleMoveSubtopicUp(i)}
+                            className="p-1.5 text-slate-300 hover:text-purple-200 hover:bg-purple-600/30 border border-slate-700 rounded-lg disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-500 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            title="Move Up in Sequence"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={i === reviewSubtopicItems.length - 1}
+                            onClick={() => handleMoveSubtopicDown(i)}
+                            className="p-1.5 text-slate-300 hover:text-purple-200 hover:bg-purple-600/30 border border-slate-700 rounded-lg disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-500 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            title="Move Down in Sequence"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveReviewItem(i)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/20 border border-slate-700 rounded-lg transition-all cursor-pointer"
+                            title="Delete Subtopic"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}

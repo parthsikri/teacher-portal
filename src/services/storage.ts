@@ -463,6 +463,7 @@ export const StorageService = {
       adminApprovalComment: adminApprovalComment !== undefined ? (adminApprovalComment.trim() || undefined) : topic.adminApprovalComment,
     };
     this.saveAssignedTopics(topics);
+    this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate subtopics approval push error:', err));
     return topics[index];
   },
 
