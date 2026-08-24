@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest } from '../../types';
+import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest, PptRequestStatus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
@@ -20,9 +20,22 @@ interface AdminViewProps {
   refreshTrigger?: number;
 }
 
+const getNextTeacherId = (currentTeachers: User[]): string => {
+  const ids = currentTeachers
+    .map(t => {
+      const match = t.teacherId.match(/AEW-T-(\d+)/i);
+      return match ? parseInt(match[1], 10) : 0;
+    })
+    .filter(num => num > 0);
+  
+  const maxId = ids.length > 0 ? Math.max(...ids) : 100;
+  return `AEW-T-${maxId + 1}`;
+};
+
 export const AdminView: React.FC<AdminViewProps> = ({ 
   currentPage, 
   onPageChange, 
+  onRefreshData,
   refreshTrigger
 }) => {
   const [teachers, setTeachers] = useState<User[]>(StorageService.getTeachers());
@@ -33,7 +46,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // PPT Request Fulfillment Modal State
   const [fulfillingRequest, setFulfillingRequest] = useState<PptRequest | null>(null);
-  const [fulfillStatus, setFulfillStatus] = useState<'pending' | 'in_progress' | 'completed'>('completed');
+  const [fulfillStatus, setFulfillStatus] = useState<PptRequestStatus>('completed');
   const [fulfillPptUrl, setFulfillPptUrl] = useState('');
   const [fulfillPdfUrl, setFulfillPdfUrl] = useState('');
   const [fulfillRemarks, setFulfillRemarks] = useState('');
@@ -79,7 +92,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Add Teacher Modal state with Credentials
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newTeacherId, setNewTeacherId] = useState(`AEW-T-10${teachers.length + 1}`);
+  const [newTeacherId, setNewTeacherId] = useState('');
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('teach123');
   const [newName, setNewName] = useState('');
@@ -123,6 +136,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [refTitle, setRefTitle] = useState('Master Subject Syllabus & Standard Reference Notes');
   const [refUrl, setRefUrl] = useState('');
   const [refNotes, setRefNotes] = useState('');
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
 
 
   // Subtopic Review & Approval Modal State
@@ -155,6 +169,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setAssignedTopics(StorageService.getAssignedTopics());
     setSubjectReferences(StorageService.getSubjectReferences());
     setPptRequests(StorageService.getPptRequests());
+    if (onRefreshData) {
+      onRefreshData();
+    }
     setRefreshCounter((c) => c + 1);
   };
 
@@ -179,7 +196,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const handleOpenFulfillModal = (req: PptRequest) => {
     setFulfillingRequest(req);
-    setFulfillStatus(req.status === 'completed' ? 'completed' : 'completed');
+    setFulfillStatus(req.status);
     setFulfillPptUrl(req.completedPptUrl || '');
     setFulfillPdfUrl(req.completedPdfUrl || '');
     setFulfillRemarks(req.adminRemarks || 'Deck prepared and verified by AEW Content Studio in broadcast 16:9 widescreen format.');
@@ -233,7 +250,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setNewUsername('');
     setNewPassword('teach123');
     setNewTargetMinutes(120);
-    setNewTeacherId(`AEW-T-10${teachers.length + 2}`);
     refreshState();
   };
 
@@ -307,6 +323,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (parsedTopicList.length === 0 || !assignTeacherId) return;
 
     const targetTeacher = teachers.find((t) => t.teacherId === assignTeacherId);
+    if (!targetTeacher) {
+      alert('Selected teacher does not exist in the faculty roster. Please select a valid teacher.');
+      return;
+    }
 
     StorageService.addMultipleAssignedTopics(parsedTopicList, {
       teacherId: assignTeacherId,
@@ -498,11 +518,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (!q) return teachers;
     return teachers.filter(
       (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.teacherId.toLowerCase().includes(q) ||
-        (t.username && t.username.toLowerCase().includes(q)) ||
-        t.department.toLowerCase().includes(q) ||
-        t.subject.toLowerCase().includes(q)
+        (t.name || '').toLowerCase().includes(q) ||
+        (t.teacherId || '').toLowerCase().includes(q) ||
+        (t.username || '').toLowerCase().includes(q) ||
+        (t.department || '').toLowerCase().includes(q) ||
+        (t.subject || '').toLowerCase().includes(q)
     );
   }, [teachers, searchTeacherQuery]);
 
@@ -532,7 +552,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return `UNIT ${match[2].toUpperCase()}`;
     }
 
-    return 'UNIT 1';
+    return 'UNASSIGNED';
   };
 
   // Distinct list of available units — scoped to the active teacher filter
@@ -575,13 +595,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
       filtered = filtered.filter((l) => {
         const u = resolveLectureUnit(l, assignedTopics).toLowerCase();
         return (
-          l.title.toLowerCase().includes(q) ||
-          l.teacherName.toLowerCase().includes(q) ||
-          l.teacherId.toLowerCase().includes(q) ||
-          l.subject.toLowerCase().includes(q) ||
-          l.primaryTopic.toLowerCase().includes(q) ||
+          (l.title || '').toLowerCase().includes(q) ||
+          (l.teacherName || '').toLowerCase().includes(q) ||
+          (l.teacherId || '').toLowerCase().includes(q) ||
+          (l.subject || '').toLowerCase().includes(q) ||
+          (l.primaryTopic || '').toLowerCase().includes(q) ||
           u.includes(q) ||
-          l.subtopics.some((st) => st.toLowerCase().includes(q))
+          (l.subtopics || []).some((st) => (st || '').toLowerCase().includes(q))
         );
       });
     }
@@ -778,8 +798,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </button>
               <button
                 onClick={() => {
-                  setNewTeacherId(`AEW-T-10${teachers.length + 1}`);
-                  setNewUsername(`teacher_${teachers.length + 1}`);
+                  const nextId = getNextTeacherId(teachers);
+                  setNewTeacherId(nextId);
+                  setNewUsername(`teacher_${nextId.replace('AEW-T-', '')}`);
                   setShowAddModal(true);
                 }}
                 className="px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-xl shadow-purple-600/30 transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
@@ -1567,8 +1588,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
               <button
                 onClick={() => {
-                  setNewTeacherId(`AEW-T-10${teachers.length + 1}`);
-                  setNewUsername(`teacher_${teachers.length + 1}`);
+                  const nextId = getNextTeacherId(teachers);
+                  setNewTeacherId(nextId);
+                  setNewUsername(`teacher_${nextId.replace('AEW-T-', '')}`);
                   setShowAddModal(true);
                 }}
                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-md shrink-0 flex items-center gap-1.5"
@@ -1621,7 +1643,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <span className="text-slate-400 flex items-center gap-1 font-medium">
                             <Lock className="w-3 h-3 text-purple-400" /> Password:
                           </span>
-                          <span className="font-mono font-bold text-amber-400">{t.password || 'teach123'}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono font-bold text-amber-400">
+                              {visiblePasswords[t.teacherId] ? (t.password || 'teach123') : '••••••••'}
+                            </span>
+                            <button
+                              onClick={() => setVisiblePasswords(prev => ({
+                                ...prev,
+                                [t.teacherId]: !prev[t.teacherId]
+                              }))}
+                              className="p-0.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+                              title={visiblePasswords[t.teacherId] ? "Hide password" : "Show password"}
+                            >
+                              {visiblePasswords[t.teacherId] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
 

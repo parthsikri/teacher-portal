@@ -211,10 +211,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       const q = searchTopicQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
-        topic.topicTitle.toLowerCase().includes(q) ||
-        topic.subject.toLowerCase().includes(q) ||
-        topic.subtopics.some((st) => st.toLowerCase().includes(q)) ||
-        (topic.proposedSubtopics && topic.proposedSubtopics.some((st) => st.toLowerCase().includes(q)));
+        (topic.topicTitle || '').toLowerCase().includes(q) ||
+        (topic.subject || '').toLowerCase().includes(q) ||
+        (topic.subtopics || []).some((st) => (st || '').toLowerCase().includes(q)) ||
+        (topic.proposedSubtopics && topic.proposedSubtopics.some((st) => (st || '').toLowerCase().includes(q)));
 
       if (!matchesSearch) return false;
 
@@ -236,10 +236,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       const q = searchLectureQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
-        lec.title.toLowerCase().includes(q) ||
-        lec.primaryTopic.toLowerCase().includes(q) ||
-        lec.subject.toLowerCase().includes(q) ||
-        lec.subtopics.some((st) => st.toLowerCase().includes(q));
+        (lec.title || '').toLowerCase().includes(q) ||
+        (lec.primaryTopic || '').toLowerCase().includes(q) ||
+        (lec.subject || '').toLowerCase().includes(q) ||
+        (lec.subtopics || []).some((st) => (st || '').toLowerCase().includes(q));
 
       if (!matchesSearch) return false;
 
@@ -270,7 +270,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     if (match) {
       return `UNIT ${match[2].toUpperCase()}`;
     }
-    return 'UNIT 1';
+    return 'UNASSIGNED';
   };
 
   // Group filtered lectures strictly unit-wise
