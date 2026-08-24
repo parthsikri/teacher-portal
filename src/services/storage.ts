@@ -433,7 +433,8 @@ export const StorageService = {
     topicId: string, 
     approvedSubtopics?: string[],
     customItems?: SubtopicItem[],
-    adminApprovalComment?: string
+    adminApprovalComment?: string,
+    newTopicTitle?: string
   ): AssignedTopic | null {
     const topics = this.getAssignedTopics();
     const index = topics.findIndex((t) => t.id === topicId);
@@ -458,6 +459,7 @@ export const StorageService = {
 
     topics[index] = {
       ...topics[index],
+      topicTitle: newTopicTitle ? newTopicTitle.trim() : topic.topicTitle,
       subtopics: finalNames,
       subtopicItems: finalItems,
       proposedSubtopics: finalNames,

@@ -132,6 +132,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [approvalComment, setApprovalComment] = useState('');
+  const [reviewTopicTitleInput, setReviewTopicTitleInput] = useState('');
 
   // Parse comma-separated or newline-separated topics live for preview
   const parsedTopicList = useMemo(() => {
@@ -369,6 +370,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setReviewSubtopicInput('');
     setRevisionFeedback('');
     setApprovalComment(topic.adminApprovalComment || '');
+    setReviewTopicTitleInput(topic.topicTitle || '');
     setShowRevisionInput(false);
   };
 
@@ -432,8 +434,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
     });
   };
 
+  const handleJumpSubtopic = (currentIndex: number, newIndex: number) => {
+    setReviewSubtopicItems((prev) => {
+      const updated = [...prev];
+      if (newIndex < 0 || newIndex >= updated.length || currentIndex === newIndex) return updated;
+      const [item] = updated.splice(currentIndex, 1);
+      updated.splice(newIndex, 0, item);
+      return updated;
+    });
+  };
+
   // Direct 1-Click Approve Subtopics (with optional comment/guidelines)
-  const handleDirectApprove = (topicId: string, customItems?: SubtopicItem[], customComment?: string) => {
+  const handleDirectApprove = (topicId: string, customItems?: SubtopicItem[], customComment?: string, customTopicTitle?: string) => {
     const itemsToSave = (customItems || reviewSubtopicItems).filter((item) => item.name && item.name.trim().length > 0);
     if (itemsToSave.length === 0) {
       alert('Please provide at least one valid subtopic name before saving.');
@@ -441,7 +453,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
     const names = itemsToSave.map((c) => c.name.trim());
     const comment = customComment !== undefined ? customComment : approvalComment;
-    const updatedTopic = StorageService.approveSubtopics(topicId, names, itemsToSave, comment);
+    const titleToSave = customTopicTitle !== undefined ? customTopicTitle : reviewTopicTitleInput;
+    
+    const updatedTopic = StorageService.approveSubtopics(topicId, names, itemsToSave, comment, titleToSave);
     if (updatedTopic) {
       setAssignedTopics((prev) => prev.map((t) => (t.id === topicId ? updatedTopic : t)));
     }
@@ -1495,7 +1509,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 name: name.trim(),
                                 status: 'pending' as const,
                               }));
-                              handleDirectApprove(topic.id, quickItems, '');
+                              handleDirectApprove(topic.id, quickItems, '', topic.topicTitle);
                             }}
                             className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1"
                           >
@@ -2240,7 +2254,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div className="p-4 bg-slate-950 border border-purple-500/20 rounded-2xl space-y-1">
-              <h4 className="font-extrabold text-sm text-slate-100">{reviewingTopic.topicTitle}</h4>
+              <input
+                type="text"
+                value={reviewTopicTitleInput}
+                onChange={(e) => setReviewTopicTitleInput(e.target.value)}
+                className="w-full bg-transparent font-extrabold text-sm text-slate-100 focus:outline-none focus:border-b focus:border-purple-500 pb-1"
+                placeholder="Topic Title"
+              />
               <p className="text-xs text-slate-400">Faculty pace their recording deliveries using daily recording targets and upload cutoff timers.</p>
             </div>
 
@@ -2287,11 +2307,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         key={st.id || i}
                         className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-purple-500/40 flex items-center justify-between gap-2.5 text-xs transition-all shadow-sm"
                       >
-                        {/* Sequence Number */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="font-mono font-extrabold text-[11px] text-purple-300 bg-purple-950/80 px-2 py-1 rounded-md border border-purple-500/40">
-                            #{i + 1}
-                          </span>
+                        {/* Sequence Number / Reorder Dropdown */}
+                        <div className="flex items-center gap-1 shrink-0 relative">
+                          <select
+                            value={i + 1}
+                            onChange={(e) => handleJumpSubtopic(i, parseInt(e.target.value, 10) - 1)}
+                            className="appearance-none font-mono font-extrabold text-[11px] text-purple-300 bg-purple-950/80 px-2 py-1 pr-4 rounded-md border border-purple-500/40 focus:outline-none focus:ring-1 focus:ring-purple-400 cursor-pointer"
+                            title="Click to jump to another position"
+                          >
+                            {reviewSubtopicItems.map((_, idx) => (
+                              <option key={idx} value={idx + 1}>#{idx + 1}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-1 pointer-events-none text-purple-400 opacity-60">
+                            <ChevronDown className="w-2.5 h-2.5" />
+                          </div>
                         </div>
 
                         {/* Direct Editable Subtopic Name Input */}
