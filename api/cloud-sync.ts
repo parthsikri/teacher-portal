@@ -87,6 +87,7 @@ function mergeMasterStates(current: any, incoming: any): any {
             ? 'approved'
             : (t.subtopicsApprovalState || existing?.subtopicsApprovalState || 'pending_teacher_input'),
           subtopics: (t.subtopics && t.subtopics.length > 0) ? t.subtopics : (existing?.subtopics || []),
+          adminApprovalComment: t.adminApprovalComment || existing?.adminApprovalComment || undefined,
         });
       }
     });

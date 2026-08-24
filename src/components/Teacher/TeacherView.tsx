@@ -598,6 +598,12 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   </span>
                   <span>{nextUrgentTopic.topicTitle}</span>
                 </div>
+                {nextUrgentTopic.adminApprovalComment && (
+                  <p className="text-[11px] text-emerald-300/90 italic flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3 text-emerald-400 shrink-0" />
+                    Admin Note: &quot;{nextUrgentTopic.adminApprovalComment}&quot;
+                  </p>
+                )}
               </div>
 
               {nextUrgentTopic.subtopicsApprovalState === 'approved' ? (
@@ -1229,6 +1235,19 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           </div>
                           <p className="text-slate-100 font-medium italic text-[11px] leading-relaxed">
                             "{topic.adminFeedback}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Admin Approval Guidelines Box */}
+                      {isApproved && topic.adminApprovalComment && (
+                        <div className="p-3 bg-emerald-950/40 rounded-xl border border-emerald-500/35 text-xs space-y-1 shadow-inner">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                            <MessageSquare className="w-3 h-3 text-emerald-400" />
+                            Admin Approval Guidelines:
+                          </div>
+                          <p className="text-slate-100 font-medium italic text-[11px] leading-relaxed">
+                            "{topic.adminApprovalComment}"
                           </p>
                         </div>
                       )}

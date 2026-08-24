@@ -425,11 +425,12 @@ export const StorageService = {
     return topics[index];
   },
 
-  // Admin approves proposed subtopics
+  // Admin approves proposed subtopics with optional guidelines / comment
   approveSubtopics(
     topicId: string, 
     approvedSubtopics?: string[],
-    customItems?: SubtopicItem[]
+    customItems?: SubtopicItem[],
+    adminApprovalComment?: string
   ): AssignedTopic | null {
     const topics = this.getAssignedTopics();
     const index = topics.findIndex((t) => t.id === topicId);
@@ -456,6 +457,7 @@ export const StorageService = {
       subtopicItems: finalItems,
       subtopicsApprovalState: 'approved',
       adminFeedback: undefined,
+      adminApprovalComment: adminApprovalComment?.trim() || topic.adminApprovalComment,
     };
     this.saveAssignedTopics(topics);
     return topics[index];

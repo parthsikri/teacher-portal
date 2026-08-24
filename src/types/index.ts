@@ -73,6 +73,7 @@ export interface AssignedTopic {
   proposedSubtopics?: string[];         // Subtopics proposed by the teacher
   subtopicsApprovalState: SubtopicApprovalState;
   adminFeedback?: string;               // Admin revision remark
+  adminApprovalComment?: string;        // Optional guidelines or remarks from Admin upon approving subtopics
   assignedBy: string;
   deadlineDate?: string;                 // Optional legacy module deadline
   status: 'pending' | 'in_progress' | 'completed';

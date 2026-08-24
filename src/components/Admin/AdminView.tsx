@@ -9,7 +9,7 @@ import {
   Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
-  ChevronDown, ChevronUp, Image as ImageIcon
+  ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -130,6 +130,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [reviewSubtopicInput, setReviewSubtopicInput] = useState('');
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
+  const [approvalComment, setApprovalComment] = useState('');
 
   // Parse comma-separated or newline-separated topics live for preview
   const parsedTopicList = useMemo(() => {
@@ -362,6 +363,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setReviewSubtopicItems(items);
     setReviewSubtopicInput('');
     setRevisionFeedback('');
+    setApprovalComment(topic.adminApprovalComment || '');
     setShowRevisionInput(false);
   };
 
@@ -391,11 +393,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setReviewSubtopicItems(reviewSubtopicItems.filter((_, i) => i !== index));
   };
 
-  // Direct 1-Click Approve Subtopics
-  const handleDirectApprove = (topicId: string, customItems?: SubtopicItem[]) => {
+  // Direct 1-Click Approve Subtopics (with optional comment/guidelines)
+  const handleDirectApprove = (topicId: string, customItems?: SubtopicItem[], customComment?: string) => {
     const names = customItems ? customItems.map((c) => c.name) : undefined;
-    StorageService.approveSubtopics(topicId, names, customItems);
+    const comment = customComment !== undefined ? customComment : approvalComment;
+    StorageService.approveSubtopics(topicId, names, customItems, comment);
     setReviewingTopic(null);
+    setApprovalComment('');
     refreshState();
   };
 
@@ -1364,6 +1368,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             Teacher has not proposed subtopics yet
                           </span>
                         )}
+
+                        {/* Approved Admin Guidelines / Comment */}
+                        {topic.adminApprovalComment && (
+                          <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-500/25 text-[11px] space-y-1">
+                            <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                              <span className="flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" /> Approval Note:
+                              </span>
+                              <button
+                                onClick={() => handleOpenReviewModal(topic)}
+                                className="text-emerald-400/70 hover:text-emerald-300 underline font-normal lowercase"
+                              >
+                                edit
+                              </button>
+                            </div>
+                            <p className="text-slate-200 italic font-medium">"{topic.adminApprovalComment}"</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1375,13 +1397,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             onClick={() => handleOpenReviewModal(topic)}
                             className="flex-1 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1"
                           >
-                            <Edit3 className="w-3.5 h-3.5" /> Review Subtopics
+                            <MessageSquare className="w-3.5 h-3.5" /> Review &amp; Comment
                           </button>
                           <button
                             onClick={() => handleDirectApprove(topic.id)}
-                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-sm"
+                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1"
                           >
-                            Approve ✓
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Quick Approve
                           </button>
                         </div>
                       )}
@@ -1391,7 +1413,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           onClick={() => handleOpenReviewModal(topic)}
                           className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                         >
-                          <Edit3 className="w-3.5 h-3.5" /> Manage Subtopics
+                          <Edit3 className="w-3.5 h-3.5" /> Manage Subtopics &amp; Comment
                         </button>
                       )}
 
@@ -2208,6 +2230,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               ) : null}
 
+              {/* Optional Approval Note / Guidelines for Teacher */}
+              {!showRevisionInput && (
+                <div className="p-3.5 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl space-y-2">
+                  <label className="block text-emerald-300 font-bold text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                      Approval Note / Guidelines for Teacher (Optional):
+                    </span>
+                    <span className="text-[10px] text-emerald-400/80 font-normal">Sent to faculty upon approval</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Approved! Please cover the 2024 university numerical problem in subtopic #2."
+                    value={approvalComment}
+                    onChange={(e) => setApprovalComment(e.target.value)}
+                    className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl p-2.5 text-slate-100 text-xs focus:outline-none focus:border-emerald-400 placeholder:text-slate-600"
+                  />
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-3 border-t border-slate-800">
                 {!showRevisionInput && reviewingTopic.subtopicsApprovalState === 'pending_admin_approval' && (
                   <button
@@ -2229,11 +2271,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDirectApprove(reviewingTopic.id, reviewSubtopicItems)}
+                    onClick={() => handleDirectApprove(reviewingTopic.id, reviewSubtopicItems, approvalComment)}
                     disabled={reviewSubtopicItems.length === 0}
                     className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-4 h-4" /> Approve & Save Subtopics
+                    <CheckCircle2 className="w-4 h-4" />
+                    {approvalComment.trim() ? 'Approve with Comment ✓' : 'Approve & Save Subtopics'}
                   </button>
                 </div>
               </div>
