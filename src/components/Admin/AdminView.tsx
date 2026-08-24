@@ -446,11 +446,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Direct 1-Click Approve Subtopics (with optional comment/guidelines)
   const handleDirectApprove = (topicId: string, customItems?: SubtopicItem[], customComment?: string, customTopicTitle?: string) => {
-    const itemsToSave = (customItems || reviewSubtopicItems).filter((item) => item.name && item.name.trim().length > 0);
-    if (itemsToSave.length === 0) {
-      alert('Please provide at least one valid subtopic name before saving.');
-      return;
-    }
+    const itemsToSave = (customItems !== undefined ? customItems : reviewSubtopicItems).filter((item) => item.name && item.name.trim().length > 0);
     const names = itemsToSave.map((c) => c.name.trim());
     const comment = customComment !== undefined ? customComment : approvalComment;
     const titleToSave = customTopicTitle !== undefined ? customTopicTitle : reviewTopicTitleInput;

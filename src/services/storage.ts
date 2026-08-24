@@ -441,7 +441,7 @@ export const StorageService = {
     if (index === -1) return null;
 
     const topic = topics[index];
-    const finalNames = customItems && customItems.length > 0
+    const finalNames = customItems !== undefined
       ? customItems.map((c) => c.name.trim()).filter((n) => n.length > 0)
       : approvedSubtopics && approvedSubtopics.length > 0
       ? approvedSubtopics.map((s) => s.trim()).filter((s) => s.length > 0)
@@ -449,7 +449,7 @@ export const StorageService = {
       ? topic.proposedSubtopics
       : topic.subtopics;
 
-    const finalItems: SubtopicItem[] = customItems && customItems.length > 0
+    const finalItems: SubtopicItem[] = customItems !== undefined
       ? customItems.filter((c) => c.name.trim().length > 0)
       : finalNames.map((name, idx) => ({
           id: `sub-${idx}-${Date.now()}`,
