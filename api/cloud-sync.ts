@@ -92,7 +92,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Lectures
+  // Merge Lectures & Remarks Smartly
   const lectureMap = new Map<string, any>();
   if (Array.isArray(current.lectures)) {
     current.lectures.forEach((l: any) => {
@@ -103,14 +103,40 @@ function mergeMasterStates(current: any, incoming: any): any {
     incoming.lectures.forEach((l: any) => {
       if (l && l.id && !deletedIds.has(l.id)) {
         const existing = lectureMap.get(l.id);
-        lectureMap.set(l.id, {
-          ...existing,
-          ...l,
-          adminRemarks: [
-            ...(existing?.adminRemarks || []),
-            ...(l.adminRemarks || []).filter((r: any) => !(existing?.adminRemarks || []).some((er: any) => er.id === r.id)),
-          ],
-        });
+        if (!existing) {
+          lectureMap.set(l.id, l);
+        } else {
+          // Merge adminRemarks remark-by-remark
+          const remarkMap = new Map<string, any>();
+          (existing.adminRemarks || []).forEach((r: any) => {
+            if (r && r.id) remarkMap.set(r.id, r);
+          });
+          (l.adminRemarks || []).forEach((r: any) => {
+            if (r && r.id) {
+              const exRemark = remarkMap.get(r.id);
+              if (!exRemark) {
+                remarkMap.set(r.id, r);
+              } else {
+                // If either has isAcknowledged: true, acknowledge state is preserved
+                const isAck = Boolean(r.isAcknowledged || exRemark.isAcknowledged);
+                remarkMap.set(r.id, {
+                  ...exRemark,
+                  ...r,
+                  isAcknowledged: isAck,
+                  acknowledgedAt: isAck ? (r.acknowledgedAt || exRemark.acknowledgedAt || new Date().toISOString()) : undefined,
+                  acknowledgedByName: isAck ? (r.acknowledgedByName || exRemark.acknowledgedByName) : undefined,
+                  isNewAckForAdmin: isAck ? (r.isNewAckForAdmin ?? exRemark.isNewAckForAdmin ?? true) : false,
+                });
+              }
+            }
+          });
+
+          lectureMap.set(l.id, {
+            ...existing,
+            ...l,
+            adminRemarks: Array.from(remarkMap.values()),
+          });
+        }
       }
     });
   }

@@ -595,6 +595,7 @@ export const StorageService = {
 
     if (found) {
       this.saveLectures(lectures);
+      this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate ack push error:', err));
     }
     return found;
   },
@@ -619,6 +620,7 @@ export const StorageService = {
 
     if (found) {
       this.saveLectures(lectures);
+      this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate unack push error:', err));
     }
     return found;
   },
@@ -1223,8 +1225,56 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.lectures)) {
-      const filtered = state.lectures.filter((l: Lecture) => !deletedIds.has(l.id));
-      localStorage.setItem(LECTURES_KEY, JSON.stringify(filtered));
+      const localLectures = this.getLectures();
+      const localMap = new Map<string, Lecture>();
+      localLectures.forEach((l) => localMap.set(l.id, l));
+
+      const mergedLectures = state.lectures
+        .filter((l: Lecture) => !deletedIds.has(l.id))
+        .map((cloudLec: Lecture) => {
+          const localLec = localMap.get(cloudLec.id);
+          if (!localLec) return cloudLec;
+
+          // Merge adminRemarks smart
+          const localRemarksMap = new Map<string, AdminRemark>();
+          (localLec.adminRemarks || []).forEach((r) => localRemarksMap.set(r.id, r));
+
+          const mergedRemarks = (cloudLec.adminRemarks || []).map((cloudRem) => {
+            const localRem = localRemarksMap.get(cloudRem.id);
+            if (!localRem) return cloudRem;
+            const isAck = Boolean(localRem.isAcknowledged || cloudRem.isAcknowledged);
+            return {
+              ...cloudRem,
+              ...localRem,
+              isAcknowledged: isAck,
+              acknowledgedAt: isAck ? (localRem.acknowledgedAt || cloudRem.acknowledgedAt || new Date().toISOString()) : undefined,
+              acknowledgedByName: isAck ? (localRem.acknowledgedByName || cloudRem.acknowledgedByName) : undefined,
+              isNewAckForAdmin: isAck ? (localRem.isNewAckForAdmin ?? cloudRem.isNewAckForAdmin ?? true) : false,
+            };
+          });
+
+          // Add any local remarks not in cloud yet
+          (localLec.adminRemarks || []).forEach((lr) => {
+            if (!mergedRemarks.some((mr) => mr.id === lr.id)) {
+              mergedRemarks.push(lr);
+            }
+          });
+
+          return {
+            ...cloudLec,
+            ...localLec,
+            adminRemarks: mergedRemarks,
+          };
+        });
+
+      // Also preserve any locally added lectures not yet in cloud
+      localLectures.forEach((locLec) => {
+        if (!deletedIds.has(locLec.id) && !mergedLectures.some((ml: Lecture) => ml.id === locLec.id)) {
+          mergedLectures.unshift(locLec);
+        }
+      });
+
+      localStorage.setItem(LECTURES_KEY, JSON.stringify(mergedLectures));
     }
 
     if (Array.isArray(state.subjectReferences)) {
