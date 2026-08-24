@@ -8,7 +8,8 @@ import {
   Search, FileText, Plus, Play,
   Edit3, ExternalLink, Copy, Check, ChevronRight,
   Clock, CheckCircle, AlertTriangle, MessageSquare,
-  FileSpreadsheet, Award, Image as ImageIcon, Folder
+  FileSpreadsheet, Award, Image as ImageIcon, Folder,
+  CheckCircle2, MessageCircle, Video
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -106,6 +107,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
 
 
+  // Admin remarks filter state
+  const [directiveFilterTab, setDirectiveFilterTab] = useState<'all' | 'pending' | 'acknowledged'>('all');
+  const [searchDirectiveQuery, setSearchDirectiveQuery] = useState('');
+
   // Admin remarks for this teacher
   const teacherRemarks = useMemo(() => {
     const remarks: { 
@@ -115,6 +120,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       adminName: string; 
       lectureTitle: string; 
       date: string;
+      createdAt?: string;
       isAcknowledged?: boolean;
       acknowledgedAt?: string;
       acknowledgedByName?: string;
@@ -128,14 +134,44 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           adminName: rem.adminName,
           lectureTitle: lec.title,
           date: new Date(rem.createdAt).toLocaleDateString(),
+          createdAt: rem.createdAt,
           isAcknowledged: rem.isAcknowledged,
           acknowledgedAt: rem.acknowledgedAt,
           acknowledgedByName: rem.acknowledgedByName,
         });
       });
     });
-    return remarks;
+    // Sort: unacknowledged first, then by date descending
+    return remarks.sort((a, b) => {
+      if (!a.isAcknowledged && b.isAcknowledged) return -1;
+      if (a.isAcknowledged && !b.isAcknowledged) return 1;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
   }, [lectures]);
+
+  const unacknowledgedDirectivesCount = useMemo(() => {
+    return teacherRemarks.filter((r) => !r.isAcknowledged).length;
+  }, [teacherRemarks]);
+
+  const acknowledgedDirectivesCount = useMemo(() => {
+    return teacherRemarks.filter((r) => r.isAcknowledged).length;
+  }, [teacherRemarks]);
+
+  const filteredTeacherRemarks = useMemo(() => {
+    const q = searchDirectiveQuery.toLowerCase().trim();
+    return teacherRemarks.filter((rem) => {
+      if (directiveFilterTab === 'pending' && rem.isAcknowledged) return false;
+      if (directiveFilterTab === 'acknowledged' && !rem.isAcknowledged) return false;
+      if (q) {
+        return (
+          rem.remark.toLowerCase().includes(q) ||
+          rem.lectureTitle.toLowerCase().includes(q) ||
+          rem.adminName.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [teacherRemarks, directiveFilterTab, searchDirectiveQuery]);
 
   // Topic category breakdowns
   const revisionTopics = useMemo(() => {
@@ -589,8 +625,8 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           )}
 
-          {/* 2. COMPREHENSIVE STATS ROW WITH ON-TIME PERCENTAGE */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 2. COMPREHENSIVE STATS ROW WITH ON-TIME PERCENTAGE & DIRECTIVES */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             
             {/* Card 1: Today's Recording Progress */}
             <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
@@ -671,6 +707,39 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
               <div className="text-xl font-bold text-slate-100">{pptRequests.length} Decks</div>
               <div className="text-[11px] text-slate-400">2-day turnaround →</div>
+            </div>
+
+            {/* Card 5: Admin Directives & Acknowledgments */}
+            <div 
+              onClick={() => onPageChange('directives')}
+              className={`border rounded-xl p-4 space-y-1 cursor-pointer transition-all ${
+                unacknowledgedDirectivesCount > 0
+                  ? 'bg-gradient-to-br from-amber-950/30 via-slate-900/60 to-slate-900/40 border-amber-500/50 hover:border-amber-500/80 shadow-md shadow-amber-950/20'
+                  : 'bg-slate-900/40 border-slate-800/60 hover:border-slate-700'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="truncate font-semibold">Directives & Acks</span>
+                {unacknowledgedDirectivesCount > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-500 text-slate-950 animate-pulse">
+                    {unacknowledgedDirectivesCount} PENDING
+                  </span>
+                ) : (
+                  <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                )}
+              </div>
+              <div className="text-xl font-bold text-slate-100">
+                {acknowledgedDirectivesCount}/{teacherRemarks.length}
+              </div>
+              <div className="text-[11px]">
+                {unacknowledgedDirectivesCount > 0 ? (
+                  <span className="text-amber-400 font-bold flex items-center gap-1">Action Required ➔</span>
+                ) : teacherRemarks.length > 0 ? (
+                  <span className="text-emerald-400 font-medium flex items-center gap-1">All Acknowledged ✓</span>
+                ) : (
+                  <span className="text-slate-500">No directives</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -755,6 +824,169 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* 4. ACADEMIC DIRECTIVES & TEACHER ACKNOWLEDGMENT ACTION CENTER */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3.5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/20 shadow-inner">
+                  <MessageCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-100">
+                      Academic Directives & Quality Feedback
+                    </h3>
+                    {unacknowledgedDirectivesCount > 0 && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 border border-amber-400 animate-pulse shadow-sm">
+                        ⚠️ {unacknowledgedDirectivesCount} Action Required
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Official instructions & quality guidelines posted by Academic Operations on your lecture sessions
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1.5 self-start sm:self-auto bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button
+                  onClick={() => setDirectiveFilterTab('all')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    directiveFilterTab === 'all'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All ({teacherRemarks.length})
+                </button>
+                <button
+                  onClick={() => setDirectiveFilterTab('pending')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                    directiveFilterTab === 'pending'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-amber-300'
+                  }`}
+                >
+                  <Clock className="w-3 h-3" />
+                  Action Required ({unacknowledgedDirectivesCount})
+                </button>
+                <button
+                  onClick={() => setDirectiveFilterTab('acknowledged')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                    directiveFilterTab === 'acknowledged'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-emerald-300'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Acknowledged ({acknowledgedDirectivesCount})
+                </button>
+              </div>
+            </div>
+
+            {/* Directives Cards */}
+            {filteredTeacherRemarks.length === 0 ? (
+              <div className="p-8 text-center bg-slate-950/60 border border-slate-800/80 rounded-xl text-slate-400 text-xs space-y-1.5">
+                <div className="text-2xl">{teacherRemarks.length === 0 ? '✨' : '🔍'}</div>
+                <p className="font-semibold text-slate-200">
+                  {teacherRemarks.length === 0 
+                    ? 'No Academic Directives Posted' 
+                    : 'No directives under this filter'}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {teacherRemarks.length === 0
+                    ? 'When academic administrators review your lecture videos and post quality guidelines, they will appear here with an Acknowledge button.'
+                    : 'Switch filter tab above to view other directives.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {filteredTeacherRemarks.slice(0, 4).map((rem) => {
+                  const isAck = !!rem.isAcknowledged;
+                  return (
+                    <div
+                      key={rem.id}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 shadow-md ${
+                        isAck
+                          ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/20 border-emerald-500/30'
+                          : 'bg-gradient-to-br from-amber-950/30 via-slate-900 to-slate-900/90 border-amber-500/50 hover:border-amber-500/70 shadow-amber-950/20'
+                      }`}
+                    >
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-100 truncate flex items-center gap-1.5">
+                            <Video className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            {rem.lectureTitle}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500 shrink-0">{rem.date}</span>
+                        </div>
+
+                        {/* STATUS BADGE */}
+                        <div className="flex items-center gap-1.5">
+                          {isAck ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              Acknowledged {rem.acknowledgedAt ? `on ${new Date(rem.acknowledgedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 border border-amber-400 flex items-center gap-1 animate-pulse shadow-sm">
+                              <Clock className="w-3 h-3" />
+                              ⚠️ Action Required
+                            </span>
+                          )}
+                        </div>
+
+                        {/* DIRECTIVE TEXT */}
+                        <div className="p-3 bg-purple-950/25 border border-purple-500/30 rounded-xl text-xs text-purple-200 italic leading-relaxed">
+                          "{rem.remark}"
+                        </div>
+                      </div>
+
+                      {/* ACTIONS ROW */}
+                      <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between gap-2 text-xs">
+                        <span className="text-[11px] text-slate-400">
+                          From: <strong className="text-slate-300">{rem.adminName}</strong>
+                        </span>
+
+                        <button
+                          onClick={() => handleAcknowledgeRemark(rem.lectureId, rem.id, isAck)}
+                          className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-sm ${
+                            isAck
+                              ? 'text-emerald-400 bg-emerald-500/10 hover:bg-rose-500/10 hover:text-rose-300 border border-emerald-500/20 hover:border-rose-500/30'
+                              : 'bg-gradient-to-r from-amber-500 via-amber-400 to-indigo-500 text-slate-950 hover:opacity-95 shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40'
+                          }`}
+                          title={isAck ? 'Click to revert acknowledgment if needed' : 'Click to acknowledge directive'}
+                        >
+                          {isAck ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" /> Acknowledged ✓
+                            </>
+                          ) : (
+                            <>
+                              <span>✍️</span> Acknowledge Directive
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {filteredTeacherRemarks.length > 4 && (
+              <div className="text-center pt-2">
+                <button
+                  onClick={() => onPageChange('directives')}
+                  className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center justify-center gap-1 mx-auto"
+                >
+                  View All {teacherRemarks.length} Directives ➔
+                </button>
+              </div>
+            )}
           </div>
 
           {/* RECENT DELIVERIES */}
@@ -1186,6 +1418,70 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                             <span>Topic: <strong className="text-slate-300 font-normal">{lec.primaryTopic}</strong></span>
                             <span className="font-mono text-slate-400">{lec.durationMinutes || 45}m</span>
                           </div>
+
+                          {/* INLINE ADMIN DIRECTIVES ON THIS LECTURE */}
+                          {lec.adminRemarks && lec.adminRemarks.length > 0 && (
+                            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-purple-300">
+                                <span className="flex items-center gap-1">
+                                  <MessageSquare className="w-3 h-3 text-purple-400" />
+                                  Academic Directives ({lec.adminRemarks.length})
+                                </span>
+                                {lec.adminRemarks.some((r) => !r.isAcknowledged) ? (
+                                  <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 animate-pulse">
+                                    Action Required
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                    All Acknowledged ✓
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-1.5">
+                                {lec.adminRemarks.map((rem) => {
+                                  const isAck = !!rem.isAcknowledged;
+                                  return (
+                                    <div
+                                      key={rem.id}
+                                      className={`p-2.5 rounded-xl border space-y-1.5 text-[11px] transition-all ${
+                                        isAck
+                                          ? 'bg-slate-900/60 border-emerald-500/20'
+                                          : 'bg-amber-950/20 border-amber-500/35 shadow-sm'
+                                      }`}
+                                    >
+                                      <p className="text-slate-200 italic leading-relaxed">
+                                        "{rem.remarkText}"
+                                      </p>
+                                      <div className="flex items-center justify-between pt-1 border-t border-slate-800/50 text-[10px]">
+                                        <span className="text-slate-400">
+                                          By <strong className="text-slate-300">{rem.adminName}</strong>
+                                        </span>
+                                        <button
+                                          onClick={() => handleAcknowledgeRemark(lec.id, rem.id, isAck)}
+                                          className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all flex items-center gap-1 ${
+                                            isAck
+                                              ? 'bg-emerald-500/10 text-emerald-400 hover:bg-rose-500/10 hover:text-rose-300 border border-emerald-500/20'
+                                              : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm font-extrabold'
+                                          }`}
+                                        >
+                                          {isAck ? (
+                                            <>
+                                              <Check className="w-3 h-3 text-emerald-400" /> Acknowledged ✓
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span>✍️</span> Acknowledge
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="pt-2 border-t border-slate-800/50 flex items-center justify-between gap-2">
@@ -1283,42 +1579,111 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             <div>
               <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-indigo-400" />
-                Admin Directives & Feedback ({teacherRemarks.length})
+                Admin Directives & Quality Feedback ({teacherRemarks.length})
               </h2>
               <p className="text-xs text-slate-400">
-                Official quality guidelines and improvement remarks from academic operations
+                Official quality guidelines and improvement remarks from Academic Operations on your lecture sessions
               </p>
             </div>
 
-            {teacherRemarks.some((r) => !r.isAcknowledged) && (
-              <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 w-fit">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                {teacherRemarks.filter((r) => !r.isAcknowledged).length} Action Required (Unacknowledged)
+            {unacknowledgedDirectivesCount > 0 && (
+              <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 w-fit animate-pulse shadow-sm">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                {unacknowledgedDirectivesCount} Action Required (Unacknowledged)
               </span>
             )}
           </div>
 
-          {teacherRemarks.length === 0 ? (
-            <div className="p-8 text-center bg-slate-900/30 border border-slate-800/60 rounded-xl text-slate-500 text-xs italic">
-              No directives posted yet.
+          {/* SEARCH & FILTER CONTROLS */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-900/60 p-1 rounded-xl border border-slate-800 text-xs">
+              <button
+                onClick={() => setDirectiveFilterTab('all')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                  directiveFilterTab === 'all'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All ({teacherRemarks.length})
+              </button>
+              <button
+                onClick={() => setDirectiveFilterTab('pending')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                  directiveFilterTab === 'pending'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-amber-300'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                Action Required ({unacknowledgedDirectivesCount})
+              </button>
+              <button
+                onClick={() => setDirectiveFilterTab('acknowledged')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                  directiveFilterTab === 'acknowledged'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-emerald-300'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Acknowledged ({acknowledgedDirectivesCount})
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search directives or lecture..."
+                value={searchDirectiveQuery}
+                onChange={(e) => setSearchDirectiveQuery(e.target.value)}
+                className="w-full bg-slate-900/60 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 shadow-inner"
+              />
+              {searchDirectiveQuery && (
+                <button
+                  onClick={() => setSearchDirectiveQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* DIRECTIVES LIST */}
+          {filteredTeacherRemarks.length === 0 ? (
+            <div className="p-12 text-center bg-slate-900/30 border border-slate-800/60 rounded-2xl text-slate-400 text-xs space-y-2">
+              <div className="text-3xl">{teacherRemarks.length === 0 ? '✨' : '🔍'}</div>
+              <p className="font-semibold text-slate-200 text-sm">
+                {teacherRemarks.length === 0
+                  ? 'No Directives Posted by Academic Operations'
+                  : 'No Directives Match Your Filter'}
+              </p>
+              <p className="text-slate-500 max-w-md mx-auto">
+                {teacherRemarks.length === 0
+                  ? 'When administrators review your delivered lecture sessions and post quality suggestions or action points, they will appear here with an Acknowledge button.'
+                  : 'Try clearing your search or switching to the "All" tab to see all directives.'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {teacherRemarks.map((rem) => {
+              {filteredTeacherRemarks.map((rem) => {
                 const isAck = !!rem.isAcknowledged;
                 return (
                   <div 
                     key={rem.id} 
-                    className={`border rounded-2xl p-5 space-y-4 flex flex-col justify-between text-xs transition-all shadow-sm ${
+                    className={`border-2 rounded-2xl p-5 space-y-4 flex flex-col justify-between text-xs transition-all shadow-md ${
                       isAck
-                        ? 'bg-slate-900/40 border-emerald-500/30 shadow-emerald-950/10'
-                        : 'bg-gradient-to-br from-amber-950/20 via-slate-900/60 to-slate-900/40 border-amber-500/40 shadow-lg shadow-amber-950/20'
+                        ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/20 border-emerald-500/30 shadow-emerald-950/10'
+                        : 'bg-gradient-to-br from-amber-950/30 via-slate-900 to-slate-900/90 border-amber-500/50 shadow-lg shadow-amber-950/20'
                     }`}
                   >
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-200 truncate flex items-center gap-1.5">
-                          📹 Re: {rem.lectureTitle}
+                        <span className="font-bold text-slate-100 truncate flex items-center gap-1.5 text-sm">
+                          <Video className="w-4 h-4 text-indigo-400 shrink-0" />
+                          Re: {rem.lectureTitle}
                         </span>
                         <span className="text-[10px] font-mono text-slate-500 shrink-0">{rem.date}</span>
                       </div>
@@ -1326,38 +1691,39 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       <div className="flex items-center gap-2">
                         {isAck ? (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3 text-emerald-400" />
-                            Acknowledged by you {rem.acknowledgedAt ? `(${new Date(rem.acknowledgedAt).toLocaleDateString()})` : ''}
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            Acknowledged by you {rem.acknowledgedAt ? `(${new Date(rem.acknowledgedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})` : ''}
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 border border-amber-400 flex items-center gap-1 shadow-sm animate-pulse">
-                            ⚠️ Acknowledgment Required
+                            <Clock className="w-3.5 h-3.5" />
+                            ⚠️ Action Required (Please Acknowledge)
                           </span>
                         )}
                       </div>
 
-                      <p className="text-slate-200 italic bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80 leading-relaxed font-normal">
+                      <p className="text-slate-200 italic bg-purple-950/25 p-3.5 rounded-xl border border-purple-500/30 leading-relaxed font-medium">
                         "{rem.remark}"
                       </p>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between gap-2">
+                    <div className="pt-3 border-t border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <span className="text-[11px] text-slate-400 font-medium">
-                        Posted by: <strong className="text-slate-300">{rem.adminName}</strong>
+                        Posted by Academic Admin: <strong className="text-slate-200">{rem.adminName}</strong>
                       </span>
 
                       <button
                         onClick={() => handleAcknowledgeRemark(rem.lectureId, rem.id, isAck)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                        className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md ${
                           isAck 
                             ? 'text-emerald-400 bg-emerald-500/10 hover:bg-rose-500/10 hover:text-rose-300 border border-emerald-500/20 hover:border-rose-500/30' 
-                            : 'bg-gradient-to-r from-amber-500 via-amber-400 to-indigo-500 text-slate-950 hover:opacity-95 shadow-md shadow-amber-500/20'
+                            : 'bg-gradient-to-r from-amber-500 via-amber-400 to-indigo-500 text-slate-950 hover:opacity-95 shadow-amber-500/20 ring-2 ring-amber-400/50 scale-[1.02]'
                         }`}
                         title={isAck ? 'Click to revert acknowledgment if needed' : 'Click to acknowledge directive'}
                       >
                         {isAck ? (
                           <>
-                            <Check className="w-3.5 h-3.5" /> Acknowledged ✓
+                            <Check className="w-3.5 h-3.5 text-emerald-400" /> Acknowledged ✓
                           </>
                         ) : (
                           <>
