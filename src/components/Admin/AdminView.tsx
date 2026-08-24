@@ -1478,7 +1478,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             <MessageSquare className="w-3.5 h-3.5" /> Review &amp; Comment
                           </button>
                           <button
-                            onClick={() => handleDirectApprove(topic.id)}
+                            onClick={() => {
+                              // Build items from proposedSubtopics (the ones the teacher submitted for review)
+                              const names = (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
+                                ? topic.proposedSubtopics
+                                : (topic.subtopics && topic.subtopics.length > 0)
+                                ? topic.subtopics
+                                : [];
+                              if (names.length === 0) {
+                                // No subtopics to approve — open modal so admin can add them
+                                handleOpenReviewModal(topic);
+                                return;
+                              }
+                              const quickItems: SubtopicItem[] = names.map((name, idx) => ({
+                                id: `sub-qa-${idx}-${Date.now()}`,
+                                name: name.trim(),
+                                status: 'pending' as const,
+                              }));
+                              handleDirectApprove(topic.id, quickItems, '');
+                            }}
                             className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> Quick Approve

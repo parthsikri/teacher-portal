@@ -307,7 +307,11 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
   const handleOpenProposeModal = (topic: AssignedTopic) => {
     setProposingTopic(topic);
-    const existing = (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
+    // Priority: if admin has already approved subtopics, show those (preserving admin's edits/reordering).
+    // Otherwise fall back to what teacher proposed, then to empty.
+    const existing = (topic.subtopicsApprovalState === 'approved' && topic.subtopics && topic.subtopics.length > 0)
+      ? topic.subtopics
+      : (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
       ? topic.proposedSubtopics
       : topic.subtopics || [];
     setProposedSubtopicList([...existing]);
