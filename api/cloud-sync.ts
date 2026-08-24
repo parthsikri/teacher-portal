@@ -38,22 +38,22 @@ function mergeMasterStates(current: any, incoming: any): any {
   if (!incoming) return current || DEFAULT_STATE;
 
   const deletedIds = new Set<string>([
-    ...(Array.isArray(current.deletedIds) ? current.deletedIds : []),
-    ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds : []),
+    ...(Array.isArray(current.deletedIds) ? current.deletedIds.map((id: string) => id.toUpperCase()) : []),
+    ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []),
   ]);
 
   // Merge Users
   const userMap = new Map<string, any>();
   if (Array.isArray(current.users)) {
     current.users.forEach((u: any) => {
-      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
+      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
         userMap.set(u.teacherId.toUpperCase(), u);
       }
     });
   }
   if (Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
-      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
+      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
         const existing = userMap.get(u.teacherId.toUpperCase());
         userMap.set(u.teacherId.toUpperCase(), {
           ...existing,
@@ -73,12 +73,12 @@ function mergeMasterStates(current: any, incoming: any): any {
   const topicMap = new Map<string, any>();
   if (Array.isArray(current.assignedTopics)) {
     current.assignedTopics.forEach((t: any) => {
-      if (t && t.id && !deletedIds.has(t.id)) topicMap.set(t.id, t);
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) topicMap.set(t.id, t);
     });
   }
   if (Array.isArray(incoming.assignedTopics)) {
     incoming.assignedTopics.forEach((t: any) => {
-      if (t && t.id && !deletedIds.has(t.id)) {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) {
         const existing = topicMap.get(t.id);
         if (!existing) {
           topicMap.set(t.id, t);
@@ -116,12 +116,12 @@ function mergeMasterStates(current: any, incoming: any): any {
   const lectureMap = new Map<string, any>();
   if (Array.isArray(current.lectures)) {
     current.lectures.forEach((l: any) => {
-      if (l && l.id && !deletedIds.has(l.id)) lectureMap.set(l.id, l);
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) lectureMap.set(l.id, l);
     });
   }
   if (Array.isArray(incoming.lectures)) {
     incoming.lectures.forEach((l: any) => {
-      if (l && l.id && !deletedIds.has(l.id)) {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) {
         const existing = lectureMap.get(l.id);
         if (!existing) {
           lectureMap.set(l.id, l);
@@ -165,14 +165,14 @@ function mergeMasterStates(current: any, incoming: any): any {
   const refMap = new Map<string, any>();
   if (Array.isArray(current.subjectReferences)) {
     current.subjectReferences.forEach((r: any) => {
-      if (r && (r.id || r.subjectName) && !deletedIds.has(r.id)) {
+      if (r && (r.id || r.subjectName) && !deletedIds.has((r.id || '').toUpperCase())) {
         refMap.set(r.id || r.subjectName.toLowerCase(), r);
       }
     });
   }
   if (Array.isArray(incoming.subjectReferences)) {
     incoming.subjectReferences.forEach((r: any) => {
-      if (r && (r.id || r.subjectName) && !deletedIds.has(r.id)) {
+      if (r && (r.id || r.subjectName) && !deletedIds.has((r.id || '').toUpperCase())) {
         refMap.set(r.id || r.subjectName.toLowerCase(), {
           ...refMap.get(r.id || r.subjectName.toLowerCase()),
           ...r,
@@ -205,12 +205,12 @@ function mergeMasterStates(current: any, incoming: any): any {
   const pptMap = new Map<string, any>();
   if (Array.isArray(current.pptRequests)) {
     current.pptRequests.forEach((p: any) => {
-      if (p && p.id && !deletedIds.has(p.id)) pptMap.set(p.id, p);
+      if (p && p.id && !deletedIds.has(p.id.toUpperCase())) pptMap.set(p.id, p);
     });
   }
   if (Array.isArray(incoming.pptRequests)) {
     incoming.pptRequests.forEach((p: any) => {
-      if (p && p.id && !deletedIds.has(p.id)) {
+      if (p && p.id && !deletedIds.has(p.id.toUpperCase())) {
         pptMap.set(p.id, {
           ...pptMap.get(p.id),
           ...p,

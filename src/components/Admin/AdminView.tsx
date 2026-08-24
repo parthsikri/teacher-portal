@@ -2438,11 +2438,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleDirectApprove(reviewingTopic.id, reviewSubtopicItems, approvalComment)}
-                    disabled={reviewSubtopicItems.length === 0}
                     className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
                   >
                     {reviewingTopic.subtopicsApprovalState === 'approved'
                       ? (approvalComment.trim() ? 'Save Changes with Note ✓' : 'Save Sequence & Changes ✓')
+                      : reviewSubtopicItems.length === 0
+                      ? 'Save Title & Changes ✓'
                       : (approvalComment.trim() ? 'Approve with Comment ✓' : 'Approve & Save Subtopics')}
                   </button>
                 </div>

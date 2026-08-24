@@ -6,7 +6,7 @@ import { PptRequestPortal } from './PptRequestPortal';
 import confetti from 'canvas-confetti';
 import { 
   Search, FileText, Plus, Play,
-  Edit3, ExternalLink, Copy, Check, ChevronRight,
+  Edit3, ExternalLink, Copy, Check, ChevronRight, ChevronDown,
   Clock, CheckCircle, AlertTriangle, MessageSquare,
   FileSpreadsheet, Award, Image as ImageIcon, Folder,
   CheckCircle2, MessageCircle, Video,
@@ -365,6 +365,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       const temp = updated[index];
       updated[index] = updated[index + 1];
       updated[index + 1] = temp;
+      return updated;
+    });
+  };
+
+  const handleJumpProposedSubtopic = (currentIndex: number, newIndex: number) => {
+    setProposedSubtopicList((prev) => {
+      const updated = [...prev];
+      if (newIndex < 0 || newIndex >= updated.length || currentIndex === newIndex) return updated;
+      const [item] = updated.splice(currentIndex, 1);
+      updated.splice(newIndex, 0, item);
       return updated;
     });
   };
@@ -1871,9 +1881,22 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       key={idx}
                       className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 text-xs"
                     >
-                      <span className="font-mono font-extrabold text-[10px] text-indigo-400 bg-indigo-950/80 px-2 py-1 rounded-md border border-indigo-500/30 shrink-0">
-                        #{idx + 1}
-                      </span>
+                      {/* Sequence Number / Reorder Dropdown */}
+                      <div className="flex items-center gap-1 shrink-0 relative">
+                        <select
+                          value={idx + 1}
+                          onChange={(e) => handleJumpProposedSubtopic(idx, parseInt(e.target.value, 10) - 1)}
+                          className="appearance-none font-mono font-extrabold text-[10px] text-indigo-400 bg-indigo-950/80 px-2 py-1 pr-4 rounded-md border border-indigo-500/30 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer"
+                          title="Click to jump to another position"
+                        >
+                          {proposedSubtopicList.map((_, i) => (
+                            <option key={i} value={i + 1}>#{i + 1}</option>
+                          ))}
+                        </select>
+                        <div className="absolute right-1 pointer-events-none text-indigo-400 opacity-60">
+                          <ChevronDown className="w-2.5 h-2.5" />
+                        </div>
+                      </div>
                       <input
                         type="text"
                         value={st}

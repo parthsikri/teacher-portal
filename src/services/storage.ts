@@ -1359,12 +1359,12 @@ export const StorageService = {
       const existingUsers = this.getUsers();
       const userMap = new Map<string, User>();
       existingUsers.forEach((u) => {
-        if (!deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
+        if (!deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
           userMap.set(u.teacherId.toUpperCase(), u);
         }
       });
       state.users.forEach((u: User) => {
-        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id)) {
+        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
           userMap.set(u.teacherId.toUpperCase(), u);
         }
       });
@@ -1377,7 +1377,7 @@ export const StorageService = {
       localTopics.forEach((t) => localMap.set(t.id, t));
 
       const mergedTopics = state.assignedTopics
-        .filter((t: AssignedTopic) => !deletedIds.has(t.id))
+        .filter((t: AssignedTopic) => !deletedIds.has(t.id.toUpperCase()))
         .map((cloudTopic: AssignedTopic) => {
           const localTopic = localMap.get(cloudTopic.id);
           if (!localTopic) return cloudTopic;
@@ -1385,14 +1385,10 @@ export const StorageService = {
           const localTime = localTopic.updatedAt ? new Date(localTopic.updatedAt).getTime() : 0;
           const cloudTime = cloudTopic.updatedAt ? new Date(cloudTopic.updatedAt).getTime() : 0;
 
-          // Local wins when: local is newer OR timestamps are equal (tie-break = local is authoritative)
-          // This prevents cloud polls from overwriting unsaved local edits or recent saves.
           if (localTime >= cloudTime) {
             return localTopic;
           }
 
-          // Cloud is genuinely newer — merge it in but preserve critical subtopic arrays
-          // (in case the cloud snapshot was written before the subtopic approval was pushed)
           return {
             ...cloudTopic,
             subtopics: (cloudTopic.subtopics && cloudTopic.subtopics.length > 0)
@@ -1410,9 +1406,8 @@ export const StorageService = {
           };
         });
 
-      // Preserve any locally created topics not in cloud yet
       localTopics.forEach((locTopic) => {
-        if (!deletedIds.has(locTopic.id) && !mergedTopics.some((mt: AssignedTopic) => mt.id === locTopic.id)) {
+        if (!deletedIds.has(locTopic.id.toUpperCase()) && !mergedTopics.some((mt: AssignedTopic) => mt.id === locTopic.id)) {
           mergedTopics.unshift(locTopic);
         }
       });
@@ -1420,19 +1415,17 @@ export const StorageService = {
       localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(mergedTopics));
     }
 
-
     if (Array.isArray(state.lectures)) {
       const localLectures = this.getLectures();
       const localMap = new Map<string, Lecture>();
       localLectures.forEach((l) => localMap.set(l.id, l));
 
       const mergedLectures = state.lectures
-        .filter((l: Lecture) => !deletedIds.has(l.id))
+        .filter((l: Lecture) => !deletedIds.has(l.id.toUpperCase()))
         .map((cloudLec: Lecture) => {
           const localLec = localMap.get(cloudLec.id);
           if (!localLec) return cloudLec;
 
-          // Merge adminRemarks smart
           const localRemarksMap = new Map<string, AdminRemark>();
           (localLec.adminRemarks || []).forEach((r) => localRemarksMap.set(r.id, r));
 
@@ -1450,7 +1443,6 @@ export const StorageService = {
             };
           });
 
-          // Add any local remarks not in cloud yet
           (localLec.adminRemarks || []).forEach((lr) => {
             if (!mergedRemarks.some((mr) => mr.id === lr.id)) {
               mergedRemarks.push(lr);
@@ -1464,9 +1456,8 @@ export const StorageService = {
           };
         });
 
-      // Also preserve any locally added lectures not yet in cloud
       localLectures.forEach((locLec) => {
-        if (!deletedIds.has(locLec.id) && !mergedLectures.some((ml: Lecture) => ml.id === locLec.id)) {
+        if (!deletedIds.has(locLec.id.toUpperCase()) && !mergedLectures.some((ml: Lecture) => ml.id === locLec.id)) {
           mergedLectures.unshift(locLec);
         }
       });
@@ -1475,7 +1466,7 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.subjectReferences)) {
-      const filtered = state.subjectReferences.filter((r: SubjectReference) => !deletedIds.has(r.id));
+      const filtered = state.subjectReferences.filter((r: SubjectReference) => !deletedIds.has(r.id.toUpperCase()));
       localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(filtered));
     }
 
@@ -1484,7 +1475,7 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.pptRequests)) {
-      const filtered = state.pptRequests.filter((p: PptRequest) => !deletedIds.has(p.id));
+      const filtered = state.pptRequests.filter((p: PptRequest) => !deletedIds.has(p.id.toUpperCase()));
       localStorage.setItem(PPT_REQUESTS_KEY, JSON.stringify(filtered));
     }
   },
