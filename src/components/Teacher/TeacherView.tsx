@@ -197,6 +197,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
   const completedTopics = assignedTopics.filter((t) => t.status === 'completed');
 
+  const activeTeacherExtensions = useMemo(() => {
+    const nowStr = new Date().toISOString();
+    return StorageService.getExtensions().filter((e) => {
+      return e.teacherId.toUpperCase() === teacher.teacherId.toUpperCase() &&
+             nowStr >= e.startWindow && nowStr <= e.endWindow;
+    });
+  }, [teacher.teacherId, refreshTrigger]);
+
   // Next active deliverable
   const nextUrgentTopic = useMemo(() => {
     if (revisionTopics.length > 0) return revisionTopics[0];
@@ -525,9 +533,30 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       )}
                     </div>
 
-                    <p className="text-[11px] text-slate-400">
-                      Fixed Daily Cutoff: <strong className="text-slate-200 font-mono">{timeRemaining.cutoffDisplay}</strong> • Progress: <strong className="text-slate-200">{timeRemaining.minutesRecordedToday}/{timeRemaining.targetMinutes} min</strong> ({timeRemaining.remainingMinutesToday}m remaining today)
-                    </p>
+                    <div className="space-y-1 mt-1 text-[11px] text-slate-400">
+                      <div>
+                        Fixed Daily Cutoff: <strong className="text-slate-200 font-mono">{timeRemaining.cutoffDisplay}</strong>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80 mt-1.5">
+                        <div>
+                          Min Target: <strong className="text-amber-400">{timeRemaining.targetMinutes} min</strong>
+                        </div>
+                        <div>
+                          Recorded Today: <strong className="text-slate-200">{timeRemaining.minutesRecordedToday} min</strong>
+                        </div>
+                        <div>
+                          Extra Time Used: <strong className="text-purple-400">{timeRemaining.extraMinutesRecorded || 0} min</strong>
+                        </div>
+                        <div>
+                          Max Daily Limit: <strong className="text-indigo-400">{timeRemaining.maxDailyMinutes} min</strong>
+                        </div>
+                        <div>
+                          Remaining Max: <strong className={timeRemaining.remainingMaxMinutes === 0 ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
+                            {timeRemaining.remainingMaxMinutes} min
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -580,6 +609,40 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-rose-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center"
               >
                 View & Resubmit Topics →
+              </button>
+            </div>
+          )}
+
+          {/* ACTIVE LATE EXTENSIONS BANNER */}
+          {activeTeacherExtensions.length > 0 && (
+            <div className="bg-gradient-to-r from-purple-950/80 via-indigo-950/60 to-slate-900 border-2 border-purple-500/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-xl shadow-purple-950/40">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-500/50 text-purple-400 flex items-center justify-center shrink-0 shadow-inner">
+                  <Clock className="w-5 h-5 text-purple-400" />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-600 text-white uppercase tracking-wider shadow-sm animate-pulse">
+                      ⏰ Late Extensions Active
+                    </span>
+                    <span className="text-[11px] text-purple-300 font-bold hidden sm:inline">Temporary Access Granted</span>
+                  </div>
+                  <p className="font-extrabold text-slate-100 text-sm sm:text-base">
+                    You have temporary access to record/submit {activeTeacherExtensions.length} overdue topics.
+                  </p>
+                  <p className="text-[11px] text-purple-200/90 italic truncate max-w-xl">
+                    Remaining window: expires at {new Date(activeTeacherExtensions[0].endWindow).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  onPageChange('syllabus');
+                }}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-purple-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center"
+              >
+                Go to Syllabus →
               </button>
             </div>
           )}

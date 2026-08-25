@@ -11,6 +11,7 @@ export interface User {
   department: string;
   subject: string;
   dailyTargetMinutes: number;    // Minimum required lecture recording time per day in minutes (e.g. 120 min)
+  maxDailyMinutes?: number;      // Admin-configurable maximum daily recording limit (e.g. 240 min)
   dailyUploadCutoffTime?: string; // Standard fixed daily upload cutoff time (e.g. "20:00" / "08:00 PM") set once upon first login
   hasSetInitialCommitment?: boolean; // Set to true once the teacher sets their initial commitment time
   dailyLimit?: number;           // Backwards compatibility
@@ -130,6 +131,19 @@ export interface PptRequest {
   completedPdfUrl?: string;   // Link to finalized .pdf
   adminRemarks?: string;      // Note from design team
   isNewForTeacher?: boolean;  // Notification badge indicator
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LectureExtension {
+  id: string;
+  teacherId: string;
+  assignedTopicIds: string[];  // Late/missed topics allowed for this extension
+  startWindow: string;        // ISO start time, e.g. "2026-08-25T10:00:00.000Z"
+  endWindow: string;          // ISO end time, e.g. "2026-08-25T22:00:00.000Z"
+  allowedMinutes: number;     // Additional allowed minutes for this extension
+  usedMinutes: number;        // Track extension usage separately
+  notes?: string;             // Admin reason/notes
   createdAt: string;
   updatedAt: string;
 }

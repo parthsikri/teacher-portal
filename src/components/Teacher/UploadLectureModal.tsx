@@ -83,6 +83,23 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      const activeExt = prefillTopic ? StorageService.getActiveExtensionForTopic(teacher.teacherId, prefillTopic.id) : null;
+      if (activeExt) {
+        const remainingExtMins = activeExt.allowedMinutes - activeExt.usedMinutes;
+        if (durationMinutes > remainingExtMins) {
+          setErrorMsg(`Duration exceeds remaining allowed extension minutes (${remainingExtMins} min remaining for this late topic extension).`);
+          setIsSubmitting(false);
+          return;
+        }
+      } else {
+        const timeRemaining = StorageService.getTodayTimeRemaining(teacher.teacherId);
+        if (timeRemaining.minutesRecordedToday + durationMinutes > timeRemaining.maxDailyMinutes) {
+          setErrorMsg(`You have reached/exceeded your maximum daily recording limit of ${timeRemaining.maxDailyMinutes} minutes. You cannot submit this lecture.`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const isOnTime = StorageService.isUploadOnTime(teacher.teacherId, deadlineDate);
 
       const youtubeLink = videoLinkType === 'youtube' && videoUrl.trim() ? videoUrl.trim() : undefined;

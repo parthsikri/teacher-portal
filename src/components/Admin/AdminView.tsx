@@ -100,7 +100,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newDept, setNewDept] = useState('Computer Science & Engg');
   const [newSubject, setNewSubject] = useState('Data Structures & Algorithms');
   const [newTargetMinutes, setNewTargetMinutes] = useState(120);
-
+  const [newMaxDailyMinutes, setNewMaxDailyMinutes] = useState(240);
+  
   // Edit Teacher Credentials Modal State
   const [editingTeacher, setEditingTeacher] = useState<User | null>(null);
   const [editUsername, setEditUsername] = useState('');
@@ -110,7 +111,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editDept, setEditDept] = useState('');
   const [editSubject, setEditSubject] = useState('');
   const [editTargetMinutes, setEditTargetMinutes] = useState(120);
+  const [editMaxDailyMinutes, setEditMaxDailyMinutes] = useState(240);
   const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // Late Extensions Modal State
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [extTeacherId, setExtTeacherId] = useState('');
+  const [extSelectedTopicIds, setExtSelectedTopicIds] = useState<string[]>([]);
+  const [extStartWindow, setExtStartWindow] = useState('');
+  const [extEndWindow, setExtEndWindow] = useState('');
+  const [extAllowedMinutes, setExtAllowedMinutes] = useState(60);
+  const [extNotes, setExtNotes] = useState('');
 
   // Standalone Assign Topic Modal State (Supports Comma Separated Topics)
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -244,6 +255,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       department: newDept.trim() || 'Engineering',
       subject: newSubject.trim() || 'Engineering',
       dailyTargetMinutes: newTargetMinutes || 120,
+      maxDailyMinutes: newMaxDailyMinutes || 240,
     });
 
     setShowAddModal(false);
@@ -251,6 +263,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setNewUsername('');
     setNewPassword('teach123');
     setNewTargetMinutes(120);
+    setNewMaxDailyMinutes(240);
     refreshState();
   };
 
@@ -264,6 +277,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setEditDept(t.department);
     setEditSubject(t.subject);
     setEditTargetMinutes(t.dailyTargetMinutes || 120);
+    setEditMaxDailyMinutes(t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240));
     setShowEditPassword(false);
   };
 
@@ -280,6 +294,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       department: editDept.trim(),
       subject: editSubject.trim(),
       dailyTargetMinutes: editTargetMinutes || 120,
+      maxDailyMinutes: editMaxDailyMinutes || 240,
     });
 
     setEditingTeacher(null);
@@ -1374,6 +1389,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
             <div className="flex items-center gap-2.5">
               <button
+                onClick={() => {
+                  if (teachers.length === 0) {
+                    alert('Please onboard faculty first.');
+                    return;
+                  }
+                  setExtTeacherId(teachers[0]?.teacherId || '');
+                  setExtSelectedTopicIds([]);
+                  const now = new Date();
+                  const localStart = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                  const localEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                  setExtStartWindow(localStart);
+                  setExtEndWindow(localEnd);
+                  setExtAllowedMinutes(60);
+                  setExtNotes('');
+                  setShowExtensionModal(true);
+                }}
+                className="px-5 py-2.5 rounded-xl font-extrabold text-slate-200 text-xs bg-slate-900 border border-slate-700 hover:bg-slate-800 shadow-md transition-all flex items-center gap-1.5 shrink-0"
+              >
+                ⏰ Late Extensions
+              </button>
+              <button
                 onClick={() => setShowReorderModal(true)}
                 className="px-5 py-2.5 rounded-xl font-extrabold text-slate-200 text-xs bg-slate-900 border border-slate-700 hover:bg-slate-800 shadow-md transition-all flex items-center gap-1.5 shrink-0"
               >
@@ -1742,6 +1778,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               +15m
                             </button>
                           </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/60">
+                          <span className="text-slate-400 font-medium">Daily Max Limit:</span>
+                          <span className="font-mono font-black text-indigo-300 text-xs">
+                            {t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240)} min
+                          </span>
                         </div>
 
                         {(() => {
@@ -2663,6 +2706,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
                     />
                   </div>
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Daily Max Limit (Minutes)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      max={480}
+                      step={15}
+                      value={newMaxDailyMinutes}
+                      onChange={(e) => setNewMaxDailyMinutes(parseInt(e.target.value) || 240)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2779,18 +2834,30 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Daily Min Target (Minutes)</label>
-                  <input
-                    type="number"
-                    min={15}
-                    max={480}
-                    step={15}
-                    value={editTargetMinutes}
-                    onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Daily Min Target (Minutes)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      max={480}
+                      step={15}
+                      value={editTargetMinutes}
+                      onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Daily Max Limit (Minutes)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      max={480}
+                      step={15}
+                      value={editMaxDailyMinutes}
+                      onChange={(e) => setEditMaxDailyMinutes(parseInt(e.target.value) || 240)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                    />
+                  </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
@@ -2937,6 +3004,226 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   {parsedTopicList.length > 1
                     ? `Assign ${parsedTopicList.length} Topics to Faculty`
                     : 'Assign Topic to Faculty'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: LATE LECTURE EXTENSIONS */}
+      {showExtensionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-purple-400" />
+                  Manage Late Lecture Extensions
+                </h3>
+                <p className="text-xs text-slate-400">Grant temporary access to record/submit late lectures</p>
+              </div>
+              <button onClick={() => setShowExtensionModal(false)} className="text-slate-400 hover:text-slate-100">✕</button>
+            </div>
+
+            {/* List of Active Extensions */}
+            <div className="space-y-2">
+              <span className="text-slate-300 font-bold block text-xs">Active Extensions ({StorageService.getExtensions().length})</span>
+              {StorageService.getExtensions().length === 0 ? (
+                <p className="text-[11px] text-slate-500 italic p-4 bg-slate-950/40 rounded-2xl border border-slate-800/80 text-center">
+                  No active late lecture extensions.
+                </p>
+              ) : (
+                <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+                  {StorageService.getExtensions().map((ext) => {
+                    const teacher = teachers.find((t) => t.teacherId === ext.teacherId);
+                    const topicNames = ext.assignedTopicIds
+                      .map((id) => assignedTopics.find((t) => t.id === id)?.topicTitle || id)
+                      .join(', ');
+
+                    return (
+                      <div key={ext.id} className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/60 flex items-start justify-between gap-3 text-[11px]">
+                        <div className="space-y-1 flex-1">
+                          <div>
+                            <span className="font-extrabold text-slate-200">{teacher?.name || ext.teacherId}</span>
+                            <span className="text-slate-500 mx-1.5">•</span>
+                            <span className="text-purple-300 font-medium">Topics: {topicNames}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            Window: <strong className="text-slate-300 font-mono">{new Date(ext.startWindow).toLocaleString()} - {new Date(ext.endWindow).toLocaleString()}</strong>
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            Capacity: <strong className="text-indigo-300">{ext.usedMinutes} / {ext.allowedMinutes} min</strong>
+                            {ext.notes && <span className="text-slate-500 italic block mt-0.5">Reason: "{ext.notes}"</span>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Delete this late lecture extension?')) {
+                              StorageService.deleteExtension(ext.id);
+                              refreshState();
+                            }
+                          }}
+                          className="text-red-400 hover:text-red-300 font-bold px-2.5 py-1 bg-red-950/30 border border-red-500/20 hover:border-red-500/40 rounded-lg text-[10px] transition-colors"
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Form to Add New Extension */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!extTeacherId) return;
+                if (extSelectedTopicIds.length === 0) {
+                  alert('Please select at least one late lecture / topic.');
+                  return;
+                }
+                if (!extStartWindow || !extEndWindow) {
+                  alert('Please set start and end date/time window.');
+                  return;
+                }
+                StorageService.addExtension({
+                  teacherId: extTeacherId,
+                  assignedTopicIds: extSelectedTopicIds,
+                  startWindow: new Date(extStartWindow).toISOString(),
+                  endWindow: new Date(extEndWindow).toISOString(),
+                  allowedMinutes: extAllowedMinutes,
+                  notes: extNotes.trim() || undefined,
+                });
+                setExtSelectedTopicIds([]);
+                setExtNotes('');
+                refreshState();
+              }}
+              className="space-y-4 text-xs pt-4 border-t border-slate-800"
+            >
+              <span className="text-slate-300 font-extrabold block text-xs">Create New Extension Window</span>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Faculty Member *</label>
+                  <select
+                    value={extTeacherId}
+                    onChange={(e) => {
+                      setExtTeacherId(e.target.value);
+                      setExtSelectedTopicIds([]);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
+                    required
+                  >
+                    {teachers.map((t) => (
+                      <option key={t.id} value={t.teacherId}>
+                        {t.name} ({t.teacherId})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Additional Allowed Recording Minutes *</label>
+                  <input
+                    type="number"
+                    min={15}
+                    max={480}
+                    step={15}
+                    value={extAllowedMinutes}
+                    onChange={(e) => setExtAllowedMinutes(parseInt(e.target.value) || 60)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono font-bold focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Select Late / Incomplete Topics *</label>
+                {(() => {
+                  const teacherTopics = assignedTopics.filter(
+                    (t) => t.teacherId.toUpperCase() === extTeacherId.toUpperCase() && t.status !== 'completed'
+                  );
+                  if (teacherTopics.length === 0) {
+                    return <p className="text-[11px] text-slate-500 italic">No late/incomplete topics found for this teacher.</p>;
+                  }
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto bg-slate-950/40 p-3 rounded-xl border border-slate-800/80">
+                      {teacherTopics.map((topic) => {
+                        const isChecked = extSelectedTopicIds.includes(topic.id);
+                        return (
+                          <label key={topic.id} className="flex items-center gap-2 cursor-pointer hover:text-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setExtSelectedTopicIds(extSelectedTopicIds.filter((id) => id !== topic.id));
+                                } else {
+                                  setExtSelectedTopicIds([...extSelectedTopicIds, topic.id]);
+                                }
+                              }}
+                              className="rounded border-slate-800 text-purple-600 focus:ring-purple-500 bg-slate-950"
+                            />
+                            <span className="truncate">{topic.topicTitle} ({topic.unitNumber || 'UNIT 1'})</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Window Starts *</label>
+                  <input
+                    type="datetime-local"
+                    value={extStartWindow}
+                    onChange={(e) => setExtStartWindow(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Window Expires *</label>
+                  <input
+                    type="datetime-local"
+                    value={extEndWindow}
+                    onChange={(e) => setExtEndWindow(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Reason / Notes for Extension</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sickness recovery / System issues"
+                  value={extNotes}
+                  onChange={(e) => setExtNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowExtensionModal(false)}
+                  className="px-4 py-2 text-slate-400 hover:text-slate-200 font-bold"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={extSelectedTopicIds.length === 0}
+                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-xl shadow-md transition-all disabled:opacity-50"
+                >
+                  Create Extension Window
                 </button>
               </div>
             </form>

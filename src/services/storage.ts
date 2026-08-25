@@ -1,4 +1,4 @@
-import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest } from '../types';
+import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
 const USERS_KEY = 'aew_portal_users_prod_v2';
@@ -8,6 +8,7 @@ const SUBJECT_REFERENCES_KEY = 'aew_portal_subject_references_prod_v2';
 const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_prod_v2';
 const PPT_REQUESTS_KEY = 'aew_ppt_requests_prod_v2';
 const DELETED_IDS_KEY = 'aew_deleted_ids_prod_v2';
+const EXTENSIONS_KEY = 'tp_lecture_extensions';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
 // Initial Registered Administrator (Portal starts completely clean for new teachers)
@@ -709,22 +710,54 @@ export const StorageService = {
     const topic = lecture.assignedTopicId ? this.getAssignedTopics().find(t => t.id === lecture.assignedTopicId) : null;
     const unitNumber = lecture.unitNumber || topic?.unitNumber || undefined;
 
-    const newLec: Lecture = {
-      ...lecture,
-      unitNumber,
-      durationMinutes: lecture.durationMinutes || 45,
-      id: `lec-${Date.now()}`,
-      adminRemarks: [],
-      createdAt: new Date().toISOString(),
-    };
-    lectures.unshift(newLec);
-    this.saveLectures(lectures);
+    const existingIndex = lecture.assignedTopicId 
+      ? lectures.findIndex((l) => l.assignedTopicId === lecture.assignedTopicId) 
+      : -1;
 
-    if (lecture.assignedTopicId) {
-      this.updateAssignedTopicStatus(lecture.assignedTopicId, 'completed');
+    if (existingIndex !== -1) {
+      // Re-upload / Edit: update existing lecture, keeping old id, adminRemarks, and createdAt
+      const existingLec = lectures[existingIndex];
+      const diffDuration = (lecture.durationMinutes || 45) - (existingLec.durationMinutes || 45);
+
+      const updatedLec: Lecture = {
+        ...existingLec,
+        ...lecture,
+        unitNumber,
+        durationMinutes: lecture.durationMinutes || 45,
+      };
+      lectures[existingIndex] = updatedLec;
+      this.saveLectures(lectures);
+
+      if (lecture.assignedTopicId) {
+        const activeExt = this.getActiveExtensionForTopic(lecture.teacherId, lecture.assignedTopicId);
+        if (activeExt) {
+          this.addExtensionMinutesUsed(activeExt.id, diffDuration);
+        }
+      }
+      return updatedLec;
+    } else {
+      // New upload
+      const newLec: Lecture = {
+        ...lecture,
+        unitNumber,
+        durationMinutes: lecture.durationMinutes || 45,
+        id: `lec-${Date.now()}`,
+        adminRemarks: [],
+        createdAt: new Date().toISOString(),
+      };
+      lectures.unshift(newLec);
+      this.saveLectures(lectures);
+
+      if (lecture.assignedTopicId) {
+        this.updateAssignedTopicStatus(lecture.assignedTopicId, 'completed');
+        const activeExt = this.getActiveExtensionForTopic(lecture.teacherId, lecture.assignedTopicId);
+        if (activeExt) {
+          this.addExtensionMinutesUsed(activeExt.id, newLec.durationMinutes);
+        }
+      }
+
+      return newLec;
     }
-
-    return newLec;
   },
 
   addAdminRemark(lectureId: string, remarkText: string, adminName: string = 'Admin'): AdminRemark {
@@ -1354,6 +1387,9 @@ export const StorageService = {
     isTargetMet: boolean;
     minutesRecordedToday: number;
     targetMinutes: number;
+    maxDailyMinutes: number;
+    extraMinutesRecorded: number;
+    remainingMaxMinutes: number;
     remainingMinutesToday: number;
     yesterdayUnfulfilledMinutes: number;
     isYesterdayFulfilled: boolean;
@@ -1366,9 +1402,12 @@ export const StorageService = {
 
     const backlogInfo = this.getPreviousDayBacklog(teacherId);
     const targetMinutes = teacher?.dailyTargetMinutes || 120;
+    const maxDailyMinutes = teacher?.maxDailyMinutes || (targetMinutes * 2);
     const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
     const isTargetMet = minutesRecordedToday >= targetMinutes;
     const remainingMinutesToday = Math.max(0, targetMinutes - minutesRecordedToday);
+    const extraMinutesRecorded = Math.max(0, minutesRecordedToday - targetMinutes);
+    const remainingMaxMinutes = Math.max(0, maxDailyMinutes - minutesRecordedToday);
 
     const [hours, minutes] = cutoffTime.split(':').map(Number);
     const deadlineObj = new Date();
@@ -1397,6 +1436,9 @@ export const StorageService = {
       isTargetMet,
       minutesRecordedToday,
       targetMinutes,
+      maxDailyMinutes,
+      extraMinutesRecorded,
+      remainingMaxMinutes,
       remainingMinutesToday,
       yesterdayUnfulfilledMinutes: backlogInfo.yesterdayUnfulfilledMinutes,
       isYesterdayFulfilled: backlogInfo.isYesterdayFulfilled,
@@ -1494,6 +1536,7 @@ export const StorageService = {
       subjectReferences: this.getSubjectReferences(),
       dailyCommitments: this.getDailyCommitments(),
       pptRequests: this.getPptRequests(),
+      extensions: this.getExtensions(),
     };
   },
 
@@ -1632,6 +1675,67 @@ export const StorageService = {
     if (Array.isArray(state.pptRequests)) {
       const filtered = state.pptRequests.filter((p: PptRequest) => !deletedIds.has(p.id.toUpperCase()));
       localStorage.setItem(PPT_REQUESTS_KEY, JSON.stringify(filtered));
+    }
+
+    if (Array.isArray(state.extensions)) {
+      const filtered = state.extensions.filter((e: LectureExtension) => !deletedIds.has(e.id.toUpperCase()));
+      localStorage.setItem(EXTENSIONS_KEY, JSON.stringify(filtered));
+    }
+  },
+
+  getExtensions(): LectureExtension[] {
+    const data = localStorage.getItem(EXTENSIONS_KEY);
+    if (!data) return [];
+    try {
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  },
+
+  saveExtensions(list: LectureExtension[]): void {
+    localStorage.setItem(EXTENSIONS_KEY, JSON.stringify(list));
+    triggerBackgroundCloudSync();
+  },
+
+  addExtension(ext: Omit<LectureExtension, 'id' | 'usedMinutes' | 'createdAt' | 'updatedAt'>): LectureExtension {
+    const list = this.getExtensions();
+    const newExt: LectureExtension = {
+      ...ext,
+      id: `ext-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      usedMinutes: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    list.push(newExt);
+    this.saveExtensions(list);
+    return newExt;
+  },
+
+  deleteExtension(id: string): void {
+    this.addDeletedId(id);
+    const list = this.getExtensions().filter((e) => e.id !== id);
+    this.saveExtensions(list);
+  },
+
+  getActiveExtensionForTopic(teacherId: string, topicId: string): LectureExtension | null {
+    const nowStr = new Date().toISOString();
+    const extensions = this.getExtensions();
+    const active = extensions.find((e) => {
+      if (e.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
+      if (!e.assignedTopicIds.includes(topicId)) return false;
+      return nowStr >= e.startWindow && nowStr <= e.endWindow;
+    });
+    return active || null;
+  },
+
+  addExtensionMinutesUsed(extId: string, minutes: number): void {
+    const list = this.getExtensions();
+    const index = list.findIndex((e) => e.id === extId);
+    if (index !== -1) {
+      list[index].usedMinutes += minutes;
+      list[index].updatedAt = new Date().toISOString();
+      this.saveExtensions(list);
     }
   },
 
