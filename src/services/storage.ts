@@ -1730,37 +1730,65 @@ export const StorageService = {
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-    // Group lectures by date
+    const toLocalDateStr = (isoString?: string): string => {
+      if (!isoString) return '';
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Collect all active calendar dates for this teacher
+    const dateSet = new Set<string>();
+    dateSet.add(todayStr);
+
+    teacherLectures.forEach((l) => {
+      const dStr = toLocalDateStr(l.createdAt);
+      if (dStr) dateSet.add(dStr);
+    });
+
+    const assignedTopics = this.getAssignedTopics().filter(
+      (t) => t.teacherId.toUpperCase() === teacherId.toUpperCase()
+    );
+    assignedTopics.forEach((t) => {
+      const dStr = toLocalDateStr(t.createdAt);
+      if (dStr) dateSet.add(dStr);
+    });
+
+    const commitments = this.getDailyCommitments().filter(
+      (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase()
+    );
+    commitments.forEach((c) => {
+      if (c.date) dateSet.add(c.date);
+    });
+
+    // Fill continuous timeline
+    const rawDates = Array.from(dateSet).sort();
+    if (rawDates.length > 0) {
+      const earliestParts = rawDates[0].split('-').map(Number);
+      const earliestDate = new Date(earliestParts[0], earliestParts[1] - 1, earliestParts[2]);
+      const todayParts = todayStr.split('-').map(Number);
+      const todayDate = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
+
+      const cur = new Date(earliestDate);
+      while (cur < todayDate) {
+        cur.setDate(cur.getDate() + 1);
+        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        dateSet.add(dStr);
+      }
+    }
+
+    const sortedDates = Array.from(dateSet).sort();
+
+    // Group lectures by local date
     const lecturesByDate = new Map<string, Lecture[]>();
     teacherLectures.forEach((l) => {
-      if (!l.createdAt) return;
-      const d = new Date(l.createdAt);
-      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dStr = toLocalDateStr(l.createdAt);
       if (!lecturesByDate.has(dStr)) {
         lecturesByDate.set(dStr, []);
       }
       lecturesByDate.get(dStr)!.push(l);
     });
 
-    // Collect all active dates
-    const dateSet = new Set<string>();
-    teacherLectures.forEach((l) => {
-      if (!l.createdAt) return;
-      const d = new Date(l.createdAt);
-      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      dateSet.add(dStr);
-    });
-    const assignedTopics = this.getAssignedTopics().filter(
-      (t) => t.teacherId.toUpperCase() === teacherId.toUpperCase()
-    );
-    assignedTopics.forEach((t) => {
-      if (!t.createdAt) return;
-      const d = new Date(t.createdAt);
-      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      dateSet.add(dStr);
-    });
-
-    const sortedDates = Array.from(dateSet).sort();
     let totalBacklog = 0;
 
     sortedDates.forEach((dateStr) => {
