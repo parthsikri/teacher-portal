@@ -1282,7 +1282,16 @@ export const StorageService = {
       }
     });
 
-    const totalConsideredMinutes = totalOnTimeMinutes + totalLateMinutes;
+    let totalTargetMinutes = 0;
+    sortedDates.forEach((dateStr) => {
+      if (dateStr < todayStr) {
+        totalTargetMinutes += dailyTarget;
+      } else if (dateStr === todayStr && isTodayCutoffPassed) {
+        totalTargetMinutes += dailyTarget;
+      }
+    });
+
+    const totalConsideredMinutes = totalTargetMinutes;
 
     let onTimePercentage = 100;
     if (totalConsideredMinutes > 0) {
