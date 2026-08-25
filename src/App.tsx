@@ -24,7 +24,15 @@ export const App: React.FC = () => {
     const cleanup = StorageService.initCloudSync(() => {
       const user = StorageService.getCurrentUser();
       if (user) {
-        setCurrentUser(user);
+        setCurrentUser((prevUser) => {
+          if (prevUser && prevUser.role !== user.role) {
+            setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+          }
+          return user;
+        });
+      } else {
+        setCurrentUser(null);
+        setCurrentPage('dashboard');
       }
       setRefreshKey((prev) => prev + 1);
     });
@@ -70,7 +78,10 @@ export const App: React.FC = () => {
 
   const handleRefreshData = () => {
     setRefreshKey((prev) => prev + 1);
-    setCurrentUser(StorageService.getCurrentUser());
+    const user = StorageService.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+    }
   };
 
   const handleOpenUpload = (topic?: AssignedTopic) => {
@@ -80,7 +91,9 @@ export const App: React.FC = () => {
 
   const handlePageChange = (page: string) => {
     setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   return (
@@ -103,12 +116,12 @@ export const App: React.FC = () => {
             <main className="pt-16 md:pt-4 pb-16">
               {currentPage === 'ppt_generator' ? (
                 <PptGenerator
-                  userSubject={currentUser.subject || currentUser.department}
+                  userSubject={currentUser.subject || currentUser.department || 'General'}
                   userName={currentUser.name}
                 />
               ) : currentPage === 'thumbnail_generator' ? (
                 <ThumbnailStudio
-                  initialSubject={currentUser.subject || currentUser.department}
+                  initialSubject={currentUser.subject || currentUser.department || 'General'}
                   initialTeacherName={currentUser.role === 'teacher' ? currentUser.name : undefined}
                   initialTeacherId={currentUser.role === 'teacher' ? currentUser.teacherId : undefined}
                 />
@@ -140,7 +153,7 @@ export const App: React.FC = () => {
                 setShowCommitmentModal(false);
                 handleRefreshData();
               }}
-              isMandatoryLoginPrompt={!StorageService.getDailyCommitment(currentUser.teacherId)}
+              isMandatoryLoginPrompt={!currentUser.hasSetInitialCommitment && !currentUser.dailyUploadCutoffTime}
             />
           )}
 
