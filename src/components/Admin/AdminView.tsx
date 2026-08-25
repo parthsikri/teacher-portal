@@ -117,7 +117,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Late Extensions Modal State
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [extTeacherId, setExtTeacherId] = useState('');
-  const [extSelectedTopicIds, setExtSelectedTopicIds] = useState<string[]>([]);
   const [extStartWindow, setExtStartWindow] = useState('');
   const [extEndWindow, setExtEndWindow] = useState('');
   const [extAllowedMinutes, setExtAllowedMinutes] = useState(60);
@@ -1394,14 +1393,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     alert('Please onboard faculty first.');
                     return;
                   }
-                  setExtTeacherId(teachers[0]?.teacherId || '');
-                  setExtSelectedTopicIds([]);
+                  const defaultTeacherId = teachers[0]?.teacherId || '';
+                  setExtTeacherId(defaultTeacherId);
+
+                  const backlogMinutes = StorageService.getTotalLateBacklogMinutes(defaultTeacherId);
+                  setExtAllowedMinutes(backlogMinutes > 0 ? backlogMinutes : 60);
+
                   const now = new Date();
                   const localStart = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
                   const localEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
                   setExtStartWindow(localStart);
                   setExtEndWindow(localEnd);
-                  setExtAllowedMinutes(60);
                   setExtNotes('');
                   setShowExtensionModal(true);
                 }}
@@ -3037,9 +3039,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
                   {StorageService.getExtensions().map((ext) => {
                     const teacher = teachers.find((t) => t.teacherId === ext.teacherId);
-                    const topicNames = ext.assignedTopicIds
-                      .map((id) => assignedTopics.find((t) => t.id === id)?.topicTitle || id)
-                      .join(', ');
+                    const topicNames = ext.assignedTopicIds && ext.assignedTopicIds.length > 0
+                      ? ext.assignedTopicIds.map((id) => assignedTopics.find((t) => t.id === id)?.topicTitle || id).join(', ')
+                      : 'All Assigned Topics';
 
                     return (
                       <div key={ext.id} className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/60 flex items-start justify-between gap-3 text-[11px]">
@@ -3080,23 +3082,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!extTeacherId) return;
-                if (extSelectedTopicIds.length === 0) {
-                  alert('Please select at least one late lecture / topic.');
-                  return;
-                }
                 if (!extStartWindow || !extEndWindow) {
                   alert('Please set start and end date/time window.');
                   return;
                 }
                 StorageService.addExtension({
                   teacherId: extTeacherId,
-                  assignedTopicIds: extSelectedTopicIds,
+                  assignedTopicIds: [],
                   startWindow: new Date(extStartWindow).toISOString(),
                   endWindow: new Date(extEndWindow).toISOString(),
                   allowedMinutes: extAllowedMinutes,
                   notes: extNotes.trim() || undefined,
                 });
-                setExtSelectedTopicIds([]);
                 setExtNotes('');
                 refreshState();
               }}
@@ -3110,8 +3107,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <select
                     value={extTeacherId}
                     onChange={(e) => {
-                      setExtTeacherId(e.target.value);
-                      setExtSelectedTopicIds([]);
+                      const selectedId = e.target.value;
+                      setExtTeacherId(selectedId);
+                      const backlogMinutes = StorageService.getTotalLateBacklogMinutes(selectedId);
+                      setExtAllowedMinutes(backlogMinutes > 0 ? backlogMinutes : 60);
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
                     required
@@ -3139,40 +3138,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Select Late / Incomplete Topics *</label>
-                {(() => {
-                  const teacherTopics = assignedTopics.filter(
-                    (t) => t.teacherId.toUpperCase() === extTeacherId.toUpperCase() && t.status !== 'completed'
-                  );
-                  if (teacherTopics.length === 0) {
-                    return <p className="text-[11px] text-slate-500 italic">No late/incomplete topics found for this teacher.</p>;
-                  }
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto bg-slate-950/40 p-3 rounded-xl border border-slate-800/80">
-                      {teacherTopics.map((topic) => {
-                        const isChecked = extSelectedTopicIds.includes(topic.id);
-                        return (
-                          <label key={topic.id} className="flex items-center gap-2 cursor-pointer hover:text-slate-200">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {
-                                if (isChecked) {
-                                  setExtSelectedTopicIds(extSelectedTopicIds.filter((id) => id !== topic.id));
-                                } else {
-                                  setExtSelectedTopicIds([...extSelectedTopicIds, topic.id]);
-                                }
-                              }}
-                              className="rounded border-slate-800 text-purple-600 focus:ring-purple-500 bg-slate-950"
-                            />
-                            <span className="truncate">{topic.topicTitle} ({topic.unitNumber || 'UNIT 1'})</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+              <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
+                📌 <strong className="text-slate-300">Note:</strong> This extension is time-based. The faculty member will be allowed to record and submit <strong>any assigned topic</strong> during this window up to the granted extension minutes.
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3220,8 +3187,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={extSelectedTopicIds.length === 0}
-                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-xl shadow-md transition-all disabled:opacity-50"
+                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-xl shadow-md transition-all"
                 >
                   Create Extension Window
                 </button>

@@ -628,7 +628,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                     <span className="text-[11px] text-purple-300 font-bold hidden sm:inline">Temporary Access Granted</span>
                   </div>
                   <p className="font-extrabold text-slate-100 text-sm sm:text-base">
-                    You have temporary access to record/submit {activeTeacherExtensions.length} overdue topics.
+                    You have temporary access to record/submit overdue topics (any topic).
                   </p>
                   <p className="text-[11px] text-purple-200/90 italic truncate max-w-xl">
                     Remaining window: expires at {new Date(activeTeacherExtensions[0].endWindow).toLocaleString()}

@@ -1718,12 +1718,68 @@ export const StorageService = {
     this.saveExtensions(list);
   },
 
-  getActiveExtensionForTopic(teacherId: string, topicId: string): LectureExtension | null {
+  getTotalLateBacklogMinutes(teacherId: string): number {
+    const lectures = this.getLectures();
+    const teacherLectures = lectures.filter(
+      (l) => l.teacherId.toUpperCase() === teacherId.toUpperCase()
+    );
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const dailyTarget = teacher?.dailyTargetMinutes || 120;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // Group lectures by date
+    const lecturesByDate = new Map<string, Lecture[]>();
+    teacherLectures.forEach((l) => {
+      if (!l.createdAt) return;
+      const d = new Date(l.createdAt);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!lecturesByDate.has(dStr)) {
+        lecturesByDate.set(dStr, []);
+      }
+      lecturesByDate.get(dStr)!.push(l);
+    });
+
+    // Collect all active dates
+    const dateSet = new Set<string>();
+    teacherLectures.forEach((l) => {
+      if (!l.createdAt) return;
+      const d = new Date(l.createdAt);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      dateSet.add(dStr);
+    });
+    const assignedTopics = this.getAssignedTopics().filter(
+      (t) => t.teacherId.toUpperCase() === teacherId.toUpperCase()
+    );
+    assignedTopics.forEach((t) => {
+      if (!t.createdAt) return;
+      const d = new Date(t.createdAt);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      dateSet.add(dStr);
+    });
+
+    const sortedDates = Array.from(dateSet).sort();
+    let totalBacklog = 0;
+
+    sortedDates.forEach((dateStr) => {
+      if (dateStr < todayStr) {
+        const dayLectures = lecturesByDate.get(dateStr) || [];
+        const recordedDayMins = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+        const unfulfilled = Math.max(0, dailyTarget - recordedDayMins);
+        totalBacklog += unfulfilled;
+      }
+    });
+
+    return totalBacklog;
+  },
+
+  getActiveExtensionForTopic(teacherId: string, _topicId: string): LectureExtension | null {
     const nowStr = new Date().toISOString();
     const extensions = this.getExtensions();
     const active = extensions.find((e) => {
       if (e.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
-      if (!e.assignedTopicIds.includes(topicId)) return false;
       return nowStr >= e.startWindow && nowStr <= e.endWindow;
     });
     return active || null;
