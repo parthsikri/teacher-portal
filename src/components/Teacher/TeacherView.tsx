@@ -201,6 +201,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     const nowStr = new Date().toISOString();
     return StorageService.getExtensions().filter((e) => {
       return e.teacherId.toUpperCase() === teacher.teacherId.toUpperCase() &&
+             e.usedMinutes < e.allowedMinutes &&
              nowStr >= e.startWindow && nowStr <= e.endWindow;
     });
   }, [teacher.teacherId, refreshTrigger]);
@@ -461,118 +462,21 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           </div>
 
-          {/* 1. REAL-TIME SUBMISSION DEADLINE & TIME REMAINING BANNER */}
-          {(() => {
-            const isCompleted = timeRemaining.isTargetMet;
-            const isPassed = timeRemaining.isPassed;
-            const hasYesterdayBacklog = !timeRemaining.isYesterdayFulfilled && timeRemaining.yesterdayUnfulfilledMinutes > 0;
-
-            return (
-              <div className={`border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs transition-all shadow-sm ${
-                isCompleted
-                  ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-slate-900/40 border-emerald-500/40 text-emerald-200 shadow-emerald-950/20'
-                  : isPassed
-                  ? 'bg-gradient-to-r from-rose-950/40 via-slate-900/60 to-slate-900/40 border-rose-500/40 text-rose-200'
-                  : 'bg-gradient-to-r from-indigo-950/50 via-purple-950/30 to-slate-900/60 border-indigo-500/40 text-indigo-100 shadow-indigo-950/20'
-              }`}>
-                <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 ${
-                    isCompleted
-                      ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
-                      : isPassed
-                      ? 'bg-rose-500/20 border border-rose-500/30 text-rose-400 animate-pulse'
-                      : 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-300'
-                  }`}>
-                    {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-                  </div>
-
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Today's Lecture Submission Window
-                      </span>
-                      
-                      {isCompleted ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          ✓ Target Completed On-Time
-                        </span>
-                      ) : isPassed ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                          ⚠️ Deadline Missed for Today
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-pulse font-mono">
-                          ⏰ Live Countdown
-                        </span>
-                      )}
-
-                      {hasYesterdayBacklog && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          ⚠️ Yesterday Incomplete ({timeRemaining.yesterdayUnfulfilledMinutes}m)
-                        </span>
-                      )}
-                    </div>
-
-                    {/* MAIN TIME REMAINING COUNTDOWN TEXT */}
-                    <div className="font-extrabold text-slate-100 text-sm sm:text-base flex flex-wrap items-baseline gap-2">
-                      {isCompleted ? (
-                        <span className="text-emerald-300 font-bold">
-                          All {timeRemaining.targetMinutes} minutes recorded for today! Great job maintaining on-time delivery.
-                        </span>
-                      ) : isPassed ? (
-                        <span className="text-rose-300 font-bold">
-                          Daily Cutoff ({timeRemaining.cutoffDisplay}) has passed. Uploads submitted now will be recorded as Delayed.
-                        </span>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-300 font-semibold text-xs sm:text-sm">Time Remaining Today:</span>
-                          <span className="font-mono text-amber-300 text-base sm:text-lg tracking-wider bg-slate-950/80 px-2.5 py-0.5 rounded-lg border border-slate-800">
-                            {String(timeRemaining.hours).padStart(2, '0')}h {String(timeRemaining.minutes).padStart(2, '0')}m {String(timeRemaining.seconds).padStart(2, '0')}s
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1 mt-1 text-[11px] text-slate-400">
-                      <div>
-                        Fixed Daily Cutoff: <strong className="text-slate-200 font-mono">{timeRemaining.cutoffDisplay}</strong>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80 mt-1.5">
-                        <div>
-                          Min Target: <strong className="text-amber-400">{timeRemaining.targetMinutes} min</strong>
-                        </div>
-                        <div>
-                          Recorded Today: <strong className="text-slate-200">{timeRemaining.minutesRecordedToday} min</strong>
-                        </div>
-                        <div>
-                          Extra Time Used: <strong className="text-purple-400">{timeRemaining.extraMinutesRecorded || 0} min</strong>
-                        </div>
-                        <div>
-                          Max Daily Limit: <strong className="text-indigo-400">{timeRemaining.maxDailyMinutes} min</strong>
-                        </div>
-                        <div>
-                          Remaining Max: <strong className={timeRemaining.remainingMaxMinutes === 0 ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
-                            {timeRemaining.remainingMaxMinutes} min
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                  {!isCompleted && (
-                    <button
-                      onClick={() => onOpenUpload()}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-colors text-xs shadow-md flex items-center gap-1.5"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Upload Now
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          {/* Today's essentials — detailed capacity and extensions live in Recording status. */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+              <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Today&apos;s progress</div>
+              <div className="mt-1 text-lg font-bold text-slate-100">{timeRemaining.minutesRecordedToday}<span className="text-xs text-slate-500"> / {timeRemaining.targetMinutes} min</span></div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+              <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Upload cutoff</div>
+              <div className={`mt-1 text-sm font-bold ${timeRemaining.isPassed ? 'text-rose-300' : 'text-amber-300'}`}>{timeRemaining.isPassed ? 'Closed' : timeRemaining.cutoffDisplay}</div>
+            </div>
+            <button onClick={() => onPageChange('recording_status')} className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 text-left hover:bg-indigo-500/15 transition-colors">
+              <div className="text-[10px] uppercase tracking-wider font-bold text-indigo-300">Recording status</div>
+              <div className="mt-1 text-xs font-semibold text-slate-100">Time, capacity & extensions →</div>
+            </button>
+          </div>
 
           {/* 1.5 REVISION REQUESTED ALERT BANNER (IF ANY TOPIC HAS REVISION REQUESTED) */}
           {revisionTopics.length > 0 && (
@@ -609,40 +513,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-rose-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center"
               >
                 View & Resubmit Topics →
-              </button>
-            </div>
-          )}
-
-          {/* ACTIVE LATE EXTENSIONS BANNER */}
-          {activeTeacherExtensions.length > 0 && (
-            <div className="bg-gradient-to-r from-purple-950/80 via-indigo-950/60 to-slate-900 border-2 border-purple-500/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-xl shadow-purple-950/40">
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-500/50 text-purple-400 flex items-center justify-center shrink-0 shadow-inner">
-                  <Clock className="w-5 h-5 text-purple-400" />
-                </div>
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-600 text-white uppercase tracking-wider shadow-sm animate-pulse">
-                      ⏰ Late Extensions Active
-                    </span>
-                    <span className="text-[11px] text-purple-300 font-bold hidden sm:inline">Temporary Access Granted</span>
-                  </div>
-                  <p className="font-extrabold text-slate-100 text-sm sm:text-base">
-                    You have temporary access to record/submit overdue topics (any topic).
-                  </p>
-                  <p className="text-[11px] text-purple-200/90 italic truncate max-w-xl">
-                    Remaining window: expires at {new Date(activeTeacherExtensions[0].endWindow).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  onPageChange('syllabus');
-                }}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-purple-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center"
-              >
-                Go to Syllabus →
               </button>
             </div>
           )}
@@ -1158,6 +1028,66 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {currentPage === 'recording_status' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-slate-100 tracking-tight">Recording status</h2>
+              <p className="text-xs text-slate-400">Your daily capacity, pending time, and any approved extension windows.</p>
+            </div>
+            <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Upload lecture
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Pending today</div>
+              <div className="mt-2 text-2xl font-bold text-amber-300">{timeRemaining.remainingMinutesToday} min</div>
+              <p className="mt-1 text-[11px] text-slate-400">of {timeRemaining.targetMinutes} min daily target</p>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Submission window</div>
+              <div className={`mt-2 text-lg font-bold ${timeRemaining.isPassed ? 'text-rose-300' : 'text-slate-100'}`}>{timeRemaining.isPassed ? 'Cutoff passed' : timeRemaining.cutoffDisplay}</div>
+              <p className="mt-1 text-[11px] text-slate-400">{timeRemaining.isPassed ? 'New uploads are marked delayed.' : `${timeRemaining.hours}h ${timeRemaining.minutes}m remaining`}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Regular capacity left</div>
+              <div className="mt-2 text-2xl font-bold text-indigo-300">{timeRemaining.remainingMaxMinutes} min</div>
+              <p className="mt-1 text-[11px] text-slate-400">daily limit: {timeRemaining.maxDailyMinutes} min</p>
+            </div>
+          </div>
+
+          {timeRemaining.yesterdayUnfulfilledMinutes > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+              Yesterday&apos;s pending time: <strong>{timeRemaining.yesterdayUnfulfilledMinutes} min</strong>. Complete an assigned topic or contact Academic Operations if you need an extension.
+            </div>
+          )}
+
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div><h3 className="text-sm font-bold text-slate-100">Extension windows</h3><p className="mt-0.5 text-[11px] text-slate-400">Approved access only; it applies to the topics listed below.</p></div>
+              <span className="text-[11px] text-purple-300 font-semibold">{activeTeacherExtensions.length} active</span>
+            </div>
+            {activeTeacherExtensions.length === 0 ? (
+              <div className="p-5 text-xs text-slate-500">No active extension windows.</div>
+            ) : (
+              <div className="divide-y divide-slate-800">
+                {activeTeacherExtensions.map((extension) => {
+                  const topics = extension.assignedTopicIds?.length
+                    ? extension.assignedTopicIds.map((id) => assignedTopics.find((topic) => topic.id === id)?.topicTitle || 'Assigned topic').join(', ')
+                    : 'All assigned topics';
+                  return <div key={extension.id} className="p-5 grid gap-2 sm:grid-cols-[1fr_auto] text-xs">
+                    <div><div className="font-semibold text-slate-200">{topics}</div><div className="mt-1 text-slate-400">Expires {new Date(extension.endWindow).toLocaleString()} {extension.notes ? `• ${extension.notes}` : ''}</div></div>
+                    <div className="text-purple-300 font-bold">{Math.max(0, extension.allowedMinutes - extension.usedMinutes)} min left</div>
+                  </div>;
+                })}
+              </div>
+            )}
+          </section>
         </div>
       )}
 

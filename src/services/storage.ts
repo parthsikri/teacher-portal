@@ -1035,8 +1035,15 @@ export const StorageService = {
   },
 
   // Verifies if an upload right now is on time (checks teacher's standard daily cutoff time)
-  isUploadOnTime(teacherId: string, _topicDeadlineDate?: string): boolean {
+  isUploadOnTime(teacherId: string, topicDeadlineDate?: string): boolean {
     const now = new Date();
+
+    // A recording cannot be on time for a topic whose due date has already passed.
+    // Use local dates so the result is consistent with the rest of the daily counters.
+    if (topicDeadlineDate) {
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (topicDeadlineDate < today) return false;
+    }
 
     // Check teacher's permanent daily upload cutoff time (set once on first login)
     const users = this.getUsers();
@@ -1708,6 +1715,14 @@ export const StorageService = {
   },
 
   addExtension(ext: Omit<LectureExtension, 'id' | 'usedMinutes' | 'createdAt' | 'updatedAt'>): LectureExtension {
+    const startsAt = new Date(ext.startWindow).getTime();
+    const endsAt = new Date(ext.endWindow).getTime();
+    if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt <= startsAt) {
+      throw new Error('The extension end time must be later than its start time.');
+    }
+    if (!Number.isFinite(ext.allowedMinutes) || ext.allowedMinutes <= 0) {
+      throw new Error('Extension minutes must be greater than zero.');
+    }
     const list = this.getExtensions();
     const newExt: LectureExtension = {
       ...ext,
@@ -1812,12 +1827,14 @@ export const StorageService = {
     return totalBacklog;
   },
 
-  getActiveExtensionForTopic(teacherId: string, _topicId: string): LectureExtension | null {
+  getActiveExtensionForTopic(teacherId: string, topicId?: string): LectureExtension | null {
     const nowStr = new Date().toISOString();
     const extensions = this.getExtensions();
     const active = extensions.find((e) => {
       if (e.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
-      return nowStr >= e.startWindow && nowStr <= e.endWindow;
+      const appliesToTopic = !e.assignedTopicIds?.length || (!!topicId && e.assignedTopicIds.includes(topicId));
+      const hasMinutesLeft = e.usedMinutes < e.allowedMinutes;
+      return appliesToTopic && hasMinutesLeft && nowStr >= e.startWindow && nowStr <= e.endWindow;
     });
     return active || null;
   },
@@ -1826,7 +1843,7 @@ export const StorageService = {
     const list = this.getExtensions();
     const index = list.findIndex((e) => e.id === extId);
     if (index !== -1) {
-      list[index].usedMinutes += minutes;
+      list[index].usedMinutes = Math.max(0, Math.min(list[index].allowedMinutes, list[index].usedMinutes + minutes));
       list[index].updatedAt = new Date().toISOString();
       this.saveExtensions(list);
     }

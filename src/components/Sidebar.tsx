@@ -3,7 +3,7 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, Menu, X, FileSpreadsheet, Image as ImageIcon
+  Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -72,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Teacher Navigation Links
   const teacherNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'recording_status', label: 'Recording Status', icon: Clock },
     { 
       id: 'syllabus', 
       label: 'Syllabus & Topics', 
@@ -104,6 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Admin Navigation Links
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'admin_extensions', label: 'Extension Windows', icon: Clock },
     { 
       id: 'admin_syllabus', 
       label: 'Syllabus & Deadlines', 

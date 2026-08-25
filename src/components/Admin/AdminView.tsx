@@ -121,6 +121,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [extEndWindow, setExtEndWindow] = useState('');
   const [extAllowedMinutes, setExtAllowedMinutes] = useState(60);
   const [extNotes, setExtNotes] = useState('');
+  const [extTopicIds, setExtTopicIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (currentPage !== 'admin_extensions') return;
+    if (teachers.length === 0) {
+      alert('Please onboard faculty first.');
+      onPageChange('admin_faculty');
+      return;
+    }
+    const defaultTeacherId = teachers[0].teacherId;
+    const now = new Date();
+    setExtTeacherId(defaultTeacherId);
+    setExtAllowedMinutes(StorageService.getTotalLateBacklogMinutes(defaultTeacherId) || 60);
+    setExtStartWindow(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+    setExtEndWindow(new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+    setExtNotes('');
+    setExtTopicIds([]);
+    setShowExtensionModal(true);
+  }, [currentPage]);
 
   // Standalone Assign Topic Modal State (Supports Comma Separated Topics)
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -1387,30 +1406,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </p>
             </div>
             <div className="flex items-center gap-2.5">
-              <button
-                onClick={() => {
-                  if (teachers.length === 0) {
-                    alert('Please onboard faculty first.');
-                    return;
-                  }
-                  const defaultTeacherId = teachers[0]?.teacherId || '';
-                  setExtTeacherId(defaultTeacherId);
-
-                  const backlogMinutes = StorageService.getTotalLateBacklogMinutes(defaultTeacherId);
-                  setExtAllowedMinutes(backlogMinutes > 0 ? backlogMinutes : 60);
-
-                  const now = new Date();
-                  const localStart = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                  const localEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                  setExtStartWindow(localStart);
-                  setExtEndWindow(localEnd);
-                  setExtNotes('');
-                  setShowExtensionModal(true);
-                }}
-                className="px-5 py-2.5 rounded-xl font-extrabold text-slate-200 text-xs bg-slate-900 border border-slate-700 hover:bg-slate-800 shadow-md transition-all flex items-center gap-1.5 shrink-0"
-              >
-                ⏰ Late Extensions
-              </button>
               <button
                 onClick={() => setShowReorderModal(true)}
                 className="px-5 py-2.5 rounded-xl font-extrabold text-slate-200 text-xs bg-slate-900 border border-slate-700 hover:bg-slate-800 shadow-md transition-all flex items-center gap-1.5 shrink-0"
@@ -3025,7 +3020,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </h3>
                 <p className="text-xs text-slate-400">Grant temporary access to record/submit late lectures</p>
               </div>
-              <button onClick={() => setShowExtensionModal(false)} className="text-slate-400 hover:text-slate-100">✕</button>
+              <button onClick={() => { setShowExtensionModal(false); onPageChange('admin_dashboard'); }} className="text-slate-400 hover:text-slate-100">✕</button>
             </div>
 
             {/* List of Active Extensions */}
@@ -3088,13 +3083,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 }
                 StorageService.addExtension({
                   teacherId: extTeacherId,
-                  assignedTopicIds: [],
+                  assignedTopicIds: extTopicIds,
                   startWindow: new Date(extStartWindow).toISOString(),
                   endWindow: new Date(extEndWindow).toISOString(),
                   allowedMinutes: extAllowedMinutes,
                   notes: extNotes.trim() || undefined,
                 });
                 setExtNotes('');
+                setExtTopicIds([]);
                 refreshState();
               }}
               className="space-y-4 text-xs pt-4 border-t border-slate-800"
@@ -3106,9 +3102,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <label className="block text-slate-300 font-semibold mb-1">Faculty Member *</label>
                   <select
                     value={extTeacherId}
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      setExtTeacherId(selectedId);
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    setExtTeacherId(selectedId);
+                    setExtTopicIds([]);
                       const backlogMinutes = StorageService.getTotalLateBacklogMinutes(selectedId);
                       setExtAllowedMinutes(backlogMinutes > 0 ? backlogMinutes : 60);
                     }}
@@ -3138,8 +3135,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Topics covered</label>
+                <select
+                  multiple
+                  value={extTopicIds}
+                  onChange={(e) => setExtTopicIds(Array.from(e.currentTarget.selectedOptions, (option) => option.value))}
+                  className="w-full min-h-24 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
+                >
+                  {assignedTopics.filter((topic) => topic.teacherId === extTeacherId && topic.status !== 'completed').map((topic) => (
+                    <option key={topic.id} value={topic.id}>{topic.unitNumber || 'Unit'} — {topic.topicTitle}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[10px] text-slate-500">Optional. Leave unselected to cover all assigned topics; use Ctrl/Cmd to select several.</p>
+              </div>
+
               <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
-                📌 <strong className="text-slate-300">Note:</strong> This extension is time-based. The faculty member will be allowed to record and submit <strong>any assigned topic</strong> during this window up to the granted extension minutes.
+                📌 <strong className="text-slate-300">Note:</strong> This extension is time-based and only applies to the selected topics (or all assigned topics when none are selected), up to the granted minutes.
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3180,7 +3192,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowExtensionModal(false)}
+                  onClick={() => { setShowExtensionModal(false); onPageChange('admin_dashboard'); }}
                   className="px-4 py-2 text-slate-400 hover:text-slate-200 font-bold"
                 >
                   Close

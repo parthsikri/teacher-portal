@@ -21,6 +21,9 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   const backlogInfo = StorageService.getPreviousDayBacklog(teacher.teacherId);
   const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
   const targetMinutes = teacher.dailyTargetMinutes || 120;
+  const activeExtension = prefillTopic
+    ? StorageService.getActiveExtensionForTopic(teacher.teacherId, prefillTopic.id)
+    : null;
 
   // Form fields
   const [title, setTitle] = useState(prefillTopic ? prefillTopic.topicTitle : '');
@@ -84,20 +87,16 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
     try {
       const activeExt = prefillTopic ? StorageService.getActiveExtensionForTopic(teacher.teacherId, prefillTopic.id) : null;
-      if (activeExt) {
-        const remainingExtMins = activeExt.allowedMinutes - activeExt.usedMinutes;
-        if (durationMinutes > remainingExtMins) {
-          setErrorMsg(`Duration exceeds remaining allowed extension minutes (${remainingExtMins} min remaining for this late topic extension).`);
-          setIsSubmitting(false);
-          return;
-        }
-      } else {
-        const timeRemaining = StorageService.getTodayTimeRemaining(teacher.teacherId);
-        if (timeRemaining.minutesRecordedToday + durationMinutes > timeRemaining.maxDailyMinutes) {
-          setErrorMsg(`You have reached/exceeded your maximum daily recording limit of ${timeRemaining.maxDailyMinutes} minutes. You cannot submit this lecture.`);
-          setIsSubmitting(false);
-          return;
-        }
+      const timeRemaining = StorageService.getTodayTimeRemaining(teacher.teacherId);
+      const extensionMinutesLeft = activeExt ? Math.max(0, activeExt.allowedMinutes - activeExt.usedMinutes) : 0;
+      const effectiveDailyLimit = timeRemaining.maxDailyMinutes + extensionMinutesLeft;
+      if (timeRemaining.minutesRecordedToday + durationMinutes > effectiveDailyLimit) {
+        const limitMessage = activeExt
+          ? `This session exceeds today's regular limit plus the ${extensionMinutesLeft} minutes left in this extension.`
+          : `This session exceeds today's ${timeRemaining.maxDailyMinutes}-minute recording limit.`;
+        setErrorMsg(limitMessage);
+        setIsSubmitting(false);
+        return;
       }
 
       const isOnTime = StorageService.isUploadOnTime(teacher.teacherId, deadlineDate);
@@ -160,7 +159,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           <div className="flex items-center gap-3">
             <div className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono">
-              <span className="text-slate-400">Recorded Today: </span>
+              <span className="text-slate-400">Today: </span>
               <span className="font-bold text-amber-400">{minutesRecordedToday}/{targetMinutes} min</span>
             </div>
             <button
@@ -179,6 +178,15 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <span className="text-sm">📌</span>
               <div>
                 <strong>Assigned Topic:</strong> {prefillTopic.topicTitle} ({prefillTopic.unitNumber || 'UNIT 1'})
+              </div>
+            </div>
+          )}
+
+          {activeExtension && (
+            <div className="p-3 bg-purple-500/10 border border-purple-500/30 text-purple-200 text-xs rounded-xl flex items-start gap-2">
+              <span className="text-sm">⏱</span>
+              <div>
+                <strong>Extension active for this topic.</strong> {Math.max(0, activeExtension.allowedMinutes - activeExtension.usedMinutes)} minutes remain until {new Date(activeExtension.endWindow).toLocaleString()}.
               </div>
             </div>
           )}
@@ -235,11 +243,12 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Recording Date</label>
+                <label className="block text-slate-400 font-medium mb-1">Topic Due Date</label>
                 <input
                   type="date"
                   value={deadlineDate}
                   onChange={(e) => setDeadlineDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs font-mono"
                 />
               </div>
