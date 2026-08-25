@@ -388,7 +388,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     });
   };
 
-  const handleSubmitProposedSubtopics = (e: React.FormEvent) => {
+  const handleSubmitProposedSubtopics = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!proposingTopic) return;
     const cleanList = proposedSubtopicList.map((s) => s.trim()).filter((s) => s.length > 0);
@@ -397,9 +397,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       return;
     }
 
-    StorageService.proposeSubtopics(proposingTopic.id, cleanList);
-    setProposingTopic(null);
-    setRefreshKey((k) => k + 1);
+    try {
+      await StorageService.proposeSubtopics(proposingTopic.id, cleanList);
+      setProposingTopic(null);
+      setCopiedToast('Subtopics sent to Academic Operations for review.');
+      setTimeout(() => setCopiedToast(null), 3000);
+      setRefreshKey((k) => k + 1);
+    } catch (error: any) {
+      setCopiedToast(error?.message || 'Could not send subtopics. Please try again.');
+      setTimeout(() => setCopiedToast(null), 5000);
+    }
   };
 
   const handleAcknowledgeRemark = (lectureId: string, remarkId: string, currentAck?: boolean) => {
@@ -469,8 +476,8 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <div className="mt-1 text-lg font-bold text-slate-100">{timeRemaining.minutesRecordedToday}<span className="text-xs text-slate-500"> / {timeRemaining.targetMinutes} min</span></div>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
-              <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Upload cutoff</div>
-              <div className={`mt-1 text-sm font-bold ${timeRemaining.isPassed ? 'text-rose-300' : 'text-amber-300'}`}>{timeRemaining.isPassed ? 'Closed' : timeRemaining.cutoffDisplay}</div>
+              <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Time left to upload</div>
+              <div className={`mt-1 text-sm font-bold font-mono ${timeRemaining.isPassed ? 'text-rose-300' : 'text-amber-300'}`}>{timeRemaining.isPassed ? `Closed · ${timeRemaining.cutoffDisplay}` : `${String(timeRemaining.hours).padStart(2, '0')}h ${String(timeRemaining.minutes).padStart(2, '0')}m ${String(timeRemaining.seconds).padStart(2, '0')}s`}</div>
             </div>
             <button onClick={() => onPageChange('recording_status')} className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 text-left hover:bg-indigo-500/15 transition-colors">
               <div className="text-[10px] uppercase tracking-wider font-bold text-indigo-300">Recording status</div>
@@ -660,9 +667,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 <div className="text-[10px] text-slate-400/90 font-medium">
                   Total Delivered: {onTimeStats.totalDeliveredMinutes}m ({Math.floor(onTimeStats.totalDeliveredMinutes / 60)}h {onTimeStats.totalDeliveredMinutes % 60}m)
                 </div>
+                {onTimeStats.flexibleBalanceMinutes > 0 && (
+                  <div className="text-indigo-300 text-[10px] font-medium">
+                    + {onTimeStats.flexibleBalanceMinutes}m Flexible Recording Balance
+                  </div>
+                )}
                 {onTimeStats.lateMinutes > 0 && (
                   <div className="text-amber-400 text-[10px] font-medium">
-                    ⚠️ {onTimeStats.lateMinutes}m marked late / unfulfilled
+                    ⚠️ {onTimeStats.lateMinutes}m late or still unfulfilled
                   </div>
                 )}
               </div>
@@ -1011,9 +1023,9 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={`text-[10px] font-medium ${
-                        lec.status === 'on_time' ? 'text-emerald-400' : 'text-red-400'
+                        lec.status === 'on_time' ? 'text-emerald-400' : lec.status === 'extended' ? 'text-purple-300' : 'text-red-400'
                       }`}>
-                        {lec.status === 'on_time' ? '✓ On-Time' : 'Overdue'}
+                        {lec.status === 'on_time' ? '✓ On-Time' : lec.status === 'extended' ? '✓ Approved extension' : 'Overdue'}
                       </span>
 
                       <button
@@ -1038,9 +1050,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <h2 className="text-xl font-bold text-slate-100 tracking-tight">Recording status</h2>
               <p className="text-xs text-slate-400">Your daily capacity, pending time, and any approved extension windows.</p>
             </div>
-            <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> Upload lecture
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Upload lecture
+              </button>
+              <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Record extra
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1055,15 +1072,15 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <p className="mt-1 text-[11px] text-slate-400">{timeRemaining.isPassed ? 'New uploads are marked delayed.' : `${timeRemaining.hours}h ${timeRemaining.minutes}m remaining`}</p>
             </div>
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Regular capacity left</div>
-              <div className="mt-2 text-2xl font-bold text-indigo-300">{timeRemaining.remainingMaxMinutes} min</div>
-              <p className="mt-1 text-[11px] text-slate-400">daily limit: {timeRemaining.maxDailyMinutes} min</p>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Flexible recording balance</div>
+              <div className="mt-2 text-2xl font-bold text-indigo-300">{onTimeStats.flexibleBalanceMinutes} min</div>
+              <p className="mt-1 text-[11px] text-slate-400">Record extra on time to grow this balance; it automatically covers a future shortfall.</p>
             </div>
           </div>
 
           {timeRemaining.yesterdayUnfulfilledMinutes > 0 && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-              Yesterday&apos;s pending time: <strong>{timeRemaining.yesterdayUnfulfilledMinutes} min</strong>. Complete an assigned topic or contact Academic Operations if you need an extension.
+              Yesterday&apos;s pending time: <strong>{timeRemaining.yesterdayUnfulfilledMinutes} min</strong>. Your Flexible Recording Balance is applied automatically before anything is marked late.
             </div>
           )}
 
@@ -1491,9 +1508,9 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                               <span className="text-[11px] text-slate-400">{lec.subject}</span>
                             </div>
                             <span className={`text-[10px] font-medium shrink-0 ${
-                              lec.status === 'on_time' ? 'text-emerald-400' : 'text-red-400'
+                              lec.status === 'on_time' ? 'text-emerald-400' : lec.status === 'extended' ? 'text-purple-300' : 'text-red-400'
                             }`}>
-                              {lec.status === 'on_time' ? '✓ On-Time' : 'Overdue'}
+                              {lec.status === 'on_time' ? '✓ On-Time' : lec.status === 'extended' ? '✓ Approved extension' : 'Overdue'}
                             </span>
                           </div>
 

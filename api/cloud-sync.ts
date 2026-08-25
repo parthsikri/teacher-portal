@@ -95,9 +95,9 @@ function mergeMasterStates(current: any, incoming: any): any {
               subtopics: (t.subtopics && t.subtopics.length > 0) ? t.subtopics : (existing.subtopics || []),
               subtopicItems: (t.subtopicItems && t.subtopicItems.length > 0) ? t.subtopicItems : (existing.subtopicItems || []),
               proposedSubtopics: (t.proposedSubtopics && t.proposedSubtopics.length > 0) ? t.proposedSubtopics : (existing.proposedSubtopics || []),
-              subtopicsApprovalState: (t.subtopicsApprovalState === 'approved' || existing.subtopicsApprovalState === 'approved')
-                ? 'approved'
-                : (t.subtopicsApprovalState || existing.subtopicsApprovalState || 'pending_teacher_input'),
+              // Topic workflow is not monotonic: an approved topic can be reset or
+              // resubmitted. The newest record must own the workflow state.
+              subtopicsApprovalState: t.subtopicsApprovalState || existing.subtopicsApprovalState || 'pending_teacher_input',
               adminApprovalComment: t.adminApprovalComment !== undefined ? t.adminApprovalComment : existing.adminApprovalComment,
               updatedAt: t.updatedAt || new Date().toISOString(),
             });

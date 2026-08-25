@@ -2205,9 +2205,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                             lec.status === 'on_time'
                                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                              : lec.status === 'extended'
+                                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                                               : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                                           }`}>
-                                            {lec.status === 'on_time' ? '✓ On-Time Submission' : '⚠️ Overdue'}
+                                            {lec.status === 'on_time' ? '✓ On-Time Submission' : lec.status === 'extended' ? '✓ Approved Extension' : '⚠️ Overdue'}
                                           </span>
                                           <span className="text-slate-600">•</span>
                                           <span className="text-[10px] text-slate-500 font-mono">

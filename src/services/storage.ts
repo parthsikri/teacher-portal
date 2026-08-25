@@ -493,20 +493,28 @@ export const StorageService = {
     this.saveAssignedTopics(topics);
   },
 
-  // Teacher submits proposed subtopics for admin review
-  proposeSubtopics(topicId: string, proposedSubtopics: string[]): AssignedTopic | null {
+  // Teacher submits proposed subtopics for admin review and confirms the shared write.
+  async proposeSubtopics(topicId: string, proposedSubtopics: string[]): Promise<AssignedTopic> {
     const topics = this.getAssignedTopics();
     const index = topics.findIndex((t) => t.id === topicId);
-    if (index === -1) return null;
+    if (index === -1) throw new Error('This topic is no longer available. Refresh and try again.');
+    if (topics[index].status === 'completed') throw new Error('Completed topics cannot be resubmitted.');
+    const cleanSubtopics = proposedSubtopics.map((item) => item.trim()).filter(Boolean);
+    if (cleanSubtopics.length === 0) throw new Error('Add at least one subtopic before sending.');
 
     topics[index] = {
       ...topics[index],
-      proposedSubtopics,
+      proposedSubtopics: cleanSubtopics,
       subtopicsApprovalState: 'pending_admin_approval',
       adminFeedback: undefined,
       updatedAt: new Date().toISOString(),
     };
     this.saveAssignedTopics(topics);
+
+    const synced = await this.syncToCloud();
+    if (!synced) {
+      throw new Error('Your proposal was saved on this device but could not be shared. Check your connection and submit again.');
+    }
     return topics[index];
   },
 
@@ -1173,6 +1181,7 @@ export const StorageService = {
     onTimeMinutes: number;
     lateMinutes: number;
     pendingLateMinutesToday: number;
+    flexibleBalanceMinutes: number;
     onTimePercentage: number;
   } {
     const teacherLectures = this.getLectures().filter(
@@ -1259,32 +1268,38 @@ export const StorageService = {
     let totalOnTimeMinutes = 0;
     let totalLateMinutes = 0;
     let pendingLateMinutesToday = 0;
+    let flexibleBalanceMinutes = 0;
 
     sortedDates.forEach((dateStr) => {
       const dayLectures = lecturesByDate.get(dateStr) || [];
       const onTimeMins = dayLectures
         .filter((l) => l.status === 'on_time')
         .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+      const extendedMins = dayLectures
+        .filter((l) => l.status === 'extended')
+        .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
       const lateMins = dayLectures
         .filter((l) => l.status === 'overdue')
         .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-      const recordedDayMins = onTimeMins + lateMins;
+      const acceptedMins = onTimeMins + extendedMins;
+      const balanceUsed = Math.min(flexibleBalanceMinutes, Math.max(0, dailyTarget - acceptedMins));
+      const shortfall = Math.max(0, dailyTarget - acceptedMins - balanceUsed);
 
       if (dateStr < todayStr) {
-        // Concluded past day:
-        // Any portion of dailyTarget not recorded is marked as unfulfilled/late on that day.
-        const unfulfilledPortion = Math.max(0, dailyTarget - recordedDayMins);
+        // Only the missing portion is late. A prior on-time surplus can cover it.
         totalOnTimeMinutes += onTimeMins;
-        totalLateMinutes += lateMins + unfulfilledPortion;
+        totalLateMinutes += lateMins + shortfall;
+        flexibleBalanceMinutes = Math.max(0, flexibleBalanceMinutes - balanceUsed) + Math.max(0, onTimeMins - dailyTarget);
       } else if (dateStr === todayStr) {
-        // Current day (Today):
         totalOnTimeMinutes += onTimeMins;
         totalLateMinutes += lateMins;
-
-        if (isTodayCutoffPassed && recordedDayMins < dailyTarget) {
-          const unfulfilledToday = Math.max(0, dailyTarget - recordedDayMins);
-          pendingLateMinutesToday = unfulfilledToday;
-          totalLateMinutes += unfulfilledToday;
+        if (isTodayCutoffPassed) {
+          pendingLateMinutesToday = shortfall;
+          totalLateMinutes += shortfall;
+          flexibleBalanceMinutes = Math.max(0, flexibleBalanceMinutes - balanceUsed) + Math.max(0, onTimeMins - dailyTarget);
+        } else {
+          // A teacher can bank only genuinely on-time extra minutes for a future shortfall.
+          flexibleBalanceMinutes += Math.max(0, onTimeMins - dailyTarget);
         }
       }
     });
@@ -1318,6 +1333,7 @@ export const StorageService = {
       onTimeMinutes: totalOnTimeMinutes,
       lateMinutes: totalLateMinutes,
       pendingLateMinutesToday,
+      flexibleBalanceMinutes,
       onTimePercentage,
     };
   },
@@ -1614,9 +1630,8 @@ export const StorageService = {
             proposedSubtopics: (cloudTopic.proposedSubtopics && cloudTopic.proposedSubtopics.length > 0)
               ? cloudTopic.proposedSubtopics
               : (localTopic.proposedSubtopics || []),
-            subtopicsApprovalState: (cloudTopic.subtopicsApprovalState === 'approved' || localTopic.subtopicsApprovalState === 'approved')
-              ? 'approved'
-              : (cloudTopic.subtopicsApprovalState || localTopic.subtopicsApprovalState || 'pending_teacher_input'),
+            // The cloud record won on updatedAt, so preserve its workflow state.
+            subtopicsApprovalState: cloudTopic.subtopicsApprovalState || localTopic.subtopicsApprovalState || 'pending_teacher_input',
           };
         });
 

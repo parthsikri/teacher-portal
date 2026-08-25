@@ -100,6 +100,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       }
 
       const isOnTime = StorageService.isUploadOnTime(teacher.teacherId, deadlineDate);
+      const submissionStatus = activeExt && !isOnTime ? 'extended' : (isOnTime ? 'on_time' : 'overdue');
 
       const youtubeLink = videoLinkType === 'youtube' && videoUrl.trim() ? videoUrl.trim() : undefined;
       const driveVideoLink = videoLinkType === 'drive' && videoUrl.trim() ? videoUrl.trim() : undefined;
@@ -114,7 +115,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         subtopics: subtopics.length > 0 ? subtopics : [primaryTopic.trim()],
         durationMinutes: Math.max(5, durationMinutes || 45),
         deadlineDate,
-        status: isOnTime ? 'on_time' : 'overdue',
+        status: submissionStatus,
         youtubeUrl: youtubeLink,
         driveUrl: driveVideoLink,
         notesUrl: notesUrl.trim() || undefined,
