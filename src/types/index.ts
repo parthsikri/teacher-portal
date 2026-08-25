@@ -49,6 +49,7 @@ export interface SubtopicItem {
   name: string;
   deadlineDate?: string;       // Optional legacy support
   status?: 'pending' | 'completed';
+  isApproved?: boolean;        // True if approved by Admin
 }
 
 export interface SubjectReference {
@@ -82,6 +83,7 @@ export interface AssignedTopic {
   createdAt: string;
   updatedAt?: string;
   isNewFromAdmin?: boolean;             // Notification flag
+  displayOrder?: number;                // Curriculum order within unit
 }
 
 export interface Lecture {

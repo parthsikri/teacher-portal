@@ -1324,7 +1324,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                                 <span className="font-mono font-bold text-[10px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.2 rounded border border-indigo-500/20 shrink-0">
                                   #{i + 1}
                                 </span>
-                                <span className="truncate flex-1">{st}</span>
+                                <span className="truncate flex-1 flex items-center justify-between gap-2">
+                                  <span className="truncate">{st}</span>
+                                  {topic.subtopicItems?.find(item => item.name.trim().toLowerCase() === st.trim().toLowerCase())?.isApproved === false && (
+                                    <span className="px-1.5 py-0.5 text-[8px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-full shrink-0">
+                                      pending approval
+                                    </span>
+                                  )}
+                                </span>
                               </div>
                             ))}
                           </div>

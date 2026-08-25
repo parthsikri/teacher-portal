@@ -308,10 +308,60 @@ export const StorageService = {
     if (!data) return [];
     try {
       const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      
+      const topics = parsed as AssignedTopic[];
+      let needsMigration = false;
+      for (const t of topics) {
+        if (t.displayOrder === undefined) {
+          needsMigration = true;
+          break;
+        }
+      }
+
+      if (needsMigration) {
+        const unitGroups: Record<string, AssignedTopic[]> = {};
+        topics.forEach((t) => {
+          const unit = (t.unitNumber || 'UNIT 1').trim().toUpperCase();
+          if (!unitGroups[unit]) {
+            unitGroups[unit] = [];
+          }
+          unitGroups[unit].push(t);
+        });
+
+        Object.keys(unitGroups).forEach((unit) => {
+          unitGroups[unit].forEach((t, index) => {
+            t.displayOrder = index + 1;
+            t.updatedAt = new Date().toISOString();
+          });
+        });
+        
+        localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(topics));
+        this.syncToCloud().catch(() => {});
+      }
+
+      return this.sortAssignedTopics(topics);
     } catch {
       return [];
     }
+  },
+
+  sortAssignedTopics(topics: AssignedTopic[]): AssignedTopic[] {
+    const parseUnitNum = (unitStr?: string): number => {
+      if (!unitStr) return 999999;
+      const match = unitStr.match(/\d+/);
+      return match ? parseInt(match[0], 10) : 999999;
+    };
+
+    return [...topics].sort((a, b) => {
+      const uA = parseUnitNum(a.unitNumber);
+      const uB = parseUnitNum(b.unitNumber);
+      if (uA !== uB) return uA - uB;
+
+      const orderA = a.displayOrder !== undefined ? a.displayOrder : 999999;
+      const orderB = b.displayOrder !== undefined ? b.displayOrder : 999999;
+      return orderA - orderB;
+    });
   },
 
 
@@ -344,11 +394,17 @@ export const StorageService = {
           status: 'pending',
         }));
 
+    const unitStr = topic.unitNumber?.trim() || 'UNIT 1';
+    const sameUnitTopics = topics.filter(
+      (t) => (t.unitNumber || 'UNIT 1').trim().toUpperCase() === unitStr.trim().toUpperCase()
+    );
+    const maxOrder = sameUnitTopics.reduce((max, t) => Math.max(max, t.displayOrder || 0), 0);
+
     const newTopic: AssignedTopic = {
       id: `at-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       teacherId: topic.teacherId.trim().toUpperCase(),
       subject: topic.subject.trim(),
-      unitNumber: topic.unitNumber?.trim() || 'UNIT 1',
+      unitNumber: unitStr,
       topicTitle: topic.topicTitle.trim(),
       subtopics: subtopicNames,
       subtopicItems: items,
@@ -361,6 +417,7 @@ export const StorageService = {
       notes: topic.notes,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      displayOrder: maxOrder + 1,
     };
     topics.push(newTopic);
     this.saveAssignedTopics(topics);
@@ -384,12 +441,18 @@ export const StorageService = {
     const cleanTitles = titles.map((t) => t.trim()).filter((t) => t.length > 0);
     const now = Date.now();
 
+    const unitStr = commonProps.unitNumber?.trim() || 'UNIT 1';
+    const sameUnitTopics = topics.filter(
+      (t) => (t.unitNumber || 'UNIT 1').trim().toUpperCase() === unitStr.trim().toUpperCase()
+    );
+    const maxOrder = sameUnitTopics.reduce((max, t) => Math.max(max, t.displayOrder || 0), 0);
+
     cleanTitles.forEach((title, idx) => {
       const newTopic: AssignedTopic = {
         id: `at-${now + idx}-${Math.floor(Math.random() * 1000)}`,
         teacherId: commonProps.teacherId.trim().toUpperCase(),
         subject: commonProps.subject.trim(),
-        unitNumber: commonProps.unitNumber?.trim() || 'UNIT 1',
+        unitNumber: unitStr,
         topicTitle: title,
         subtopics: [],
         subtopicItems: [],
@@ -402,6 +465,7 @@ export const StorageService = {
         notes: commonProps.notes,
         createdAt: new Date(now + idx * 1000).toISOString(),
         updatedAt: new Date(now + idx * 1000).toISOString(),
+        displayOrder: maxOrder + idx + 1,
       };
       topics.push(newTopic);
       createdList.push(newTopic);
@@ -409,6 +473,23 @@ export const StorageService = {
 
     this.saveAssignedTopics(topics);
     return createdList;
+  },
+
+  swapTopicOrders(topicIdA: string, topicIdB: string): void {
+    const topics = this.getAssignedTopics();
+    const idxA = topics.findIndex((t) => t.id === topicIdA);
+    const idxB = topics.findIndex((t) => t.id === topicIdB);
+    if (idxA === -1 || idxB === -1) return;
+
+    // Swap displayOrder values
+    const tempOrder = topics[idxA].displayOrder;
+    topics[idxA].displayOrder = topics[idxB].displayOrder;
+    topics[idxB].displayOrder = tempOrder;
+
+    topics[idxA].updatedAt = new Date().toISOString();
+    topics[idxB].updatedAt = new Date().toISOString();
+
+    this.saveAssignedTopics(topics);
   },
 
   // Teacher submits proposed subtopics for admin review
@@ -450,11 +531,15 @@ export const StorageService = {
       : topic.subtopics;
 
     const finalItems: SubtopicItem[] = customItems !== undefined
-      ? customItems.filter((c) => c.name.trim().length > 0)
+      ? customItems.filter((c) => c.name.trim().length > 0).map(item => ({
+          ...item,
+          isApproved: true,
+        }))
       : finalNames.map((name, idx) => ({
           id: `sub-${idx}-${Date.now()}`,
           name,
           status: 'pending',
+          isApproved: true,
         }));
 
     topics[index] = {
@@ -470,6 +555,62 @@ export const StorageService = {
     };
     this.saveAssignedTopics(topics);
     this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate subtopics approval push error:', err));
+    return topics[index];
+  },
+
+  updateTopicAndSubtopics(
+    topicId: string,
+    newTitle: string,
+    newSubtopicItems: SubtopicItem[],
+    adminApprovalComment?: string
+  ): AssignedTopic | null {
+    const topics = this.getAssignedTopics();
+    const index = topics.findIndex((t) => t.id === topicId);
+    if (index === -1) return null;
+
+    const topic = topics[index];
+    const oldItems = topic.subtopicItems || [];
+    const oldItemsMap = new Map<string, SubtopicItem>();
+    oldItems.forEach((item) => oldItemsMap.set(item.id, item));
+
+    const finalItems: SubtopicItem[] = newSubtopicItems.map((item) => {
+      const oldItem = oldItemsMap.get(item.id);
+      if (!oldItem) {
+        return {
+          ...item,
+          status: 'pending',
+          isApproved: false,
+        };
+      }
+
+      if (oldItem.name.trim().toLowerCase() !== item.name.trim().toLowerCase()) {
+        return {
+          ...item,
+          status: 'pending',
+          isApproved: false,
+        };
+      }
+
+      return {
+        ...item,
+        status: oldItem.status || 'pending',
+        isApproved: oldItem.isApproved ?? true,
+      };
+    });
+
+    const finalNames = finalItems.map((item) => item.name.trim()).filter((n) => n.length > 0);
+
+    topics[index] = {
+      ...topics[index],
+      topicTitle: newTitle.trim(),
+      subtopics: finalNames,
+      subtopicItems: finalItems,
+      adminApprovalComment: adminApprovalComment !== undefined ? (adminApprovalComment.trim() || undefined) : topic.adminApprovalComment,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.saveAssignedTopics(topics);
+    this.syncToCloud().catch((err) => console.warn('[CloudSync] Topic update sync error:', err));
     return topics[index];
   },
 
@@ -1391,6 +1532,7 @@ export const StorageService = {
 
           return {
             ...cloudTopic,
+            displayOrder: cloudTopic.displayOrder !== undefined ? cloudTopic.displayOrder : localTopic.displayOrder,
             subtopics: (cloudTopic.subtopics && cloudTopic.subtopics.length > 0)
               ? cloudTopic.subtopics
               : (localTopic.subtopics || []),

@@ -114,6 +114,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Standalone Assign Topic Modal State (Supports Comma Separated Topics)
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showReorderModal, setShowReorderModal] = useState(false);
   const [assignTeacherId, setAssignTeacherId] = useState(teachers[0]?.teacherId || '');
   const [assignUnitNumber, setAssignUnitNumber] = useState('UNIT 1');
   const [assignTopicInput, setAssignTopicInput] = useState('');
@@ -372,19 +373,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Open Review Subtopics Modal
   const handleOpenReviewModal = (topic: AssignedTopic) => {
     setReviewingTopic(topic);
-    // If topic is already approved or has approved subtopics, use topic.subtopics.
-    // Otherwise, if topic has proposedSubtopics awaiting review, use proposedSubtopics.
-    const names = (topic.subtopicsApprovalState === 'approved' && topic.subtopics && topic.subtopics.length > 0)
-      ? topic.subtopics
-      : (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
-      ? topic.proposedSubtopics
-      : topic.subtopics || [];
+    
+    let items: SubtopicItem[] = [];
+    if (topic.subtopicItems && topic.subtopicItems.length > 0) {
+      items = topic.subtopicItems.map((item) => ({ ...item }));
+    } else {
+      const names = (topic.subtopicsApprovalState === 'approved' && topic.subtopics && topic.subtopics.length > 0)
+        ? topic.subtopics
+        : (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
+        ? topic.proposedSubtopics
+        : topic.subtopics || [];
 
-    const items: SubtopicItem[] = names.map((name, idx) => ({
-      id: `sub-rev-${idx}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      name,
-      status: 'pending',
-    }));
+      items = names.map((name, idx) => ({
+        id: `sub-rev-${idx}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: name.trim(),
+        status: 'pending',
+      }));
+    }
 
     setReviewSubtopicItems(items);
     setReviewSubtopicInput('');
@@ -462,6 +467,30 @@ export const AdminView: React.FC<AdminViewProps> = ({
       updated.splice(newIndex, 0, item);
       return updated;
     });
+  };
+
+  const handleSaveClick = () => {
+    if (!reviewingTopic) return;
+    const itemsToSave = reviewSubtopicItems.filter((item) => item.name && item.name.trim().length > 0);
+    const comment = approvalComment;
+    const titleToSave = reviewTopicTitleInput;
+
+    if (reviewingTopic.subtopicsApprovalState === 'approved') {
+      const updatedTopic = StorageService.updateTopicAndSubtopics(
+        reviewingTopic.id,
+        titleToSave,
+        itemsToSave,
+        comment
+      );
+      if (updatedTopic) {
+        setAssignedTopics((prev) => prev.map((t) => (t.id === reviewingTopic.id ? updatedTopic : t)));
+      }
+      setReviewingTopic(null);
+      setApprovalComment('');
+      refreshState();
+    } else {
+      handleDirectApprove(reviewingTopic.id, reviewSubtopicItems, approvalComment);
+    }
   };
 
   // Direct 1-Click Approve Subtopics (with optional comment/guidelines)
@@ -1343,19 +1372,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 Assign modules to faculty, adjust individual submission deadlines per subtopic, and approve syllabus breakdowns.
               </p>
             </div>
-            <button
-              onClick={() => {
-                if (teachers.length === 0) {
-                  alert('Please onboard faculty first.');
-                  return;
-                }
-                setAssignTeacherId(teachers[0]?.teacherId || '');
-                setShowAssignModal(true);
-              }}
-              className="px-5 py-2.5 rounded-xl font-extrabold text-slate-950 text-xs bg-amber-500 hover:bg-amber-400 shadow-md transition-all flex items-center gap-1.5 shrink-0"
-            >
-              📌 + Assign New Topics
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => setShowReorderModal(true)}
+                className="px-5 py-2.5 rounded-xl font-extrabold text-slate-200 text-xs bg-slate-900 border border-slate-700 hover:bg-slate-800 shadow-md transition-all flex items-center gap-1.5 shrink-0"
+              >
+                ⇅ Reorder Topics
+              </button>
+              <button
+                onClick={() => {
+                  if (teachers.length === 0) {
+                    alert('Please onboard faculty first.');
+                    return;
+                  }
+                  setAssignTeacherId(teachers[0]?.teacherId || '');
+                  setShowAssignModal(true);
+                }}
+                className="px-5 py-2.5 rounded-xl font-extrabold text-slate-950 text-xs bg-amber-500 hover:bg-amber-400 shadow-md transition-all flex items-center gap-1.5 shrink-0"
+              >
+                📌 + Assign New Topics
+              </button>
+            </div>
           </div>
 
           {/* Search bar */}
@@ -1468,7 +1505,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 <span className="font-mono font-extrabold text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded border border-purple-500/20 shrink-0">
                                   #{idx + 1}
                                 </span>
-                                <span className="truncate flex-1">{st}</span>
+                                <span className="truncate flex-1 flex items-center justify-between gap-2">
+                                  <span className="truncate">{st}</span>
+                                  {topic.subtopicItems?.find(item => item.name.trim().toLowerCase() === st.trim().toLowerCase())?.isApproved === false && (
+                                    <span className="px-1.5 py-0.5 text-[8px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-full shrink-0">
+                                      pending approval
+                                    </span>
+                                  )}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -2473,7 +2517,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDirectApprove(reviewingTopic.id, reviewSubtopicItems, approvalComment)}
+                    onClick={handleSaveClick}
                     className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
                   >
                     {reviewingTopic.subtopicsApprovalState === 'approved'
@@ -2886,7 +2930,124 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 4: ADMIN ATTACHES SUBJECT REFERENCE MATERIAL */}
+      {/* MODAL 4: REORDER SYLLABUS TOPICS */}
+      {showReorderModal && (() => {
+        const groupedByUnit: Record<string, AssignedTopic[]> = {};
+        assignedTopics.forEach((t) => {
+          const unit = (t.unitNumber || 'UNASSIGNED').trim().toUpperCase();
+          if (!groupedByUnit[unit]) {
+            groupedByUnit[unit] = [];
+          }
+          groupedByUnit[unit].push(t);
+        });
+
+        const sortedUnits = Object.keys(groupedByUnit).sort((a, b) => {
+          const numA = parseInt(a.replace(/[^0-9]/g, ''), 10);
+          const numB = parseInt(b.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return a.localeCompare(b);
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+            <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8 max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-400" />
+                    Reorder Syllabus Topics
+                  </h3>
+                  <p className="text-xs text-slate-400">Reorder the main assigned topics within their respective units.</p>
+                </div>
+                <button onClick={() => setShowReorderModal(false)} className="text-slate-400 hover:text-slate-100">✕</button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 space-y-6 scrollbar-thin">
+                {sortedUnits.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-8">No assigned topics available to reorder.</p>
+                ) : (
+                  sortedUnits.map((unit) => {
+                    const unitTopics = groupedByUnit[unit];
+                    return (
+                      <div key={unit} className="space-y-2">
+                        <div className="text-xs font-black text-indigo-400 uppercase tracking-wider bg-slate-950/50 px-3 py-1.5 rounded-lg border border-slate-800/80">
+                          {unit}
+                        </div>
+                        <div className="space-y-1.5">
+                          {unitTopics.map((topic, idx) => {
+                            const isFirst = idx === 0;
+                            const isLast = idx === unitTopics.length - 1;
+
+                            return (
+                              <div
+                                key={topic.id}
+                                className="flex items-center justify-between bg-slate-950/30 border border-slate-800/80 hover:border-slate-700/80 rounded-xl px-4 py-2.5 transition-colors gap-3"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="font-mono text-[10px] text-slate-500 font-bold">
+                                    {idx + 1}.
+                                  </span>
+                                  <div className="truncate">
+                                    <p className="text-xs font-bold text-slate-200 truncate">{topic.topicTitle}</p>
+                                    <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                      {topic.subject} • Assigned to: {teachers.find(t => t.teacherId === topic.teacherId)?.name || topic.teacherId}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      if (isFirst) return;
+                                      const prevTopic = unitTopics[idx - 1];
+                                      StorageService.swapTopicOrders(topic.id, prevTopic.id);
+                                      refreshState();
+                                    }}
+                                    disabled={isFirst}
+                                    className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors font-bold"
+                                    title="Move Up"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (isLast) return;
+                                      const nextTopic = unitTopics[idx + 1];
+                                      StorageService.swapTopicOrders(topic.id, nextTopic.id);
+                                      refreshState();
+                                    }}
+                                    disabled={isLast}
+                                    className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors font-bold"
+                                    title="Move Down"
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="flex justify-end pt-3 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowReorderModal(false)}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold rounded-xl text-xs shadow-md transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 5: ADMIN ATTACHES SUBJECT REFERENCE MATERIAL */}
       {showSubjectRefModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8">
