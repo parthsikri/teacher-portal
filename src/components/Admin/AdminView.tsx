@@ -1580,12 +1580,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       )}
 
                       {isApproved && (
-                        <button
-                          onClick={() => handleOpenReviewModal(topic)}
-                          className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" /> Manage Subtopics &amp; Comment
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleOpenReviewModal(topic)}
+                            className="flex-[2] py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" /> Manage Subtopics
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Change subtopics status back to 'Subtopics Needed' (Pending Teacher Input)?")) {
+                                StorageService.resetSubtopicsApprovalState(topic.id);
+                                refreshState();
+                              }
+                            }}
+                            className="flex-1 py-2 bg-rose-600/15 hover:bg-rose-600/25 border border-rose-500/30 text-rose-400 font-bold text-[10px] rounded-xl flex items-center justify-center gap-1 transition-colors"
+                            title="Require Teacher to Submit Subtopics"
+                          >
+                            Reset Status
+                          </button>
+                        </div>
                       )}
 
                       {!isUnderReview && !isApproved && !isCompleted && (

@@ -614,6 +614,19 @@ export const StorageService = {
     return topics[index];
   },
 
+  resetSubtopicsApprovalState(topicId: string): void {
+    const topics = this.getAssignedTopics();
+    const index = topics.findIndex((t) => t.id === topicId);
+    if (index !== -1) {
+      topics[index].subtopicsApprovalState = 'pending_teacher_input';
+      topics[index].subtopics = [];
+      topics[index].subtopicItems = [];
+      topics[index].proposedSubtopics = [];
+      topics[index].updatedAt = new Date().toISOString();
+      this.saveAssignedTopics(topics);
+    }
+  },
+
   // Admin updates subtopic list
   updateSubtopicsList(
     topicId: string, 
