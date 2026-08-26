@@ -1218,20 +1218,12 @@ export const StorageService = {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
 
-    // Collect all active calendar dates for this teacher
+    // Collect active calendar dates for this teacher (dates with lectures, commitments, or today)
     const dateSet = new Set<string>();
     dateSet.add(todayStr);
 
     teacherLectures.forEach((l) => {
       const dStr = toLocalDateStr(l.createdAt);
-      if (dStr) dateSet.add(dStr);
-    });
-
-    const assignedTopics = this.getAssignedTopics().filter(
-      (t) => t.teacherId.toUpperCase() === cleanId
-    );
-    assignedTopics.forEach((t) => {
-      const dStr = toLocalDateStr(t.createdAt);
       if (dStr) dateSet.add(dStr);
     });
 
@@ -1241,24 +1233,6 @@ export const StorageService = {
     commitments.forEach((c) => {
       if (c.date) dateSet.add(c.date);
     });
-
-    // Sort dates in ascending chronological order
-    const rawDates = Array.from(dateSet).sort();
-
-    // Fill continuous calendar timeline between earliest active date and today
-    if (rawDates.length > 0) {
-      const earliestParts = rawDates[0].split('-').map(Number);
-      const earliestDate = new Date(earliestParts[0], earliestParts[1] - 1, earliestParts[2]);
-      const todayParts = todayStr.split('-').map(Number);
-      const todayDate = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
-
-      const cur = new Date(earliestDate);
-      while (cur < todayDate) {
-        cur.setDate(cur.getDate() + 1);
-        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
-        dateSet.add(dStr);
-      }
-    }
 
     const sortedDates = Array.from(dateSet).sort();
 
@@ -1424,12 +1398,21 @@ export const StorageService = {
 
     const yesterdayRecorded = this.getMinutesRecordedOnDate(teacherId, yesterdayDateStr);
     
-    // Check if teacher had past assignments/activity on or before yesterday
-    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const hasPastHistory = this.getLectures().some(l => l.teacherId.toUpperCase() === teacherId.toUpperCase() && !l.createdAt.startsWith(todayLocal)) ||
-      this.getAssignedTopics().some(t => t.teacherId.toUpperCase() === teacherId.toUpperCase() && !t.createdAt.startsWith(todayLocal));
+    // Check if teacher had active duty / activity on yesterday (explicit commitment or recorded lectures)
+    const yesterdayCommitment = this.getDailyCommitments().find(
+      (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase() && c.date === yesterdayDateStr
+    );
+    const yesterdayLectures = this.getLectures().filter((l) => {
+      if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
+      if (!l.createdAt) return false;
+      const lDate = new Date(l.createdAt);
+      const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
+      return lDateLocal === yesterdayDateStr;
+    });
+    
+    const hadYesterdayAssigned = !!yesterdayCommitment || yesterdayLectures.length > 0;
 
-    const yesterdayUnfulfilledMinutes = hasPastHistory ? Math.max(0, dailyTarget - yesterdayRecorded) : 0;
+    const yesterdayUnfulfilledMinutes = hadYesterdayAssigned ? Math.max(0, dailyTarget - yesterdayRecorded) : 0;
     const isYesterdayFulfilled = yesterdayUnfulfilledMinutes === 0;
 
     const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
@@ -1822,47 +1805,20 @@ export const StorageService = {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
 
-    // Collect all active calendar dates for this teacher
+    // Only collect past dates where teacher had actual recorded lectures or scheduled commitments
     const dateSet = new Set<string>();
-    dateSet.add(todayStr);
 
     teacherLectures.forEach((l) => {
       const dStr = toLocalDateStr(l.createdAt);
-      if (dStr) dateSet.add(dStr);
-    });
-
-    const assignedTopics = this.getAssignedTopics().filter(
-      (t) => t.teacherId.toUpperCase() === teacherId.toUpperCase()
-    );
-    assignedTopics.forEach((t) => {
-      const dStr = toLocalDateStr(t.createdAt);
-      if (dStr) dateSet.add(dStr);
+      if (dStr && dStr < todayStr) dateSet.add(dStr);
     });
 
     const commitments = this.getDailyCommitments().filter(
       (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase()
     );
     commitments.forEach((c) => {
-      if (c.date) dateSet.add(c.date);
+      if (c.date && c.date < todayStr) dateSet.add(c.date);
     });
-
-    // Fill continuous timeline
-    const rawDates = Array.from(dateSet).sort();
-    if (rawDates.length > 0) {
-      const earliestParts = rawDates[0].split('-').map(Number);
-      const earliestDate = new Date(earliestParts[0], earliestParts[1] - 1, earliestParts[2]);
-      const todayParts = todayStr.split('-').map(Number);
-      const todayDate = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
-
-      const cur = new Date(earliestDate);
-      while (cur < todayDate) {
-        cur.setDate(cur.getDate() + 1);
-        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
-        dateSet.add(dStr);
-      }
-    }
-
-    const sortedDates = Array.from(dateSet).sort();
 
     // Group lectures by local date
     const lecturesByDate = new Map<string, Lecture[]>();
@@ -1876,16 +1832,19 @@ export const StorageService = {
 
     let totalBacklog = 0;
 
-    sortedDates.forEach((dateStr) => {
-      if (dateStr < todayStr) {
-        const dayLectures = lecturesByDate.get(dateStr) || [];
-        const recordedDayMins = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-        const unfulfilled = Math.max(0, dailyTarget - recordedDayMins);
-        totalBacklog += unfulfilled;
-      }
+    dateSet.forEach((dateStr) => {
+      const dayLectures = lecturesByDate.get(dateStr) || [];
+      const recordedDayMins = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+      const unfulfilled = Math.max(0, dailyTarget - recordedDayMins);
+      totalBacklog += unfulfilled;
     });
 
-    return totalBacklog;
+    // If there is an active unfulfilled deficit, round up to standard 15-minute recording blocks (minimum 60 min)
+    if (totalBacklog > 0) {
+      return Math.max(60, Math.ceil(totalBacklog / 15) * 15);
+    }
+
+    return 60; // Standard default recording extension window
   },
 
   getActiveExtensionForTopic(teacherId: string, topicId?: string): LectureExtension | null {

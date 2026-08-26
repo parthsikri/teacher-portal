@@ -3735,7 +3735,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Additional Allowed Recording Minutes *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-300 font-semibold">Additional Allowed Recording Minutes *</label>
+                    <span className="text-[10px] text-purple-400 font-medium">Standard Studio Blocks</span>
+                  </div>
                   <input
                     type="number"
                     min={15}
@@ -3746,22 +3749,52 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono font-bold focus:outline-none focus:border-purple-500"
                     required
                   />
+                  {/* Quick Preset Buttons */}
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {[30, 45, 60, 90, 120, 180].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => setExtAllowedMinutes(mins)}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                          extAllowedMinutes === mins
+                            ? 'bg-purple-600 text-white border-purple-500 shadow-sm shadow-purple-500/20'
+                            : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800'
+                        }`}
+                      >
+                        {mins}m {mins >= 60 ? `(${mins / 60}h)` : ''}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Topics covered</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">Topics Covered</label>
+                  {extTopicIds.length > 0 && (
+                    <span className="text-[10px] text-purple-300 font-medium">
+                      {extTopicIds.length} topic{extTopicIds.length > 1 ? 's' : ''} selected (~{extTopicIds.length * 45}m recommended)
+                    </span>
+                  )}
+                </div>
                 <select
                   multiple
                   value={extTopicIds}
-                  onChange={(e) => setExtTopicIds(Array.from(e.currentTarget.selectedOptions, (option) => option.value))}
+                  onChange={(e) => {
+                    const selected = Array.from(e.currentTarget.selectedOptions, (option) => option.value);
+                    setExtTopicIds(selected);
+                    if (selected.length > 0) {
+                      setExtAllowedMinutes(Math.max(45, selected.length * 45));
+                    }
+                  }}
                   className="w-full min-h-24 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
                 >
                   {assignedTopics.filter((topic) => topic.teacherId === extTeacherId && topic.status !== 'completed').map((topic) => (
                     <option key={topic.id} value={topic.id}>{topic.unitNumber || 'Unit'} — {topic.topicTitle}</option>
                   ))}
                 </select>
-                <p className="mt-1 text-[10px] text-slate-500">Optional. Leave unselected to cover all assigned topics; use Ctrl/Cmd to select several.</p>
+                <p className="mt-1 text-[10px] text-slate-500">Optional. Leave unselected to cover all assigned topics; click options (or hold Ctrl/Cmd) to select specific topics.</p>
               </div>
 
               <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
