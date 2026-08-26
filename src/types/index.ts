@@ -98,7 +98,7 @@ export interface Lecture {
   subtopics: string[];
   durationMinutes: number;    // Lecture duration recorded in minutes (e.g. 45, 60, 90)
   deadlineDate?: string;       // Optional legacy date
-  status: 'on_time' | 'overdue' | 'extended';
+  status: 'on_time' | 'late' | 'overdue' | 'extended';
   youtubeUrl?: string;
   driveUrl?: string;
   notesUrl?: string;

@@ -68,11 +68,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const minutesRecordedToday = currentUser.role === 'teacher' ? StorageService.getMinutesRecordedToday(currentUser.teacherId) : 0;
   const targetMinutes = currentUser.role === 'teacher' ? (currentUser.dailyTargetMinutes || 120) : 0;
   const isTargetReached = currentUser.role === 'teacher' ? minutesRecordedToday >= targetMinutes : false;
+  const teacherActiveExtensions = currentUser.role === 'teacher' ? StorageService.getActiveExtensions(currentUser.teacherId).length : 0;
+  const adminActiveExtensions = currentUser.role === 'admin' ? StorageService.getActiveExtensions().length : 0;
 
   // Teacher Navigation Links
   const teacherNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'recording_status', label: 'Recording Status', icon: Clock },
+    { 
+      id: 'recording_status', 
+      label: 'Recording Status', 
+      icon: Clock,
+      badge: teacherActiveExtensions > 0 
+        ? `${teacherActiveExtensions} Ext` 
+        : (backlogInfo && backlogInfo.yesterdayUnfulfilledMinutes > 0 ? 'Backlog' : undefined),
+      badgeColor: teacherActiveExtensions > 0 
+        ? 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold' 
+        : 'bg-amber-500/20 text-amber-300',
+    },
     { 
       id: 'syllabus', 
       label: 'Syllabus & Topics', 
@@ -104,7 +116,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Admin Navigation Links
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
-    { id: 'admin_extensions', label: 'Extension Windows', icon: Clock },
+    { 
+      id: 'admin_extensions', 
+      label: 'Extension Windows', 
+      icon: Clock,
+      badge: adminActiveExtensions > 0 ? `${adminActiveExtensions} Active` : undefined,
+      badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold',
+    },
     { 
       id: 'admin_syllabus', 
       label: 'Syllabus & Deadlines', 

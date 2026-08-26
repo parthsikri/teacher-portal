@@ -21,9 +21,14 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   const backlogInfo = StorageService.getPreviousDayBacklog(teacher.teacherId);
   const minutesRecordedToday = StorageService.getMinutesRecordedToday(teacher.teacherId);
   const targetMinutes = teacher.dailyTargetMinutes || 120;
-  const activeExtension = prefillTopic
-    ? StorageService.getActiveExtensionForTopic(teacher.teacherId, prefillTopic.id)
-    : null;
+  
+  const undeliveredAssignedTopics = StorageService.getAssignedTopics().filter(
+    (t) => t.teacherId.toUpperCase() === teacher.teacherId.toUpperCase() && t.status !== 'completed'
+  );
+
+  const [selectedAssignedTopicId, setSelectedAssignedTopicId] = useState<string>(prefillTopic ? prefillTopic.id : '');
+  const chosenTopicId = prefillTopic ? prefillTopic.id : (selectedAssignedTopicId || undefined);
+  const activeExtension = StorageService.getActiveExtensionForTopic(teacher.teacherId, chosenTopicId);
 
   // Form fields
   const [title, setTitle] = useState(prefillTopic ? prefillTopic.topicTitle : '');
@@ -86,18 +91,18 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const activeExt = prefillTopic ? StorageService.getActiveExtensionForTopic(teacher.teacherId, prefillTopic.id) : null;
+      const activeExt = StorageService.getActiveExtensionForTopic(teacher.teacherId, chosenTopicId);
       const timeRemaining = StorageService.getTodayTimeRemaining(teacher.teacherId);
       const extensionMinutesLeft = activeExt ? Math.max(0, activeExt.allowedMinutes - activeExt.usedMinutes) : 0;
       const effectiveDailyLimit = timeRemaining.maxDailyMinutes + extensionMinutesLeft;
       
-      const existingLecture = prefillTopic ? StorageService.getLectures().find(l => l.assignedTopicId === prefillTopic.id) : null;
+      const existingLecture = chosenTopicId ? StorageService.getLectures().find(l => l.assignedTopicId === chosenTopicId) : null;
       const existingDuration = existingLecture ? (existingLecture.durationMinutes || 0) : 0;
       const netAdditionalMinutes = Math.max(0, durationMinutes - existingDuration);
 
       if (timeRemaining.minutesRecordedToday + netAdditionalMinutes > effectiveDailyLimit) {
         const limitMessage = activeExt
-          ? `This session exceeds today's regular limit plus the ${extensionMinutesLeft} minutes left in this extension.`
+          ? `This session exceeds today's regular limit (${timeRemaining.maxDailyMinutes}m) plus the ${extensionMinutesLeft}m remaining in your active extension.`
           : `This session exceeds today's ${timeRemaining.maxDailyMinutes}-minute recording limit.`;
         setErrorMsg(limitMessage);
         setIsSubmitting(false);
@@ -105,10 +110,14 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       }
 
       const isOnTime = StorageService.isUploadOnTime(teacher.teacherId, deadlineDate);
-      const submissionStatus = activeExt && !isOnTime ? 'extended' : (isOnTime ? 'on_time' : 'overdue');
+      // User strict requirement: Any lecture submitted under extension or past cutoff is marked as 'late' only!
+      const submissionStatus = (activeExt || !isOnTime) ? 'late' : 'on_time';
 
       const youtubeLink = videoLinkType === 'youtube' && videoUrl.trim() ? videoUrl.trim() : undefined;
       const driveVideoLink = videoLinkType === 'drive' && videoUrl.trim() ? videoUrl.trim() : undefined;
+
+      const chosenTopic = chosenTopicId ? StorageService.getAssignedTopics().find(t => t.id === chosenTopicId) : null;
+      const unitNumber = prefillTopic ? (prefillTopic.unitNumber || 'UNIT 1') : (chosenTopic?.unitNumber || 'UNIT 1');
 
       StorageService.addLecture({
         teacherId: teacher.teacherId,
@@ -124,11 +133,11 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         youtubeUrl: youtubeLink,
         driveUrl: driveVideoLink,
         notesUrl: notesUrl.trim() || undefined,
-        assignedTopicId: prefillTopic ? prefillTopic.id : undefined,
-        unitNumber: prefillTopic ? (prefillTopic.unitNumber || 'UNIT 1') : undefined,
+        assignedTopicId: chosenTopicId,
+        unitNumber,
       });
 
-      if (isOnTime) {
+      if (isOnTime && !activeExt) {
         try {
           confetti({
             particleCount: 80,
@@ -168,6 +177,12 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <span className="text-slate-400">Today: </span>
               <span className="font-bold text-amber-400">{minutesRecordedToday}/{targetMinutes} min</span>
             </div>
+            {backlogInfo.cumulativePoolMinutes > 0 && (
+              <div className="px-2 py-1 rounded-lg bg-indigo-950/50 border border-indigo-800/60 text-[11px] font-mono text-indigo-300">
+                <span>Pool: </span>
+                <span className="font-bold text-indigo-200">+{backlogInfo.cumulativePoolMinutes}m</span>
+              </div>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
@@ -188,11 +203,55 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
             </div>
           )}
 
+          {!prefillTopic && undeliveredAssignedTopics.length > 0 && (
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+              <label className="block text-slate-300 font-semibold text-[11px]">
+                📌 Link to Assigned Syllabus Topic (Optional)
+              </label>
+              <select
+                value={selectedAssignedTopicId}
+                onChange={(e) => {
+                  const chosenId = e.target.value;
+                  setSelectedAssignedTopicId(chosenId);
+                  if (chosenId) {
+                    const t = undeliveredAssignedTopics.find((item) => item.id === chosenId);
+                    if (t) {
+                      setTitle(t.topicTitle);
+                      setPrimaryTopic(t.topicTitle);
+                      setSubject(t.subject || teacher.subject || 'Engineering');
+                      if (t.deadlineDate) setDeadlineDate(t.deadlineDate);
+                      if (t.subtopics && t.subtopics.length > 0) setSubtopics(t.subtopics);
+                    }
+                  }
+                }}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500 text-xs"
+              >
+                <option value="">-- General / Extra Recording (Not assigned to specific topic) --</option>
+                {undeliveredAssignedTopics.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.unitNumber || 'Unit'} — {t.topicTitle} {t.deadlineDate ? `(Due: ${t.deadlineDate})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {activeExtension && (
-            <div className="p-3 bg-purple-500/10 border border-purple-500/30 text-purple-200 text-xs rounded-xl flex items-start gap-2">
-              <span className="text-sm">⏱</span>
-              <div>
-                <strong>Extension active for this topic.</strong> {Math.max(0, activeExtension.allowedMinutes - activeExtension.usedMinutes)} minutes remain until {new Date(activeExtension.endWindow).toLocaleString()}.
+            <div className="p-3.5 bg-purple-950/40 border border-purple-800/60 text-purple-200 text-xs rounded-xl flex items-start gap-2.5">
+              <span className="text-base">⏱</span>
+              <div className="space-y-0.5">
+                <div className="font-bold text-purple-300 flex items-center gap-1.5">
+                  <span>Extension Window Active</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 border border-purple-700/50">
+                    Marked as Late Submission
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300">
+                  You have <strong className="text-purple-200 font-mono font-bold">{Math.max(0, activeExtension.allowedMinutes - activeExtension.usedMinutes)}m</strong> extra capacity beyond your daily limit until <strong className="text-slate-200 font-mono">{new Date(activeExtension.endWindow).toLocaleString()}</strong>.
+                </div>
+                {activeExtension.notes && (
+                  <div className="text-[10px] text-purple-400 italic">Admin Note: "{activeExtension.notes}"</div>
+                )}
               </div>
             </div>
           )}
@@ -201,7 +260,10 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-xl flex items-center gap-2">
               <span className="text-sm">⚠️</span>
               <div>
-                <strong>Notice:</strong> You have {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled from yesterday.
+                <strong>Notice:</strong> You have {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled backlog from yesterday.
+                {backlogInfo.yesterdayPoolCompensated > 0 && (
+                  <span className="text-indigo-300 ml-1">({backlogInfo.yesterdayPoolCompensated}m covered by cumulative pool).</span>
+                )}
               </div>
             </div>
           )}

@@ -219,13 +219,12 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   }, [assignedTopics]);
 
   const activeTeacherExtensions = useMemo(() => {
-    const nowStr = new Date().toISOString();
-    return StorageService.getExtensions().filter((e) => {
-      return e.teacherId.toUpperCase() === teacher.teacherId.toUpperCase() &&
-             e.usedMinutes < e.allowedMinutes &&
-             nowStr >= e.startWindow && nowStr <= e.endWindow;
-    });
+    return StorageService.getActiveExtensions(teacher.teacherId);
   }, [teacher.teacherId, refreshTrigger]);
+
+  const cumulativePool = useMemo(() => {
+    return StorageService.getTeacherCumulativePool(teacher.teacherId);
+  }, [teacher.teacherId, refreshTrigger, lectures]);
 
   // Next active deliverable
   const nextUrgentTopic = useMemo(() => {
@@ -1204,7 +1203,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       <span className={`text-[10px] font-medium ${
                         lec.status === 'on_time' ? 'text-emerald-400' : lec.status === 'extended' ? 'text-purple-300' : 'text-red-400'
                       }`}>
-                        {lec.status === 'on_time' ? '✓ On-Time' : lec.status === 'extended' ? '✓ Approved extension' : 'Overdue'}
+                        {lec.status === 'on_time' ? '✓ On-Time' : '⚠️ Late'}
                       </span>
 
                       <button
@@ -1227,13 +1226,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-slate-100 tracking-tight">Recording status</h2>
-              <p className="text-xs text-slate-400">Your daily capacity, pending time, and any approved extension windows.</p>
+              <p className="text-xs text-slate-400">Your daily quota, cumulative flexible balance pool, and approved extension windows.</p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5" /> Upload lecture
               </button>
-              <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5">
+              <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
                 <Plus className="w-3.5 h-3.5" /> Record extra
               </button>
             </div>
@@ -1243,43 +1242,113 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Pending today</div>
               <div className="mt-2 text-2xl font-bold text-amber-300">{timeRemaining.remainingMinutesToday} min</div>
-              <p className="mt-1 text-[11px] text-slate-400">of {timeRemaining.targetMinutes} min daily target</p>
+              <p className="mt-1 text-[11px] text-slate-400">of {timeRemaining.targetMinutes} min daily target ({timeRemaining.minutesRecordedToday}m recorded)</p>
             </div>
+
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Submission window</div>
-              <div className={`mt-2 text-lg font-bold ${timeRemaining.isPassed ? 'text-rose-300' : 'text-slate-100'}`}>{timeRemaining.isPassed ? 'Cutoff passed' : timeRemaining.cutoffDisplay}</div>
-              <p className="mt-1 text-[11px] text-slate-400">{timeRemaining.isPassed ? 'New uploads are marked delayed.' : `${timeRemaining.hours}h ${timeRemaining.minutes}m remaining`}</p>
+              <div className={`mt-2 text-lg font-bold ${timeRemaining.isPassed ? 'text-rose-300' : 'text-slate-100'}`}>
+                {timeRemaining.isPassed ? 'Cutoff passed' : timeRemaining.cutoffDisplay}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {timeRemaining.isPassed ? 'New uploads are marked as Late.' : `${timeRemaining.hours}h ${timeRemaining.minutes}m remaining today`}
+              </p>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Flexible recording balance</div>
-              <div className="mt-2 text-2xl font-bold text-indigo-300">{onTimeStats.flexibleBalanceMinutes} min</div>
-              <p className="mt-1 text-[11px] text-slate-400">Record extra on time to grow this balance; it automatically covers a future shortfall.</p>
+
+            <div className="rounded-2xl border border-indigo-900/40 bg-indigo-950/30 p-5 relative overflow-hidden">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
+                <span>Cumulative Flexible Pool</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Auto-Banking</span>
+              </div>
+              <div className="mt-2 text-2xl font-bold text-indigo-200">+{cumulativePool.bankedMinutes} min</div>
+              <p className="mt-1 text-[11px] text-slate-300">
+                Surplus minutes earned from extra recording bank into this balance to automatically compensate for lighter/missed days.
+              </p>
+              <div className="mt-2.5 pt-2 border-t border-indigo-800/30 flex items-center justify-between text-[10px] text-indigo-300/80">
+                <span>Earned: <strong>+{cumulativePool.totalSurplusEarned}m</strong></span>
+                <span>Compensated: <strong>{cumulativePool.totalDeficitCompensated}m</strong></span>
+              </div>
             </div>
           </div>
 
           {timeRemaining.yesterdayUnfulfilledMinutes > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-              Yesterday&apos;s pending time: <strong>{timeRemaining.yesterdayUnfulfilledMinutes} min</strong>. Your Flexible Recording Balance is applied automatically before anything is marked late.
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200 flex items-center justify-between">
+              <div>
+                ⚠️ Yesterday&apos;s unfulfilled quota: <strong>{timeRemaining.yesterdayUnfulfilledMinutes} min</strong>.
+                {backlogInfo.yesterdayPoolCompensated > 0 && (
+                  <span className="text-indigo-300 ml-1">({backlogInfo.yesterdayPoolCompensated}m covered by cumulative pool).</span>
+                )}
+              </div>
+              <button
+                onClick={() => onOpenUpload()}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] transition-colors"
+              >
+                Fulfill Backlog →
+              </button>
             </div>
           )}
 
           <section className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-              <div><h3 className="text-sm font-bold text-slate-100">Extension windows</h3><p className="mt-0.5 text-[11px] text-slate-400">Approved access only; it applies to the topics listed below.</p></div>
-              <span className="text-[11px] text-purple-300 font-semibold">{activeTeacherExtensions.length} active</span>
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <span>⏱️ Approved Extension Windows</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-normal">
+                    Late Submissions Allowed
+                  </span>
+                </h3>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Approved extension capacity allows you to record beyond standard daily limits to catch up on unrecorded days.
+                </p>
+              </div>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                activeTeacherExtensions.length > 0 ? 'bg-purple-900/40 text-purple-300 border border-purple-700/50' : 'text-slate-500'
+              }`}>
+                {activeTeacherExtensions.length} active window{activeTeacherExtensions.length === 1 ? '' : 's'}
+              </span>
             </div>
+
             {activeTeacherExtensions.length === 0 ? (
-              <div className="p-5 text-xs text-slate-500">No active extension windows.</div>
+              <div className="p-5 text-xs text-slate-500 italic">No active extension windows currently granted.</div>
             ) : (
               <div className="divide-y divide-slate-800">
                 {activeTeacherExtensions.map((extension) => {
                   const topics = extension.assignedTopicIds?.length
                     ? extension.assignedTopicIds.map((id) => assignedTopics.find((topic) => topic.id === id)?.topicTitle || 'Assigned topic').join(', ')
-                    : 'All assigned topics';
-                  return <div key={extension.id} className="p-5 grid gap-2 sm:grid-cols-[1fr_auto] text-xs">
-                    <div><div className="font-semibold text-slate-200">{topics}</div><div className="mt-1 text-slate-400">Expires {new Date(extension.endWindow).toLocaleString()} {extension.notes ? `• ${extension.notes}` : ''}</div></div>
-                    <div className="text-purple-300 font-bold">{Math.max(0, extension.allowedMinutes - extension.usedMinutes)} min left</div>
-                  </div>;
+                    : 'All assigned syllabus topics';
+                  
+                  const targetTopic = extension.assignedTopicIds?.length
+                    ? assignedTopics.find((t) => extension.assignedTopicIds.includes(t.id) && t.status !== 'completed')
+                    : undefined;
+
+                  const remainingMins = Math.max(0, extension.allowedMinutes - extension.usedMinutes);
+
+                  return (
+                    <div key={extension.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-purple-950/10">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-slate-200 flex items-center gap-2">
+                          <span>{topics}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-900/50 text-purple-300 border border-purple-700/40">
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-slate-400 text-[11px]">
+                          Window: <strong className="text-slate-300 font-mono">{new Date(extension.startWindow).toLocaleString()} — {new Date(extension.endWindow).toLocaleString()}</strong>
+                          {extension.notes && <span className="text-purple-300/80 italic ml-2">• "{extension.notes}"</span>}
+                        </div>
+                        <div className="text-[11px] text-purple-300 font-bold">
+                          Extra Capacity: {remainingMins} min left (of {extension.allowedMinutes}m granted)
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => onOpenUpload(targetTopic)}
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-md text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all"
+                      >
+                        ⏱️ Record with Extension →
+                      </button>
+                    </div>
+                  );
                 })}
               </div>
             )}
@@ -1905,12 +1974,28 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                               ✓ Completed
                             </div>
                           ) : isApproved ? (
-                            <button
-                              onClick={() => onOpenUpload(topic)}
-                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors shadow-md text-xs flex items-center justify-center gap-1.5"
-                            >
-                              Upload Lecture →
-                            </button>
+                            <div className="space-y-1.5">
+                              {(() => {
+                                const ext = StorageService.getActiveExtensionForTopic(teacher.teacherId, topic.id);
+                                if (!ext) return null;
+                                return (
+                                  <div className="text-[10px] text-purple-300 font-bold bg-purple-950/50 border border-purple-800/60 px-2 py-0.5 rounded-lg flex items-center justify-between">
+                                    <span>⏱️ Extension Active</span>
+                                    <span className="font-mono font-bold">+{Math.max(0, ext.allowedMinutes - ext.usedMinutes)}m</span>
+                                  </div>
+                                );
+                              })()}
+                              <button
+                                onClick={() => onOpenUpload(topic)}
+                                className={`w-full py-2 font-bold rounded-xl transition-all shadow-md text-xs flex items-center justify-center gap-1.5 ${
+                                  StorageService.getActiveExtensionForTopic(teacher.teacherId, topic.id)
+                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white ring-1 ring-purple-400/50'
+                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                }`}
+                              >
+                                {StorageService.getActiveExtensionForTopic(teacher.teacherId, topic.id) ? '⏱️ Record with Extension →' : 'Upload Lecture →'}
+                              </button>
+                            </div>
                           ) : isUnderReview ? (
                             <button
                               onClick={() => handleOpenProposeModal(topic)}
@@ -2051,9 +2136,9 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                               <span className="text-[11px] text-slate-400">{lec.subject}</span>
                             </div>
                             <span className={`text-[10px] font-medium shrink-0 ${
-                              lec.status === 'on_time' ? 'text-emerald-400' : lec.status === 'extended' ? 'text-purple-300' : 'text-red-400'
+                              lec.status === 'on_time' ? 'text-emerald-400' : 'text-amber-400'
                             }`}>
-                              {lec.status === 'on_time' ? '✓ On-Time' : lec.status === 'extended' ? '✓ Approved extension' : 'Overdue'}
+                              {lec.status === 'on_time' ? '✓ On-Time' : '⚠️ Late'}
                             </span>
                           </div>
 

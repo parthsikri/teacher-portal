@@ -2823,11 +2823,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                             lec.status === 'on_time'
                                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                              : lec.status === 'extended'
-                                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                                           }`}>
-                                            {lec.status === 'on_time' ? '✓ On-Time Submission' : lec.status === 'extended' ? '✓ Approved Extension' : '⚠️ Overdue'}
+                                            {lec.status === 'on_time' ? '✓ On-Time Submission' : '⚠️ Late Submission'}
                                           </span>
                                           <span className="text-slate-600">•</span>
                                           <span className="text-[10px] text-slate-500 font-mono">
@@ -3638,50 +3636,76 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <Layers className="w-4 h-4 text-purple-400" />
                   Manage Late Lecture Extensions
                 </h3>
-                <p className="text-xs text-slate-400">Grant temporary access to record/submit late lectures</p>
+                <p className="text-xs text-slate-400">Grant temporary access to record and upload late lectures beyond daily limit</p>
               </div>
               <button onClick={() => { setShowExtensionModal(false); onPageChange('admin_dashboard'); }} className="text-slate-400 hover:text-slate-100">✕</button>
             </div>
 
             {/* List of Active Extensions */}
             <div className="space-y-2">
-              <span className="text-slate-300 font-bold block text-xs">Active Extensions ({StorageService.getExtensions().length})</span>
+              <span className="text-slate-300 font-bold block text-xs">Active & Recent Extensions ({StorageService.getExtensions().length})</span>
               {StorageService.getExtensions().length === 0 ? (
                 <p className="text-[11px] text-slate-500 italic p-4 bg-slate-950/40 rounded-2xl border border-slate-800/80 text-center">
-                  No active late lecture extensions.
+                  No active late lecture extensions found.
                 </p>
               ) : (
-                <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+                <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
                   {StorageService.getExtensions().map((ext) => {
                     const teacher = teachers.find((t) => t.teacherId === ext.teacherId);
                     const topicNames = ext.assignedTopicIds && ext.assignedTopicIds.length > 0
                       ? ext.assignedTopicIds.map((id) => assignedTopics.find((t) => t.id === id)?.topicTitle || id).join(', ')
                       : 'All Assigned Topics';
 
+                    const nowMs = Date.now();
+                    const isExpired = new Date(ext.endWindow).getTime() < nowMs;
+                    const isDepleted = (ext.usedMinutes || 0) >= (ext.allowedMinutes || 0);
+                    const isActive = !isExpired && !isDepleted;
+
                     return (
-                      <div key={ext.id} className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/60 flex items-start justify-between gap-3 text-[11px]">
-                        <div className="space-y-1 flex-1">
-                          <div>
+                      <div key={ext.id} className="p-3.5 bg-slate-950/60 rounded-2xl border border-slate-800 flex items-start justify-between gap-3 text-[11px]">
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2">
                             <span className="font-extrabold text-slate-200">{teacher?.name || ext.teacherId}</span>
-                            <span className="text-slate-500 mx-1.5">•</span>
-                            <span className="text-purple-300 font-medium">Topics: {topicNames}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              isActive 
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                                : isDepleted 
+                                ? 'bg-slate-800 border-slate-700 text-slate-400'
+                                : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                            }`}>
+                              {isActive ? '● Active' : isDepleted ? '● Fully Utilized' : '● Expired'}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                              Marked as Late
+                            </span>
+                          </div>
+                          <div className="text-purple-300 font-medium text-[11px]">
+                            Topics: {topicNames}
                           </div>
                           <div className="text-[10px] text-slate-400">
-                            Window: <strong className="text-slate-300 font-mono">{new Date(ext.startWindow).toLocaleString()} - {new Date(ext.endWindow).toLocaleString()}</strong>
+                            Window: <strong className="text-slate-300 font-mono">{new Date(ext.startWindow).toLocaleString()} — {new Date(ext.endWindow).toLocaleString()}</strong>
                           </div>
-                          <div className="text-[10px] text-slate-400">
-                            Capacity: <strong className="text-indigo-300">{ext.usedMinutes} / {ext.allowedMinutes} min</strong>
-                            {ext.notes && <span className="text-slate-500 italic block mt-0.5">Reason: "{ext.notes}"</span>}
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <span className="text-[10px] text-slate-400">
+                              Capacity: <strong className="text-indigo-300">{ext.usedMinutes} / {ext.allowedMinutes} min</strong> ({Math.max(0, ext.allowedMinutes - ext.usedMinutes)}m left)
+                            </span>
+                            <div className="flex-1 max-w-32 bg-slate-900 rounded-full h-1.5 overflow-hidden border border-slate-800">
+                              <div 
+                                className="bg-purple-500 h-full rounded-full transition-all" 
+                                style={{ width: `${Math.min(100, Math.round(((ext.usedMinutes || 0) / Math.max(1, ext.allowedMinutes)) * 100))}%` }}
+                              />
+                            </div>
                           </div>
+                          {ext.notes && <span className="text-slate-500 italic block text-[10px]">Reason: "{ext.notes}"</span>}
                         </div>
                         <button
                           onClick={() => {
-                            if (window.confirm('Delete this late lecture extension?')) {
+                            if (window.confirm('Revoke/delete this late lecture extension?')) {
                               StorageService.deleteExtension(ext.id);
                               refreshState();
                             }
                           }}
-                          className="text-red-400 hover:text-red-300 font-bold px-2.5 py-1 bg-red-950/30 border border-red-500/20 hover:border-red-500/40 rounded-lg text-[10px] transition-colors"
+                          className="text-red-400 hover:text-red-300 font-bold px-2.5 py-1 bg-red-950/30 border border-red-500/20 hover:border-red-500/40 rounded-lg text-[10px] transition-colors shrink-0"
                         >
                           Revoke
                         </button>
@@ -3715,7 +3739,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
               }}
               className="space-y-4 text-xs pt-4 border-t border-slate-800"
             >
-              <span className="text-slate-300 font-extrabold block text-xs">Create New Extension Window</span>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-200 font-extrabold block text-xs">Create New Extension Window</span>
+                <span className="text-[10px] text-amber-400 font-medium">⚡ Uploads will count as Late Submission</span>
+              </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -3745,7 +3772,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <input
                     type="number"
                     min={15}
-                    max={480}
+                    max={720}
                     step={15}
                     value={extAllowedMinutes}
                     onChange={(e) => setExtAllowedMinutes(parseInt(e.target.value) || 60)}
@@ -3774,7 +3801,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
                           : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                       }`}>
-                        {extBreakdown.totalUndeliveredMinutes > 0 ? `${extBreakdown.totalUndeliveredMinutes}m Undelivered` : 'Target Fulfilled'}
+                        {extBreakdown.totalUndeliveredMinutes > 0 ? `${extBreakdown.totalUndeliveredMinutes}m Undelivered Deficit` : 'Target Fulfilled'}
                       </span>
                     </div>
                   </div>
@@ -3791,45 +3818,78 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.todayUndeliveredMinutes > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                         {extBreakdown.todayUndeliveredMinutes}m
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.todayUndeliveredMinutes > 0 ? 'Target deficit' : 'Target met'}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.todayUndeliveredMinutes > 0 ? 'Quota missing today' : 'Target met'}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
-                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Past Sessions Missed</div>
+                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Past Missing Deficit</div>
                       <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.pastUndeliveredMinutes > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
                         {extBreakdown.pastUndeliveredMinutes}m
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.pastSessionsMissedCount > 0 ? `${extBreakdown.pastSessionsMissedCount} missed day(s)` : '0 backlog'}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.pastSessionsMissedCount > 0 ? `${extBreakdown.pastSessionsMissedCount} missed session(s)` : '0 past deficit'}</div>
                     </div>
                     <div className="bg-purple-950/30 p-2.5 rounded-xl border border-purple-800/50">
                       <div className="text-purple-300 text-[10px] uppercase tracking-wider font-semibold">Auto Extension Time</div>
                       <div className="font-bold text-purple-200 font-mono text-sm mt-0.5">{extBreakdown.suggestedExtensionMinutes}m</div>
-                      <div className="text-[10px] text-purple-400/80 mt-0.5">Exact missing quota</div>
+                      <div className="text-[10px] text-purple-400/80 mt-0.5">Calculated missing quota</div>
                     </div>
                   </div>
 
+                  {extBreakdown.cumulativePoolMinutes > 0 && (
+                    <div className="p-2.5 bg-indigo-950/40 border border-indigo-800/50 rounded-xl text-[11px] flex items-center justify-between text-indigo-300">
+                      <span className="font-medium">🏦 Cumulative Flexible Balance Banked:</span>
+                      <strong className="text-indigo-200 font-mono font-bold">+{extBreakdown.cumulativePoolMinutes} minutes available</strong>
+                    </div>
+                  )}
+
                   {/* List of Undelivered Topics */}
                   {extBreakdown.undeliveredTopicsCount > 0 && (
-                    <div className="p-2.5 bg-slate-900/60 rounded-xl border border-slate-800/60 text-[11px] space-y-1">
+                    <div className="p-2.5 bg-slate-900/60 rounded-xl border border-slate-800/60 text-[11px] space-y-1.5">
                       <div className="font-semibold text-slate-300 flex items-center justify-between">
                         <span>📝 Undelivered Lecture Topics ({extBreakdown.undeliveredTopicsCount}):</span>
-                        <button
-                          type="button"
-                          onClick={() => setExtTopicIds(extBreakdown.undeliveredTopics.map((t) => t.id))}
-                          className="text-[10px] text-purple-400 hover:text-purple-300 underline"
-                        >
-                          Select All
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-0.5 max-h-20 overflow-y-auto">
-                        {extBreakdown.undeliveredTopics.map((t) => (
-                          <span
-                            key={t.id}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-[10px]"
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => setExtTopicIds(extBreakdown.undeliveredTopics.map((t) => t.id))}
+                            className="text-purple-400 hover:text-purple-300 underline font-semibold"
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                            <span className="font-semibold">{t.unitNumber || 'Unit'}:</span> {t.topicTitle}
-                          </span>
-                        ))}
+                            Select All
+                          </button>
+                          <span className="text-slate-600">•</span>
+                          <button
+                            type="button"
+                            onClick={() => setExtTopicIds([])}
+                            className="text-slate-400 hover:text-slate-300 underline"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 pt-0.5 max-h-24 overflow-y-auto">
+                        {extBreakdown.undeliveredTopics.map((t) => {
+                          const isSelected = extTopicIds.includes(t.id);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setExtTopicIds(extTopicIds.filter((id) => id !== t.id));
+                                } else {
+                                  setExtTopicIds([...extTopicIds, t.id]);
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all ${
+                                isSelected
+                                  ? 'bg-purple-900/60 border-purple-500 text-purple-100 shadow-sm'
+                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-purple-400' : 'bg-amber-400'}`} />
+                              <span className="font-bold">{t.unitNumber || 'Unit'}:</span> {t.topicTitle}
+                              {isSelected ? '✓' : ''}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -3868,67 +3928,54 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               )}
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-300 font-semibold">Topics covered</label>
-                  {assignedTopics.filter((t) => t.teacherId === extTeacherId && t.status !== 'completed').length > 0 && (
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <button
-                        type="button"
-                        onClick={() => setExtTopicIds(assignedTopics.filter((t) => t.teacherId === extTeacherId && t.status !== 'completed').map((t) => t.id))}
-                        className="text-purple-400 hover:text-purple-300 underline"
-                      >
-                        Select All Undelivered
-                      </button>
-                      <span className="text-slate-600">•</span>
-                      <button
-                        type="button"
-                        onClick={() => setExtTopicIds([])}
-                        className="text-slate-400 hover:text-slate-300 underline"
-                      >
-                        Clear Selection
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <select
-                  multiple
-                  value={extTopicIds}
-                  onChange={(e) => setExtTopicIds(Array.from(e.currentTarget.selectedOptions, (option) => option.value))}
-                  className="w-full min-h-24 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
-                >
-                  {assignedTopics.filter((topic) => topic.teacherId === extTeacherId && topic.status !== 'completed').map((topic) => (
-                    <option key={topic.id} value={topic.id}>{topic.unitNumber || 'Unit'} — {topic.topicTitle}</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[10px] text-slate-500">Optional. Leave unselected to cover all assigned topics; use Ctrl/Cmd to select several.</p>
+              <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
+                📌 <strong className="text-slate-300">Note:</strong> Lectures submitted during this extension window will be recorded beyond normal daily limits to catch up on unfulfilled sessions, and will be logged as <strong className="text-amber-300">Late Submission</strong>.
               </div>
 
-              <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
-                📌 <strong className="text-slate-300">Note:</strong> This extension is time-based and only applies to the selected topics (or all assigned topics when none are selected), up to the granted minutes.
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Window Starts *</label>
-                  <input
-                    type="datetime-local"
-                    value={extStartWindow}
-                    onChange={(e) => setExtStartWindow(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
-                    required
-                  />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-300 font-semibold">Extension Window Timeframe *</label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400">Quick Span:</span>
+                    {[6, 12, 24, 48, 72].map((hours) => (
+                      <button
+                        key={hours}
+                        type="button"
+                        onClick={() => {
+                          const base = new Date();
+                          setExtStartWindow(new Date(base.getTime() - base.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+                          setExtEndWindow(new Date(base.getTime() + hours * 3600000 - base.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+                        }}
+                        className="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300 transition-colors font-mono"
+                      >
+                        +{hours}h
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Window Expires *</label>
-                  <input
-                    type="datetime-local"
-                    value={extEndWindow}
-                    onChange={(e) => setExtEndWindow(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-1">Window Starts *</label>
+                    <input
+                      type="datetime-local"
+                      value={extStartWindow}
+                      onChange={(e) => setExtStartWindow(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500 font-mono text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-1">Window Expires *</label>
+                    <input
+                      type="datetime-local"
+                      value={extEndWindow}
+                      onChange={(e) => setExtEndWindow(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500 font-mono text-xs"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -3936,7 +3983,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <label className="block text-slate-300 font-semibold mb-1">Reason / Notes for Extension</label>
                 <input
                   type="text"
-                  placeholder="e.g. Sickness recovery / System issues"
+                  placeholder="e.g. Sickness recovery / System issues / Compensatory backlog completion"
                   value={extNotes}
                   onChange={(e) => setExtNotes(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
