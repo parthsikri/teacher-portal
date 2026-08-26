@@ -222,11 +222,6 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     return StorageService.getActiveExtensions(teacher.teacherId);
   }, [teacher.teacherId, refreshTrigger]);
 
-  const cumulativePool = useMemo(() => {
-    void refreshKey;
-    return StorageService.getTeacherCumulativePool(teacher.teacherId);
-  }, [teacher.teacherId, refreshKey, lectures]);
-
   const walletInfo = useMemo(() => {
     void refreshKey;
     return StorageService.getTimeWalletInfo(teacher.teacherId);
@@ -856,7 +851,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 </div>
                 {onTimeStats.flexibleBalanceMinutes > 0 && (
                   <div className="text-indigo-300 text-[10px] font-medium">
-                    + {onTimeStats.flexibleBalanceMinutes}m Flexible Recording Balance
+                    + {walletInfo.balance}m in Time Wallet
                   </div>
                 )}
                 {onTimeStats.lateMinutes > 0 && (
@@ -1269,18 +1264,29 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-indigo-900/40 bg-indigo-950/30 p-5 relative overflow-hidden">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
-                <span>Cumulative Flexible Pool</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Auto-Banking</span>
+            <div className="rounded-2xl border border-indigo-900/40 bg-gradient-to-br from-indigo-950/40 to-slate-900/60 p-5 relative overflow-hidden flex flex-col justify-between">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">🏦 Time Wallet (Piggy Bank)</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">Surplus Storage</span>
+                </div>
+                <div className="mt-2 text-2xl font-black text-indigo-200 font-mono">+{walletInfo.balance} min</div>
+                <p className="mt-1 text-[11px] text-slate-300">
+                  Extra minutes recorded beyond daily targets are safely banked here and never expire.
+                </p>
               </div>
-              <div className="mt-2 text-2xl font-bold text-indigo-200">+{cumulativePool.bankedMinutes} min</div>
-              <p className="mt-1 text-[11px] text-slate-300">
-                Surplus minutes earned from extra recording bank into this balance to automatically compensate for lighter/missed days.
-              </p>
-              <div className="mt-2.5 pt-2 border-t border-indigo-800/30 flex items-center justify-between text-[10px] text-indigo-300/80">
-                <span>Earned: <strong>+{cumulativePool.totalSurplusEarned}m</strong></span>
-                <span>Compensated: <strong>{cumulativePool.totalDeficitCompensated}m</strong></span>
+              <div className="mt-3 pt-2.5 border-t border-indigo-800/30 flex items-center justify-between text-[10px]">
+                <div className="text-indigo-300/80">
+                  <span>Earned: <strong>+{walletInfo.totalSurplusEarned}m</strong></span>
+                  <span className="mx-1.5">•</span>
+                  <span>Used: <strong>{walletInfo.totalAppliedToBacklog}m</strong></span>
+                </div>
+                <button
+                  onClick={() => onPageChange('wallet')}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold underline cursor-pointer"
+                >
+                  Manage Wallet ➔
+                </button>
               </div>
             </div>
           </div>
@@ -1290,7 +1296,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <div>
                 ⚠️ Yesterday&apos;s unfulfilled quota: <strong>{timeRemaining.yesterdayUnfulfilledMinutes} min</strong>.
                 {backlogInfo.yesterdayPoolCompensated > 0 && (
-                  <span className="text-indigo-300 ml-1">({backlogInfo.yesterdayPoolCompensated}m covered by cumulative pool).</span>
+                  <span className="text-indigo-300 ml-1">({lateBacklogInfo.walletMinutesApplied}m offset via Time Wallet).</span>
                 )}
               </div>
               <button

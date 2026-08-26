@@ -1015,7 +1015,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-8 animate-in fade-in duration-200">
       
       {/* PAGE 1: 🏠 OVERVIEW DASHBOARD */}
-      {(currentPage === 'admin_dashboard' || !currentPage) && (
+      {(currentPage === 'admin_dashboard' || currentPage === 'admin_extensions' || !currentPage) && (
         <div className="space-y-8">
           {/* HERO BANNER */}
           <div className="bg-gradient-to-r from-slate-900 via-purple-950/50 to-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">

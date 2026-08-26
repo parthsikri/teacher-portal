@@ -74,6 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         ? 'bg-rose-600 text-white font-black animate-pulse shadow-md shadow-rose-600/40' 
         : 'bg-amber-500 text-slate-950 font-bold',
     },
+    { id: 'ppt_requests', label: 'PYQ Slide Decks', icon: BookMarked },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
     { id: 'resources', label: 'Subject Resources', icon: BookMarked },
     { 
@@ -89,6 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'admin_wallet', label: 'Faculty Wallets', icon: Wallet },
+    { id: 'admin_extensions', label: 'Extension Windows', icon: Clock },
     { 
       id: 'admin_syllabus', 
       label: 'Syllabus & Approvals', 

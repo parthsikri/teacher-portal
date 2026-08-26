@@ -1275,6 +1275,12 @@ export const StorageService = {
   // Helper to get local date string YYYY-MM-DD from an ISO date or Date object
   toLocalDateKey(isoStringOrDate?: string | Date): string {
     if (!isoStringOrDate) return '';
+    if (typeof isoStringOrDate === 'string') {
+      const trimmed = isoStringOrDate.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed;
+      }
+    }
     const d = typeof isoStringOrDate === 'string' ? new Date(isoStringOrDate) : isoStringOrDate;
     if (isNaN(d.getTime())) return '';
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1334,11 +1340,10 @@ export const StorageService = {
       (c) => c.date === date && c.teacherId.toUpperCase() === cleanId
     );
 
-    if (commitment?.targetMinutes && commitment.targetMinutes > 0) {
-      return commitment.targetMinutes;
-    }
-
-    if (commitment) {
+    if (commitment && commitment.isDeliveryDay !== false) {
+      if (commitment.targetMinutes && commitment.targetMinutes > 0) {
+        return commitment.targetMinutes;
+      }
       const anyLectureSnapshot = this.getLectures().find(
         (l) => l.teacherId.toUpperCase() === cleanId && Number.isFinite(l.targetMinutesAtSubmission) && (l.targetMinutesAtSubmission || 0) > 0
       )?.targetMinutesAtSubmission;
@@ -1410,7 +1415,7 @@ export const StorageService = {
       }
     });
 
-    const existingTxs = this.getWalletTransactions();
+    let existingTxs = this.getWalletTransactions();
     const existingDepositMap = new Map<string, WalletTransaction>();
     existingTxs.forEach((tx) => {
       if (tx.teacherId.toUpperCase() === cleanId && tx.type === 'deposit_surplus' && tx.referenceLectureId) {
@@ -1423,8 +1428,12 @@ export const StorageService = {
       const dayTarget = this.getHistoricalTargetForDate(cleanId, dateStr, dayLectures, commitments);
       let cumulativeRecorded = 0;
 
-      // Evaluate each lecture on that day in chronological order
-      dayLectures.forEach((lecture) => {
+      // Sort lectures on that day in strict chronological order
+      const sortedDayLectures = dayLectures.slice().sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+
+      sortedDayLectures.forEach((lecture) => {
         const prevRecorded = cumulativeRecorded;
         const dur = lecture.durationMinutes || 45;
         cumulativeRecorded += dur;
@@ -1436,9 +1445,10 @@ export const StorageService = {
           surplusEarned = cumulativeRecorded - effectiveStart;
         }
 
+        const existing = existingDepositMap.get(lecture.id);
+
         if (surplusEarned > 0) {
           const depositId = `wtx-deposit-${lecture.id}`;
-          const existing = existingDepositMap.get(lecture.id);
           if (!existing) {
             existingTxs.push({
               id: depositId,
@@ -1456,6 +1466,11 @@ export const StorageService = {
             existing.amount = surplusEarned;
             hasNew = true;
           }
+        } else if (existing) {
+          // Clean up stale surplus deposit if duration was reduced below target
+          existingTxs = existingTxs.filter((tx) => tx.id !== existing.id);
+          existingDepositMap.delete(lecture.id);
+          hasNew = true;
         }
       });
     });
@@ -1523,7 +1538,9 @@ export const StorageService = {
       if (d && d < todayStr) pastDates.add(d);
     });
     commitments.forEach((c) => {
-      if (c.date && c.date < todayStr) pastDates.add(c.date);
+      if (c.date && c.date < todayStr && c.isDeliveryDay !== false) {
+        pastDates.add(c.date);
+      }
     });
 
     const lecturesByDate = new Map<string, Lecture[]>();
@@ -1740,7 +1757,8 @@ export const StorageService = {
     const yesterdayTarget = this.getHistoricalTargetForDate(cleanId, yesterdayDateStr, yesterdayLectures, commitments);
 
     const rawShortfall = Math.max(0, yesterdayTarget - yesterdayRecorded);
-    const yesterdayUnfulfilledMinutes = rawShortfall;
+    // Net shortfall after factoring in teacher's total remaining backlog
+    const yesterdayUnfulfilledMinutes = Math.min(rawShortfall, backlogInfo.remainingBacklogMinutes);
     const isYesterdayFulfilled = yesterdayUnfulfilledMinutes === 0;
 
     const minutesRecordedToday = this.getMinutesRecordedToday(cleanId);
