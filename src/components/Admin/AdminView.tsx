@@ -3938,11 +3938,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-slate-400">Cutoff: <strong className="text-slate-200 font-mono">{extBreakdown.cutoffDisplay}</strong> {extBreakdown.isPassedCutoff ? '(Closed)' : '(Active)'}</span>
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold font-mono border ${
-                        extBreakdown.totalUndeliveredMinutes > 0
+                        extBreakdown.totalTimeBacklogMinutes > 0
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
                           : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                       }`}>
-                        {extBreakdown.totalUndeliveredMinutes > 0 ? `${extBreakdown.totalUndeliveredMinutes}m Undelivered Deficit` : 'Target Fulfilled'}
+                        {extBreakdown.totalTimeBacklogMinutes > 0 ? `${extBreakdown.totalTimeBacklogMinutes}m Time Backlog` : 'Target Fulfilled'}
                       </span>
                     </div>
                   </div>
@@ -3962,7 +3962,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.todayUndeliveredMinutes > 0 ? (extBreakdown.isPassedCutoff ? 'Overdue cutoff' : 'In progress') : 'Target fulfilled'}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
-                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Past Shortfall</div>
+                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Historical Backlog</div>
                       <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.pastUndeliveredMinutes > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
                         {extBreakdown.pastUndeliveredMinutes}m
                       </div>
@@ -3994,7 +3994,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               const allIds = extBreakdown.undeliveredTopics.map((t) => t.id);
                               setExtTopicIds(allIds);
                               const totalDuration = extBreakdown.undeliveredTopics.reduce((sum, top) => sum + (top.durationMinutes || 45), 0);
-                              setExtAllowedMinutes(Math.max(15, totalDuration - extBreakdown.cumulativePoolMinutes));
+                              setExtAllowedMinutes(Math.max(15, totalDuration));
                             }}
                             className="text-purple-400 hover:text-purple-300 underline font-semibold cursor-pointer"
                           >
@@ -4005,7 +4005,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             type="button"
                             onClick={() => {
                               setExtTopicIds([]);
-                              setExtAllowedMinutes(extBreakdown.totalUndeliveredMinutes > 0 ? extBreakdown.totalUndeliveredMinutes : 60);
+                              setExtAllowedMinutes(extBreakdown.totalTimeBacklogMinutes > 0 ? extBreakdown.totalTimeBacklogMinutes : 60);
                             }}
                             className="text-slate-400 hover:text-slate-300 underline cursor-pointer"
                           >
@@ -4033,9 +4033,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                   const totalM = extBreakdown.undeliveredTopics
                                     .filter((top) => nextIds.includes(top.id))
                                     .reduce((sum, top) => sum + (top.durationMinutes || 45), 0);
-                                  setExtAllowedMinutes(Math.max(15, totalM - extBreakdown.cumulativePoolMinutes));
+                                  setExtAllowedMinutes(Math.max(15, totalM));
                                 } else {
-                                  setExtAllowedMinutes(extBreakdown.totalUndeliveredMinutes > 0 ? extBreakdown.totalUndeliveredMinutes : 60);
+                                  setExtAllowedMinutes(extBreakdown.totalTimeBacklogMinutes > 0 ? extBreakdown.totalTimeBacklogMinutes : 60);
                                 }
                               }}
                               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all cursor-pointer ${
@@ -4057,17 +4057,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   {/* One-Click Duration Presets */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-800/70">
                     <span className="text-[11px] text-slate-400 font-medium mr-1">Quick Presets:</span>
-                    {extBreakdown.totalUndeliveredMinutes > 0 && (
+                    {extBreakdown.totalTimeBacklogMinutes > 0 && (
                       <button
                         type="button"
-                        onClick={() => setExtAllowedMinutes(extBreakdown.totalUndeliveredMinutes)}
+                        onClick={() => setExtAllowedMinutes(extBreakdown.totalTimeBacklogMinutes)}
                         className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                          extAllowedMinutes === extBreakdown.totalUndeliveredMinutes
+                          extAllowedMinutes === extBreakdown.totalTimeBacklogMinutes
                             ? 'bg-purple-600 border-purple-400 text-white shadow-sm'
                             : 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
                         }`}
                       >
-                        🎯 Auto Exact ({extBreakdown.totalUndeliveredMinutes}m)
+                        🎯 Auto Exact Backlog ({extBreakdown.totalTimeBacklogMinutes}m)
                       </button>
                     )}
                     {[45, 60, 90, 120, 180, 240].map((mins) => (
