@@ -63,6 +63,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [selectedUnitAdminSyllabus, setSelectedUnitAdminSyllabus] = useState<string | null>(null);
   const [adminSyllabusViewMode, setAdminSyllabusViewMode] = useState<'cards' | 'flat'>('cards');
   const [adminTopicFilterTab, setAdminTopicFilterTab] = useState<'all' | 'pending_approval' | 'revision_requested' | 'approved' | 'completed'>('all');
+  const [selectedTeacherAdminSyllabus, setSelectedTeacherAdminSyllabus] = useState<string>('all');
 
   // Unit-wise and Teacher-wise Lecture Organization filters
   const [selectedTeacherLectureFilter, setSelectedTeacherLectureFilter] = useState<string>('all');
@@ -141,15 +142,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
       onPageChange('admin_faculty');
       return;
     }
-    const defaultTeacherId = teachers[0].teacherId;
+    const defaultTeacherId = extTeacherId || teachers[0].teacherId;
     const now = new Date();
-    setExtTeacherId(defaultTeacherId);
-    const breakdown = StorageService.getTeacherExtensionBreakdown(defaultTeacherId);
-    setExtAllowedMinutes(breakdown.suggestedExtensionMinutes);
-    setExtTopicIds(breakdown.undeliveredTopics.map((t) => t.id));
-    setExtStartWindow(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
-    setExtEndWindow(new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
-    setExtNotes('');
+    if (!extTeacherId) {
+      setExtTeacherId(defaultTeacherId);
+      const breakdown = StorageService.getTeacherExtensionBreakdown(defaultTeacherId);
+      setExtAllowedMinutes(breakdown.suggestedExtensionMinutes);
+      setExtTopicIds(breakdown.undeliveredTopics.map((t) => t.id));
+    }
+    if (!extStartWindow) {
+      setExtStartWindow(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+      setExtEndWindow(new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+    }
     setShowExtensionModal(true);
   }, [currentPage, teachers]);
 
@@ -973,6 +977,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
         }
       }
 
+      // Teacher filter
+      if (selectedTeacherAdminSyllabus && selectedTeacherAdminSyllabus !== 'all') {
+        if ((topic.teacherId || '').trim().toUpperCase() !== selectedTeacherAdminSyllabus.trim().toUpperCase()) {
+          return false;
+        }
+      }
+
       // Status filter
       const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
       if (adminTopicFilterTab === 'pending_approval' && approvalState !== 'pending_admin_approval') return false;
@@ -994,7 +1005,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
       return matchesTitle || matchesTeacher || matchesSubject || matchesUnit || !!matchesSubtopics;
     });
-  }, [assignedTopics, selectedSubjectAdminSyllabus, selectedUnitAdminSyllabus, adminTopicFilterTab, searchTopicQuery, teachers]);
+  }, [assignedTopics, selectedSubjectAdminSyllabus, selectedUnitAdminSyllabus, adminTopicFilterTab, selectedTeacherAdminSyllabus, searchTopicQuery, teachers]);
 
   const pendingApprovalTopics = assignedTopics.filter(
     (t) => t.subtopicsApprovalState === 'pending_admin_approval'
@@ -1589,6 +1600,46 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           "{commitment.note}"
                         </p>
                       )}
+
+                      <div className="flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTeacherLectureFilter(t.teacherId);
+                            onPageChange('admin_lectures');
+                          }}
+                          className="flex-1 py-1 px-2 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white font-bold text-[10px] transition-all text-center cursor-pointer"
+                        >
+                          Audits ➔
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTeacherAdminSyllabus(t.teacherId);
+                            onPageChange('admin_syllabus');
+                          }}
+                          className="flex-1 py-1 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[10px] transition-all text-center cursor-pointer"
+                        >
+                          Syllabus ➔
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExtTeacherId(t.teacherId);
+                            const bk = StorageService.getTeacherExtensionBreakdown(t.teacherId);
+                            setExtAllowedMinutes(bk.suggestedExtensionMinutes);
+                            setExtTopicIds(bk.undeliveredTopics.map((top) => top.id));
+                            setShowExtensionModal(true);
+                          }}
+                          className="py-1 px-2 rounded-lg bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white font-bold text-[10px] transition-all text-center cursor-pointer"
+                          title="Grant Extension"
+                        >
+                          ⏱️ Ext
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1990,6 +2041,37 @@ export const AdminView: React.FC<AdminViewProps> = ({
           {/* ═══════════════════════════════════════════════════════════════ */}
           {(adminSyllabusViewMode === 'flat' || (selectedSubjectAdminSyllabus && selectedUnitAdminSyllabus)) && (
             <div className="space-y-5">
+              {/* Faculty Filter Bar in Syllabus */}
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-900/60 border border-slate-800 rounded-2xl">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-amber-400" /> Filter by Faculty:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTeacherAdminSyllabus('all')}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${selectedTeacherAdminSyllabus === 'all' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'}`}
+                >
+                  🌟 All Faculty ({assignedTopics.length})
+                </button>
+                {teachers.map((t) => {
+                  const isSelected = selectedTeacherAdminSyllabus.toUpperCase() === t.teacherId.toUpperCase();
+                  const count = assignedTopics.filter((top) => top.teacherId.toUpperCase() === t.teacherId.toUpperCase()).length;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTeacherAdminSyllabus(isSelected ? 'all' : t.teacherId)}
+                      className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${isSelected ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 border border-amber-400' : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700'}`}
+                    >
+                      <span>👨‍🏫 {t.name}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Filter Tabs & Search */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-1.5 text-xs">
@@ -3512,20 +3594,44 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             <form onSubmit={handleAssignTopicSubmit} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Faculty Member *</label>
+                <div className="space-y-2">
+                  <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                    <span>Assign to Faculty Member *</span>
+                    <span className="text-[10px] text-amber-300 font-normal">Click a teacher below to select</span>
+                  </label>
                   <select
                     value={assignTeacherId}
                     onChange={(e) => setAssignTeacherId(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
                     required
                   >
+                    {!assignTeacherId && <option value="">-- Click to Choose Faculty --</option>}
                     {teachers.map((t) => (
                       <option key={t.id} value={t.teacherId}>
                         {t.name} ({t.teacherId}) - {t.subject}
                       </option>
                     ))}
                   </select>
+
+                  {/* Interactive One-Click Faculty Chips */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {teachers.map((t) => {
+                      const isSelected = (assignTeacherId || '').toUpperCase() === t.teacherId.toUpperCase();
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setAssignTeacherId(t.teacherId)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${isSelected ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 ring-2 ring-amber-400 font-black' : 'bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-amber-500/50'}`}
+                        >
+                          <span>👨‍🏫 {t.name}</span>
+                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
+                            {t.subject || t.teacherId}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
@@ -3745,8 +3851,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Faculty Member *</label>
+                <div className="space-y-2">
+                  <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                    <span>Select Faculty Member *</span>
+                    <span className="text-[10px] text-purple-300 font-normal">Click a teacher below to select</span>
+                  </label>
                   <select
                     value={extTeacherId}
                     onChange={(e) => {
@@ -3759,12 +3868,44 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500 font-medium"
                     required
                   >
+                    {!extTeacherId && <option value="">-- Choose Faculty Member --</option>}
                     {teachers.map((t) => (
                       <option key={t.id} value={t.teacherId}>
-                        {t.name} ({t.teacherId})
+                        {t.name} ({t.teacherId}) - {t.subject}
                       </option>
                     ))}
                   </select>
+
+                  {/* Interactive Faculty Selection Chips */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {teachers.map((t) => {
+                      const isSelected = (extTeacherId || '').toUpperCase() === t.teacherId.toUpperCase();
+                      const bk = StorageService.getTeacherExtensionBreakdown(t.teacherId);
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setExtTeacherId(t.teacherId);
+                            setExtAllowedMinutes(bk.suggestedExtensionMinutes);
+                            setExtTopicIds(bk.undeliveredTopics.map((top) => top.id));
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${isSelected ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/30 ring-2 ring-purple-400 font-black' : 'bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-purple-500/50'}`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span>👨‍🏫 {t.name}</span>
+                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${isSelected ? 'bg-purple-900 text-purple-200' : 'bg-slate-800 text-slate-400'}`}>
+                            {t.teacherId}
+                          </span>
+                          {bk.undeliveredTopics.length > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500 text-slate-950 font-black">
+                              {bk.undeliveredTopics.length} pending
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
