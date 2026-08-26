@@ -754,6 +754,7 @@ export const StorageService = {
 
   addLecture(lecture: Omit<Lecture, 'id' | 'createdAt' | 'adminRemarks'>): Lecture {
     const lectures = this.getLectures();
+    const teacherTarget = this.getUsers().find((user) => user.teacherId.toUpperCase() === lecture.teacherId.toUpperCase())?.dailyTargetMinutes || 120;
     const topic = lecture.assignedTopicId ? this.getAssignedTopics().find(t => t.id === lecture.assignedTopicId) : null;
     const unitNumber = lecture.unitNumber || topic?.unitNumber || undefined;
 
@@ -786,6 +787,7 @@ export const StorageService = {
         ...lecture,
         unitNumber,
         durationMinutes: lecture.durationMinutes || 45,
+        targetMinutesAtSubmission: lecture.targetMinutesAtSubmission || teacherTarget,
         id: `lec-${Date.now()}`,
         adminRemarks: [],
         createdAt: new Date().toISOString(),
@@ -966,6 +968,9 @@ export const StorageService = {
       date: targetDate,
       promisedTime: promisedTime.trim(),
       note: note?.trim() || undefined,
+      // This method is currently used for first-time cutoff setup. It must not
+      // manufacture a historical delivery obligation.
+      isDeliveryDay: false,
       updatedAt: new Date().toISOString(),
     };
 
@@ -1311,6 +1316,16 @@ export const StorageService = {
       .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
   },
 
+  getDailyTargetForDate(teacherId: string, date: string, dayLectures?: Lecture[]): number {
+    const cleanId = (teacherId || '').toUpperCase();
+    const lectures = dayLectures || this.getLectures().filter(
+      (lecture) => lecture.teacherId.toUpperCase() === cleanId && this.toLocalDateKey(lecture.createdAt) === date
+    );
+    const snapshot = lectures.find((lecture) => Number.isFinite(lecture.targetMinutesAtSubmission) && (lecture.targetMinutesAtSubmission || 0) > 0)?.targetMinutesAtSubmission;
+    if (snapshot) return snapshot;
+    return this.getUsers().find((user) => user.teacherId.toUpperCase() === cleanId)?.dailyTargetMinutes || 120;
+  },
+
   // ─── CUMULATIVE FLEXIBLE RECORDING POOL & SURPLUS BANKING ─────────────────
   getTeacherCumulativePool(teacherId: string): {
     bankedMinutes: number;           // Current available flexible balance
@@ -1329,10 +1344,6 @@ export const StorageService = {
     }>;
   } {
     const cleanId = (teacherId || '').toUpperCase();
-    const users = this.getUsers();
-    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
-    const dailyTarget = teacher?.dailyTargetMinutes || 120;
-
     const now = new Date();
     const todayStr = this.toLocalDateKey(now);
     const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
@@ -1341,18 +1352,15 @@ export const StorageService = {
     const teacherLectures = this.getLectures().filter(
       (l) => l.teacherId.toUpperCase() === cleanId
     );
-    const commitments = this.getDailyCommitments().filter(
-      (c) => c.teacherId.toUpperCase() === cleanId
-    );
-
-    // Collect real dates where teacher had recordings or explicitly saved commitments
+    // Only an actual recording, or an explicit delivery-day commitment, opens a
+    // dated ledger entry. Initial cutoff setup is not a missed-workday record.
     const activeDateSet = new Set<string>();
     teacherLectures.forEach((l) => {
       const dStr = this.toLocalDateKey(l.createdAt);
       if (dStr) activeDateSet.add(dStr);
     });
-    commitments.forEach((c) => {
-      if (c.date) activeDateSet.add(c.date);
+    this.getDailyCommitments().filter((commitment) => commitment.teacherId.toUpperCase() === cleanId && commitment.isDeliveryDay).forEach((commitment) => {
+      if (commitment.date) activeDateSet.add(commitment.date);
     });
 
     const sortedDates = Array.from(activeDateSet).sort();
@@ -1392,13 +1400,14 @@ export const StorageService = {
       let shortfall = 0;
       let poolUsed = 0;
 
+      const targetForDay = this.getDailyTargetForDate(cleanId, dateStr, dayLectures);
       if (dateStr < todayStr) {
-        if (recordedDayMins > dailyTarget) {
-          surplusGenerated = recordedDayMins - dailyTarget;
+        if (recordedDayMins > targetForDay) {
+          surplusGenerated = recordedDayMins - targetForDay;
           poolBalance += surplusGenerated;
           totalSurplusEarned += surplusGenerated;
-        } else if (recordedDayMins < dailyTarget) {
-          shortfall = dailyTarget - recordedDayMins;
+        } else if (recordedDayMins < targetForDay) {
+          shortfall = targetForDay - recordedDayMins;
           poolUsed = Math.min(poolBalance, shortfall);
           poolBalance -= poolUsed;
           totalDeficitCompensated += poolUsed;
@@ -1407,8 +1416,8 @@ export const StorageService = {
           }
         }
       } else if (dateStr === todayStr) {
-        if (recordedDayMins > dailyTarget) {
-          surplusGenerated = recordedDayMins - dailyTarget;
+        if (recordedDayMins > targetForDay) {
+          surplusGenerated = recordedDayMins - targetForDay;
           poolBalance += surplusGenerated;
           totalSurplusEarned += surplusGenerated;
         }
@@ -1417,7 +1426,7 @@ export const StorageService = {
       history.push({
         date: dateStr,
         recordedMinutes: recordedDayMins,
-        dailyTarget,
+        dailyTarget: targetForDay,
         surplusGenerated,
         shortfall,
         poolUsed,
@@ -1460,7 +1469,11 @@ export const StorageService = {
     const dailyTarget = teacher?.dailyTargetMinutes || 120;
 
     const poolInfo = this.getTeacherCumulativePool(cleanId);
-    const yesterdayRecorded = this.getMinutesRecordedOnDate(cleanId, yesterdayDateStr);
+    const yesterdayLectures = this.getLectures().filter(
+      (lecture) => lecture.teacherId.toUpperCase() === cleanId && this.toLocalDateKey(lecture.createdAt) === yesterdayDateStr
+    );
+    const yesterdayRecorded = yesterdayLectures.reduce((sum, lecture) => sum + (lecture.durationMinutes || 45), 0);
+    const yesterdayTarget = this.getDailyTargetForDate(cleanId, yesterdayDateStr, yesterdayLectures);
     
     // Check if teacher had past assignments/activity on or before yesterday
     const hasPastHistory = this.getLectures().some(l => {
@@ -1473,7 +1486,7 @@ export const StorageService = {
       return !!tDate && tDate < todayLocal;
     });
 
-    const rawShortfall = hasPastHistory ? Math.max(0, dailyTarget - yesterdayRecorded) : 0;
+    const rawShortfall = hasPastHistory ? Math.max(0, yesterdayTarget - yesterdayRecorded) : 0;
     const yesterdayUnfulfilledMinutes = Math.max(0, rawShortfall - poolInfo.yesterdayCompensated);
     const isYesterdayFulfilled = yesterdayUnfulfilledMinutes === 0;
 
@@ -1484,7 +1497,7 @@ export const StorageService = {
     return {
       yesterdayDateStr,
       yesterdayRecorded,
-      yesterdayTarget: dailyTarget,
+      yesterdayTarget,
       yesterdayUnfulfilledMinutes,
       yesterdayPoolCompensated: poolInfo.yesterdayCompensated,
       isYesterdayFulfilled,
@@ -1898,6 +1911,7 @@ export const StorageService = {
     completedTopicsCount: number;
     undeliveredTopicsCount: number;
     undeliveredTopics: AssignedTopic[];
+    undeliveredTopicsMinutes: number;
     minutesRecordedToday: number;
     todayTargetMinutes: number;
     todayUndeliveredMinutes: number;
@@ -1974,13 +1988,14 @@ export const StorageService = {
       }
     });
 
-    // Real past active dates only (where teacher actually recorded or had commitments)
+    // Past ledger dates come from delivered work or an explicit delivery-day
+    // commitment. Initial cutoff setup must not become a missed workday.
     const pastDatesSet = new Set<string>();
     teacherLectures.forEach((l) => {
       const dStr = this.toLocalDateKey(l.createdAt);
       if (dStr && dStr < todayStr) pastDatesSet.add(dStr);
     });
-    const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
+    const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId && c.isDeliveryDay);
     commitments.forEach((c) => {
       if (c.date && c.date < todayStr) pastDatesSet.add(c.date);
     });
@@ -1994,10 +2009,11 @@ export const StorageService = {
     sortedPastDates.forEach((dateStr) => {
       const dayLectures = lecturesByDate.get(dateStr) || [];
       const recordedDayMins = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-      if (recordedDayMins > dailyTargetMinutes) {
-        simPool += (recordedDayMins - dailyTargetMinutes);
-      } else if (recordedDayMins < dailyTargetMinutes) {
-        const shortfall = dailyTargetMinutes - recordedDayMins;
+      const targetForDay = this.getDailyTargetForDate(cleanId, dateStr, dayLectures);
+      if (recordedDayMins > targetForDay) {
+        simPool += (recordedDayMins - targetForDay);
+      } else if (recordedDayMins < targetForDay) {
+        const shortfall = targetForDay - recordedDayMins;
         const covered = Math.min(simPool, shortfall);
         simPool -= covered;
         const remainingDeficit = shortfall - covered;
@@ -2011,16 +2027,10 @@ export const StorageService = {
     // 4. Undelivered topics duration (planned topic duration, default 45m per topic)
     const undeliveredTopicsMinutes = undeliveredTopics.reduce((sum, t) => sum + (t.durationMinutes || 45), 0);
 
-    // 5. Total Undelivered Calculation (Clean, Fair, & Non-Compounding):
-    let totalUndeliveredMinutes = 0;
-    if (undeliveredTopicsCount > 0) {
-      // When topics are assigned, the real workload pending is the duration of those undelivered topics minus flexible pool
-      totalUndeliveredMinutes = Math.max(0, undeliveredTopicsMinutes - cumulativePoolMinutes);
-    } else {
-      // When no topics are assigned, undelivered time is the past shortfall + today's overdue deficit (only if cutoff passed) minus pool
-      const rawDeficit = pastUndeliveredMinutes + todayOverdueDeficit;
-      totalUndeliveredMinutes = Math.max(0, rawDeficit - cumulativePoolMinutes);
-    }
+    // 5. Minute deficit and queued-topic workload are different measures. Do not
+    // replace one with the other or subtract the flexible pool twice.
+    const todayNetDeficit = Math.max(0, todayOverdueDeficit - cumulativePoolMinutes);
+    const totalUndeliveredMinutes = pastUndeliveredMinutes + todayNetDeficit;
 
     // 6. Suggested Extension Minutes (Exact required duration, minimum 15m)
     let suggestedExtensionMinutes = 60;
@@ -2062,6 +2072,7 @@ export const StorageService = {
       completedTopicsCount,
       undeliveredTopicsCount,
       undeliveredTopics,
+      undeliveredTopicsMinutes,
       minutesRecordedToday,
       todayTargetMinutes: dailyTargetMinutes,
       todayUndeliveredMinutes: todayPendingMinutes,

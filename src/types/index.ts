@@ -24,6 +24,8 @@ export interface DailyCommitment {
   date: string;            // YYYY-MM-DD
   promisedTime: string;    // e.g. "18:00" or "06:00 PM"
   note?: string;           // Optional note e.g. "Will record and upload by 8 PM"
+  isDeliveryDay?: boolean; // Explicit daily work commitment; initial cutoff setup is not one
+  targetMinutes?: number;  // Target snapshot when an explicit delivery day is created
   updatedAt: string;
 }
 
@@ -98,6 +100,7 @@ export interface Lecture {
   primaryTopic: string;
   subtopics: string[];
   durationMinutes: number;    // Lecture duration recorded in minutes (e.g. 45, 60, 90)
+  targetMinutesAtSubmission?: number; // Immutable daily-target snapshot for historical calculations
   deadlineDate?: string;       // Optional legacy date
   status: 'on_time' | 'late' | 'overdue' | 'extended';
   youtubeUrl?: string;
