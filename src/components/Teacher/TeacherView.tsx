@@ -11,7 +11,7 @@ import {
   FileSpreadsheet, Award, Folder,
   CheckCircle2, MessageCircle, Video,
   ArrowUp, ArrowDown, Trash2,
-  BookOpen, ArrowLeft, Layers, Grid, Sparkles
+  BookOpen, ArrowLeft, Layers, Grid, Sparkles, Wallet
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -1369,6 +1369,249 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           </section>
         </div>
       )}
+
+
+      {/* ─── DEDICATED TIME WALLET & PIGGY BANK PAGE ─── */}
+      {currentPage === 'wallet' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
+                  Time Wallet & Piggy Bank
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Surplus Storage
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Bank extra recording minutes, view immutable transaction audit trails, and transfer surplus to offset late backlogs.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {walletInfo.balance > 0 && lateBacklogInfo.remainingBacklogMinutes > 0 && (
+                <button
+                  onClick={() => {
+                    setWalletTransferMinutes(Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes));
+                    setShowWalletModal(true);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  ⚡ Use Wallet for Backlog (-{Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes)}m)
+                </button>
+              )}
+              <button
+                onClick={() => onOpenUpload()}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Record Extra Lecture
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Stat Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-indigo-900/50 bg-gradient-to-br from-indigo-950/50 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
+                <span>Time Wallet Balance</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">Banked</span>
+              </div>
+              <div className="mt-2 text-3xl font-black text-indigo-200 font-mono">+{walletInfo.balance} min</div>
+              <p className="mt-1 text-[11px] text-slate-400">Available surplus minutes recorded beyond daily targets.</p>
+            </div>
+
+            <div className="rounded-2xl border border-rose-900/40 bg-gradient-to-br from-rose-950/40 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
+                <span>Late Backlog</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono">
+                  {lateBacklogInfo.remainingBacklogMinutes === 0 ? 'Zero Debt' : 'Active Deficit'}
+                </span>
+              </div>
+              <div className="mt-2 text-3xl font-black text-rose-300 font-mono">{lateBacklogInfo.remainingBacklogMinutes} min</div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {lateBacklogInfo.remainingBacklogMinutes > 0
+                  ? `Raw shortfall: ${lateBacklogInfo.rawHistoricalShortfall}m (${lateBacklogInfo.walletMinutesApplied}m offset)`
+                  : 'All historical delivery quotas fulfilled!'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Surplus Earned</div>
+              <div className="mt-2 text-2xl font-bold text-emerald-400 font-mono">+{walletInfo.totalSurplusEarned} min</div>
+              <p className="mt-1 text-[11px] text-slate-400">Lifetime surplus recorded over assigned daily targets.</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Applied to Backlog</div>
+              <div className="mt-2 text-2xl font-bold text-purple-400 font-mono">-{walletInfo.totalAppliedToBacklog} min</div>
+              <p className="mt-1 text-[11px] text-slate-400">Total wallet minutes transferred to clear past shortfalls.</p>
+            </div>
+          </div>
+
+          {/* Interactive Transfer Station */}
+          {lateBacklogInfo.remainingBacklogMinutes > 0 && walletInfo.balance > 0 ? (
+            <div className="rounded-2xl border border-indigo-800/60 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900/80 p-6 space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                    <span>⚡ Quick Backlog Offset Station</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-normal">
+                      Manual Transfer
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Transfer banked wallet surplus to reduce your {lateBacklogInfo.remainingBacklogMinutes} min late backlog.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const maxTransfer = Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes);
+                      const res = StorageService.applyWalletToBacklog(teacher.teacherId, maxTransfer, teacher.name);
+                      if (res.success) {
+                        setRefreshKey((k) => k + 1);
+                      }
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                  >
+                    ⚡ Apply Max ({Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes)} min) Now
+                  </button>
+                  <button
+                    onClick={() => {
+                      setWalletTransferMinutes(Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes));
+                      setShowWalletModal(true);
+                    }}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl font-medium cursor-pointer"
+                  >
+                    Custom Amount...
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Ledger Breakdown & Audit Log Tables */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Historical Date Ledger */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    <span>📅 Daily Quota & Accounting Ledger</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Historical recording records and snapshot targets</p>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono font-bold">
+                  {lateBacklogInfo.history.length} day{lateBacklogInfo.history.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="flex-1 overflow-x-auto">
+                {lateBacklogInfo.history.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-500 italic">
+                    No historical delivery sessions recorded yet.
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950/60 border-b border-slate-800/80 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                      <tr>
+                        <th className="px-4 py-2.5">Date</th>
+                        <th className="px-3 py-2.5">Target</th>
+                        <th className="px-3 py-2.5">Recorded</th>
+                        <th className="px-4 py-2.5 text-right">Result</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {lateBacklogInfo.history.map((h) => (
+                        <tr key={h.date} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-3 font-mono font-semibold text-slate-200">{h.date}</td>
+                          <td className="px-3 py-3 text-slate-400 font-mono">{h.dailyTarget}m</td>
+                          <td className="px-3 py-3 text-slate-200 font-mono font-bold">{h.recordedMinutes}m</td>
+                          <td className="px-4 py-3 text-right font-mono">
+                            {h.surplus > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full text-[11px]">
+                                +{h.surplus}m wallet
+                              </span>
+                            ) : h.shortfall > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-full text-[11px]">
+                                -{h.shortfall}m shortfall
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">✓ Exact Target</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Wallet Transaction Ledger */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    <span>📜 Time Wallet Audit Trail</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Immutable transaction log of deposits and backlog transfers</p>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono font-bold">
+                  {walletInfo.transactions.length} tx{walletInfo.transactions.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="flex-1 p-4 overflow-y-auto max-h-[380px] space-y-2">
+                {walletInfo.transactions.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-500 italic">
+                    No wallet transactions logged yet. Extra minutes recorded beyond daily targets will appear here.
+                  </div>
+                ) : (
+                  walletInfo.transactions.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-slate-200 flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              tx.type === 'deposit_surplus' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-purple-400 shadow-sm shadow-purple-400/50'
+                            }`}
+                          />
+                          <span>{tx.type === 'deposit_surplus' ? 'Surplus Deposit' : 'Transferred to Backlog'}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">• {tx.date}</span>
+                          {tx.appliedBy && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                              By: {tx.appliedBy}
+                            </span>
+                          )}
+                        </div>
+                        {tx.note && <div className="text-[11px] text-slate-400">{tx.note}</div>}
+                      </div>
+
+                      <div
+                        className={`text-sm font-mono font-black shrink-0 ${
+                          tx.type === 'deposit_surplus' ? 'text-emerald-400' : 'text-purple-300'
+                        }`}
+                      >
+                        {tx.type === 'deposit_surplus' ? `+${tx.amount}m` : `-${tx.amount}m`}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* ─── SYLLABUS TOPICS PIPELINE (SQUARE CARDS SUBJECT & UNIT SELECTOR) ─── */}
       {currentPage === 'syllabus' && (

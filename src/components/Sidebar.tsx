@@ -3,7 +3,7 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock
+  Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -65,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     : null;
 
   const backlogInfo = currentUser.role === 'teacher' ? StorageService.getPreviousDayBacklog(currentUser.teacherId) : null;
+  const teacherWalletInfo = currentUser.role === 'teacher' ? StorageService.getTimeWalletInfo(currentUser.teacherId) : null;
   const minutesRecordedToday = currentUser.role === 'teacher' ? StorageService.getMinutesRecordedToday(currentUser.teacherId) : 0;
   const targetMinutes = currentUser.role === 'teacher' ? (currentUser.dailyTargetMinutes || 120) : 0;
   const isTargetReached = currentUser.role === 'teacher' ? minutesRecordedToday >= targetMinutes : false;
@@ -84,6 +85,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: teacherActiveExtensions > 0 
         ? 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold' 
         : 'bg-amber-500/20 text-amber-300',
+    },
+    { 
+      id: 'wallet', 
+      label: 'Time Wallet', 
+      icon: Wallet,
+      badge: teacherWalletInfo && teacherWalletInfo.balance > 0 
+        ? `+${teacherWalletInfo.balance}m` 
+        : undefined,
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold',
     },
     { 
       id: 'syllabus', 
@@ -116,6 +126,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Admin Navigation Links
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
+    { 
+      id: 'admin_wallet', 
+      label: 'Faculty Wallets', 
+      icon: Wallet,
+    },
     { 
       id: 'admin_extensions', 
       label: 'Extension Windows', 
@@ -263,6 +278,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* TIME WALLET MINI BADGE */}
+              {teacherWalletInfo && (
+                <button
+                  type="button"
+                  onClick={() => handleNavClick('wallet')}
+                  className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/60 text-slate-300 text-[11px] flex items-center justify-between transition-colors cursor-pointer"
+                >
+                  <span className="text-indigo-300 flex items-center gap-1.5 font-medium">
+                    <Wallet className="w-3.5 h-3.5 text-indigo-400" /> Time Wallet:
+                  </span>
+                  <span className="font-mono text-indigo-200 font-bold">
+                    +{teacherWalletInfo.balance} min
+                  </span>
+                </button>
+              )}
 
               {/* PERMANENT DAILY CUTOFF DISPLAY (LOCKED & READ-ONLY) */}
               {(() => {

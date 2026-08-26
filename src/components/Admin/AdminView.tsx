@@ -10,7 +10,7 @@ import {
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
-  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight
+  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -2351,6 +2351,235 @@ export const AdminView: React.FC<AdminViewProps> = ({
           )}
         </div>
       )}
+
+
+      {/* ─── DEDICATED FACULTY TIME WALLETS & BACKLOG ACCOUNTING ─── */}
+      {currentPage === 'admin_wallet' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
+                  Faculty Time Wallets & Backlog Accounting
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Institutional Ledger
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Monitor banked faculty surplus minutes, inspect immutable audit trails, and offset historical late backlogs.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Institutional KPI Cards */}
+          {(() => {
+            let totalSurplusBanked = 0;
+            let totalLateBacklog = 0;
+            let totalTransfersApplied = 0;
+            let teachersWithWallet = 0;
+
+            teachers.forEach((t) => {
+              const w = StorageService.getTimeWalletInfo(t.teacherId);
+              const b = StorageService.getLateBacklogInfo(t.teacherId);
+              totalSurplusBanked += w.balance;
+              totalLateBacklog += b.remainingBacklogMinutes;
+              totalTransfersApplied += w.totalAppliedToBacklog;
+              if (w.balance > 0) teachersWithWallet += 1;
+            });
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-2xl border border-indigo-900/50 bg-gradient-to-br from-indigo-950/50 via-slate-900/80 to-slate-900/60 p-5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">Total Banked Surplus</div>
+                  <div className="mt-2 text-3xl font-black text-indigo-200 font-mono">+{totalSurplusBanked} min</div>
+                  <p className="mt-1 text-[11px] text-slate-400">Across {teachersWithWallet} faculty members with active balances.</p>
+                </div>
+
+                <div className="rounded-2xl border border-rose-900/40 bg-gradient-to-br from-rose-950/40 via-slate-900/80 to-slate-900/60 p-5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-rose-400">Total Faculty Backlog</div>
+                  <div className="mt-2 text-3xl font-black text-rose-300 font-mono">{totalLateBacklog} min</div>
+                  <p className="mt-1 text-[11px] text-slate-400">Historical missed lecture quotas requiring extension.</p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Offsets Transferred</div>
+                  <div className="mt-2 text-2xl font-bold text-purple-400 font-mono">-{totalTransfersApplied} min</div>
+                  <p className="mt-1 text-[11px] text-slate-400">Wallet balance applied directly to clear backlogs.</p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Faculty Members</div>
+                  <div className="mt-2 text-2xl font-bold text-slate-100 font-mono">{teachers.length} Active</div>
+                  <p className="mt-1 text-[11px] text-slate-400">Academic staff monitored under quota tracking.</p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Faculty Wallet Roster Table */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <span>👨‍🏫 Faculty Balances & Backlogs Matrix</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Live wallet reserves, unfulfilled historical quotas, and fast action triggers</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950/60 border-b border-slate-800/80 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                  <tr>
+                    <th className="px-4 py-3">Faculty Member</th>
+                    <th className="px-3 py-3">Subject / Dept</th>
+                    <th className="px-3 py-3">Daily Target</th>
+                    <th className="px-3 py-3 text-indigo-400">Time Wallet</th>
+                    <th className="px-3 py-3 text-slate-400">Raw Shortfall</th>
+                    <th className="px-3 py-3 text-purple-400">Transferred</th>
+                    <th className="px-3 py-3 text-rose-400">Net Late Backlog</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {teachers.map((t) => {
+                    const w = StorageService.getTimeWalletInfo(t.teacherId);
+                    const b = StorageService.getLateBacklogInfo(t.teacherId);
+
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-200">
+                          <div className="font-bold text-slate-100">{t.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{t.teacherId}</div>
+                        </td>
+                        <td className="px-3 py-3 text-slate-400">{t.subject || t.department}</td>
+                        <td className="px-3 py-3 text-slate-300 font-mono">{t.dailyTargetMinutes || 120}m</td>
+                        <td className="px-3 py-3 font-mono font-bold text-indigo-300">
+                          {w.balance > 0 ? `+${w.balance} min` : '0 min'}
+                        </td>
+                        <td className="px-3 py-3 font-mono text-slate-400">{b.rawHistoricalShortfall}m</td>
+                        <td className="px-3 py-3 font-mono text-purple-400">-{w.totalAppliedToBacklog}m</td>
+                        <td className="px-3 py-3 font-mono font-bold">
+                          <span className={b.remainingBacklogMinutes > 0 ? 'text-rose-400' : 'text-emerald-400'}>
+                            {b.remainingBacklogMinutes > 0 ? `${b.remainingBacklogMinutes} min` : '✓ 0 min'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {w.balance > 0 && b.remainingBacklogMinutes > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const toApply = Math.min(w.balance, b.remainingBacklogMinutes);
+                                  StorageService.applyWalletToBacklog(t.teacherId, toApply, 'Admin');
+                                  setTeachers(StorageService.getTeachers());
+                                  if (onRefreshData) onRefreshData();
+                                }}
+                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm cursor-pointer"
+                              >
+                                ⚡ Apply ({Math.min(w.balance, b.remainingBacklogMinutes)}m)
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExtTeacherId(t.teacherId);
+                                const bk = StorageService.getTeacherExtensionBreakdown(t.teacherId);
+                                setExtAllowedMinutes(bk.suggestedExtensionMinutes);
+                                setExtTopicIds(bk.undeliveredTopics.map((top) => top.id));
+                                setShowExtensionModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer"
+                            >
+                              ⏱️ Extension
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Institutional Transaction Audit Log */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <span>📜 Institutional Wallet Transaction Audit Trail</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Complete record of surplus earnings and backlog offsets across all faculty</p>
+              </div>
+            </div>
+
+            {(() => {
+              const allTxs = StorageService.getWalletTransactions().sort(
+                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+
+              if (allTxs.length === 0) {
+                return (
+                  <div className="p-8 text-center text-xs text-slate-500 italic">
+                    No transactions recorded yet across the institution.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                  {allTxs.map((tx) => {
+                    const teacherObj = teachers.find((u) => u.teacherId.toUpperCase() === tx.teacherId.toUpperCase());
+                    const name = teacherObj?.name || tx.teacherId;
+
+                    return (
+                      <div
+                        key={tx.id}
+                        className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="font-semibold text-slate-200 flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                tx.type === 'deposit_surplus' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-purple-400 shadow-sm shadow-purple-400/50'
+                              }`}
+                            />
+                            <span className="font-bold text-slate-100">{name} ({tx.teacherId})</span>
+                            <span className="text-slate-500 font-mono text-[10px]">• {tx.date}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                              {tx.type === 'deposit_surplus' ? 'Surplus Earned' : 'Applied to Backlog'}
+                            </span>
+                            {tx.appliedBy && (
+                              <span className="text-[10px] text-slate-500">
+                                By {tx.appliedBy}
+                              </span>
+                            )}
+                          </div>
+                          {tx.note && <div className="text-[11px] text-slate-400">{tx.note}</div>}
+                        </div>
+
+                        <div
+                          className={`text-sm font-mono font-black shrink-0 ${
+                            tx.type === 'deposit_surplus' ? 'text-emerald-400' : 'text-purple-300'
+                          }`}
+                        >
+                          {tx.type === 'deposit_surplus' ? `+${tx.amount}m` : `-${tx.amount}m`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
 
       {/* PAGE 3: 👨‍🏫 FACULTY ROSTER & CREDENTIALS MANAGEMENT */}
       {currentPage === 'admin_faculty' && (

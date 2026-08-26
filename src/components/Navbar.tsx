@@ -3,7 +3,7 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, FileSpreadsheet, Image as ImageIcon
+  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -50,9 +50,19 @@ export const Navbar: React.FC<NavbarProps> = ({
     ? StorageService.getAdminRemarkAckStats()
     : null;
 
+  const teacherWalletInfo = currentUser?.role === 'teacher' ? StorageService.getTimeWalletInfo(currentUser.teacherId) : null;
+
   // Teacher Navigation Links
   const teacherNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'recording_status', label: 'Recording Status', icon: Clock },
+    { 
+      id: 'wallet', 
+      label: 'Time Wallet', 
+      icon: Wallet,
+      badge: teacherWalletInfo && teacherWalletInfo.balance > 0 ? `+${teacherWalletInfo.balance}m` : undefined,
+      badgeColor: 'bg-indigo-500 text-white font-mono font-bold',
+    },
     { 
       id: 'syllabus', 
       label: 'Syllabus & Topics', 
@@ -78,6 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Admin Navigation Links
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'admin_wallet', label: 'Faculty Wallets', icon: Wallet },
     { 
       id: 'admin_syllabus', 
       label: 'Syllabus & Approvals', 
