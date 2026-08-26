@@ -1148,7 +1148,7 @@ export const StorageService = {
     flexibleBalanceMinutes: number;
     onTimePercentage: number;
   } {
-    const cleanId = teacherId.toUpperCase();
+    const cleanId = (teacherId || '').toUpperCase();
     const teacherLectures = this.getLectures().filter(
       (l) => l.teacherId.toUpperCase() === cleanId
     );
@@ -1160,110 +1160,39 @@ export const StorageService = {
     const users = this.getUsers();
     const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
     const dailyTarget = teacher?.dailyTargetMinutes || 120;
-    const cutoffTime = teacher?.dailyUploadCutoffTime || '20:00';
-
-    const now = new Date();
-    const todayStr = this.toLocalDateKey(now);
-
-    const [cutoffH, cutoffM] = cutoffTime.split(':').map(Number);
-    const cutoffDateObj = new Date();
-    cutoffDateObj.setHours(cutoffH || 20, cutoffM || 0, 59, 999);
-    const isTodayCutoffPassed = now > cutoffDateObj;
-
-    // Collect all real active calendar dates for this teacher (no phantom days)
-    const dateSet = new Set<string>();
-    dateSet.add(todayStr);
-
-    teacherLectures.forEach((l) => {
-      const dStr = this.toLocalDateKey(l.createdAt);
-      if (dStr) dateSet.add(dStr);
-    });
-
-    const assignedTopics = this.getAssignedTopics().filter(
-      (t) => t.teacherId.toUpperCase() === cleanId
-    );
-    assignedTopics.forEach((t) => {
-      const dStr = t.deadlineDate || this.toLocalDateKey(t.createdAt);
-      if (dStr) dateSet.add(dStr);
-    });
-
-    const commitments = this.getDailyCommitments().filter(
-      (c) => c.teacherId.toUpperCase() === cleanId
-    );
-    commitments.forEach((c) => {
-      if (c.date) dateSet.add(c.date);
-    });
-
-    const sortedDates = Array.from(dateSet).sort();
-
-    // Group lectures by local date
-    const lecturesByDate = new Map<string, Lecture[]>();
-    teacherLectures.forEach((l) => {
-      const dStr = this.toLocalDateKey(l.createdAt);
-      if (dStr) {
-        if (!lecturesByDate.has(dStr)) {
-          lecturesByDate.set(dStr, []);
-        }
-        lecturesByDate.get(dStr)!.push(l);
-      }
-    });
 
     let totalOnTimeMinutes = 0;
     let totalExtendedMinutes = 0;
     let totalOverdueDeliveredMinutes = 0;
-    let totalTargetMinutes = 0;
 
-    const poolInfo = this.getTeacherCumulativePool(cleanId);
-    const flexibleBalanceMinutes = poolInfo.bankedMinutes;
-
-    sortedDates.forEach((dateStr) => {
-      const dayLectures = lecturesByDate.get(dateStr) || [];
-      const onTimeMins = dayLectures
-        .filter((l) => l.status === 'on_time')
-        .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-      const extendedMins = dayLectures
-        .filter((l) => l.status === 'extended')
-        .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-      const overdueMins = dayLectures
-        .filter((l) => l.status === 'overdue' || l.status === 'late')
-        .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-
-      totalOnTimeMinutes += onTimeMins;
-      totalExtendedMinutes += extendedMins;
-      totalOverdueDeliveredMinutes += overdueMins;
-
-      if (dateStr < todayStr) {
-        totalTargetMinutes += dailyTarget;
-      } else if (dateStr === todayStr) {
-        totalTargetMinutes += dailyTarget;
+    teacherLectures.forEach((l) => {
+      const duration = l.durationMinutes || 45;
+      if (l.status === 'on_time') {
+        totalOnTimeMinutes += duration;
+      } else if (l.status === 'extended') {
+        totalExtendedMinutes += duration;
+      } else {
+        totalOverdueDeliveredMinutes += duration;
       }
     });
 
-    // Breakdown computes exact past uncompensated deficit
+    const totalDeliveredMinutes = totalOnTimeMinutes + totalExtendedMinutes + totalOverdueDeliveredMinutes;
+
+    // Accurate true unfulfilled deficit
     const breakdown = this.getTeacherExtensionBreakdown(cleanId);
-    const totalUnfulfilledMinutes = breakdown.pastUndeliveredMinutes;
-    let pendingLateMinutesToday = 0;
-    if (isTodayCutoffPassed && breakdown.todayUndeliveredMinutes > 0) {
-      pendingLateMinutesToday = breakdown.todayUndeliveredMinutes;
-    }
+    const totalUnfulfilledMinutes = breakdown.totalUndeliveredMinutes;
+    const pendingLateMinutesToday = breakdown.todayOverdueDeficit;
+    const flexibleBalanceMinutes = breakdown.cumulativePoolMinutes;
 
-    const totalConsideredMinutes = Math.max(totalTargetMinutes, totalOnTimeMinutes + totalExtendedMinutes + totalOverdueDeliveredMinutes);
-
-    // Total non-on-time deficit = Overdue/Late delivered + Unfulfilled missing target
+    // Total active workload evaluated
     const totalLateMinutes = totalOverdueDeliveredMinutes + totalExtendedMinutes + totalUnfulfilledMinutes;
+    const totalWorkloadMinutes = Math.max(totalDeliveredMinutes + totalUnfulfilledMinutes, dailyTarget);
 
-    // Only on_time lectures count as on-time (late/extended/overdue count as late)
     let onTimePercentage = 100;
-    if (totalConsideredMinutes > 0) {
-      onTimePercentage = Math.max(0, Math.min(100, Math.round((totalOnTimeMinutes / totalConsideredMinutes) * 100)));
-    } else {
-      const delivered = totalOnTimeMinutes + totalExtendedMinutes + totalOverdueDeliveredMinutes;
-      if (delivered > 0) {
-        onTimePercentage = Math.max(0, Math.min(100, Math.round((totalOnTimeMinutes / delivered) * 100)));
-      }
+    const accountableBase = totalOnTimeMinutes + totalLateMinutes;
+    if (accountableBase > 0) {
+      onTimePercentage = Math.max(0, Math.min(100, Math.round((totalOnTimeMinutes / accountableBase) * 100)));
     }
-
-    const totalDeliveredMinutes = teacherLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
 
     return {
       totalLectures,
@@ -1271,7 +1200,7 @@ export const StorageService = {
       delayedLectures,
       extendedLectures,
       totalDeliveredMinutes,
-      totalMinutes: totalConsideredMinutes,
+      totalMinutes: totalWorkloadMinutes,
       onTimeMinutes: totalOnTimeMinutes,
       extendedMinutes: totalExtendedMinutes,
       overdueDeliveredMinutes: totalOverdueDeliveredMinutes,
@@ -1412,21 +1341,14 @@ export const StorageService = {
     const teacherLectures = this.getLectures().filter(
       (l) => l.teacherId.toUpperCase() === cleanId
     );
-    const assignedTopics = this.getAssignedTopics().filter(
-      (t) => t.teacherId.toUpperCase() === cleanId
-    );
     const commitments = this.getDailyCommitments().filter(
       (c) => c.teacherId.toUpperCase() === cleanId
     );
 
-    // Collect all real dates where teacher had assignments, commitments, or recordings
+    // Collect real dates where teacher had recordings or explicitly saved commitments
     const activeDateSet = new Set<string>();
     teacherLectures.forEach((l) => {
       const dStr = this.toLocalDateKey(l.createdAt);
-      if (dStr) activeDateSet.add(dStr);
-    });
-    assignedTopics.forEach((t) => {
-      const dStr = t.deadlineDate || this.toLocalDateKey(t.createdAt);
       if (dStr) activeDateSet.add(dStr);
     });
     commitments.forEach((c) => {
@@ -1979,6 +1901,7 @@ export const StorageService = {
     minutesRecordedToday: number;
     todayTargetMinutes: number;
     todayUndeliveredMinutes: number;
+    todayOverdueDeficit: number;
     isTodayTargetMet: boolean;
     pastSessionsMissedCount: number;
     pastUndeliveredMinutes: number;
@@ -2027,14 +1950,18 @@ export const StorageService = {
     const completedTopicsCount = completedTopics.length;
     const undeliveredTopicsCount = undeliveredTopics.length;
 
-    // 2. Today's Delivery and Undelivered Target
+    // 2. Today's Delivery and Remaining Today's Work
     const minutesRecordedToday = this.getMinutesRecordedToday(cleanId);
-    const todayUndeliveredMinutes = Math.max(0, dailyTargetMinutes - minutesRecordedToday);
     const isTodayTargetMet = minutesRecordedToday >= dailyTargetMinutes;
+    // Today's remaining minutes for today's clean 120m target
+    const todayPendingMinutes = Math.max(0, dailyTargetMinutes - minutesRecordedToday);
+    // Today only counts as an overdue deficit if today's upload cutoff has passed!
+    const todayOverdueDeficit = isPassedCutoff ? todayPendingMinutes : 0;
 
     // 3. Past Sessions Undelivered Minutes with Cumulative Pool applied
     const poolInfo = this.getTeacherCumulativePool(cleanId);
-    
+    const cumulativePoolMinutes = poolInfo.bankedMinutes;
+
     // Group lectures by date
     const lecturesByDate = new Map<string, Lecture[]>();
     teacherLectures.forEach((l) => {
@@ -2047,14 +1974,10 @@ export const StorageService = {
       }
     });
 
-    // Real past active dates only
+    // Real past active dates only (where teacher actually recorded or had commitments)
     const pastDatesSet = new Set<string>();
     teacherLectures.forEach((l) => {
       const dStr = this.toLocalDateKey(l.createdAt);
-      if (dStr && dStr < todayStr) pastDatesSet.add(dStr);
-    });
-    allAssignedTopics.forEach((t) => {
-      const dStr = t.deadlineDate || this.toLocalDateKey(t.createdAt);
       if (dStr && dStr < todayStr) pastDatesSet.add(dStr);
     });
     const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
@@ -2065,7 +1988,6 @@ export const StorageService = {
     let pastUndeliveredMinutes = 0;
     let pastSessionsMissedCount = 0;
 
-    // Chronologically evaluate uncompensated shortfall
     const sortedPastDates = Array.from(pastDatesSet).sort();
     let simPool = 0;
 
@@ -2086,52 +2008,47 @@ export const StorageService = {
       }
     });
 
-    // 4. Undelivered topics time (standard 45m per undelivered lecture)
-    const perLectureMins = Math.max(45, Math.min(60, Math.round(dailyTargetMinutes / Math.max(1, teacher?.dailyLimit || 2))));
-    const undeliveredTopicsMinutes = undeliveredTopicsCount * perLectureMins;
+    // 4. Undelivered topics duration (planned topic duration, default 45m per topic)
+    const undeliveredTopicsMinutes = undeliveredTopics.reduce((sum, t) => sum + (t.durationMinutes || 45), 0);
 
-    // Quota deficit across today + past
-    const quotaDeficitMinutes = pastUndeliveredMinutes + todayUndeliveredMinutes;
-
-    // Total undelivered is the maximum of quota deficit and required topics duration, or quota deficit if no topics
+    // 5. Total Undelivered Calculation (Clean, Fair, & Non-Compounding):
     let totalUndeliveredMinutes = 0;
     if (undeliveredTopicsCount > 0) {
-      totalUndeliveredMinutes = Math.max(quotaDeficitMinutes, undeliveredTopicsMinutes);
+      // When topics are assigned, the real workload pending is the duration of those undelivered topics minus flexible pool
+      totalUndeliveredMinutes = Math.max(0, undeliveredTopicsMinutes - cumulativePoolMinutes);
     } else {
-      totalUndeliveredMinutes = quotaDeficitMinutes;
+      // When no topics are assigned, undelivered time is the past shortfall + today's overdue deficit (only if cutoff passed) minus pool
+      const rawDeficit = pastUndeliveredMinutes + todayOverdueDeficit;
+      totalUndeliveredMinutes = Math.max(0, rawDeficit - cumulativePoolMinutes);
     }
 
-    // 5. Suggested Extension Minutes
+    // 6. Suggested Extension Minutes (Exact required duration, minimum 15m)
     let suggestedExtensionMinutes = 60;
     if (totalUndeliveredMinutes > 0) {
       suggestedExtensionMinutes = totalUndeliveredMinutes;
+    } else if (undeliveredTopicsCount > 0) {
+      suggestedExtensionMinutes = undeliveredTopicsMinutes;
     } else {
-      suggestedExtensionMinutes = Math.min(60, Math.max(30, maxDailyMinutes - minutesRecordedToday));
+      suggestedExtensionMinutes = 60;
     }
 
-    // 6. Descriptive calculation summary
-    let calculationSummary = '';
-    if (undeliveredTopicsCount > 0 || totalUndeliveredMinutes > 0) {
-      const parts: string[] = [];
-      if (undeliveredTopicsCount > 0) {
-        parts.push(`${undeliveredTopicsCount} lecture${undeliveredTopicsCount > 1 ? 's' : ''} not delivered (${undeliveredTopicsMinutes}m)`);
-      } else {
-        parts.push('All assigned topics delivered');
-      }
-      if (todayUndeliveredMinutes > 0) {
-        parts.push(`${todayUndeliveredMinutes}m undelivered today`);
-      } else {
-        parts.push('Today target met');
-      }
-      if (pastUndeliveredMinutes > 0) {
-        parts.push(`${pastUndeliveredMinutes}m past uncompensated deficit (${pastSessionsMissedCount} session${pastSessionsMissedCount > 1 ? 's' : ''})`);
-      } else if (poolInfo.bankedMinutes > 0) {
-        parts.push(`${poolInfo.bankedMinutes}m banked in cumulative pool`);
-      }
-      calculationSummary = parts.join(' • ');
-    } else {
-      calculationSummary = `All assigned lectures delivered • ${poolInfo.bankedMinutes > 0 ? `${poolInfo.bankedMinutes}m banked in pool` : 'Daily targets fulfilled'}`;
+    // 7. Descriptive calculation summary
+    const parts: string[] = [];
+    if (undeliveredTopicsCount > 0) {
+      parts.push(`${undeliveredTopicsCount} topic${undeliveredTopicsCount > 1 ? 's' : ''} pending (${undeliveredTopicsMinutes}m)`);
     }
+    if (todayPendingMinutes > 0) {
+      parts.push(`${todayPendingMinutes}m remaining today ${isPassedCutoff ? '(overdue cutoff)' : '(cutoff active)'}`);
+    } else {
+      parts.push("Today's target fulfilled");
+    }
+    if (pastUndeliveredMinutes > 0) {
+      parts.push(`${pastUndeliveredMinutes}m past shortfall (${pastSessionsMissedCount} session${pastSessionsMissedCount > 1 ? 's' : ''})`);
+    }
+    if (cumulativePoolMinutes > 0) {
+      parts.push(`${cumulativePoolMinutes}m flexible pool balance`);
+    }
+    const calculationSummary = parts.length > 0 ? parts.join(' • ') : 'All assignments & daily targets fulfilled';
 
     return {
       teacherId,
@@ -2147,11 +2064,12 @@ export const StorageService = {
       undeliveredTopics,
       minutesRecordedToday,
       todayTargetMinutes: dailyTargetMinutes,
-      todayUndeliveredMinutes,
+      todayUndeliveredMinutes: todayPendingMinutes,
+      todayOverdueDeficit,
       isTodayTargetMet,
       pastSessionsMissedCount,
       pastUndeliveredMinutes,
-      cumulativePoolMinutes: poolInfo.bankedMinutes,
+      cumulativePoolMinutes,
       totalUndeliveredMinutes,
       suggestedExtensionMinutes,
       calculationSummary,

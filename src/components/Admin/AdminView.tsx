@@ -3952,26 +3952,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
                       <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Today's Target</div>
                       <div className="font-bold text-slate-100 font-mono text-sm mt-0.5">{extBreakdown.dailyTargetMinutes}m</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Delivered: <strong className="text-emerald-400">{extBreakdown.minutesRecordedToday}m</strong></div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Recorded: <strong className="text-emerald-400">{extBreakdown.minutesRecordedToday}m</strong></div>
                     </div>
                     <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
-                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Today's Undelivered</div>
-                      <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.todayUndeliveredMinutes > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Today's Work</div>
+                      <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.todayUndeliveredMinutes > 0 ? (extBreakdown.isPassedCutoff ? 'text-rose-400' : 'text-amber-400') : 'text-emerald-400'}`}>
                         {extBreakdown.todayUndeliveredMinutes}m
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.todayUndeliveredMinutes > 0 ? 'Quota missing today' : 'Target met'}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.todayUndeliveredMinutes > 0 ? (extBreakdown.isPassedCutoff ? 'Overdue cutoff' : 'In progress') : 'Target fulfilled'}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
-                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Past Missing Deficit</div>
+                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Past Shortfall</div>
                       <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.pastUndeliveredMinutes > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
                         {extBreakdown.pastUndeliveredMinutes}m
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.pastSessionsMissedCount > 0 ? `${extBreakdown.pastSessionsMissedCount} missed session(s)` : '0 past deficit'}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.pastSessionsMissedCount > 0 ? `${extBreakdown.pastSessionsMissedCount} missed day(s)` : '0 past deficit'}</div>
                     </div>
                     <div className="bg-purple-950/30 p-2.5 rounded-xl border border-purple-800/50">
-                      <div className="text-purple-300 text-[10px] uppercase tracking-wider font-semibold">Auto Extension Time</div>
+                      <div className="text-purple-300 text-[10px] uppercase tracking-wider font-semibold">Suggested Extension</div>
                       <div className="font-bold text-purple-200 font-mono text-sm mt-0.5">{extBreakdown.suggestedExtensionMinutes}m</div>
-                      <div className="text-[10px] text-purple-400/80 mt-0.5">Calculated missing quota</div>
+                      <div className="text-[10px] text-purple-400/80 mt-0.5">Exact required quota</div>
                     </div>
                   </div>
 
@@ -3990,16 +3990,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <div className="flex items-center gap-2 text-[10px]">
                           <button
                             type="button"
-                            onClick={() => setExtTopicIds(extBreakdown.undeliveredTopics.map((t) => t.id))}
-                            className="text-purple-400 hover:text-purple-300 underline font-semibold"
+                            onClick={() => {
+                              const allIds = extBreakdown.undeliveredTopics.map((t) => t.id);
+                              setExtTopicIds(allIds);
+                              const totalDuration = extBreakdown.undeliveredTopics.reduce((sum, top) => sum + (top.durationMinutes || 45), 0);
+                              setExtAllowedMinutes(Math.max(15, totalDuration - extBreakdown.cumulativePoolMinutes));
+                            }}
+                            className="text-purple-400 hover:text-purple-300 underline font-semibold cursor-pointer"
                           >
                             Select All
                           </button>
                           <span className="text-slate-600">•</span>
                           <button
                             type="button"
-                            onClick={() => setExtTopicIds([])}
-                            className="text-slate-400 hover:text-slate-300 underline"
+                            onClick={() => {
+                              setExtTopicIds([]);
+                              setExtAllowedMinutes(extBreakdown.totalUndeliveredMinutes > 0 ? extBreakdown.totalUndeliveredMinutes : 60);
+                            }}
+                            className="text-slate-400 hover:text-slate-300 underline cursor-pointer"
                           >
                             Clear
                           </button>
@@ -4008,25 +4016,36 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div className="flex flex-wrap gap-1.5 pt-0.5 max-h-24 overflow-y-auto">
                         {extBreakdown.undeliveredTopics.map((t) => {
                           const isSelected = extTopicIds.includes(t.id);
+                          const topicDur = t.durationMinutes || 45;
                           return (
                             <button
                               key={t.id}
                               type="button"
                               onClick={() => {
+                                let nextIds: string[];
                                 if (isSelected) {
-                                  setExtTopicIds(extTopicIds.filter((id) => id !== t.id));
+                                  nextIds = extTopicIds.filter((id) => id !== t.id);
                                 } else {
-                                  setExtTopicIds([...extTopicIds, t.id]);
+                                  nextIds = [...extTopicIds, t.id];
+                                }
+                                setExtTopicIds(nextIds);
+                                if (nextIds.length > 0) {
+                                  const totalM = extBreakdown.undeliveredTopics
+                                    .filter((top) => nextIds.includes(top.id))
+                                    .reduce((sum, top) => sum + (top.durationMinutes || 45), 0);
+                                  setExtAllowedMinutes(Math.max(15, totalM - extBreakdown.cumulativePoolMinutes));
+                                } else {
+                                  setExtAllowedMinutes(extBreakdown.totalUndeliveredMinutes > 0 ? extBreakdown.totalUndeliveredMinutes : 60);
                                 }
                               }}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all ${
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all cursor-pointer ${
                                 isSelected
                                   ? 'bg-purple-900/60 border-purple-500 text-purple-100 shadow-sm'
                                   : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                               }`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-purple-400' : 'bg-amber-400'}`} />
-                              <span className="font-bold">{t.unitNumber || 'Unit'}:</span> {t.topicTitle}
+                              <span className="font-bold">{t.unitNumber || 'Unit'}:</span> {t.topicTitle} <span className="opacity-75 font-mono">({topicDur}m)</span>
                               {isSelected ? '✓' : ''}
                             </button>
                           );

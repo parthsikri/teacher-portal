@@ -80,6 +80,7 @@ export interface AssignedTopic {
   deadlineDate?: string;                 // Optional legacy module deadline
   status: 'pending' | 'in_progress' | 'completed';
   priority: 'high' | 'medium' | 'normal';
+  durationMinutes?: number;             // Estimated lecture recording duration in minutes (default 45 min)
   notes?: string;
   createdAt: string;
   updatedAt?: string;
