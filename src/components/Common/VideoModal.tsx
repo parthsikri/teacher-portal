@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, HardDrive, FileText, CheckCircle2, Clock, MessageSquare } from 'lucide-react';
 import { YoutubeIcon as Youtube } from './YoutubeIcon';
 import type { Lecture } from '../../types';
@@ -27,6 +27,12 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose }) => {
   const [activeTab, setActiveTab] = useState<'local' | 'youtube' | 'drive' | 'notes' | 'dpp'>(
     availableTabs[0] || 'local'
   );
+
+  useEffect(() => {
+    if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0]);
+    }
+  }, [lecture?.id, availableTabs.join(',')]);
 
   if (!lecture) return null;
 

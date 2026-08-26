@@ -10,7 +10,7 @@ import {
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -57,6 +57,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [searchTeacherQuery, setSearchTeacherQuery] = useState('');
   const [searchLectureQuery, setSearchLectureQuery] = useState('');
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
+
+  // Step-by-Step Subject & Unit Square Card Selection State for Admin Syllabus
+  const [selectedSubjectAdminSyllabus, setSelectedSubjectAdminSyllabus] = useState<string | null>(null);
+  const [selectedUnitAdminSyllabus, setSelectedUnitAdminSyllabus] = useState<string | null>(null);
+  const [adminSyllabusViewMode, setAdminSyllabusViewMode] = useState<'cards' | 'flat'>('cards');
+  const [adminTopicFilterTab, setAdminTopicFilterTab] = useState<'all' | 'pending_approval' | 'revision_requested' | 'approved' | 'completed'>('all');
 
   // Unit-wise and Teacher-wise Lecture Organization filters
   const [selectedTeacherLectureFilter, setSelectedTeacherLectureFilter] = useState<string>('all');
@@ -779,17 +785,210 @@ export const AdminView: React.FC<AdminViewProps> = ({
       });
   }, [lectures, assignedTopics, teachers, searchLectureQuery, selectedTeacherLectureFilter, selectedUnitLectureFilter]);
 
+  // Available Subjects for Admin Syllabus Square Cards
+  const adminAvailableSubjects = useMemo(() => {
+    const subjectsMap = new Map<string, {
+      name: string;
+      department: string;
+      topics: AssignedTopic[];
+      units: string[];
+      teachers: Set<string>;
+      pendingApprovalCount: number;
+      revisionCount: number;
+      approvedCount: number;
+      completedCount: number;
+    }>();
+
+    // From subject references
+    subjectReferences.forEach((ref) => {
+      const sKey = ref.subjectName.trim().toUpperCase();
+      if (!subjectsMap.has(sKey)) {
+        subjectsMap.set(sKey, {
+          name: ref.subjectName.trim(),
+          department: ref.department || 'Academic Curriculum',
+          topics: [],
+          units: [],
+          teachers: new Set(),
+          pendingApprovalCount: 0,
+          revisionCount: 0,
+          approvedCount: 0,
+          completedCount: 0,
+        });
+      }
+    });
+
+    // From teachers
+    teachers.forEach((t) => {
+      if (t.subject) {
+        const sKey = t.subject.trim().toUpperCase();
+        if (!subjectsMap.has(sKey)) {
+          subjectsMap.set(sKey, {
+            name: t.subject.trim(),
+            department: t.department || 'Academic Curriculum',
+            topics: [],
+            units: [],
+            teachers: new Set(),
+            pendingApprovalCount: 0,
+            revisionCount: 0,
+            approvedCount: 0,
+            completedCount: 0,
+          });
+        }
+        subjectsMap.get(sKey)!.teachers.add(t.name);
+      }
+    });
+
+    // From assigned topics
+    assignedTopics.forEach((topic) => {
+      const sName = topic.subject?.trim() || 'General';
+      const sKey = sName.toUpperCase();
+      const targetTeacher = teachers.find((t) => t.teacherId.toUpperCase() === topic.teacherId.toUpperCase());
+      
+      if (!subjectsMap.has(sKey)) {
+        subjectsMap.set(sKey, {
+          name: sName,
+          department: targetTeacher?.department || 'Academic Curriculum',
+          topics: [],
+          units: [],
+          teachers: new Set(),
+          pendingApprovalCount: 0,
+          revisionCount: 0,
+          approvedCount: 0,
+          completedCount: 0,
+        });
+      }
+
+      const item = subjectsMap.get(sKey)!;
+      item.topics.push(topic);
+      if (targetTeacher?.name) item.teachers.add(targetTeacher.name);
+      else if (topic.teacherId) item.teachers.add(topic.teacherId);
+      
+      const uName = (topic.unitNumber || 'UNIT 1').trim().toUpperCase();
+      if (!item.units.includes(uName)) {
+        item.units.push(uName);
+      }
+
+      const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
+      if (topic.status === 'completed') item.completedCount++;
+      else if (approvalState === 'approved') item.approvedCount++;
+      else if (approvalState === 'revision_requested') item.revisionCount++;
+      else if (approvalState === 'pending_admin_approval') item.pendingApprovalCount++;
+    });
+
+    return Array.from(subjectsMap.values()).sort((a, b) => b.topics.length - a.topics.length);
+  }, [assignedTopics, subjectReferences, teachers]);
+
+  // Available Units for Selected Subject in Admin Syllabus
+  const adminAvailableUnitsForSubject = useMemo(() => {
+    let relevantTopics = assignedTopics;
+    if (selectedSubjectAdminSyllabus && selectedSubjectAdminSyllabus !== 'all') {
+      relevantTopics = assignedTopics.filter(
+        (t) => (t.subject || '').trim().toUpperCase() === selectedSubjectAdminSyllabus.trim().toUpperCase()
+      );
+    }
+
+    const unitsMap = new Map<string, {
+      unitName: string;
+      topics: AssignedTopic[];
+      teachers: Set<string>;
+      pendingApprovalCount: number;
+      revisionCount: number;
+      approvedCount: number;
+      completedCount: number;
+    }>();
+
+    // Seed default units if empty
+    if (relevantTopics.length === 0) {
+      ['UNIT 1', 'UNIT 2', 'UNIT 3'].forEach((u) => {
+        unitsMap.set(u, {
+          unitName: u,
+          topics: [],
+          teachers: new Set(),
+          pendingApprovalCount: 0,
+          revisionCount: 0,
+          approvedCount: 0,
+          completedCount: 0,
+        });
+      });
+    }
+
+    relevantTopics.forEach((topic) => {
+      const uName = (topic.unitNumber || 'UNIT 1').trim();
+      const uKey = uName.toUpperCase();
+      const targetTeacher = teachers.find((t) => t.teacherId.toUpperCase() === topic.teacherId.toUpperCase());
+      
+      if (!unitsMap.has(uKey)) {
+        unitsMap.set(uKey, {
+          unitName: uName,
+          topics: [],
+          teachers: new Set(),
+          pendingApprovalCount: 0,
+          revisionCount: 0,
+          approvedCount: 0,
+          completedCount: 0,
+        });
+      }
+
+      const item = unitsMap.get(uKey)!;
+      item.topics.push(topic);
+      if (targetTeacher?.name) item.teachers.add(targetTeacher.name);
+      else if (topic.teacherId) item.teachers.add(topic.teacherId);
+      
+      const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
+      if (topic.status === 'completed') item.completedCount++;
+      else if (approvalState === 'approved') item.approvedCount++;
+      else if (approvalState === 'revision_requested') item.revisionCount++;
+      else if (approvalState === 'pending_admin_approval') item.pendingApprovalCount++;
+    });
+
+    const sortUnits = (a: string, b: string) => {
+      const numA = parseInt(a.replace(/[^0-9]/g, ''), 10);
+      const numB = parseInt(b.replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b);
+    };
+
+    return Array.from(unitsMap.values()).sort((a, b) => sortUnits(a.unitName, b.unitName));
+  }, [assignedTopics, selectedSubjectAdminSyllabus, teachers]);
+
   const filteredAssignedTopics = useMemo(() => {
-    const q = searchTopicQuery.toLowerCase().trim();
-    if (!q) return assignedTopics;
-    return assignedTopics.filter(
-      (t) =>
-        t.topicTitle.toLowerCase().includes(q) ||
-        t.teacherId.toLowerCase().includes(q) ||
-        t.subject.toLowerCase().includes(q) ||
-        t.subtopics.some((st) => st.toLowerCase().includes(q))
-    );
-  }, [assignedTopics, searchTopicQuery]);
+    return assignedTopics.filter((topic) => {
+      // Subject filter
+      if (selectedSubjectAdminSyllabus && selectedSubjectAdminSyllabus !== 'all') {
+        if ((topic.subject || '').trim().toUpperCase() !== selectedSubjectAdminSyllabus.trim().toUpperCase()) {
+          return false;
+        }
+      }
+
+      // Unit filter
+      if (selectedUnitAdminSyllabus && selectedUnitAdminSyllabus !== 'all') {
+        if ((topic.unitNumber || 'UNIT 1').trim().toUpperCase() !== selectedUnitAdminSyllabus.trim().toUpperCase()) {
+          return false;
+        }
+      }
+
+      // Status filter
+      const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
+      if (adminTopicFilterTab === 'pending_approval' && approvalState !== 'pending_admin_approval') return false;
+      if (adminTopicFilterTab === 'revision_requested' && approvalState !== 'revision_requested') return false;
+      if (adminTopicFilterTab === 'approved' && (approvalState !== 'approved' || topic.status === 'completed')) return false;
+      if (adminTopicFilterTab === 'completed' && topic.status !== 'completed') return false;
+
+      // Query filter
+      const q = searchTopicQuery.toLowerCase().trim();
+      if (!q) return true;
+
+      const targetTeacher = teachers.find((t) => t.teacherId.toUpperCase() === topic.teacherId.toUpperCase());
+      const matchesTitle = (topic.topicTitle || '').toLowerCase().includes(q);
+      const matchesTeacher = (topic.teacherId || '').toLowerCase().includes(q) || (targetTeacher?.name || '').toLowerCase().includes(q);
+      const matchesSubject = (topic.subject || '').toLowerCase().includes(q);
+      const matchesUnit = (topic.unitNumber || '').toLowerCase().includes(q);
+      const matchesSubtopics = topic.subtopics?.some((st) => (st || '').toLowerCase().includes(q)) ||
+        topic.proposedSubtopics?.some((st) => (st || '').toLowerCase().includes(q));
+
+      return matchesTitle || matchesTeacher || matchesSubject || matchesUnit || !!matchesSubtopics;
+    });
+  }, [assignedTopics, selectedSubjectAdminSyllabus, selectedUnitAdminSyllabus, adminTopicFilterTab, searchTopicQuery, teachers]);
 
   const pendingApprovalTopics = assignedTopics.filter(
     (t) => t.subtopicsApprovalState === 'pending_admin_approval'
@@ -1393,24 +1592,69 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* PAGE 2: 📌 SYLLABUS TOPICS & SUBTOPIC DEADLINES HUB */}
+      {/* PAGE 2: 📌 SYLLABUS TOPICS & SUBTOPIC DEADLINES HUB (SQUARE CARDS SELECTOR) */}
       {currentPage === 'admin_syllabus' && (
         <div className="space-y-6">
+          {/* HEADER BANNER */}
           <div className="bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2">
-                <Layers className="w-5 h-5 text-amber-400" /> Syllabus & Subtopic Deadlines Center
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Assign modules to faculty, adjust individual submission deadlines per subtopic, and approve syllabus breakdowns.
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400">
+                  <Layers className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight">
+                    Syllabus & Subtopic Deadlines Center
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {adminSyllabusViewMode === 'cards' && !selectedSubjectAdminSyllabus
+                      ? 'Step 1: Choose a subject module to review unit breakdowns and manage topic deadlines.'
+                      : adminSyllabusViewMode === 'cards' && !selectedUnitAdminSyllabus
+                      ? `Step 2: Choose a unit in ${selectedSubjectAdminSyllabus === 'all' ? 'all subjects' : selectedSubjectAdminSyllabus}`
+                      : `Step 3: Review curriculum topics in ${selectedUnitAdminSyllabus === 'all' ? 'All Units' : selectedUnitAdminSyllabus}`}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2.5">
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button
+                  onClick={() => setAdminSyllabusViewMode('cards')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                    adminSyllabusViewMode === 'cards'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Card Navigation (Subject ➔ Unit ➔ Topics)"
+                >
+                  <Grid className="w-3.5 h-3.5" />
+                  <span>Module Cards</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setAdminSyllabusViewMode('flat');
+                    setSelectedSubjectAdminSyllabus('all');
+                    setSelectedUnitAdminSyllabus('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                    adminSyllabusViewMode === 'flat'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Direct Flat List of All Topics"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>All Topics</span>
+                </button>
+              </div>
+
               <button
                 onClick={() => setShowReorderModal(true)}
-                className="px-5 py-2.5 rounded-xl font-extrabold text-slate-200 text-xs bg-slate-900 border border-slate-700 hover:bg-slate-800 shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                className="px-4 py-2 rounded-xl font-extrabold text-slate-200 text-xs bg-slate-900 border border-slate-700 hover:bg-slate-800 shadow-md transition-all flex items-center gap-1.5 shrink-0"
               >
-                ⇅ Reorder Topics
+                ⇅ Reorder
               </button>
               <button
                 onClick={() => {
@@ -1421,232 +1665,600 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   setAssignTeacherId(teachers[0]?.teacherId || '');
                   setShowAssignModal(true);
                 }}
-                className="px-5 py-2.5 rounded-xl font-extrabold text-slate-950 text-xs bg-amber-500 hover:bg-amber-400 shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                className="px-4.5 py-2 rounded-xl font-extrabold text-slate-950 text-xs bg-amber-500 hover:bg-amber-400 shadow-md transition-all flex items-center gap-1.5 shrink-0"
               >
-                📌 + Assign New Topics
+                📌 + Assign Topics
               </button>
             </div>
           </div>
 
-          {/* Search bar */}
-          <div className="relative w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search topics by title, teacher ID, subject, or subtopics..."
-              value={searchTopicQuery}
-              onChange={(e) => setSearchTopicQuery(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-11 pr-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500 shadow-inner"
-            />
+          {/* INTERACTIVE BREADCRUMB TRAIL */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900/60 border border-slate-800/80 rounded-2xl text-xs">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => {
+                  setSelectedSubjectAdminSyllabus(null);
+                  setSelectedUnitAdminSyllabus(null);
+                  setAdminSyllabusViewMode('cards');
+                }}
+                className={`font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors ${
+                  !selectedSubjectAdminSyllabus && adminSyllabusViewMode === 'cards'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : 'text-amber-400 hover:bg-slate-800 hover:text-amber-300'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>1. Subjects ({adminAvailableSubjects.length})</span>
+              </button>
+
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+
+              <button
+                disabled={!selectedSubjectAdminSyllabus}
+                onClick={() => {
+                  setSelectedUnitAdminSyllabus(null);
+                  setAdminSyllabusViewMode('cards');
+                }}
+                className={`font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-transparent ${
+                  selectedSubjectAdminSyllabus && !selectedUnitAdminSyllabus && adminSyllabusViewMode === 'cards'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : selectedSubjectAdminSyllabus
+                    ? 'text-amber-400 hover:bg-slate-800 hover:text-amber-300'
+                    : 'text-slate-500'
+                }`}
+              >
+                <Folder className="w-3.5 h-3.5" />
+                <span>
+                  2. {selectedSubjectAdminSyllabus ? (selectedSubjectAdminSyllabus === 'all' ? 'All Subjects' : selectedSubjectAdminSyllabus) : 'Select Unit'}
+                </span>
+              </button>
+
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+
+              <span
+                className={`font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg ${
+                  selectedUnitAdminSyllabus || adminSyllabusViewMode === 'flat'
+                    ? 'bg-slate-800 text-amber-300 font-bold border border-slate-700'
+                    : 'text-slate-500'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>
+                  3. {selectedUnitAdminSyllabus ? (selectedUnitAdminSyllabus === 'all' ? 'All Units' : selectedUnitAdminSyllabus) : 'Topics'}
+                </span>
+              </span>
+            </div>
+
+            {/* Quick Back Shortcuts */}
+            <div className="flex items-center gap-2">
+              {selectedUnitAdminSyllabus && (
+                <button
+                  onClick={() => setSelectedUnitAdminSyllabus(null)}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <ArrowLeft className="w-3 h-3" /> Change Unit
+                </button>
+              )}
+              {selectedSubjectAdminSyllabus && (
+                <button
+                  onClick={() => {
+                    setSelectedSubjectAdminSyllabus(null);
+                    setSelectedUnitAdminSyllabus(null);
+                  }}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <ArrowLeft className="w-3 h-3" /> Change Subject
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Topics Grid */}
-          {filteredAssignedTopics.length === 0 ? (
-            <div className="p-16 text-center bg-slate-900 rounded-3xl border border-slate-800 space-y-3">
-              <div className="text-4xl">📌</div>
-              <div className="font-bold text-slate-200 text-base">No Assigned Topics Found</div>
-              <p className="text-xs text-slate-400">Click "📌 + Assign New Topics" to distribute curriculum topics to teachers.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {filteredAssignedTopics.map((topic) => {
-                const targetTeacher = teachers.find((t) => t.teacherId === topic.teacherId);
-                const isCompleted = topic.status === 'completed';
-                const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
-                const isApproved = approvalState === 'approved';
-                const isUnderReview = approvalState === 'pending_admin_approval';
-                const isRevision = approvalState === 'revision_requested';
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* STEP 1: CHOOSE SUBJECT (SQUARE CARDS UI)                        */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {adminSyllabusViewMode === 'cards' && !selectedSubjectAdminSyllabus && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <span>📚 Step 1: Select Subject</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Click a subject module card to explore units and topics</p>
+                </div>
+              </div>
 
-
-                return (
-                  <div
-                    key={topic.id}
-                    className={`bg-slate-900 border rounded-3xl p-5 space-y-3.5 relative shadow-md flex flex-col justify-between ${
-                      isCompleted
-                        ? 'border-emerald-500/30'
-                        : isUnderReview
-                        ? 'border-purple-500/50 bg-purple-950/5'
-                        : isApproved
-                        ? 'border-emerald-500/30'
-                        : 'border-slate-800'
-                    }`}
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="text-[10px] font-mono font-bold text-amber-400">{topic.teacherId}</span>
-                          <h4 className="font-bold text-sm text-slate-100">{topic.topicTitle}</h4>
-                          <p className="text-[11px] text-slate-400">{targetTeacher?.name || topic.teacherId} • {topic.subject}</p>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveTopic(topic.id)}
-                          className="text-slate-500 hover:text-red-400 text-xs p-1"
-                          title="Delete Assigned Topic"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {/* "All Subjects Overview" Square Card */}
+                <div
+                  onClick={() => {
+                    setSelectedSubjectAdminSyllabus('all');
+                    setSelectedUnitAdminSyllabus('all');
+                  }}
+                  className="group relative rounded-3xl p-5 bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-purple-950/40 border-2 border-amber-500/40 hover:border-amber-400 hover:scale-[1.02] cursor-pointer transition-all shadow-xl flex flex-col justify-between aspect-square min-h-[220px]"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-bold">
+                        <Sparkles className="w-5 h-5 text-amber-400" />
                       </div>
-
-                      {/* Status Badge */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {isCompleted ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            ✓ Delivered On-Time
-                          </span>
-                        ) : isApproved ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Subtopics Approved
-                          </span>
-                        ) : isUnderReview ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1 animate-pulse">
-                            🔔 Subtopics Awaiting Approval
-                          </span>
-                        ) : isRevision ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
-                            ⚠️ Revision Requested
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                            ⏳ Waiting for Teacher Subtopics
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Subtopics Sequence List */}
-                      <div className="space-y-1.5">
-                        <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
-                          <span className="flex items-center gap-1 text-slate-300">
-                            <Layers className="w-3 h-3 text-purple-400" />
-                            Subtopics Sequence ({topic.subtopics?.length || topic.proposedSubtopics?.length || 0}):
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenReviewModal(topic)}
-                            className="text-[10px] text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5 hover:underline"
-                          >
-                            <Edit3 className="w-2.5 h-2.5" /> Edit / Reorder
-                          </button>
-                        </div>
-
-                        {(topic.subtopics && topic.subtopics.length > 0) || (topic.proposedSubtopics && topic.proposedSubtopics.length > 0) ? (
-                          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                            {(topic.subtopics && topic.subtopics.length > 0 ? topic.subtopics : topic.proposedSubtopics || []).map((st, idx) => (
-                              <div
-                                key={idx}
-                                className="px-2.5 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-200 font-medium flex items-center gap-2 group hover:border-purple-500/30 transition-colors"
-                              >
-                                <span className="font-mono font-extrabold text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded border border-purple-500/20 shrink-0">
-                                  #{idx + 1}
-                                </span>
-                                <span className="truncate flex-1 flex items-center justify-between gap-2">
-                                  <span className="truncate">{st}</span>
-                                  {topic.subtopicItems?.find(item => item.name.trim().toLowerCase() === st.trim().toLowerCase())?.isApproved === false && (
-                                    <span className="px-1.5 py-0.5 text-[8px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-full shrink-0">
-                                      pending approval
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-slate-500 italic block py-1">
-                            Teacher has not proposed subtopics yet
-                          </span>
-                        )}
-
-                        {/* Approved Admin Guidelines / Comment */}
-                        {topic.adminApprovalComment && (
-                          <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-500/25 text-[11px] space-y-1">
-                            <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
-                              <span className="flex items-center gap-1">
-                                <MessageSquare className="w-3 h-3" /> Approval Note:
-                              </span>
-                              <button
-                                onClick={() => handleOpenReviewModal(topic)}
-                                className="text-emerald-400/70 hover:text-emerald-300 underline font-normal lowercase"
-                              >
-                                edit
-                              </button>
-                            </div>
-                            <p className="text-slate-200 italic font-medium">"{topic.adminApprovalComment}"</p>
-                          </div>
-                        )}
-                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Overview
+                      </span>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-950 space-y-2">
-                      {/* Quick Actions */}
-                      {isUnderReview && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleOpenReviewModal(topic)}
-                            className="flex-1 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" /> Review &amp; Comment
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Build items from proposedSubtopics (the ones the teacher submitted for review)
-                              const names = (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
-                                ? topic.proposedSubtopics
-                                : (topic.subtopics && topic.subtopics.length > 0)
-                                ? topic.subtopics
-                                : [];
-                              if (names.length === 0) {
-                                // No subtopics to approve — open modal so admin can add them
-                                handleOpenReviewModal(topic);
-                                return;
-                              }
-                              const quickItems: SubtopicItem[] = names.map((name, idx) => ({
-                                id: `sub-qa-${idx}-${Date.now()}`,
-                                name: name.trim(),
-                                status: 'pending' as const,
-                              }));
-                              handleDirectApprove(topic.id, quickItems, '', topic.topicTitle);
-                            }}
-                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Quick Approve
-                          </button>
-                        </div>
-                      )}
-
-                      {isApproved && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleOpenReviewModal(topic)}
-                            className="flex-[2] py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" /> Manage Subtopics
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm("Change subtopics status back to 'Subtopics Needed' (Pending Teacher Input)?")) {
-                                StorageService.resetSubtopicsApprovalState(topic.id);
-                                refreshState();
-                              }
-                            }}
-                            className="flex-1 py-2 bg-rose-600/15 hover:bg-rose-600/25 border border-rose-500/30 text-rose-400 font-bold text-[10px] rounded-xl flex items-center justify-center gap-1 transition-colors"
-                            title="Require Teacher to Submit Subtopics"
-                          >
-                            Reset Status
-                          </button>
-                        </div>
-                      )}
-
-                      {!isUnderReview && !isApproved && !isCompleted && (
-                        <button
-                          onClick={() => handleOpenReviewModal(topic)}
-                          className="w-full py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs rounded-xl flex items-center justify-center gap-1"
-                        >
-                          <Edit3 className="w-3 h-3" /> Manage Subtopics
-                        </button>
-                      )}
+                    <div>
+                      <h4 className="text-base font-black text-slate-100 group-hover:text-amber-300 transition-colors">
+                        All Subjects
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        View and manage topics across all academic subjects at once.
+                      </p>
                     </div>
                   </div>
-                );
-              })}
+
+                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                      <span>📌 {assignedTopics.length} Topics</span>
+                      <span>👨‍🏫 {teachers.length} Faculty</span>
+                    </div>
+                    <div className="text-[11px] font-bold text-amber-400 group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                      Manage All Topics →
+                    </div>
+                  </div>
+                </div>
+
+                {/* Individual Subject Square Cards */}
+                {adminAvailableSubjects.map((subj) => (
+                  <div
+                    key={subj.name}
+                    onClick={() => setSelectedSubjectAdminSyllabus(subj.name)}
+                    className="group relative rounded-3xl p-5 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-slate-950 border border-slate-800 hover:border-amber-500/60 hover:scale-[1.02] cursor-pointer transition-all shadow-lg hover:shadow-amber-950/40 flex flex-col justify-between aspect-square min-h-[220px]"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="w-10 h-10 rounded-2xl bg-slate-800/80 border border-slate-700 text-amber-300 flex items-center justify-center font-bold shadow-inner">
+                          <BookOpen className="w-5 h-5 text-amber-400" />
+                        </div>
+
+                        {subj.pendingApprovalCount > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-purple-600 text-white animate-pulse shadow-sm shadow-purple-600/30">
+                            🔔 {subj.pendingApprovalCount} Needs Review
+                          </span>
+                        ) : subj.revisionCount > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white shadow-sm">
+                            ⚠️ {subj.revisionCount} Revision
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                            {subj.department}
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <h4 className="text-base font-black text-slate-100 group-hover:text-amber-300 transition-colors line-clamp-2">
+                          {subj.name}
+                        </h4>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">
+                          {subj.department}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                      <div className="grid grid-cols-2 gap-1 text-[11px] font-semibold text-slate-300">
+                        <span className="truncate">📦 {subj.units.length || 1} Units</span>
+                        <span className="truncate text-right">📌 {subj.topics.length} Topics</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-bold text-amber-400 pt-0.5">
+                        <span className="text-slate-400 font-normal">
+                          👨‍🏫 {subj.teachers.size} Faculty
+                        </span>
+                        <span className="group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                          Select Units ➔
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* STEP 2: CHOOSE UNIT (SQUARE CARDS UI)                           */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {adminSyllabusViewMode === 'cards' && selectedSubjectAdminSyllabus && !selectedUnitAdminSyllabus && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <span>📦 Step 2: Choose Unit / Module</span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {selectedSubjectAdminSyllabus === 'all' ? 'All Subjects' : selectedSubjectAdminSyllabus}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Click a unit card to open and manage its curriculum topics</p>
+                </div>
+
+                <button
+                  onClick={() => setSelectedSubjectAdminSyllabus(null)}
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> Back to Subjects
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {/* "All Units in this Subject" Square Card */}
+                <div
+                  onClick={() => setSelectedUnitAdminSyllabus('all')}
+                  className="group relative rounded-3xl p-5 bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-purple-950/40 border-2 border-amber-500/40 hover:border-amber-400 hover:scale-[1.02] cursor-pointer transition-all shadow-xl flex flex-col justify-between aspect-square min-h-[220px]"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-bold">
+                        <Folder className="w-5 h-5 text-amber-400" />
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Full Subject
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-base font-black text-slate-100 group-hover:text-amber-300 transition-colors">
+                        All Units Combined
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        View and manage topics across all units in {selectedSubjectAdminSyllabus === 'all' ? 'the curriculum' : selectedSubjectAdminSyllabus}.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                    <div className="text-xs font-semibold text-slate-300">
+                      📌 {adminAvailableUnitsForSubject.reduce((sum, u) => sum + u.topics.length, 0)} Topics in Total
+                    </div>
+                    <div className="text-[11px] font-bold text-amber-400 group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                      Open All Units →
+                    </div>
+                  </div>
+                </div>
+
+                {/* Individual Unit Square Cards */}
+                {adminAvailableUnitsForSubject.map((unit) => (
+                  <div
+                    key={unit.unitName}
+                    onClick={() => setSelectedUnitAdminSyllabus(unit.unitName)}
+                    className="group relative rounded-3xl p-5 bg-gradient-to-br from-slate-900/90 via-slate-900/80 to-slate-950 border border-slate-800 hover:border-amber-500/60 hover:scale-[1.02] cursor-pointer transition-all shadow-lg hover:shadow-amber-950/30 flex flex-col justify-between aspect-square min-h-[220px]"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="px-3 py-1 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-mono font-black text-xs flex items-center gap-1.5 shadow-sm">
+                          <Folder className="w-3.5 h-3.5 text-indigo-400" />
+                          {unit.unitName}
+                        </div>
+
+                        {unit.pendingApprovalCount > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-purple-600 text-white animate-pulse shadow-sm">
+                            🔔 {unit.pendingApprovalCount} Review
+                          </span>
+                        ) : unit.revisionCount > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            ⚠️ {unit.revisionCount}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="pt-1">
+                        <h4 className="text-base font-black text-slate-100 group-hover:text-amber-300 transition-colors">
+                          {unit.unitName} Module
+                        </h4>
+                        <span className="text-xs text-slate-400 block mt-0.5 font-medium">
+                          {unit.topics.length} Assigned Topic{unit.topics.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                      <div className="text-[11px] text-slate-400 truncate">
+                        👨‍🏫 {Array.from(unit.teachers).join(', ') || 'No Faculty Assigned'}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-bold text-amber-400 pt-0.5">
+                        <span className="text-emerald-400">{unit.approvedCount} Approved</span>
+                        <span className="group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                          Open Unit Topics ➔
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* STEP 3: TOPICS LIST FOR SELECTED UNIT / SUBJECT                */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {(adminSyllabusViewMode === 'flat' || (selectedSubjectAdminSyllabus && selectedUnitAdminSyllabus)) && (
+            <div className="space-y-5">
+              {/* Filter Tabs & Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  <button
+                    onClick={() => setAdminTopicFilterTab('all')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors font-medium ${
+                      adminTopicFilterTab === 'all' ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    All ({filteredAssignedTopics.length})
+                  </button>
+
+                  <button
+                    onClick={() => setAdminTopicFilterTab('pending_approval')}
+                    className={`px-3 py-1.5 rounded-lg transition-all font-bold flex items-center gap-1.5 ${
+                      adminTopicFilterTab === 'pending_approval'
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                        : 'bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
+                    🔔 Awaiting Approval ({pendingApprovalTopics.length})
+                  </button>
+
+                  <button
+                    onClick={() => setAdminTopicFilterTab('revision_requested')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors font-medium ${
+                      adminTopicFilterTab === 'revision_requested' ? 'bg-slate-800 text-rose-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    ⚠️ Revision ({assignedTopics.filter((t) => t.subtopicsApprovalState === 'revision_requested').length})
+                  </button>
+
+                  <button
+                    onClick={() => setAdminTopicFilterTab('approved')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors font-medium ${
+                      adminTopicFilterTab === 'approved' ? 'bg-slate-800 text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    ✓ Approved ({assignedTopics.filter((t) => t.subtopicsApprovalState === 'approved' && t.status !== 'completed').length})
+                  </button>
+
+                  <button
+                    onClick={() => setAdminTopicFilterTab('completed')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors font-medium ${
+                      adminTopicFilterTab === 'completed' ? 'bg-slate-800 text-slate-200 font-bold' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    ✓ Delivered ({assignedTopics.filter((t) => t.status === 'completed').length})
+                  </button>
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search topics by title, teacher..."
+                    value={searchTopicQuery}
+                    onChange={(e) => setSearchTopicQuery(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-500 shadow-inner"
+                  />
+                </div>
+              </div>
+
+              {/* Topics Grid */}
+              {filteredAssignedTopics.length === 0 ? (
+                <div className="p-16 text-center bg-slate-900 rounded-3xl border border-slate-800 space-y-3">
+                  <div className="text-4xl">📌</div>
+                  <div className="font-bold text-slate-200 text-base">No Assigned Topics Found in this Selection</div>
+                  <p className="text-xs text-slate-400">Click "📌 + Assign Topics" to add curriculum topics or choose another unit/subject.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredAssignedTopics.map((topic) => {
+                    const targetTeacher = teachers.find((t) => t.teacherId === topic.teacherId);
+                    const isCompleted = topic.status === 'completed';
+                    const approvalState = topic.subtopicsApprovalState || 'pending_teacher_input';
+                    const isApproved = approvalState === 'approved';
+                    const isUnderReview = approvalState === 'pending_admin_approval';
+                    const isRevision = approvalState === 'revision_requested';
+
+                    return (
+                      <div
+                        key={topic.id}
+                        className={`bg-slate-900 border rounded-3xl p-5 space-y-3.5 relative shadow-md flex flex-col justify-between ${
+                          isCompleted
+                            ? 'border-emerald-500/30'
+                            : isUnderReview
+                            ? 'border-purple-500/50 bg-purple-950/10'
+                            : isApproved
+                            ? 'border-emerald-500/30'
+                            : 'border-slate-800'
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="truncate flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded font-mono font-bold text-[9px] bg-slate-800 text-amber-400 border border-slate-700">
+                                  {topic.unitNumber || 'UNIT 1'}
+                                </span>
+                                <span className="text-[10px] font-mono font-bold text-slate-400">{topic.teacherId}</span>
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-100 mt-1 truncate">{topic.topicTitle}</h4>
+                              <p className="text-[11px] text-slate-400">{targetTeacher?.name || topic.teacherId} • {topic.subject}</p>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveTopic(topic.id)}
+                              className="text-slate-500 hover:text-red-400 text-xs p-1"
+                              title="Delete Assigned Topic"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Status Badge */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isCompleted ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                ✓ Delivered On-Time
+                              </span>
+                            ) : isApproved ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Subtopics Approved
+                              </span>
+                            ) : isUnderReview ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1 animate-pulse">
+                                🔔 Subtopics Awaiting Approval
+                              </span>
+                            ) : isRevision ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                ⚠️ Revision Requested
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                                ⏳ Waiting for Teacher Subtopics
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Subtopics Sequence List */}
+                          <div className="space-y-1.5">
+                            <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
+                              <span className="flex items-center gap-1 text-slate-300">
+                                <Layers className="w-3 h-3 text-purple-400" />
+                                Subtopics Sequence ({topic.subtopics?.length || topic.proposedSubtopics?.length || 0}):
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReviewModal(topic)}
+                                className="text-[10px] text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5 hover:underline"
+                              >
+                                <Edit3 className="w-2.5 h-2.5" /> Edit / Reorder
+                              </button>
+                            </div>
+
+                            {(topic.subtopics && topic.subtopics.length > 0) || (topic.proposedSubtopics && topic.proposedSubtopics.length > 0) ? (
+                              <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                                {(topic.subtopics && topic.subtopics.length > 0 ? topic.subtopics : topic.proposedSubtopics || []).map((st, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="px-2.5 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-200 font-medium flex items-center gap-2 group hover:border-purple-500/30 transition-colors"
+                                  >
+                                    <span className="font-mono font-extrabold text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded border border-purple-500/20 shrink-0">
+                                      #{idx + 1}
+                                    </span>
+                                    <span className="truncate flex-1 flex items-center justify-between gap-2">
+                                      <span className="truncate">{st}</span>
+                                      {topic.subtopicItems?.find(item => item.name.trim().toLowerCase() === st.trim().toLowerCase())?.isApproved === false && (
+                                        <span className="px-1.5 py-0.5 text-[8px] font-bold bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-full shrink-0">
+                                          pending approval
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 italic block py-1">
+                                Teacher has not proposed subtopics yet
+                              </span>
+                            )}
+
+                            {/* Approved Admin Guidelines / Comment */}
+                            {topic.adminApprovalComment && (
+                              <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-500/25 text-[11px] space-y-1">
+                                <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                                  <span className="flex items-center gap-1">
+                                    <MessageSquare className="w-3 h-3" /> Approval Note:
+                                  </span>
+                                  <button
+                                    onClick={() => handleOpenReviewModal(topic)}
+                                    className="text-emerald-400/70 hover:text-emerald-300 underline font-normal lowercase"
+                                  >
+                                    edit
+                                  </button>
+                                </div>
+                                <p className="text-slate-200 italic font-medium">"{topic.adminApprovalComment}"</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-950 space-y-2">
+                          {/* Quick Actions */}
+                          {isUnderReview && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleOpenReviewModal(topic)}
+                                className="flex-1 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" /> Review &amp; Comment
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const names = (topic.proposedSubtopics && topic.proposedSubtopics.length > 0)
+                                    ? topic.proposedSubtopics
+                                    : (topic.subtopics && topic.subtopics.length > 0)
+                                    ? topic.subtopics
+                                    : [];
+                                  if (names.length === 0) {
+                                    handleOpenReviewModal(topic);
+                                    return;
+                                  }
+                                  const quickItems: SubtopicItem[] = names.map((name, idx) => ({
+                                    id: `sub-qa-${idx}-${Date.now()}`,
+                                    name: name.trim(),
+                                    status: 'pending' as const,
+                                  }));
+                                  handleDirectApprove(topic.id, quickItems, '', topic.topicTitle);
+                                }}
+                                className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Quick Approve
+                              </button>
+                            </div>
+                          )}
+
+                          {isApproved && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleOpenReviewModal(topic)}
+                                className="flex-[2] py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" /> Manage Subtopics
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm("Change subtopics status back to 'Subtopics Needed' (Pending Teacher Input)?")) {
+                                    StorageService.resetSubtopicsApprovalState(topic.id);
+                                    refreshState();
+                                  }
+                                }}
+                                className="flex-1 py-2 bg-rose-600/15 hover:bg-rose-600/25 border border-rose-500/30 text-rose-400 font-bold text-[10px] rounded-xl flex items-center justify-center gap-1 transition-colors"
+                                title="Require Teacher to Submit Subtopics"
+                              >
+                                Reset Status
+                              </button>
+                            </div>
+                          )}
+
+                          {!isUnderReview && !isApproved && !isCompleted && (
+                            <button
+                              onClick={() => handleOpenReviewModal(topic)}
+                              className="w-full py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs rounded-xl flex items-center justify-center gap-1"
+                            >
+                              <Edit3 className="w-3 h-3" /> Manage Subtopics
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

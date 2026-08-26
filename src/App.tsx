@@ -119,11 +119,11 @@ export const App: React.FC = () => {
                   userSubject={currentUser.subject || currentUser.department || 'General'}
                   userName={currentUser.name}
                 />
-              ) : currentPage === 'thumbnail_generator' ? (
+              ) : currentPage === 'thumbnail_generator' && currentUser.role === 'admin' ? (
                 <ThumbnailStudio
                   initialSubject={currentUser.subject || currentUser.department || 'General'}
-                  initialTeacherName={currentUser.role === 'teacher' ? currentUser.name : undefined}
-                  initialTeacherId={currentUser.role === 'teacher' ? currentUser.teacherId : undefined}
+                  initialTeacherName={undefined}
+                  initialTeacherId={undefined}
                 />
               ) : currentUser.role === 'admin' ? (
                 <AdminView

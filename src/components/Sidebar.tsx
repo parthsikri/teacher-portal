@@ -91,7 +91,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: teacherPptReadyCount > 0 ? `${teacherPptReadyCount} Ready` : undefined,
     },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
-    { id: 'thumbnail_generator', label: '16:9 Thumbnails', icon: ImageIcon },
     { id: 'resources', label: 'Subject Library', icon: BookMarked },
     { 
       id: 'directives', 

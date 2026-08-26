@@ -18,11 +18,14 @@ export const PptRequestPortal: React.FC<PptRequestPortalProps> = ({
   const [requests, setRequests] = useState<PptRequest[]>(() =>
     StorageService.getTeacherPptRequests(teacher.teacherId)
   );
-  const [assignedTopics] = useState<AssignedTopic[]>(() =>
-    StorageService.getAssignedTopics().filter(
-      (t) => t.teacherId.toUpperCase() === teacher.teacherId.toUpperCase()
-    )
+  const assignedTopics = useMemo<AssignedTopic[]>(
+    () =>
+      StorageService.getAssignedTopics().filter(
+        (t) => t.teacherId.toUpperCase() === teacher.teacherId.toUpperCase()
+      ),
+    [teacher.teacherId, requests]
   );
+
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');

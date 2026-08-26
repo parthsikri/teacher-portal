@@ -1053,6 +1053,7 @@ export const StorageService = {
       if (topicDeadlineDate < today) return false;
     }
 
+
     // Check teacher's permanent daily upload cutoff time (set once on first login)
     const users = this.getUsers();
     const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
@@ -1176,23 +1177,29 @@ export const StorageService = {
     totalLectures: number;
     onTimeLectures: number;
     delayedLectures: number;
+    extendedLectures: number;
     totalDeliveredMinutes: number;
     totalMinutes: number;
     onTimeMinutes: number;
+    extendedMinutes: number;
+    overdueDeliveredMinutes: number;
+    unfulfilledTargetMinutes: number;
     lateMinutes: number;
     pendingLateMinutesToday: number;
     flexibleBalanceMinutes: number;
     onTimePercentage: number;
   } {
+    const cleanId = teacherId.toUpperCase();
     const teacherLectures = this.getLectures().filter(
-      (l) => l.teacherId.toUpperCase() === teacherId.toUpperCase()
+      (l) => l.teacherId.toUpperCase() === cleanId
     );
     const totalLectures = teacherLectures.length;
     const onTimeLectures = teacherLectures.filter((l) => l.status === 'on_time').length;
-    const delayedLectures = totalLectures - onTimeLectures;
+    const extendedLectures = teacherLectures.filter((l) => l.status === 'extended').length;
+    const delayedLectures = teacherLectures.filter((l) => l.status === 'overdue').length;
 
     const users = this.getUsers();
-    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
     const dailyTarget = teacher?.dailyTargetMinutes || 120;
     const cutoffTime = teacher?.dailyUploadCutoffTime || '20:00';
 
@@ -1221,7 +1228,7 @@ export const StorageService = {
     });
 
     const assignedTopics = this.getAssignedTopics().filter(
-      (t) => t.teacherId.toUpperCase() === teacherId.toUpperCase()
+      (t) => t.teacherId.toUpperCase() === cleanId
     );
     assignedTopics.forEach((t) => {
       const dStr = toLocalDateStr(t.createdAt);
@@ -1229,7 +1236,7 @@ export const StorageService = {
     });
 
     const commitments = this.getDailyCommitments().filter(
-      (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase()
+      (c) => c.teacherId.toUpperCase() === cleanId
     );
     commitments.forEach((c) => {
       if (c.date) dateSet.add(c.date);
@@ -1238,7 +1245,7 @@ export const StorageService = {
     // Sort dates in ascending chronological order
     const rawDates = Array.from(dateSet).sort();
 
-    // If teacher has activity spanning across multiple calendar days, fill continuous timeline
+    // Fill continuous calendar timeline between earliest active date and today
     if (rawDates.length > 0) {
       const earliestParts = rawDates[0].split('-').map(Number);
       const earliestDate = new Date(earliestParts[0], earliestParts[1] - 1, earliestParts[2]);
@@ -1266,9 +1273,12 @@ export const StorageService = {
     });
 
     let totalOnTimeMinutes = 0;
-    let totalLateMinutes = 0;
+    let totalExtendedMinutes = 0;
+    let totalOverdueDeliveredMinutes = 0;
+    let totalUnfulfilledMinutes = 0;
     let pendingLateMinutesToday = 0;
     let flexibleBalanceMinutes = 0;
+    let totalTargetMinutes = 0;
 
     sortedDates.forEach((dateStr) => {
       const dayLectures = lecturesByDate.get(dateStr) || [];
@@ -1278,48 +1288,75 @@ export const StorageService = {
       const extendedMins = dayLectures
         .filter((l) => l.status === 'extended')
         .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-      const lateMins = dayLectures
+      const overdueMins = dayLectures
         .filter((l) => l.status === 'overdue')
         .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+      
       const acceptedMins = onTimeMins + extendedMins;
-      const balanceUsed = Math.min(flexibleBalanceMinutes, Math.max(0, dailyTarget - acceptedMins));
-      const shortfall = Math.max(0, dailyTarget - acceptedMins - balanceUsed);
 
       if (dateStr < todayStr) {
-        // Only the missing portion is late. A prior on-time surplus can cover it.
+        totalTargetMinutes += dailyTarget;
         totalOnTimeMinutes += onTimeMins;
-        totalLateMinutes += lateMins + shortfall;
-        flexibleBalanceMinutes = Math.max(0, flexibleBalanceMinutes - balanceUsed) + Math.max(0, onTimeMins - dailyTarget);
+        totalExtendedMinutes += extendedMins;
+        totalOverdueDeliveredMinutes += overdueMins;
+
+        // Balance covers shortfall of on-time/extended deliveries
+        const rawShortfall = Math.max(0, dailyTarget - acceptedMins);
+        const balanceUsed = Math.min(flexibleBalanceMinutes, rawShortfall);
+        flexibleBalanceMinutes -= balanceUsed;
+        const netShortfall = rawShortfall - balanceUsed;
+
+        // Unfulfilled target is what remained completely missing after accounting for overdue uploads
+        const unfulfilled = Math.max(0, netShortfall - overdueMins);
+        totalUnfulfilledMinutes += unfulfilled;
+
+        // If teacher recorded surplus on-time minutes, bank for subsequent days
+        if (onTimeMins > dailyTarget) {
+          flexibleBalanceMinutes += (onTimeMins - dailyTarget);
+        }
       } else if (dateStr === todayStr) {
         totalOnTimeMinutes += onTimeMins;
-        totalLateMinutes += lateMins;
-        if (isTodayCutoffPassed) {
-          pendingLateMinutesToday = shortfall;
-          totalLateMinutes += shortfall;
-          flexibleBalanceMinutes = Math.max(0, flexibleBalanceMinutes - balanceUsed) + Math.max(0, onTimeMins - dailyTarget);
-        } else {
-          // A teacher can bank only genuinely on-time extra minutes for a future shortfall.
-          flexibleBalanceMinutes += Math.max(0, onTimeMins - dailyTarget);
-        }
-      }
-    });
+        totalExtendedMinutes += extendedMins;
+        totalOverdueDeliveredMinutes += overdueMins;
 
-    let totalTargetMinutes = 0;
-    sortedDates.forEach((dateStr) => {
-      if (dateStr < todayStr) {
-        totalTargetMinutes += dailyTarget;
-      } else if (dateStr === todayStr && isTodayCutoffPassed) {
-        totalTargetMinutes += dailyTarget;
+        // Count today's daily target if today's cutoff has passed or if teacher has recorded lectures today
+        if (isTodayCutoffPassed) {
+          totalTargetMinutes += dailyTarget;
+          const rawShortfall = Math.max(0, dailyTarget - acceptedMins);
+          const balanceUsed = Math.min(flexibleBalanceMinutes, rawShortfall);
+          flexibleBalanceMinutes -= balanceUsed;
+          const netShortfall = rawShortfall - balanceUsed;
+
+          const unfulfilled = Math.max(0, netShortfall - overdueMins);
+          totalUnfulfilledMinutes += unfulfilled;
+          pendingLateMinutesToday = unfulfilled + Math.min(overdueMins, netShortfall);
+
+          if (onTimeMins > dailyTarget) {
+            flexibleBalanceMinutes += (onTimeMins - dailyTarget);
+          }
+        } else {
+          // Today is still ongoing
+          totalTargetMinutes += dailyTarget;
+          if (onTimeMins > dailyTarget) {
+            flexibleBalanceMinutes += (onTimeMins - dailyTarget);
+          }
+        }
       }
     });
 
     const totalConsideredMinutes = totalTargetMinutes;
 
+    // Total non-on-time deficit = Overdue delivered + Unfulfilled missing target
+    const totalLateMinutes = totalOverdueDeliveredMinutes + totalUnfulfilledMinutes;
+
     let onTimePercentage = 100;
     if (totalConsideredMinutes > 0) {
-      onTimePercentage = Math.max(0, Math.min(100, Math.round((totalOnTimeMinutes / totalConsideredMinutes) * 100)));
-    } else if (isTodayCutoffPassed) {
-      onTimePercentage = 0;
+      onTimePercentage = Math.max(0, Math.min(100, Math.round(((totalOnTimeMinutes + totalExtendedMinutes) / totalConsideredMinutes) * 100)));
+    } else {
+      const delivered = totalOnTimeMinutes + totalExtendedMinutes + totalOverdueDeliveredMinutes;
+      if (delivered > 0) {
+        onTimePercentage = Math.max(0, Math.min(100, Math.round(((totalOnTimeMinutes + totalExtendedMinutes) / delivered) * 100)));
+      }
     }
 
     const totalDeliveredMinutes = teacherLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
@@ -1328,9 +1365,13 @@ export const StorageService = {
       totalLectures,
       onTimeLectures,
       delayedLectures,
+      extendedLectures,
       totalDeliveredMinutes,
       totalMinutes: totalConsideredMinutes,
       onTimeMinutes: totalOnTimeMinutes,
+      extendedMinutes: totalExtendedMinutes,
+      overdueDeliveredMinutes: totalOverdueDeliveredMinutes,
+      unfulfilledTargetMinutes: totalUnfulfilledMinutes,
       lateMinutes: totalLateMinutes,
       pendingLateMinutesToday,
       flexibleBalanceMinutes,
@@ -1517,8 +1558,13 @@ export const StorageService = {
     );
     const ppt = pptRequests.length;
 
-    // 4. Resources: Available materials
-    const resources = this.getSubjectReferences().length > 0 ? 0 : 0;
+    // 4. Resources: Available materials for this teacher's subject
+    const teacherUser = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
+    const teacherSubj = (teacherUser?.subject || '').toLowerCase().trim();
+    const resources = this.getSubjectReferences().filter((r) => {
+      const s = r.subjectName.toLowerCase().trim();
+      return r.isNewFromAdmin || (teacherSubj && (s.includes(teacherSubj) || teacherSubj.includes(s)));
+    }).length;
 
     return {
       syllabus,

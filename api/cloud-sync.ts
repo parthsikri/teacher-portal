@@ -29,9 +29,10 @@ const DEFAULT_STATE = {
   assignedTopics: [],
   lectures: [],
   subjectReferences: [],
-  dailyCommitments: [],
-  pptRequests: [],
-};
+    dailyCommitments: [],
+    pptRequests: [],
+    extensions: [],
+  };
 
 function mergeMasterStates(current: any, incoming: any): any {
   if (!current) return incoming || DEFAULT_STATE;
@@ -219,6 +220,24 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
+  // Merge Extensions
+  const extMap = new Map<string, any>();
+  if (Array.isArray(current.extensions)) {
+    current.extensions.forEach((e: any) => {
+      if (e && e.id && !deletedIds.has(e.id.toUpperCase())) extMap.set(e.id, e);
+    });
+  }
+  if (Array.isArray(incoming.extensions)) {
+    incoming.extensions.forEach((e: any) => {
+      if (e && e.id && !deletedIds.has(e.id.toUpperCase())) {
+        extMap.set(e.id, {
+          ...extMap.get(e.id),
+          ...e,
+        });
+      }
+    });
+  }
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -229,6 +248,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     subjectReferences: Array.from(refMap.values()),
     dailyCommitments: Array.from(commitmentMap.values()),
     pptRequests: Array.from(pptMap.values()),
+    extensions: Array.from(extMap.values()),
   };
 }
 

@@ -90,7 +90,12 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       const timeRemaining = StorageService.getTodayTimeRemaining(teacher.teacherId);
       const extensionMinutesLeft = activeExt ? Math.max(0, activeExt.allowedMinutes - activeExt.usedMinutes) : 0;
       const effectiveDailyLimit = timeRemaining.maxDailyMinutes + extensionMinutesLeft;
-      if (timeRemaining.minutesRecordedToday + durationMinutes > effectiveDailyLimit) {
+      
+      const existingLecture = prefillTopic ? StorageService.getLectures().find(l => l.assignedTopicId === prefillTopic.id) : null;
+      const existingDuration = existingLecture ? (existingLecture.durationMinutes || 0) : 0;
+      const netAdditionalMinutes = Math.max(0, durationMinutes - existingDuration);
+
+      if (timeRemaining.minutesRecordedToday + netAdditionalMinutes > effectiveDailyLimit) {
         const limitMessage = activeExt
           ? `This session exceeds today's regular limit plus the ${extensionMinutesLeft} minutes left in this extension.`
           : `This session exceeds today's ${timeRemaining.maxDailyMinutes}-minute recording limit.`;
@@ -249,7 +254,6 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                   type="date"
                   value={deadlineDate}
                   onChange={(e) => setDeadlineDate(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs font-mono"
                 />
               </div>
@@ -291,7 +295,6 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                   type="text"
                   placeholder="Add subtopics and press Enter"
                   value={subtopicInput}
-                  onChange={(e) => setSubtopicInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();

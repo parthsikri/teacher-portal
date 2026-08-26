@@ -65,7 +65,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         : 'bg-amber-500 text-slate-950 font-bold',
     },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
-    { id: 'thumbnail_generator', label: '16:9 Thumbnails', icon: ImageIcon },
     { id: 'resources', label: 'Subject Resources', icon: BookMarked },
     { 
       id: 'directives', 
