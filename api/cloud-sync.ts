@@ -32,6 +32,7 @@ const DEFAULT_STATE = {
     dailyCommitments: [],
     pptRequests: [],
     extensions: [],
+    walletTransactions: [],
   };
 
 function mergeMasterStates(current: any, incoming: any): any {
@@ -238,6 +239,24 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
+  // Merge Wallet Transactions
+  const walletMap = new Map<string, any>();
+  if (Array.isArray(current.walletTransactions)) {
+    current.walletTransactions.forEach((w: any) => {
+      if (w && w.id && !deletedIds.has(w.id.toUpperCase())) walletMap.set(w.id, w);
+    });
+  }
+  if (Array.isArray(incoming.walletTransactions)) {
+    incoming.walletTransactions.forEach((w: any) => {
+      if (w && w.id && !deletedIds.has(w.id.toUpperCase())) {
+        walletMap.set(w.id, {
+          ...walletMap.get(w.id),
+          ...w,
+        });
+      }
+    });
+  }
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -249,6 +268,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     dailyCommitments: Array.from(commitmentMap.values()),
     pptRequests: Array.from(pptMap.values()),
     extensions: Array.from(extMap.values()),
+    walletTransactions: Array.from(walletMap.values()),
   };
 }
 

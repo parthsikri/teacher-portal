@@ -1,4 +1,4 @@
-import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension } from '../types';
+import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
 const USERS_KEY = 'aew_portal_users_prod_v2';
@@ -9,6 +9,7 @@ const DAILY_COMMITMENTS_KEY = 'aew_daily_commitments_prod_v2';
 const PPT_REQUESTS_KEY = 'aew_ppt_requests_prod_v2';
 const DELETED_IDS_KEY = 'aew_deleted_ids_prod_v2';
 const EXTENSIONS_KEY = 'tp_lecture_extensions';
+const WALLET_TRANSACTIONS_KEY = 'tp_time_wallet_transactions_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
 // Initial Registered Administrator (Portal starts completely clean for new teachers)
@@ -1370,7 +1371,290 @@ export const StorageService = {
     return this.getHistoricalTargetForDate(cleanId, date, lectures, commitments);
   },
 
-  // ─── CUMULATIVE FLEXIBLE RECORDING POOL & SURPLUS BANKING ─────────────────
+  // ─── TIME WALLET (PIGGY BANK) & LATE BACKLOG DECOUPLED SYSTEMS ────────────
+
+  getWalletTransactions(teacherId?: string): WalletTransaction[] {
+    const data = localStorage.getItem(WALLET_TRANSACTIONS_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed)) return [];
+      if (!teacherId) return parsed;
+      const cleanId = teacherId.trim().toUpperCase();
+      return parsed.filter((tx: WalletTransaction) => tx.teacherId.toUpperCase() === cleanId);
+    } catch {
+      return [];
+    }
+  },
+
+  saveWalletTransactions(transactions: WalletTransaction[]): void {
+    localStorage.setItem(WALLET_TRANSACTIONS_KEY, JSON.stringify(transactions));
+    triggerBackgroundCloudSync();
+  },
+
+  // Synchronize/ensure all eligible lecture surplus deposits are generated idempotently
+  syncLectureSurplusDeposits(teacherId: string): void {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    if (!cleanId) return;
+
+    const teacherLectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
+    const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
+
+    // Group lectures by date
+    const lecturesByDate = new Map<string, Lecture[]>();
+    teacherLectures.forEach((l) => {
+      const dStr = this.toLocalDateKey(l.createdAt);
+      if (dStr) {
+        if (!lecturesByDate.has(dStr)) lecturesByDate.set(dStr, []);
+        lecturesByDate.get(dStr)!.push(l);
+      }
+    });
+
+    const existingTxs = this.getWalletTransactions();
+    const existingDepositMap = new Map<string, WalletTransaction>();
+    existingTxs.forEach((tx) => {
+      if (tx.teacherId.toUpperCase() === cleanId && tx.type === 'deposit_surplus' && tx.referenceLectureId) {
+        existingDepositMap.set(tx.referenceLectureId, tx);
+      }
+    });
+
+    let hasNew = false;
+    lecturesByDate.forEach((dayLectures, dateStr) => {
+      const dayTarget = this.getHistoricalTargetForDate(cleanId, dateStr, dayLectures, commitments);
+      let cumulativeRecorded = 0;
+
+      // Evaluate each lecture on that day in chronological order
+      dayLectures.forEach((lecture) => {
+        const prevRecorded = cumulativeRecorded;
+        const dur = lecture.durationMinutes || 45;
+        cumulativeRecorded += dur;
+
+        // Any duration portion that pushes cumulative total past the day's target is surplus!
+        let surplusEarned = 0;
+        if (cumulativeRecorded > dayTarget) {
+          const effectiveStart = Math.max(prevRecorded, dayTarget);
+          surplusEarned = cumulativeRecorded - effectiveStart;
+        }
+
+        if (surplusEarned > 0) {
+          const depositId = `wtx-deposit-${lecture.id}`;
+          const existing = existingDepositMap.get(lecture.id);
+          if (!existing) {
+            existingTxs.push({
+              id: depositId,
+              teacherId: cleanId,
+              type: 'deposit_surplus',
+              amount: surplusEarned,
+              date: dateStr,
+              referenceLectureId: lecture.id,
+              note: `Earned +${surplusEarned}m surplus on ${dateStr} (exceeded ${dayTarget}m target)`,
+              appliedBy: 'System',
+              createdAt: lecture.createdAt || new Date().toISOString(),
+            });
+            hasNew = true;
+          } else if (existing.amount !== surplusEarned) {
+            existing.amount = surplusEarned;
+            hasNew = true;
+          }
+        }
+      });
+    });
+
+    if (hasNew) {
+      this.saveWalletTransactions(existingTxs);
+    }
+  },
+
+  getTimeWalletInfo(teacherId: string): TimeWalletInfo {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    if (!cleanId) {
+      return { balance: 0, totalSurplusEarned: 0, totalAppliedToBacklog: 0, transactions: [] };
+    }
+
+    this.syncLectureSurplusDeposits(cleanId);
+
+    const txs = this.getWalletTransactions(cleanId);
+    let totalSurplusEarned = 0;
+    let totalAppliedToBacklog = 0;
+    let manualAdjustments = 0;
+
+    txs.forEach((tx) => {
+      if (tx.type === 'deposit_surplus') {
+        totalSurplusEarned += (tx.amount || 0);
+      } else if (tx.type === 'apply_to_backlog') {
+        totalAppliedToBacklog += (tx.amount || 0);
+      } else if (tx.type === 'manual_adjustment') {
+        manualAdjustments += (tx.amount || 0);
+      }
+    });
+
+    const balance = Math.max(0, totalSurplusEarned + manualAdjustments - totalAppliedToBacklog);
+    return {
+      balance,
+      totalSurplusEarned,
+      totalAppliedToBacklog,
+      transactions: txs.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    };
+  },
+
+  getLateBacklogInfo(teacherId: string): {
+    rawHistoricalShortfall: number;
+    walletMinutesApplied: number;
+    remainingBacklogMinutes: number;
+    pastSessionsMissedCount: number;
+    history: Array<{
+      date: string;
+      recordedMinutes: number;
+      dailyTarget: number;
+      shortfall: number;
+      surplus: number;
+    }>;
+  } {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    const now = new Date();
+    const todayStr = this.toLocalDateKey(now);
+
+    const teacherLectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
+    const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
+
+    const pastDates = new Set<string>();
+    teacherLectures.forEach((l) => {
+      const d = this.toLocalDateKey(l.createdAt);
+      if (d && d < todayStr) pastDates.add(d);
+    });
+    commitments.forEach((c) => {
+      if (c.date && c.date < todayStr) pastDates.add(c.date);
+    });
+
+    const lecturesByDate = new Map<string, Lecture[]>();
+    teacherLectures.forEach((l) => {
+      const d = this.toLocalDateKey(l.createdAt);
+      if (d) {
+        if (!lecturesByDate.has(d)) lecturesByDate.set(d, []);
+        lecturesByDate.get(d)!.push(l);
+      }
+    });
+
+    let rawHistoricalShortfall = 0;
+    const history: Array<{
+      date: string;
+      recordedMinutes: number;
+      dailyTarget: number;
+      shortfall: number;
+      surplus: number;
+    }> = [];
+
+    const sortedDates = Array.from(pastDates).sort();
+
+    sortedDates.forEach((date) => {
+      const dayLectures = lecturesByDate.get(date) || [];
+      const recorded = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+      const target = this.getHistoricalTargetForDate(cleanId, date, dayLectures, commitments);
+      const deficit = Math.max(0, target - recorded);
+      const surplus = Math.max(0, recorded - target);
+
+      if (deficit > 0) {
+        rawHistoricalShortfall += deficit;
+      }
+
+      history.push({
+        date,
+        recordedMinutes: recorded,
+        dailyTarget: target,
+        shortfall: deficit,
+        surplus,
+      });
+    });
+
+    const walletInfo = this.getTimeWalletInfo(cleanId);
+    const walletMinutesApplied = walletInfo.totalAppliedToBacklog;
+    const remainingBacklogMinutes = Math.max(0, rawHistoricalShortfall - walletMinutesApplied);
+    const pastSessionsMissedCount = history.filter((h) => h.shortfall > 0).length;
+
+    return {
+      rawHistoricalShortfall,
+      walletMinutesApplied,
+      remainingBacklogMinutes,
+      pastSessionsMissedCount,
+      history,
+    };
+  },
+
+  applyWalletToBacklog(
+    teacherId: string,
+    minutesToApply: number,
+    appliedBy: string = 'Teacher',
+    note?: string
+  ): {
+    success: boolean;
+    appliedMinutes: number;
+    newWalletBalance: number;
+    remainingBacklog: number;
+    message: string;
+  } {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    const walletInfo = this.getTimeWalletInfo(cleanId);
+    const backlogInfo = this.getLateBacklogInfo(cleanId);
+
+    if (walletInfo.balance <= 0) {
+      return {
+        success: false,
+        appliedMinutes: 0,
+        newWalletBalance: 0,
+        remainingBacklog: backlogInfo.remainingBacklogMinutes,
+        message: 'Time Wallet balance is 0. No surplus available to apply.',
+      };
+    }
+
+    if (backlogInfo.remainingBacklogMinutes <= 0) {
+      return {
+        success: false,
+        appliedMinutes: 0,
+        newWalletBalance: walletInfo.balance,
+        remainingBacklog: 0,
+        message: 'No outstanding late backlog to offset.',
+      };
+    }
+
+    const actualToApply = Math.min(minutesToApply, walletInfo.balance, backlogInfo.remainingBacklogMinutes);
+    if (actualToApply <= 0) {
+      return {
+        success: false,
+        appliedMinutes: 0,
+        newWalletBalance: walletInfo.balance,
+        remainingBacklog: backlogInfo.remainingBacklogMinutes,
+        message: 'Invalid minutes amount specified.',
+      };
+    }
+
+    const tx: WalletTransaction = {
+      id: `wtx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      teacherId: cleanId,
+      type: 'apply_to_backlog',
+      amount: actualToApply,
+      date: this.toLocalDateKey(new Date()),
+      note: note || `Applied ${actualToApply}m from Time Wallet to offset historical late backlog`,
+      appliedBy,
+      createdAt: new Date().toISOString(),
+    };
+
+    const list = this.getWalletTransactions();
+    list.unshift(tx);
+    this.saveWalletTransactions(list);
+
+    const updatedWallet = this.getTimeWalletInfo(cleanId);
+    const updatedBacklog = this.getLateBacklogInfo(cleanId);
+
+    return {
+      success: true,
+      appliedMinutes: actualToApply,
+      newWalletBalance: updatedWallet.balance,
+      remainingBacklog: updatedBacklog.remainingBacklogMinutes,
+      message: `Successfully transferred ${actualToApply}m from Time Wallet to offset late backlog!`,
+    };
+  },
+
+  // Backwards-compatible Cumulative Pool adapter (uses Time Wallet and Decoupled Backlog)
   getTeacherCumulativePool(teacherId: string): {
     bankedMinutes: number;           // Current available flexible balance
     totalSurplusEarned: number;      // Lifetime extra minutes recorded beyond daily targets
@@ -1378,6 +1662,8 @@ export const StorageService = {
     yesterdayCompensated: number;    // How many minutes of yesterday's deficit were covered by pool
     todayCompensated: number;        // How many minutes of today's deficit were covered by pool
     historicalBacklogMinutes: number; // Pure historical time deficit before today
+    rawHistoricalShortfall: number;
+    timeWalletBalance: number;
     history: Array<{
       date: string;
       recordedMinutes: number;
@@ -1390,142 +1676,29 @@ export const StorageService = {
     }>;
   } {
     const cleanId = (teacherId || '').toUpperCase();
-    const now = new Date();
-    const todayStr = this.toLocalDateKey(now);
-    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-    const yesterdayStr = this.toLocalDateKey(yesterday);
+    const walletInfo = this.getTimeWalletInfo(cleanId);
+    const backlogInfo = this.getLateBacklogInfo(cleanId);
 
-    const teacherLectures = this.getLectures().filter(
-      (l) => l.teacherId.toUpperCase() === cleanId
-    );
-    const commitments = this.getDailyCommitments().filter(
-      (c) => c.teacherId.toUpperCase() === cleanId
-    );
-
-    // A historical day exists only if there is actual evidence
-    // that the teacher had a delivery obligation or recorded work.
-    const dates = new Set<string>();
-
-    teacherLectures.forEach((l) => {
-      const date = this.toLocalDateKey(l.createdAt);
-      if (date) dates.add(date);
-    });
-
-    commitments.forEach((c) => {
-      if (c.date && c.date < todayStr) {
-        dates.add(c.date);
-      }
-    });
-
-    const lecturesByDate = new Map<string, Lecture[]>();
-    teacherLectures.forEach((l) => {
-      const date = this.toLocalDateKey(l.createdAt);
-      if (!date) return;
-      if (!lecturesByDate.has(date)) {
-        lecturesByDate.set(date, []);
-      }
-      lecturesByDate.get(date)!.push(l);
-    });
-
-    let pool = 0;
-    let runningDebt = 0;
-    let totalSurplusEarned = 0;
-    let totalDeficitCompensated = 0;
-    let yesterdayCompensated = 0;
-
-    const history: Array<{
-      date: string;
-      recordedMinutes: number;
-      dailyTarget: number;
-      surplusGenerated: number;
-      shortfall: number;
-      poolUsed: number;
-      poolBalanceAfter: number;
-      debtBalanceAfter: number;
-    }> = [];
-
-    const sortedDates = Array.from(dates).sort();
-
-    sortedDates.forEach((date) => {
-      const dayLectures = lecturesByDate.get(date) || [];
-      const recordedMinutes = dayLectures.reduce(
-        (sum, lecture) => sum + (lecture.durationMinutes || 45),
-        0
-      );
-
-      // Resolve THIS DATE'S target
-      const target = this.getHistoricalTargetForDate(
-        cleanId,
-        date,
-        dayLectures,
-        commitments
-      );
-
-      const surplus = Math.max(0, recordedMinutes - target);
-      const deficit = Math.max(0, target - recordedMinutes);
-
-      let poolUsed = 0;
-
-      if (date < todayStr) {
-        if (surplus > 0) {
-          totalSurplusEarned += surplus;
-          if (runningDebt > 0) {
-            const coveredDebt = Math.min(runningDebt, surplus);
-            runningDebt -= coveredDebt;
-            totalDeficitCompensated += coveredDebt;
-            pool += (surplus - coveredDebt);
-          } else {
-            pool += surplus;
-          }
-        }
-
-        if (deficit > 0) {
-          if (pool > 0) {
-            poolUsed = Math.min(pool, deficit);
-            pool -= poolUsed;
-            totalDeficitCompensated += poolUsed;
-            runningDebt += (deficit - poolUsed);
-          } else {
-            runningDebt += deficit;
-          }
-
-          if (date === yesterdayStr) {
-            yesterdayCompensated = poolUsed;
-          }
-        }
-      } else if (date === todayStr) {
-        if (surplus > 0) {
-          totalSurplusEarned += surplus;
-          if (runningDebt > 0) {
-            const coveredDebt = Math.min(runningDebt, surplus);
-            runningDebt -= coveredDebt;
-            totalDeficitCompensated += coveredDebt;
-            pool += (surplus - coveredDebt);
-          } else {
-            pool += surplus;
-          }
-        }
-      }
-
-      history.push({
-        date,
-        recordedMinutes,
-        dailyTarget: target,
-        surplusGenerated: surplus,
-        shortfall: deficit,
-        poolUsed,
-        poolBalanceAfter: pool,
-        debtBalanceAfter: runningDebt,
-      });
-    });
+    const history = backlogInfo.history.map((h) => ({
+      date: h.date,
+      recordedMinutes: h.recordedMinutes,
+      dailyTarget: h.dailyTarget,
+      surplusGenerated: h.surplus,
+      shortfall: h.shortfall,
+      poolUsed: 0,
+      poolBalanceAfter: walletInfo.balance,
+      debtBalanceAfter: backlogInfo.remainingBacklogMinutes,
+    }));
 
     return {
-      bankedMinutes: Math.max(0, pool),
-      totalSurplusEarned,
-      totalDeficitCompensated,
-      yesterdayCompensated,
+      bankedMinutes: walletInfo.balance,
+      timeWalletBalance: walletInfo.balance,
+      totalSurplusEarned: walletInfo.totalSurplusEarned,
+      totalDeficitCompensated: walletInfo.totalAppliedToBacklog,
+      yesterdayCompensated: 0,
       todayCompensated: 0,
-      historicalBacklogMinutes: Math.max(0, runningDebt),
+      historicalBacklogMinutes: backlogInfo.remainingBacklogMinutes,
+      rawHistoricalShortfall: backlogInfo.rawHistoricalShortfall,
       history,
     };
   },
@@ -1543,37 +1716,31 @@ export const StorageService = {
     remainingMinutesToday: number;
     isTodayTargetMet: boolean;
     cumulativePoolMinutes: number;
+    timeWalletBalance: number;
     historicalBacklogMinutes: number;
+    rawHistoricalShortfall: number;
   } {
     const cleanId = (teacherId || '').toUpperCase();
     const now = new Date();
     const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     const yesterdayDateStr = this.toLocalDateKey(yesterday);
-    const todayLocal = this.toLocalDateKey(now);
 
     const users = this.getUsers();
     const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
     const dailyTarget = teacher?.dailyTargetMinutes || 120;
 
-    const poolInfo = this.getTeacherCumulativePool(cleanId);
+    const walletInfo = this.getTimeWalletInfo(cleanId);
+    const backlogInfo = this.getLateBacklogInfo(cleanId);
+
     const yesterdayLectures = this.getLectures().filter(
       (lecture) => lecture.teacherId.toUpperCase() === cleanId && this.toLocalDateKey(lecture.createdAt) === yesterdayDateStr
     );
     const yesterdayRecorded = yesterdayLectures.reduce((sum, lecture) => sum + (lecture.durationMinutes || 45), 0);
     const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
     const yesterdayTarget = this.getHistoricalTargetForDate(cleanId, yesterdayDateStr, yesterdayLectures, commitments);
-    
-    const hasPastHistory = this.getLectures().some(l => {
-      if (l.teacherId.toUpperCase() !== cleanId) return false;
-      const lDate = this.toLocalDateKey(l.createdAt);
-      return !!lDate && lDate < todayLocal;
-    }) || commitments.some(c => {
-      if (c.teacherId.toUpperCase() !== cleanId) return false;
-      return !!c.date && c.date < todayLocal;
-    });
 
-    const rawShortfall = hasPastHistory ? Math.max(0, yesterdayTarget - yesterdayRecorded) : 0;
-    const yesterdayUnfulfilledMinutes = Math.max(0, rawShortfall - poolInfo.yesterdayCompensated);
+    const rawShortfall = Math.max(0, yesterdayTarget - yesterdayRecorded);
+    const yesterdayUnfulfilledMinutes = rawShortfall;
     const isYesterdayFulfilled = yesterdayUnfulfilledMinutes === 0;
 
     const minutesRecordedToday = this.getMinutesRecordedToday(cleanId);
@@ -1585,14 +1752,16 @@ export const StorageService = {
       yesterdayRecorded,
       yesterdayTarget,
       yesterdayUnfulfilledMinutes,
-      yesterdayPoolCompensated: poolInfo.yesterdayCompensated,
+      yesterdayPoolCompensated: walletInfo.totalAppliedToBacklog,
       isYesterdayFulfilled,
       minutesRecordedToday,
       todayTarget: dailyTarget,
       remainingMinutesToday,
       isTodayTargetMet,
-      cumulativePoolMinutes: poolInfo.bankedMinutes,
-      historicalBacklogMinutes: poolInfo.historicalBacklogMinutes,
+      cumulativePoolMinutes: walletInfo.balance,
+      timeWalletBalance: walletInfo.balance,
+      historicalBacklogMinutes: backlogInfo.remainingBacklogMinutes,
+      rawHistoricalShortfall: backlogInfo.rawHistoricalShortfall,
     };
   },
 
@@ -1764,6 +1933,7 @@ export const StorageService = {
       dailyCommitments: this.getDailyCommitments(),
       pptRequests: this.getPptRequests(),
       extensions: this.getExtensions(),
+      walletTransactions: this.getWalletTransactions(),
     };
   },
 
@@ -1934,6 +2104,31 @@ export const StorageService = {
 
       localStorage.setItem(EXTENSIONS_KEY, JSON.stringify(mergedExtensions));
     }
+
+    if (Array.isArray(state.walletTransactions)) {
+      const localTxs = this.getWalletTransactions();
+      const localMap = new Map<string, WalletTransaction>();
+      localTxs.forEach((w) => localMap.set(w.id, w));
+
+      const mergedTxs: WalletTransaction[] = (state.walletTransactions as WalletTransaction[])
+        .filter((w: WalletTransaction) => !deletedIds.has(w.id.toUpperCase()))
+        .map((cloudTx: WalletTransaction): WalletTransaction => {
+          const localTx = localMap.get(cloudTx.id);
+          if (!localTx) return cloudTx;
+          return {
+            ...cloudTx,
+            ...localTx,
+          };
+        });
+
+      localTxs.forEach((locTx: WalletTransaction) => {
+        if (!deletedIds.has(locTx.id.toUpperCase()) && !mergedTxs.some((mt: WalletTransaction) => mt.id === locTx.id)) {
+          mergedTxs.unshift(locTx);
+        }
+      });
+
+      localStorage.setItem(WALLET_TRANSACTIONS_KEY, JSON.stringify(mergedTxs));
+    }
   },
 
   getExtensions(): LectureExtension[] {
@@ -2006,9 +2201,12 @@ export const StorageService = {
     todayOverdueMinutes: number;       // Semantic alias
     isTodayTargetMet: boolean;
     pastSessionsMissedCount: number;
-    pastUndeliveredMinutes: number;    // Historical time debt (e.g. 92m)
+    pastUndeliveredMinutes: number;    // Net historical time debt after manual wallet transfers (e.g. 92m)
     historicalBacklogMinutes: number;  // Semantic alias
-    cumulativePoolMinutes: number;     // Banked flexible balance
+    rawHistoricalShortfall: number;    // Raw uncompensated shortfall before transfers (e.g. 106m)
+    walletMinutesApplied: number;      // Total wallet minutes transferred to offset shortfall (e.g. 14m)
+    timeWalletBalance: number;         // Banked surplus in wallet (e.g. 0m after transfer)
+    cumulativePoolMinutes: number;     // Backwards-compatible alias for timeWalletBalance
     totalTimeBacklogMinutes: number;   // TIME DEBT ONLY: historicalBacklog + todayOverdueDeficit
     totalUndeliveredMinutes: number;   // Alias for totalTimeBacklogMinutes
     suggestedExtensionMinutes: number; // Pure time debt extension recommendation
@@ -2021,14 +2219,12 @@ export const StorageService = {
     const dailyTargetMinutes = teacher?.dailyTargetMinutes || 120;
     const maxDailyMinutes = teacher?.maxDailyMinutes || (dailyTargetMinutes * 2);
 
-    const now = new Date();
-    const todayStr = this.toLocalDateKey(now);
-
     const commitment = this.getDailyCommitment(cleanId);
     const cutoffTime = teacher?.dailyUploadCutoffTime || commitment?.promisedTime || '20:00';
     const [cutoffHours, cutoffMins] = cutoffTime.split(':').map(Number);
     const deadlineObj = new Date();
     deadlineObj.setHours(cutoffHours || 20, cutoffMins || 0, 59, 999);
+    const now = new Date();
     const isPassedCutoff = now.getTime() >= deadlineObj.getTime();
 
     const period = (cutoffHours || 20) >= 12 ? 'PM' : 'AM';
@@ -2061,12 +2257,10 @@ export const StorageService = {
     const todayPendingMinutes = Math.max(0, dailyTargetMinutes - minutesRecordedToday);
     const todayOverdueDeficit = isPassedCutoff ? todayPendingMinutes : 0;
 
-    // 3. HISTORICAL TIME BACKLOG (Quantity 1: purely time debt after surplus pool forward)
-    const poolInfo = this.getTeacherCumulativePool(cleanId);
-    const historicalBacklogMinutes = poolInfo.historicalBacklogMinutes;
-    const cumulativePoolMinutes = poolInfo.bankedMinutes;
-
-    const pastSessionsMissedCount = poolInfo.history.filter((h) => h.date < todayStr && h.shortfall > 0).length;
+    // 3. DECOUPLED TIME WALLET & LATE BACKLOG (Surplus does NOT auto-cancel backlog!)
+    const walletInfo = this.getTimeWalletInfo(cleanId);
+    const backlogInfo = this.getLateBacklogInfo(cleanId);
+    const historicalBacklogMinutes = backlogInfo.remainingBacklogMinutes;
 
     // 4. TOTAL TIME DEBT ONLY (Never contaminated with syllabus topic estimates!)
     const totalTimeBacklogMinutes = historicalBacklogMinutes + todayOverdueDeficit;
@@ -2093,8 +2287,8 @@ export const StorageService = {
     if (undeliveredTopicsCount > 0) {
       parts.push(`${undeliveredTopicsCount} topic${undeliveredTopicsCount > 1 ? 's' : ''} queued (${undeliveredTopicsMinutes}m)`);
     }
-    if (cumulativePoolMinutes > 0) {
-      parts.push(`+${cumulativePoolMinutes}m banked pool`);
+    if (walletInfo.balance > 0) {
+      parts.push(`+${walletInfo.balance}m in Time Wallet`);
     }
     const calculationSummary = parts.length > 0 ? parts.join(' • ') : 'All daily targets & curriculum obligations fulfilled';
 
@@ -2117,10 +2311,13 @@ export const StorageService = {
       todayOverdueDeficit,
       todayOverdueMinutes: todayOverdueDeficit,
       isTodayTargetMet,
-      pastSessionsMissedCount,
+      pastSessionsMissedCount: backlogInfo.pastSessionsMissedCount,
       pastUndeliveredMinutes: historicalBacklogMinutes,
       historicalBacklogMinutes,
-      cumulativePoolMinutes,
+      rawHistoricalShortfall: backlogInfo.rawHistoricalShortfall,
+      walletMinutesApplied: backlogInfo.walletMinutesApplied,
+      timeWalletBalance: walletInfo.balance,
+      cumulativePoolMinutes: walletInfo.balance,
       totalTimeBacklogMinutes,
       totalUndeliveredMinutes,
       suggestedExtensionMinutes,

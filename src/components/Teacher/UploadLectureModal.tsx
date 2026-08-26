@@ -177,10 +177,10 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <span className="text-slate-400">Today: </span>
               <span className="font-bold text-amber-400">{minutesRecordedToday}/{targetMinutes} min</span>
             </div>
-            {backlogInfo.cumulativePoolMinutes > 0 && (
-              <div className="px-2 py-1 rounded-lg bg-indigo-950/50 border border-indigo-800/60 text-[11px] font-mono text-indigo-300">
-                <span>Pool: </span>
-                <span className="font-bold text-indigo-200">+{backlogInfo.cumulativePoolMinutes}m</span>
+            {backlogInfo.timeWalletBalance > 0 && (
+              <div className="px-2 py-1 rounded-lg bg-indigo-950/50 border border-indigo-800/60 text-[11px] font-mono text-indigo-300 flex items-center gap-1">
+                <span>Wallet: </span>
+                <span className="font-bold text-indigo-200">+{backlogInfo.timeWalletBalance}m</span>
               </div>
             )}
             <button
@@ -261,8 +261,8 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <span className="text-sm">⚠️</span>
               <div>
                 <strong>Notice:</strong> You have {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled backlog from yesterday.
-                {backlogInfo.yesterdayPoolCompensated > 0 && (
-                  <span className="text-indigo-300 ml-1">({backlogInfo.yesterdayPoolCompensated}m covered by cumulative pool).</span>
+                {backlogInfo.timeWalletBalance > 0 && (
+                  <span className="text-indigo-300 ml-1">(You have +{backlogInfo.timeWalletBalance}m in Time Wallet to offset backlog).</span>
                 )}
               </div>
             </div>

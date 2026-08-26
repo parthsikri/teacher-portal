@@ -3975,10 +3975,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     </div>
                   </div>
 
-                  {extBreakdown.cumulativePoolMinutes > 0 && (
+                  {extBreakdown.timeWalletBalance > 0 && (
                     <div className="p-2.5 bg-indigo-950/40 border border-indigo-800/50 rounded-xl text-[11px] flex items-center justify-between text-indigo-300">
-                      <span className="font-medium">🏦 Cumulative Flexible Balance Banked:</span>
-                      <strong className="text-indigo-200 font-mono font-bold">+{extBreakdown.cumulativePoolMinutes} minutes available</strong>
+                      <div className="flex items-center gap-2">
+                        <span>🏦 Time Wallet Balance:</span>
+                        <strong className="text-indigo-200 font-mono font-bold">+{extBreakdown.timeWalletBalance} minutes available</strong>
+                      </div>
+                      {extBreakdown.historicalBacklogMinutes > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const toApply = Math.min(extBreakdown.timeWalletBalance, extBreakdown.historicalBacklogMinutes);
+                            StorageService.applyWalletToBacklog(extBreakdown.teacherId, toApply, 'Admin');
+                            const updated = StorageService.getTeacherExtensionBreakdown(extBreakdown.teacherId);
+                            setExtAllowedMinutes(updated.suggestedExtensionMinutes);
+                          }}
+                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm cursor-pointer"
+                        >
+                          ⚡ Apply Wallet to Backlog (-{Math.min(extBreakdown.timeWalletBalance, extBreakdown.historicalBacklogMinutes)}m)
+                        </button>
+                      )}
                     </div>
                   )}
 

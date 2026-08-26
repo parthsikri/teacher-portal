@@ -223,8 +223,22 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   }, [teacher.teacherId, refreshTrigger]);
 
   const cumulativePool = useMemo(() => {
+    void refreshKey;
     return StorageService.getTeacherCumulativePool(teacher.teacherId);
-  }, [teacher.teacherId, refreshTrigger, lectures]);
+  }, [teacher.teacherId, refreshKey, lectures]);
+
+  const walletInfo = useMemo(() => {
+    void refreshKey;
+    return StorageService.getTimeWalletInfo(teacher.teacherId);
+  }, [teacher.teacherId, refreshKey, lectures]);
+
+  const lateBacklogInfo = useMemo(() => {
+    void refreshKey;
+    return StorageService.getLateBacklogInfo(teacher.teacherId);
+  }, [teacher.teacherId, refreshKey, lectures]);
+
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [walletTransferMinutes, setWalletTransferMinutes] = useState(0);
 
   // Next active deliverable
   const nextUrgentTopic = useMemo(() => {
@@ -2601,6 +2615,141 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           lecture={selectedLectureForPreview}
           onClose={() => setSelectedLectureForPreview(null)}
         />
+      )}
+
+      {/* Time Wallet & Backlog Transfer Modal */}
+      {showWalletModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 my-8">
+            <div className="flex items-start justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 font-black text-lg">🏦</span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Time Wallet & Backlog Transfer</h3>
+                  <p className="text-xs text-slate-400">Apply surplus recording minutes to reduce historical late backlog</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWalletModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Balance & Backlog Cards */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-indigo-950/40 border border-indigo-800/50 rounded-xl">
+                <div className="text-slate-400 text-[10px] uppercase font-bold">Time Wallet Balance</div>
+                <div className="text-xl font-black text-indigo-200 font-mono mt-0.5">+{walletInfo.balance} min</div>
+                <div className="text-[10px] text-indigo-400/80 mt-1">Available to transfer</div>
+              </div>
+              <div className="p-3 bg-rose-950/30 border border-rose-800/40 rounded-xl">
+                <div className="text-slate-400 text-[10px] uppercase font-bold">Outstanding Backlog</div>
+                <div className="text-xl font-black text-rose-300 font-mono mt-0.5">{lateBacklogInfo.remainingBacklogMinutes} min</div>
+                <div className="text-[10px] text-slate-500 mt-1">Raw shortfall: {lateBacklogInfo.rawHistoricalShortfall}m</div>
+              </div>
+            </div>
+
+            {/* Transfer Input & Presets */}
+            {lateBacklogInfo.remainingBacklogMinutes > 0 && walletInfo.balance > 0 ? (
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                <label className="block text-slate-300 font-semibold text-xs">
+                  Select Minutes to Transfer from Wallet:
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes)}
+                    value={walletTransferMinutes}
+                    onChange={(e) => setWalletTransferMinutes(Math.max(0, Math.min(Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes), parseInt(e.target.value) || 0)))}
+                    className="w-28 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold text-center text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setWalletTransferMinutes(Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes))}
+                      className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-500 cursor-pointer"
+                    >
+                      Max ({Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes)}m)
+                    </button>
+                    {[15, 30, 60].filter((m) => m <= Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes)).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setWalletTransferMinutes(m)}
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 font-semibold text-xs cursor-pointer"
+                      >
+                        {m}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live Outcome Preview */}
+                <div className="p-2.5 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] flex items-center justify-between text-slate-300">
+                  <div>
+                    <span>After Transfer: </span>
+                    <strong className="text-indigo-300 font-mono">Wallet: {Math.max(0, walletInfo.balance - walletTransferMinutes)}m</strong>
+                    <span className="mx-2">•</span>
+                    <strong className="text-emerald-400 font-mono">Backlog: {Math.max(0, lateBacklogInfo.remainingBacklogMinutes - walletTransferMinutes)}m</strong>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={walletTransferMinutes <= 0}
+                  onClick={() => {
+                    const res = StorageService.applyWalletToBacklog(teacher.teacherId, walletTransferMinutes, teacher.name);
+                    if (res.success) {
+                      setRefreshKey((k) => k + 1);
+                      setShowWalletModal(false);
+                    }
+                  }}
+                  className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  ✓ Confirm Transfer ({walletTransferMinutes} min)
+                </button>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-400 text-center">
+                {lateBacklogInfo.remainingBacklogMinutes === 0
+                  ? '🎉 Outstanding late backlog is 0! No transfers needed.'
+                  : 'Time Wallet balance is 0 min. Record extra minutes beyond daily quotas to deposit surplus into your wallet.'}
+              </div>
+            )}
+
+            {/* Transaction History Audit Log */}
+            <div className="space-y-2 pt-1 border-t border-slate-800/80">
+              <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>📜 Wallet Transaction Ledger (Audit Trail)</span>
+                <span className="text-[10px] text-slate-500">{walletInfo.transactions.length} record{walletInfo.transactions.length === 1 ? '' : 's'}</span>
+              </div>
+              {walletInfo.transactions.length === 0 ? (
+                <div className="text-[11px] text-slate-500 italic py-2 text-center">No transactions recorded yet.</div>
+              ) : (
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {walletInfo.transactions.map((tx) => (
+                    <div key={tx.id} className="p-2 rounded-lg bg-slate-950 border border-slate-800/80 text-[11px] flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${tx.type === 'deposit_surplus' ? 'bg-emerald-400' : 'bg-purple-400'}`} />
+                          <span>{tx.type === 'deposit_surplus' ? 'Surplus Earned' : 'Transferred to Backlog'}</span>
+                          <span className="text-slate-500 font-mono text-[10px]">• {tx.date}</span>
+                        </div>
+                        {tx.note && <div className="text-[10px] text-slate-400 mt-0.5">{tx.note}</div>}
+                      </div>
+                      <div className={`font-mono font-bold text-xs ${tx.type === 'deposit_surplus' ? 'text-emerald-400' : 'text-purple-300'}`}>
+                        {tx.type === 'deposit_surplus' ? `+${tx.amount}m` : `-${tx.amount}m`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

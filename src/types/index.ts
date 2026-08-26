@@ -151,3 +151,26 @@ export interface LectureExtension {
   createdAt: string;
   updatedAt: string;
 }
+
+export type WalletTransactionType = 'deposit_surplus' | 'apply_to_backlog' | 'manual_adjustment';
+
+export interface WalletTransaction {
+  id: string;
+  teacherId: string;
+  type: WalletTransactionType;
+  amount: number;             // Minutes deposited or withdrawn (positive number)
+  date: string;               // YYYY-MM-DD
+  referenceLectureId?: string;// Optional lecture ID that earned the surplus
+  referenceDate?: string;     // Date of the backlog/surplus
+  note?: string;              // Reason or description e.g. "Transferred 15m to offset Aug 22 shortfall"
+  appliedBy?: string;         // Teacher name or 'Admin'
+  createdAt: string;          // ISO timestamp
+}
+
+export interface TimeWalletInfo {
+  balance: number;                  // Current available banked surplus minutes
+  totalSurplusEarned: number;       // Lifetime surplus earned from recording beyond daily targets
+  totalAppliedToBacklog: number;    // Lifetime wallet minutes explicitly applied to offset backlog
+  transactions: WalletTransaction[]; // Audit history
+}
+
