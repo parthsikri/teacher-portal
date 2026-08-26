@@ -146,10 +146,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setExtTeacherId(defaultTeacherId);
     const breakdown = StorageService.getTeacherExtensionBreakdown(defaultTeacherId);
     setExtAllowedMinutes(breakdown.suggestedExtensionMinutes);
+    setExtTopicIds(breakdown.undeliveredTopics.map((t) => t.id));
     setExtStartWindow(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
     setExtEndWindow(new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
     setExtNotes('');
-    setExtTopicIds([]);
     setShowExtensionModal(true);
   }, [currentPage, teachers]);
 
@@ -3725,11 +3725,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     onChange={(e) => {
                       const selectedId = e.target.value;
                       setExtTeacherId(selectedId);
-                      setExtTopicIds([]);
                       const breakdown = StorageService.getTeacherExtensionBreakdown(selectedId);
                       setExtAllowedMinutes(breakdown.suggestedExtensionMinutes);
+                      setExtTopicIds(breakdown.undeliveredTopics.map((t) => t.id));
                     }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500 font-medium"
                     required
                   >
                     {teachers.map((t) => (
@@ -3749,65 +3749,108 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     step={15}
                     value={extAllowedMinutes}
                     onChange={(e) => setExtAllowedMinutes(parseInt(e.target.value) || 60)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono font-bold focus:outline-none focus:border-purple-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono font-bold text-sm focus:outline-none focus:border-purple-500"
                     required
                   />
                 </div>
               </div>
 
-              {/* Live Auto-Calculated Deficit & Requirement Breakdown */}
+              {/* Comprehensive Live Undelivered Lectures & Missing Time Breakdown */}
               {extBreakdown && (
-                <div className="bg-slate-950/80 border border-purple-900/40 rounded-xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-300 font-bold flex items-center gap-1.5 text-xs">
-                      ⚡ <span className="text-purple-300">Live Quota & Deficit Breakdown:</span>
-                    </span>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold font-mono border ${
-                      extBreakdown.totalDeficitMinutes > 0
-                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    }`}>
-                      {extBreakdown.totalDeficitMinutes > 0 ? `${extBreakdown.totalDeficitMinutes}m Deficit` : 'Target Met'}
-                    </span>
+                <div className="bg-slate-950/90 border border-purple-800/40 rounded-2xl p-4 space-y-3 shadow-inner">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/70 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 rounded-lg bg-purple-500/10 text-purple-400 font-extrabold text-xs">📊 Auto-Calculation</span>
+                      <span className="text-slate-200 font-bold text-xs">
+                        {extBreakdown.undeliveredTopicsCount > 0
+                          ? `${extBreakdown.undeliveredTopicsCount} Lecture${extBreakdown.undeliveredTopicsCount > 1 ? 's' : ''} Not Delivered`
+                          : 'All Assigned Lectures Delivered'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400">Cutoff: <strong className="text-slate-200 font-mono">{extBreakdown.cutoffDisplay}</strong> {extBreakdown.isPassedCutoff ? '(Closed)' : '(Active)'}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold font-mono border ${
+                        extBreakdown.totalUndeliveredMinutes > 0
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                          : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      }`}>
+                        {extBreakdown.totalUndeliveredMinutes > 0 ? `${extBreakdown.totalUndeliveredMinutes}m Undelivered` : 'Target Fulfilled'}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
-                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
-                      <div className="text-slate-400 text-[10px]">Daily Target</div>
-                      <div className="font-bold text-slate-100 font-mono text-xs">{extBreakdown.dailyTargetMinutes}m</div>
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Today's Target</div>
+                      <div className="font-bold text-slate-100 font-mono text-sm mt-0.5">{extBreakdown.dailyTargetMinutes}m</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Delivered: <strong className="text-emerald-400">{extBreakdown.minutesRecordedToday}m</strong></div>
                     </div>
-                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
-                      <div className="text-slate-400 text-[10px]">Completed Today</div>
-                      <div className="font-bold text-emerald-400 font-mono text-xs">{extBreakdown.minutesRecordedToday}m</div>
+                    <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Today's Undelivered</div>
+                      <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.todayUndeliveredMinutes > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {extBreakdown.todayUndeliveredMinutes}m
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.todayUndeliveredMinutes > 0 ? 'Target deficit' : 'Target met'}</div>
                     </div>
-                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
-                      <div className="text-slate-400 text-[10px]">Remaining Today</div>
-                      <div className="font-bold text-amber-400 font-mono text-xs">{extBreakdown.remainingMinutesToday}m</div>
+                    <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
+                      <div className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Past Sessions Missed</div>
+                      <div className={`font-bold font-mono text-sm mt-0.5 ${extBreakdown.pastUndeliveredMinutes > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                        {extBreakdown.pastUndeliveredMinutes}m
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{extBreakdown.pastSessionsMissedCount > 0 ? `${extBreakdown.pastSessionsMissedCount} missed day(s)` : '0 backlog'}</div>
                     </div>
-                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
-                      <div className="text-slate-400 text-[10px]">Past Backlog</div>
-                      <div className={`font-bold font-mono text-xs ${extBreakdown.yesterdayUnfulfilledMinutes > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
-                        {extBreakdown.yesterdayUnfulfilledMinutes}m
+                    <div className="bg-purple-950/30 p-2.5 rounded-xl border border-purple-800/50">
+                      <div className="text-purple-300 text-[10px] uppercase tracking-wider font-semibold">Auto Extension Time</div>
+                      <div className="font-bold text-purple-200 font-mono text-sm mt-0.5">{extBreakdown.suggestedExtensionMinutes}m</div>
+                      <div className="text-[10px] text-purple-400/80 mt-0.5">Exact missing quota</div>
+                    </div>
+                  </div>
+
+                  {/* List of Undelivered Topics */}
+                  {extBreakdown.undeliveredTopicsCount > 0 && (
+                    <div className="p-2.5 bg-slate-900/60 rounded-xl border border-slate-800/60 text-[11px] space-y-1">
+                      <div className="font-semibold text-slate-300 flex items-center justify-between">
+                        <span>📝 Undelivered Lecture Topics ({extBreakdown.undeliveredTopicsCount}):</span>
+                        <button
+                          type="button"
+                          onClick={() => setExtTopicIds(extBreakdown.undeliveredTopics.map((t) => t.id))}
+                          className="text-[10px] text-purple-400 hover:text-purple-300 underline"
+                        >
+                          Select All
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 pt-0.5 max-h-20 overflow-y-auto">
+                        {extBreakdown.undeliveredTopics.map((t) => (
+                          <span
+                            key={t.id}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-[10px]"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                            <span className="font-semibold">{t.unitNumber || 'Unit'}:</span> {t.topicTitle}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-800/60">
+                  {/* One-Click Duration Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-800/70">
                     <span className="text-[11px] text-slate-400 font-medium mr-1">Quick Presets:</span>
-                    {extBreakdown.totalDeficitMinutes > 0 && (
+                    {extBreakdown.totalUndeliveredMinutes > 0 && (
                       <button
                         type="button"
-                        onClick={() => setExtAllowedMinutes(extBreakdown.totalDeficitMinutes)}
+                        onClick={() => setExtAllowedMinutes(extBreakdown.totalUndeliveredMinutes)}
                         className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                          extAllowedMinutes === extBreakdown.totalDeficitMinutes
+                          extAllowedMinutes === extBreakdown.totalUndeliveredMinutes
                             ? 'bg-purple-600 border-purple-400 text-white shadow-sm'
                             : 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
                         }`}
                       >
-                        🎯 Auto Exact ({extBreakdown.totalDeficitMinutes}m)
+                        🎯 Auto Exact ({extBreakdown.totalUndeliveredMinutes}m)
                       </button>
                     )}
-                    {[30, 45, 60, 90, 120, 180, 240].map((mins) => (
+                    {[45, 60, 90, 120, 180, 240].map((mins) => (
                       <button
                         key={mins}
                         type="button"
@@ -3826,7 +3869,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
               )}
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Topics covered</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">Topics covered</label>
+                  {assignedTopics.filter((t) => t.teacherId === extTeacherId && t.status !== 'completed').length > 0 && (
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setExtTopicIds(assignedTopics.filter((t) => t.teacherId === extTeacherId && t.status !== 'completed').map((t) => t.id))}
+                        className="text-purple-400 hover:text-purple-300 underline"
+                      >
+                        Select All Undelivered
+                      </button>
+                      <span className="text-slate-600">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setExtTopicIds([])}
+                        className="text-slate-400 hover:text-slate-300 underline"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <select
                   multiple
                   value={extTopicIds}
