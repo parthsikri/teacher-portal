@@ -885,84 +885,6 @@ export const StorageService = {
     }
   },
 
-  // Returns all administrative directives attached to lectures, with live acknowledgment statuses
-  getAllDirectivesWithLectures(): Array<{
-    remark: AdminRemark;
-    lectureId: string;
-    lectureTitle: string;
-    teacherId: string;
-    teacherName: string;
-    subject: string;
-    unitNumber?: string;
-  }> {
-    const lectures = this.getLectures();
-    const list: Array<{
-      remark: AdminRemark;
-      lectureId: string;
-      lectureTitle: string;
-      teacherId: string;
-      teacherName: string;
-      subject: string;
-      unitNumber?: string;
-    }> = [];
-
-    lectures.forEach((lec) => {
-      lec.adminRemarks?.forEach((rem) => {
-        list.push({
-          remark: rem,
-          lectureId: lec.id,
-          lectureTitle: lec.title,
-          teacherId: lec.teacherId,
-          teacherName: lec.teacherName,
-          subject: lec.subject,
-          unitNumber: lec.unitNumber,
-        });
-      });
-    });
-
-    // Sort: unread/new acks first, then by timestamp desc
-    return list.sort((a, b) => {
-      if (a.remark.isNewAckForAdmin && !b.remark.isNewAckForAdmin) return -1;
-      if (!a.remark.isNewAckForAdmin && b.remark.isNewAckForAdmin) return 1;
-      const timeA = a.remark.acknowledgedAt || a.remark.createdAt || '';
-      const timeB = b.remark.acknowledgedAt || b.remark.createdAt || '';
-      return timeB.localeCompare(timeA);
-    });
-  },
-
-  // Total recording minutes completed today by the teacher (Timezone aware)
-  getMinutesRecordedToday(teacherId: string): number {
-    const lectures = this.getLectures();
-    const now = new Date();
-    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const todayIso = now.toISOString().split('T')[0];
-
-    const todayLectures = lectures.filter((l) => {
-      if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
-      if (!l.createdAt) return false;
-      const lDate = new Date(l.createdAt);
-      const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
-      return lDateLocal === todayLocal || l.createdAt.startsWith(todayLocal) || l.createdAt.startsWith(todayIso);
-    });
-
-    return todayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-  },
-
-  getUploadsToday(teacherId: string): number {
-    const lectures = this.getLectures();
-    const now = new Date();
-    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const todayIso = now.toISOString().split('T')[0];
-
-    return lectures.filter((l) => {
-      if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
-      if (!l.createdAt) return false;
-      const lDate = new Date(l.createdAt);
-      const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
-      return lDateLocal === todayLocal || l.createdAt.startsWith(todayLocal) || l.createdAt.startsWith(todayIso);
-    }).length;
-  },
-
   // ─── DAILY UPLOAD TIME COMMITMENT (PROMISED DELIVERY TIME) ─────────────────
   getDailyCommitments(): DailyCommitment[] {
     const data = localStorage.getItem(DAILY_COMMITMENTS_KEY);
@@ -1218,12 +1140,20 @@ export const StorageService = {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
 
-    // Collect active calendar dates for this teacher (dates with lectures, commitments, or today)
+    // Collect all active calendar dates for this teacher
     const dateSet = new Set<string>();
     dateSet.add(todayStr);
 
     teacherLectures.forEach((l) => {
       const dStr = toLocalDateStr(l.createdAt);
+      if (dStr) dateSet.add(dStr);
+    });
+
+    const assignedTopics = this.getAssignedTopics().filter(
+      (t) => t.teacherId.toUpperCase() === cleanId
+    );
+    assignedTopics.forEach((t) => {
+      const dStr = toLocalDateStr(t.createdAt);
       if (dStr) dateSet.add(dStr);
     });
 
@@ -1233,6 +1163,24 @@ export const StorageService = {
     commitments.forEach((c) => {
       if (c.date) dateSet.add(c.date);
     });
+
+    // Sort dates in ascending chronological order
+    const rawDates = Array.from(dateSet).sort();
+
+    // Fill continuous calendar timeline between earliest active date and today
+    if (rawDates.length > 0) {
+      const earliestParts = rawDates[0].split('-').map(Number);
+      const earliestDate = new Date(earliestParts[0], earliestParts[1] - 1, earliestParts[2]);
+      const todayParts = todayStr.split('-').map(Number);
+      const todayDate = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
+
+      const cur = new Date(earliestDate);
+      while (cur < todayDate) {
+        cur.setDate(cur.getDate() + 1);
+        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        dateSet.add(dStr);
+      }
+    }
 
     const sortedDates = Array.from(dateSet).sort();
 
@@ -1362,16 +1310,92 @@ export const StorageService = {
     return filtered.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
   },
 
+  // Returns all administrative directives attached to lectures, with live acknowledgment statuses
+  getAllDirectivesWithLectures(): Array<{
+    remark: AdminRemark;
+    lectureId: string;
+    lectureTitle: string;
+    teacherId: string;
+    teacherName: string;
+    subject: string;
+    unitNumber?: string;
+  }> {
+    const lectures = this.getLectures();
+    const list: Array<{
+      remark: AdminRemark;
+      lectureId: string;
+      lectureTitle: string;
+      teacherId: string;
+      teacherName: string;
+      subject: string;
+      unitNumber?: string;
+    }> = [];
+
+    lectures.forEach((lec) => {
+      lec.adminRemarks?.forEach((rem) => {
+        list.push({
+          remark: rem,
+          lectureId: lec.id,
+          lectureTitle: lec.title,
+          teacherId: lec.teacherId,
+          teacherName: lec.teacherName,
+          subject: lec.subject,
+          unitNumber: lec.unitNumber,
+        });
+      });
+    });
+
+    // Sort: unread/new acks first, then by timestamp desc
+    return list.sort((a, b) => {
+      if (a.remark.isNewAckForAdmin && !b.remark.isNewAckForAdmin) return -1;
+      if (!a.remark.isNewAckForAdmin && b.remark.isNewAckForAdmin) return 1;
+      const timeA = a.remark.acknowledgedAt || a.remark.createdAt || '';
+      const timeB = b.remark.acknowledgedAt || b.remark.createdAt || '';
+      return timeB.localeCompare(timeA);
+    });
+  },
+
+  // Helper to get local date string YYYY-MM-DD from an ISO date or Date object
+  toLocalDateKey(isoStringOrDate?: string | Date): string {
+    if (!isoStringOrDate) return '';
+    const d = typeof isoStringOrDate === 'string' ? new Date(isoStringOrDate) : isoStringOrDate;
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+
+  // Total recording minutes completed today by the teacher (Timezone aware)
+  getMinutesRecordedToday(teacherId: string): number {
+    const cleanId = (teacherId || '').toUpperCase();
+    const lectures = this.getLectures();
+    const todayLocal = this.toLocalDateKey(new Date());
+
+    const todayLectures = lectures.filter((l) => {
+      if (l.teacherId.toUpperCase() !== cleanId) return false;
+      return this.toLocalDateKey(l.createdAt) === todayLocal;
+    });
+
+    return todayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+  },
+
+  getUploadsToday(teacherId: string): number {
+    const cleanId = (teacherId || '').toUpperCase();
+    const lectures = this.getLectures();
+    const todayLocal = this.toLocalDateKey(new Date());
+
+    return lectures.filter((l) => {
+      if (l.teacherId.toUpperCase() !== cleanId) return false;
+      return this.toLocalDateKey(l.createdAt) === todayLocal;
+    }).length;
+  },
+
   // Total recording minutes completed on a specific date (YYYY-MM-DD)
   getMinutesRecordedOnDate(teacherId: string, targetDateStr: string): number {
+    const cleanId = (teacherId || '').toUpperCase();
     const lectures = this.getLectures();
     return lectures
       .filter((l) => {
-        if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
-        if (!l.createdAt) return false;
-        const lDate = new Date(l.createdAt);
-        const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
-        return lDateLocal === targetDateStr || l.createdAt.startsWith(targetDateStr);
+        if (l.teacherId.toUpperCase() !== cleanId) return false;
+        return this.toLocalDateKey(l.createdAt) === targetDateStr;
       })
       .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
   },
@@ -1388,34 +1412,33 @@ export const StorageService = {
     remainingMinutesToday: number;
     isTodayTargetMet: boolean;
   } {
+    const cleanId = (teacherId || '').toUpperCase();
     const now = new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const yesterdayDateStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yesterdayDateStr = this.toLocalDateKey(yesterday);
+    const todayLocal = this.toLocalDateKey(now);
 
     const users = this.getUsers();
-    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
     const dailyTarget = teacher?.dailyTargetMinutes || 120;
 
-    const yesterdayRecorded = this.getMinutesRecordedOnDate(teacherId, yesterdayDateStr);
+    const yesterdayRecorded = this.getMinutesRecordedOnDate(cleanId, yesterdayDateStr);
     
-    // Check if teacher had active duty / activity on yesterday (explicit commitment or recorded lectures)
-    const yesterdayCommitment = this.getDailyCommitments().find(
-      (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase() && c.date === yesterdayDateStr
-    );
-    const yesterdayLectures = this.getLectures().filter((l) => {
-      if (l.teacherId.toUpperCase() !== teacherId.toUpperCase()) return false;
-      if (!l.createdAt) return false;
-      const lDate = new Date(l.createdAt);
-      const lDateLocal = `${lDate.getFullYear()}-${String(lDate.getMonth() + 1).padStart(2, '0')}-${String(lDate.getDate()).padStart(2, '0')}`;
-      return lDateLocal === yesterdayDateStr;
+    // Check if teacher had past assignments/activity on or before yesterday
+    const hasPastHistory = this.getLectures().some(l => {
+      if (l.teacherId.toUpperCase() !== cleanId) return false;
+      const lDate = this.toLocalDateKey(l.createdAt);
+      return !!lDate && lDate < todayLocal;
+    }) || this.getAssignedTopics().some(t => {
+      if (t.teacherId.toUpperCase() !== cleanId) return false;
+      const tDate = this.toLocalDateKey(t.createdAt);
+      return !!tDate && tDate < todayLocal;
     });
-    
-    const hadYesterdayAssigned = !!yesterdayCommitment || yesterdayLectures.length > 0;
 
-    const yesterdayUnfulfilledMinutes = hadYesterdayAssigned ? Math.max(0, dailyTarget - yesterdayRecorded) : 0;
+    const yesterdayUnfulfilledMinutes = hasPastHistory ? Math.max(0, dailyTarget - yesterdayRecorded) : 0;
     const isYesterdayFulfilled = yesterdayUnfulfilledMinutes === 0;
 
-    const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
+    const minutesRecordedToday = this.getMinutesRecordedToday(cleanId);
     const remainingMinutesToday = Math.max(0, dailyTarget - minutesRecordedToday);
     const isTodayTargetMet = minutesRecordedToday >= dailyTarget;
 
@@ -1787,64 +1810,153 @@ export const StorageService = {
   },
 
   getTotalLateBacklogMinutes(teacherId: string): number {
+    const cleanId = (teacherId || '').toUpperCase();
     const lectures = this.getLectures();
     const teacherLectures = lectures.filter(
-      (l) => l.teacherId.toUpperCase() === teacherId.toUpperCase()
+      (l) => l.teacherId.toUpperCase() === cleanId
     );
     const users = this.getUsers();
-    const teacher = users.find((u) => u.teacherId.toUpperCase() === teacherId.toUpperCase());
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
     const dailyTarget = teacher?.dailyTargetMinutes || 120;
 
     const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayStr = this.toLocalDateKey(now);
 
-    const toLocalDateStr = (isoString?: string): string => {
-      if (!isoString) return '';
-      const d = new Date(isoString);
-      if (isNaN(d.getTime())) return '';
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    };
-
-    // Only collect past dates where teacher had actual recorded lectures or scheduled commitments
+    // Collect all active calendar dates for this teacher
     const dateSet = new Set<string>();
 
     teacherLectures.forEach((l) => {
-      const dStr = toLocalDateStr(l.createdAt);
+      const dStr = this.toLocalDateKey(l.createdAt);
+      if (dStr && dStr < todayStr) dateSet.add(dStr);
+    });
+
+    const assignedTopics = this.getAssignedTopics().filter(
+      (t) => t.teacherId.toUpperCase() === cleanId
+    );
+    assignedTopics.forEach((t) => {
+      const dStr = this.toLocalDateKey(t.createdAt);
       if (dStr && dStr < todayStr) dateSet.add(dStr);
     });
 
     const commitments = this.getDailyCommitments().filter(
-      (c) => c.teacherId.toUpperCase() === teacherId.toUpperCase()
+      (c) => c.teacherId.toUpperCase() === cleanId
     );
     commitments.forEach((c) => {
       if (c.date && c.date < todayStr) dateSet.add(c.date);
     });
 
+    if (dateSet.size === 0) {
+      return 0;
+    }
+
+    const rawDates = Array.from(dateSet).sort();
+    const earliestParts = rawDates[0].split('-').map(Number);
+    const earliestDate = new Date(earliestParts[0], earliestParts[1] - 1, earliestParts[2]);
+    const todayParts = todayStr.split('-').map(Number);
+    const todayDate = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
+
+    const cur = new Date(earliestDate);
+    while (cur < todayDate) {
+      const dStr = this.toLocalDateKey(cur);
+      dateSet.add(dStr);
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const sortedDates = Array.from(dateSet).sort();
+
     // Group lectures by local date
     const lecturesByDate = new Map<string, Lecture[]>();
     teacherLectures.forEach((l) => {
-      const dStr = toLocalDateStr(l.createdAt);
-      if (!lecturesByDate.has(dStr)) {
-        lecturesByDate.set(dStr, []);
+      const dStr = this.toLocalDateKey(l.createdAt);
+      if (dStr) {
+        if (!lecturesByDate.has(dStr)) {
+          lecturesByDate.set(dStr, []);
+        }
+        lecturesByDate.get(dStr)!.push(l);
       }
-      lecturesByDate.get(dStr)!.push(l);
     });
 
     let totalBacklog = 0;
-
-    dateSet.forEach((dateStr) => {
-      const dayLectures = lecturesByDate.get(dateStr) || [];
-      const recordedDayMins = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-      const unfulfilled = Math.max(0, dailyTarget - recordedDayMins);
-      totalBacklog += unfulfilled;
+    sortedDates.forEach((dateStr) => {
+      if (dateStr < todayStr) {
+        const dayLectures = lecturesByDate.get(dateStr) || [];
+        const recordedDayMins = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+        const unfulfilled = Math.max(0, dailyTarget - recordedDayMins);
+        totalBacklog += unfulfilled;
+      }
     });
 
-    // If there is an active unfulfilled deficit, round up to standard 15-minute recording blocks (minimum 60 min)
-    if (totalBacklog > 0) {
-      return Math.max(60, Math.ceil(totalBacklog / 15) * 15);
+    return totalBacklog;
+  },
+
+  getTeacherExtensionBreakdown(teacherId: string): {
+    teacherId: string;
+    teacherName: string;
+    dailyTargetMinutes: number;
+    maxDailyMinutes: number;
+    minutesRecordedToday: number;
+    remainingMinutesToday: number;
+    yesterdayUnfulfilledMinutes: number;
+    totalBacklogMinutes: number;
+    totalDeficitMinutes: number;
+    suggestedExtensionMinutes: number;
+    isTodayTargetMet: boolean;
+    isPassedCutoff: boolean;
+    cutoffDisplay: string;
+  } {
+    const cleanId = (teacherId || '').toUpperCase();
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
+    const teacherName = teacher?.name || teacherId;
+    const dailyTargetMinutes = teacher?.dailyTargetMinutes || 120;
+    const maxDailyMinutes = teacher?.maxDailyMinutes || (dailyTargetMinutes * 2);
+
+    const now = new Date();
+    const minutesRecordedToday = this.getMinutesRecordedToday(cleanId);
+    const remainingMinutesToday = Math.max(0, dailyTargetMinutes - minutesRecordedToday);
+    const isTodayTargetMet = minutesRecordedToday >= dailyTargetMinutes;
+
+    const commitment = this.getDailyCommitment(cleanId);
+    const cutoffTime = teacher?.dailyUploadCutoffTime || commitment?.promisedTime || '20:00';
+    const [cutoffHours, cutoffMins] = cutoffTime.split(':').map(Number);
+    const deadlineObj = new Date();
+    deadlineObj.setHours(cutoffHours || 20, cutoffMins || 0, 59, 999);
+    const isPassedCutoff = now.getTime() >= deadlineObj.getTime();
+
+    const period = (cutoffHours || 20) >= 12 ? 'PM' : 'AM';
+    const formattedHours = (cutoffHours || 20) % 12 || 12;
+    const formattedMinutes = String(cutoffMins || 0).padStart(2, '0');
+    const cutoffDisplay = `${formattedHours}:${formattedMinutes} ${period}`;
+
+    const previousBacklog = this.getPreviousDayBacklog(cleanId);
+    const yesterdayUnfulfilledMinutes = previousBacklog.yesterdayUnfulfilledMinutes || 0;
+    const totalBacklogMinutes = this.getTotalLateBacklogMinutes(cleanId);
+
+    const effectiveBacklog = Math.max(yesterdayUnfulfilledMinutes, totalBacklogMinutes);
+    const totalDeficitMinutes = remainingMinutesToday + effectiveBacklog;
+
+    let suggestedExtensionMinutes = 60;
+    if (totalDeficitMinutes > 0) {
+      suggestedExtensionMinutes = totalDeficitMinutes;
+    } else {
+      suggestedExtensionMinutes = Math.min(60, Math.max(30, maxDailyMinutes - minutesRecordedToday));
     }
 
-    return 60; // Standard default recording extension window
+    return {
+      teacherId,
+      teacherName,
+      dailyTargetMinutes,
+      maxDailyMinutes,
+      minutesRecordedToday,
+      remainingMinutesToday,
+      yesterdayUnfulfilledMinutes,
+      totalBacklogMinutes: effectiveBacklog,
+      totalDeficitMinutes,
+      suggestedExtensionMinutes,
+      isTodayTargetMet,
+      isPassedCutoff,
+      cutoffDisplay,
+    };
   },
 
   getActiveExtensionForTopic(teacherId: string, topicId?: string): LectureExtension | null {

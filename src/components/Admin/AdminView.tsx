@@ -129,6 +129,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [extNotes, setExtNotes] = useState('');
   const [extTopicIds, setExtTopicIds] = useState<string[]>([]);
 
+  const extBreakdown = useMemo(() => {
+    if (!extTeacherId) return null;
+    return StorageService.getTeacherExtensionBreakdown(extTeacherId);
+  }, [extTeacherId, refreshCounter, refreshTrigger, lectures]);
+
   useEffect(() => {
     if (currentPage !== 'admin_extensions') return;
     if (teachers.length === 0) {
@@ -139,13 +144,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const defaultTeacherId = teachers[0].teacherId;
     const now = new Date();
     setExtTeacherId(defaultTeacherId);
-    setExtAllowedMinutes(StorageService.getTotalLateBacklogMinutes(defaultTeacherId) || 60);
+    const breakdown = StorageService.getTeacherExtensionBreakdown(defaultTeacherId);
+    setExtAllowedMinutes(breakdown.suggestedExtensionMinutes);
     setExtStartWindow(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
     setExtEndWindow(new Date(now.getTime() + 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
     setExtNotes('');
     setExtTopicIds([]);
     setShowExtensionModal(true);
-  }, [currentPage]);
+  }, [currentPage, teachers]);
 
   // Standalone Assign Topic Modal State (Supports Comma Separated Topics)
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -3716,12 +3722,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <label className="block text-slate-300 font-semibold mb-1">Faculty Member *</label>
                   <select
                     value={extTeacherId}
-                  onChange={(e) => {
-                    const selectedId = e.target.value;
-                    setExtTeacherId(selectedId);
-                    setExtTopicIds([]);
-                      const backlogMinutes = StorageService.getTotalLateBacklogMinutes(selectedId);
-                      setExtAllowedMinutes(backlogMinutes > 0 ? backlogMinutes : 60);
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setExtTeacherId(selectedId);
+                      setExtTopicIds([]);
+                      const breakdown = StorageService.getTeacherExtensionBreakdown(selectedId);
+                      setExtAllowedMinutes(breakdown.suggestedExtensionMinutes);
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
                     required
@@ -3735,10 +3741,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-slate-300 font-semibold">Additional Allowed Recording Minutes *</label>
-                    <span className="text-[10px] text-purple-400 font-medium">Standard Studio Blocks</span>
-                  </div>
+                  <label className="block text-slate-300 font-semibold mb-1">Additional Allowed Recording Minutes *</label>
                   <input
                     type="number"
                     min={15}
@@ -3749,52 +3752,92 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono font-bold focus:outline-none focus:border-purple-500"
                     required
                   />
-                  {/* Quick Preset Buttons */}
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {[30, 45, 60, 90, 120, 180].map((mins) => (
+                </div>
+              </div>
+
+              {/* Live Auto-Calculated Deficit & Requirement Breakdown */}
+              {extBreakdown && (
+                <div className="bg-slate-950/80 border border-purple-900/40 rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300 font-bold flex items-center gap-1.5 text-xs">
+                      ⚡ <span className="text-purple-300">Live Quota & Deficit Breakdown:</span>
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold font-mono border ${
+                      extBreakdown.totalDeficitMinutes > 0
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    }`}>
+                      {extBreakdown.totalDeficitMinutes > 0 ? `${extBreakdown.totalDeficitMinutes}m Deficit` : 'Target Met'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
+                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
+                      <div className="text-slate-400 text-[10px]">Daily Target</div>
+                      <div className="font-bold text-slate-100 font-mono text-xs">{extBreakdown.dailyTargetMinutes}m</div>
+                    </div>
+                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
+                      <div className="text-slate-400 text-[10px]">Completed Today</div>
+                      <div className="font-bold text-emerald-400 font-mono text-xs">{extBreakdown.minutesRecordedToday}m</div>
+                    </div>
+                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
+                      <div className="text-slate-400 text-[10px]">Remaining Today</div>
+                      <div className="font-bold text-amber-400 font-mono text-xs">{extBreakdown.remainingMinutesToday}m</div>
+                    </div>
+                    <div className="bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
+                      <div className="text-slate-400 text-[10px]">Past Backlog</div>
+                      <div className={`font-bold font-mono text-xs ${extBreakdown.yesterdayUnfulfilledMinutes > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                        {extBreakdown.yesterdayUnfulfilledMinutes}m
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-800/60">
+                    <span className="text-[11px] text-slate-400 font-medium mr-1">Quick Presets:</span>
+                    {extBreakdown.totalDeficitMinutes > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setExtAllowedMinutes(extBreakdown.totalDeficitMinutes)}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                          extAllowedMinutes === extBreakdown.totalDeficitMinutes
+                            ? 'bg-purple-600 border-purple-400 text-white shadow-sm'
+                            : 'bg-purple-950/40 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
+                        }`}
+                      >
+                        🎯 Auto Exact ({extBreakdown.totalDeficitMinutes}m)
+                      </button>
+                    )}
+                    {[30, 45, 60, 90, 120, 180, 240].map((mins) => (
                       <button
                         key={mins}
                         type="button"
                         onClick={() => setExtAllowedMinutes(mins)}
                         className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                           extAllowedMinutes === mins
-                            ? 'bg-purple-600 text-white border-purple-500 shadow-sm shadow-purple-500/20'
-                            : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800'
+                            ? 'bg-purple-600 border-purple-400 text-white shadow-sm'
+                            : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-slate-100'
                         }`}
                       >
-                        {mins}m {mins >= 60 ? `(${mins / 60}h)` : ''}
+                        {mins >= 60 ? (mins % 60 === 0 ? `${mins / 60}h` : `${mins}m`) : `${mins}m`}
                       </button>
                     ))}
                   </div>
                 </div>
-              </div>
+              )}
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-300 font-semibold">Topics Covered</label>
-                  {extTopicIds.length > 0 && (
-                    <span className="text-[10px] text-purple-300 font-medium">
-                      {extTopicIds.length} topic{extTopicIds.length > 1 ? 's' : ''} selected (~{extTopicIds.length * 45}m recommended)
-                    </span>
-                  )}
-                </div>
+                <label className="block text-slate-300 font-semibold mb-1">Topics covered</label>
                 <select
                   multiple
                   value={extTopicIds}
-                  onChange={(e) => {
-                    const selected = Array.from(e.currentTarget.selectedOptions, (option) => option.value);
-                    setExtTopicIds(selected);
-                    if (selected.length > 0) {
-                      setExtAllowedMinutes(Math.max(45, selected.length * 45));
-                    }
-                  }}
+                  onChange={(e) => setExtTopicIds(Array.from(e.currentTarget.selectedOptions, (option) => option.value))}
                   className="w-full min-h-24 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-purple-500"
                 >
                   {assignedTopics.filter((topic) => topic.teacherId === extTeacherId && topic.status !== 'completed').map((topic) => (
                     <option key={topic.id} value={topic.id}>{topic.unitNumber || 'Unit'} — {topic.topicTitle}</option>
                   ))}
                 </select>
-                <p className="mt-1 text-[10px] text-slate-500">Optional. Leave unselected to cover all assigned topics; click options (or hold Ctrl/Cmd) to select specific topics.</p>
+                <p className="mt-1 text-[10px] text-slate-500">Optional. Leave unselected to cover all assigned topics; use Ctrl/Cmd to select several.</p>
               </div>
 
               <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
