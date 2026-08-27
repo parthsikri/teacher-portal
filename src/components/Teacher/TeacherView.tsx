@@ -2247,7 +2247,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       {/* ─── DELIVERED LECTURES ─── */}
       {currentPage === 'lectures' && (
         <div className="space-y-6">
-          {/* URGENT EXTENSION WINDOW ATTENTION BANNER FOR UNRECORDED LECTURES */}
+          {/* URGENT RED EXTENSION WINDOW ATTENTION BANNER FOR UNRECORDED LECTURES */}
           {activeTeacherExtensions.length > 0 && (() => {
             const ext = activeTeacherExtensions[0];
             const topics = ext.assignedTopicIds?.length
@@ -2261,33 +2261,33 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             const isClosingSoon = endDate.getTime() - Date.now() < 24 * 3600 * 1000;
 
             return (
-              <div className="bg-gradient-to-r from-purple-950/90 via-indigo-950/80 to-slate-900 border-2 border-purple-500/80 rounded-2xl p-4 sm:p-5 shadow-2xl shadow-purple-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs animate-in fade-in">
+              <div className="bg-gradient-to-r from-red-950/95 via-rose-950/90 to-slate-950 border-2 border-red-500/90 rounded-2xl p-4 sm:p-5 shadow-2xl shadow-red-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs animate-in fade-in">
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-500/50 text-purple-300 flex items-center justify-center shrink-0">
-                    <Clock className="w-5 h-5 animate-pulse" />
+                  <div className="w-10 h-10 rounded-xl bg-red-600/30 border border-red-500/50 text-red-400 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 animate-pulse text-red-400" />
                   </div>
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-600 text-white uppercase tracking-wider shadow-sm animate-pulse">
-                        🔴 URGENT • Extension Window Active
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white uppercase tracking-wider shadow-sm animate-pulse">
+                        🚨 URGENT • Extension Window Active
                       </span>
-                      <span className="text-[11px] text-purple-300 font-bold hidden sm:inline">Unrecorded Shortfall Attention</span>
+                      <span className="text-[11px] text-red-300 font-bold hidden sm:inline">Unrecorded Shortfall Attention</span>
                     </div>
                     <p className="font-extrabold text-slate-100 text-sm">
-                      You have an unrecorded shortfall of <span className="text-amber-300 font-mono font-black">{lateBacklogInfo.remainingBacklogMinutes > 0 ? lateBacklogInfo.remainingBacklogMinutes : remainingMins} min</span>. Record by <span className="text-purple-300 font-mono font-bold underline">{endDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>.
+                      You have an unrecorded shortfall of <span className="text-amber-300 font-mono font-black">{lateBacklogInfo.remainingBacklogMinutes > 0 ? lateBacklogInfo.remainingBacklogMinutes : remainingMins} min</span>. Record by <span className="text-red-200 font-mono font-bold underline">{endDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>.
                     </p>
-                    <p className="text-[11px] text-purple-200/80">
-                      Topics: <strong>{topics}</strong> • Capacity remaining: <strong>{remainingMins}m</strong> (of {ext.allowedMinutes}m)
-                      {isClosingSoon && <span className="text-rose-400 font-bold ml-1.5 animate-pulse">⚠️ Window closing soon!</span>}
+                    <p className="text-[11px] text-red-200/90">
+                      Topics: <strong className="text-white">{topics}</strong> • Capacity remaining: <strong className="text-amber-300 font-mono">{remainingMins}m</strong> (of {ext.allowedMinutes}m)
+                      {isClosingSoon && <span className="text-rose-300 font-bold ml-1.5 animate-pulse">⚠️ Window closing soon!</span>}
                     </p>
                   </div>
                 </div>
 
                 <button
                   onClick={() => onOpenUpload(targetTopic)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-purple-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center cursor-pointer hover:scale-[1.02]"
+                  className="px-5 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-red-600/50 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center cursor-pointer hover:scale-[1.02]"
                 >
-                  ⏱️ Record Outstanding Lecture →
+                  <Clock className="w-3.5 h-3.5" /> Record with Extension →
                 </button>
               </div>
             );
