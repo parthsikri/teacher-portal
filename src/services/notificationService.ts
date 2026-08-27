@@ -1,4 +1,5 @@
 import type { NotificationEventType } from '../../api/send-email';
+import { StorageService } from './storage';
 
 interface EmailDispatchOptions {
   to: string | string[];
@@ -19,7 +20,10 @@ class NotificationService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(options),
+        body: JSON.stringify({
+          ...options,
+          config: StorageService.getEmailConfig(),
+        }),
       });
 
       if (!response.ok) {

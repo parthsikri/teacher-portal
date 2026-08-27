@@ -1,5 +1,5 @@
 import { notificationService } from './notificationService';
-import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo } from '../types';
+import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, EmailConfig } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
 const USERS_KEY = 'aew_portal_users_prod_v2';
@@ -1307,6 +1307,21 @@ export const StorageService = {
     this.savePptRequests(list);
   },
 
+  // ─── EMAIL CREDENTIALS & SENDER CONFIGURATION ───────────────────────────
+  getEmailConfig(): EmailConfig {
+    try {
+      const stored = localStorage.getItem('aew_email_config');
+      return stored ? JSON.parse(stored) : { provider: 'smtp', smtpHost: 'smtp.gmail.com', smtpPort: 465, senderName: 'AEW Academic Operations' };
+    } catch {
+      return { provider: 'smtp', smtpHost: 'smtp.gmail.com', smtpPort: 465, senderName: 'AEW Academic Operations' };
+    }
+  },
+
+  saveEmailConfig(config: EmailConfig): void {
+    localStorage.setItem('aew_email_config', JSON.stringify(config));
+    this.syncToCloud().catch((err) => console.warn('[CloudSync] Email config sync error:', err));
+  },
+
   // ─── TEACHER ON-TIME SUBMISSION PERCENTAGE & METRICS (ACCURATE MULTI-DAY & MINUTE-WEIGHTED) ──
   getOnTimeSubmissionStats(teacherId: string): {
     totalLectures: number;
@@ -2122,6 +2137,7 @@ export const StorageService = {
       pptRequests: this.getPptRequests(),
       extensions: this.getExtensions(),
       walletTransactions: this.getWalletTransactions(),
+      emailConfig: this.getEmailConfig(),
     };
   },
 
@@ -2135,6 +2151,10 @@ export const StorageService = {
 
     if (deletedIds.size > 0) {
       localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(deletedIds)));
+    }
+
+    if (state.emailConfig && typeof state.emailConfig === 'object') {
+      localStorage.setItem('aew_email_config', JSON.stringify(state.emailConfig));
     }
 
     if (Array.isArray(state.users) && state.users.length > 0) {

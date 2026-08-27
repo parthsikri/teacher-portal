@@ -741,21 +741,31 @@ app.post('/api/send-email', async (req, res) => {
     </div>
   `;
 
+  const bodyConfig = (req.body?.config || {});
+  const activeSmtpUser = (bodyConfig.smtpUser || SMTP_USER).trim();
+  const activeSmtpPass = (bodyConfig.smtpPass ? String(bodyConfig.smtpPass).trim().replace(/\s+/g, '') : SMTP_PASS);
+  const activeSmtpHost = (bodyConfig.smtpHost || SMTP_HOST || 'smtp.gmail.com').trim();
+  const activeSmtpPort = parseInt(bodyConfig.smtpPort || SMTP_PORT || '465', 10);
+  const activeSenderName = (bodyConfig.senderName || 'AEW Academic Operations').trim();
+  const activeSmtpFrom = (bodyConfig.smtpFrom || `${activeSenderName} <${activeSmtpUser}>`).trim();
+  const activeResendKey = (bodyConfig.resendApiKey || RESEND_API_KEY).trim();
+  const activeResendFrom = (bodyConfig.fromEmail || RESEND_FROM_EMAIL).trim();
+
   // 1. Dispatch via SMTP (e.g. Gmail) — ZERO DOMAIN NEEDED
-  if (SMTP_USER && SMTP_PASS) {
+  if (activeSmtpUser && activeSmtpPass) {
     try {
       const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: SMTP_PORT,
-        secure: SMTP_PORT === 465,
+        host: activeSmtpHost,
+        port: activeSmtpPort,
+        secure: activeSmtpPort === 465,
         auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS,
+          user: activeSmtpUser,
+          pass: activeSmtpPass,
         },
       });
 
       const info = await transporter.sendMail({
-        from: SMTP_FROM || SMTP_USER,
+        from: activeSmtpFrom || activeSmtpUser,
         to: validRecipients.join(', '),
         subject,
         html,
@@ -770,16 +780,16 @@ app.post('/api/send-email', async (req, res) => {
   }
 
   // 2. Dispatch via Resend API
-  if (RESEND_API_KEY) {
+  if (activeResendKey) {
     try {
       const resendResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Authorization': `Bearer ${activeResendKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: RESEND_FROM_EMAIL,
+          from: activeResendFrom,
           to: validRecipients,
           subject,
           html,
@@ -793,7 +803,6 @@ app.post('/api/send-email', async (req, res) => {
       return res.status(500).json({ success: false, error: err.message });
     }
   }
-
   // 3. Fallback
   console.log(`[Dev SendEmail] No credentials configured. Simulating email "${type}" to:`, validRecipients);
   return res.json({
@@ -804,12 +813,3 @@ app.post('/api/send-email', async (req, res) => {
     type,
   });
 });
-
-// ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  const drive = getDriveClient();
-  console.log(`\n🚀 AEW API Server running on http://localhost:${PORT}`);
-  console.log(`📂 Google Drive: ${drive ? '✅ Configured' : '❌ Not configured'}`);
-  console.log(`📁 Folder ID  : ${process.env.GOOGLE_DRIVE_FOLDER_ID || '(optional / root)'}\n`);
-});
-

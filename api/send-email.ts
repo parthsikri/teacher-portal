@@ -26,7 +26,6 @@ const SMTP_USER = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim()
 const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '').trim().replace(/\s+/g, '');
 const SMTP_HOST = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-const SMTP_FROM = (process.env.SMTP_FROM || `AEW Academic Operations <${SMTP_USER}>`).trim();
 
 // 2. Resend Credentials (Alternative API provider)
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
@@ -387,21 +386,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { subject, html } = buildEmailTemplate(type, data || {});
 
+    const bodyConfig = (req.body?.config || {}) as Record<string, any>;
+  const activeSmtpUser = (bodyConfig.smtpUser || SMTP_USER).trim();
+  const activeSmtpPass = (bodyConfig.smtpPass ? String(bodyConfig.smtpPass).trim().replace(/\s+/g, '') : SMTP_PASS);
+  const activeSmtpHost = (bodyConfig.smtpHost || SMTP_HOST || 'smtp.gmail.com').trim();
+  const activeSmtpPort = parseInt(bodyConfig.smtpPort || SMTP_PORT || '465', 10);
+  const activeSenderName = (bodyConfig.senderName || 'AEW Academic Operations').trim();
+  const activeSmtpFrom = (bodyConfig.smtpFrom || `${activeSenderName} <${activeSmtpUser}>`).trim();
+  const activeResendKey = (bodyConfig.resendApiKey || RESEND_API_KEY).trim();
+  const activeResendFrom = (bodyConfig.fromEmail || RESEND_FROM_EMAIL).trim();
+
   // ─── A. Dispatch via SMTP (Gmail / Custom Mail Server) ─────────────────────
-  if (SMTP_USER && SMTP_PASS) {
+  if (activeSmtpUser && activeSmtpPass) {
     try {
       const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: SMTP_PORT,
-        secure: SMTP_PORT === 465,
+        host: activeSmtpHost,
+        port: activeSmtpPort,
+        secure: activeSmtpPort === 465,
         auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS,
+          user: activeSmtpUser,
+          pass: activeSmtpPass,
         },
       });
 
       const info = await transporter.sendMail({
-        from: SMTP_FROM || SMTP_USER,
+        from: activeSmtpFrom || activeSmtpUser,
         to: validRecipients.join(', '),
         subject,
         html,
@@ -426,16 +435,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ─── B. Dispatch via Resend API ───────────────────────────────────────────
-  if (RESEND_API_KEY) {
+  if (activeResendKey) {
     try {
       const resendResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Authorization': `Bearer ${activeResendKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: RESEND_FROM_EMAIL,
+          from: activeResendFrom,
           to: validRecipients,
           subject,
           html,
@@ -471,7 +480,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
   }
-
   // ─── C. Simulated Fallback (No Credentials Configured) ───────────────────
   console.warn(`[SendEmail] Neither SMTP (Gmail) nor RESEND_API_KEY is configured. Simulated "${type}" email to:`, validRecipients);
   return res.status(200).json({

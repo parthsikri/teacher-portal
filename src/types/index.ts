@@ -174,3 +174,14 @@ export interface TimeWalletInfo {
   transactions: WalletTransaction[]; // Audit history
 }
 
+
+export interface EmailConfig {
+  provider: 'smtp' | 'resend';
+  smtpUser?: string;
+  smtpPass?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  senderName?: string;
+  resendApiKey?: string;
+  fromEmail?: string;
+}
