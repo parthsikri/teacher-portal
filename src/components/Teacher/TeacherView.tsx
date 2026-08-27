@@ -1308,30 +1308,33 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           )}
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+          <section className="rounded-2xl border border-purple-800/60 bg-gradient-to-br from-purple-950/30 via-slate-900/90 to-slate-900 overflow-hidden shadow-xl">
             <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <span>⏱️ Approved Extension Windows</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-normal">
+                <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-400" />
+                  <span>Approved Extension Windows (Urgent Attention)</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
                     Late Submissions Allowed
                   </span>
                 </h3>
                 <p className="mt-0.5 text-[11px] text-slate-400">
-                  Approved extension capacity allows you to record beyond standard daily limits to catch up on unrecorded days.
+                  Approved extension capacity allows you to catch up and record outstanding lectures past deadline.
                 </p>
               </div>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                activeTeacherExtensions.length > 0 ? 'bg-purple-900/40 text-purple-300 border border-purple-700/50' : 'text-slate-500'
+              <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                activeTeacherExtensions.length > 0 ? 'bg-purple-600 text-white font-bold animate-pulse' : 'text-slate-500'
               }`}>
                 {activeTeacherExtensions.length} active window{activeTeacherExtensions.length === 1 ? '' : 's'}
               </span>
             </div>
 
             {activeTeacherExtensions.length === 0 ? (
-              <div className="p-5 text-xs text-slate-500 italic">No active extension windows currently granted.</div>
+              <div className="p-6 text-xs text-slate-500 italic text-center">
+                No active extension windows currently granted. If you have past unrecorded shortfall, contact Academic Operations to request an extension.
+              </div>
             ) : (
-              <div className="divide-y divide-slate-800">
+              <div className="divide-y divide-purple-900/30">
                 {activeTeacherExtensions.map((extension) => {
                   const topics = extension.assignedTopicIds?.length
                     ? extension.assignedTopicIds.map((id) => assignedTopics.find((topic) => topic.id === id)?.topicTitle || 'Assigned topic').join(', ')
@@ -1342,30 +1345,41 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                     : undefined;
 
                   const remainingMins = Math.max(0, extension.allowedMinutes - extension.usedMinutes);
+                  const endDate = new Date(extension.endWindow);
+                  const isClosingSoon = endDate.getTime() - Date.now() < 24 * 3600 * 1000;
 
                   return (
-                    <div key={extension.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-purple-950/10">
-                      <div className="space-y-1">
-                        <div className="font-semibold text-slate-200 flex items-center gap-2">
-                          <span>{topics}</span>
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-900/50 text-purple-300 border border-purple-700/40">
-                            Active
+                    <div key={extension.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs bg-purple-950/20">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-black bg-purple-500/30 text-purple-200 border border-purple-500/40">
+                            🔴 URGENT EXTENSION
+                          </span>
+                          <span className="font-bold text-slate-100 text-sm">{topics}</span>
+                        </div>
+
+                        <div className="text-slate-300 text-xs flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+                          <span>
+                            ⚠️ Shortfall to record: <strong className="text-amber-300 font-mono font-bold">{lateBacklogInfo.remainingBacklogMinutes > 0 ? lateBacklogInfo.remainingBacklogMinutes : remainingMins} min</strong>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            Record by: <strong className="text-purple-300 font-mono font-bold underline">{endDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                            {isClosingSoon && <span className="text-rose-400 font-bold ml-1.5 animate-pulse">(Closing Soon!)</span>}
                           </span>
                         </div>
-                        <div className="text-slate-400 text-[11px]">
-                          Window: <strong className="text-slate-300 font-mono">{new Date(extension.startWindow).toLocaleString()} — {new Date(extension.endWindow).toLocaleString()}</strong>
-                          {extension.notes && <span className="text-purple-300/80 italic ml-2">• "{extension.notes}"</span>}
-                        </div>
-                        <div className="text-[11px] text-purple-300 font-bold">
-                          Extra Capacity: {remainingMins} min left (of {extension.allowedMinutes}m granted)
+
+                        <div className="text-[11px] text-slate-400">
+                          Extra capacity left: <strong className="text-purple-300 font-mono">{remainingMins}m</strong> (of {extension.allowedMinutes}m granted)
+                          {extension.notes && <span className="text-slate-300 italic ml-2">• "{extension.notes}"</span>}
                         </div>
                       </div>
 
                       <button
                         onClick={() => onOpenUpload(targetTopic)}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-md text-xs flex items-center justify-center gap-1.5 shrink-0 transition-all"
+                        className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl shadow-lg shadow-purple-600/30 text-xs flex items-center justify-center gap-2 shrink-0 transition-all hover:scale-[1.02] cursor-pointer"
                       >
-                        ⏱️ Record with Extension →
+                        ⏱️ Record Outstanding Lecture →
                       </button>
                     </div>
                   );
@@ -1377,246 +1391,184 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       )}
 
 
-      {/* ─── DEDICATED TIME WALLET & PIGGY BANK PAGE ─── */}
-      {currentPage === 'wallet' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30">
-                <Wallet className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
-                  Time Wallet & Piggy Bank
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    Surplus Storage
-                  </span>
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Bank extra recording minutes, view immutable transaction audit trails, and transfer surplus to offset late backlogs.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {walletInfo.balance > 0 && lateBacklogInfo.remainingBacklogMinutes > 0 && (
-                <button
-                  onClick={() => {
-                    setWalletTransferMinutes(Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes));
-                    setShowWalletModal(true);
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  ⚡ Use Wallet for Backlog (-{Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes)}m)
-                </button>
-              )}
-              <button
-                onClick={() => onOpenUpload()}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Record Extra Lecture
-              </button>
-            </div>
-          </div>
-
-          {/* 4 Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-2xl border border-indigo-900/50 bg-gradient-to-br from-indigo-950/50 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
-                <span>Time Wallet Balance</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">Banked</span>
-              </div>
-              <div className="mt-2 text-3xl font-black text-indigo-200 font-mono">+{walletInfo.balance} min</div>
-              <p className="mt-1 text-[11px] text-slate-400">Available surplus minutes recorded beyond daily targets.</p>
-            </div>
-
-            <div className="rounded-2xl border border-rose-900/40 bg-gradient-to-br from-rose-950/40 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
-                <span>Late Backlog</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono">
-                  {lateBacklogInfo.remainingBacklogMinutes === 0 ? 'Zero Debt' : 'Active Deficit'}
-                </span>
-              </div>
-              <div className="mt-2 text-3xl font-black text-rose-300 font-mono">{lateBacklogInfo.remainingBacklogMinutes} min</div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {lateBacklogInfo.remainingBacklogMinutes > 0
-                  ? `Raw shortfall: ${lateBacklogInfo.rawHistoricalShortfall}m (${lateBacklogInfo.walletMinutesApplied}m offset)`
-                  : 'All historical delivery quotas fulfilled!'}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Surplus Earned</div>
-              <div className="mt-2 text-2xl font-bold text-emerald-400 font-mono">+{walletInfo.totalSurplusEarned} min</div>
-              <p className="mt-1 text-[11px] text-slate-400">Lifetime surplus recorded over assigned daily targets.</p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Applied to Backlog</div>
-              <div className="mt-2 text-2xl font-bold text-purple-400 font-mono">-{walletInfo.totalAppliedToBacklog} min</div>
-              <p className="mt-1 text-[11px] text-slate-400">Total wallet minutes transferred to clear past shortfalls.</p>
-            </div>
-          </div>
-
-          {/* Interactive Transfer Station */}
-          {lateBacklogInfo.remainingBacklogMinutes > 0 && walletInfo.balance > 0 ? (
-            <div className="rounded-2xl border border-indigo-800/60 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900/80 p-6 space-y-4 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                    <span>⚡ Quick Backlog Offset Station</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-normal">
-                      Manual Transfer
+      {/* ─── DEDICATED TIME WALLET & PIGGY BANK PAGE (STRICTLY POSITIVE EARNINGS) ─── */}
+      {currentPage === 'wallet' && (() => {
+        const positiveSurplusDays = lateBacklogInfo.history.filter((h) => h.surplus > 0);
+        return (
+          <div className="space-y-6 animate-in fade-in duration-150">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30">
+                  <Wallet className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
+                    Time Wallet & Surplus Earnings
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Positive Earnings Only
                     </span>
-                  </div>
-                  <p className="text-xs text-slate-300">
-                    Transfer banked wallet surplus to reduce your {lateBacklogInfo.remainingBacklogMinutes} min late backlog.
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Your banked extra minutes earned by recording beyond daily lecture quotas. Extra minutes never expire.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const maxTransfer = Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes);
-                      const res = StorageService.applyWalletToBacklog(teacher.teacherId, maxTransfer, teacher.name);
-                      if (res.success) {
-                        setRefreshKey((k) => k + 1);
-                      }
-                    }}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
-                  >
-                    ⚡ Apply Max ({Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes)} min) Now
-                  </button>
-                  <button
-                    onClick={() => {
-                      setWalletTransferMinutes(Math.min(walletInfo.balance, lateBacklogInfo.remainingBacklogMinutes));
-                      setShowWalletModal(true);
-                    }}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl font-medium cursor-pointer"
-                  >
-                    Custom Amount...
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Ledger Breakdown & Audit Log Tables */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Historical Date Ledger */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
-              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                    <span>📅 Daily Quota & Accounting Ledger</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Historical recording records and snapshot targets</p>
-                </div>
-                <span className="text-[10px] text-slate-500 font-mono font-bold">
-                  {lateBacklogInfo.history.length} day{lateBacklogInfo.history.length === 1 ? '' : 's'}
-                </span>
               </div>
 
-              <div className="flex-1 overflow-x-auto">
-                {lateBacklogInfo.history.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-slate-500 italic">
-                    No historical delivery sessions recorded yet.
-                  </div>
-                ) : (
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-950/60 border-b border-slate-800/80 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                      <tr>
-                        <th className="px-4 py-2.5">Date</th>
-                        <th className="px-3 py-2.5">Target</th>
-                        <th className="px-3 py-2.5">Recorded</th>
-                        <th className="px-4 py-2.5 text-right">Result</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {lateBacklogInfo.history.map((h) => (
-                        <tr key={h.date} className="hover:bg-slate-800/30 transition-colors">
-                          <td className="px-4 py-3 font-mono font-semibold text-slate-200">{h.date}</td>
-                          <td className="px-3 py-3 text-slate-400 font-mono">{h.dailyTarget}m</td>
-                          <td className="px-3 py-3 text-slate-200 font-mono font-bold">{h.recordedMinutes}m</td>
-                          <td className="px-4 py-3 text-right font-mono">
-                            {h.surplus > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full text-[11px]">
-                                +{h.surplus}m wallet
-                              </span>
-                            ) : h.shortfall > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-full text-[11px]">
-                                -{h.shortfall}m shortfall
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-[11px]">✓ Exact Target</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onOpenUpload()}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Record Extra Lecture
+                </button>
               </div>
             </div>
 
-            {/* Wallet Transaction Ledger */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
-              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                    <span>📜 Time Wallet Audit Trail</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Immutable transaction log of deposits and backlog transfers</p>
+            {/* 4 Stat Cards — Pure Positive Surplus & Asset Storage */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-2xl border border-indigo-900/50 bg-gradient-to-br from-indigo-950/50 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
+                  <span>Available Wallet Balance</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono font-bold">Banked</span>
                 </div>
-                <span className="text-[10px] text-slate-500 font-mono font-bold">
-                  {walletInfo.transactions.length} tx{walletInfo.transactions.length === 1 ? '' : 's'}
-                </span>
+                <div className="mt-2 text-3xl font-black text-indigo-200 font-mono">+{walletInfo.balance} min</div>
+                <p className="mt-1 text-[11px] text-slate-400">Total surplus minutes currently in reserve.</p>
               </div>
 
-              <div className="flex-1 p-4 overflow-y-auto max-h-[380px] space-y-2">
-                {walletInfo.transactions.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-slate-500 italic">
-                    No wallet transactions logged yet. Extra minutes recorded beyond daily targets will appear here.
-                  </div>
-                ) : (
-                  walletInfo.transactions.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-slate-200 flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              tx.type === 'deposit_surplus' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-purple-400 shadow-sm shadow-purple-400/50'
-                            }`}
-                          />
-                          <span>{tx.type === 'deposit_surplus' ? 'Surplus Deposit' : 'Transferred to Backlog'}</span>
-                          <span className="text-[10px] text-slate-500 font-mono">• {tx.date}</span>
-                          {tx.appliedBy && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                              By: {tx.appliedBy}
-                            </span>
-                          )}
-                        </div>
-                        {tx.note && <div className="text-[11px] text-slate-400">{tx.note}</div>}
-                      </div>
+              <div className="rounded-2xl border border-emerald-900/40 bg-gradient-to-br from-emerald-950/40 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+                  <span>Lifetime Surplus Earned</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">Total</span>
+                </div>
+                <div className="mt-2 text-3xl font-black text-emerald-300 font-mono">+{walletInfo.totalSurplusEarned} min</div>
+                <p className="mt-1 text-[11px] text-slate-400">All-time bonus minutes recorded over daily targets.</p>
+              </div>
 
-                      <div
-                        className={`text-sm font-mono font-black shrink-0 ${
-                          tx.type === 'deposit_surplus' ? 'text-emerald-400' : 'text-purple-300'
-                        }`}
-                      >
-                        {tx.type === 'deposit_surplus' ? `+${tx.amount}m` : `-${tx.amount}m`}
-                      </div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Over-Delivery Days</div>
+                <div className="mt-2 text-2xl font-bold text-amber-300 font-mono">{positiveSurplusDays.length} Sessions</div>
+                <p className="mt-1 text-[11px] text-slate-400">Days where your recording exceeded daily quota.</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Transferred Out</div>
+                <div className="mt-2 text-2xl font-bold text-purple-400 font-mono">-{walletInfo.totalAppliedToBacklog} min</div>
+                <p className="mt-1 text-[11px] text-slate-400">Wallet minutes applied to clear historical shortfalls.</p>
+              </div>
+            </div>
+
+            {/* Surplus Earnings Ledger & Audit Log */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Positive Surplus Ledger */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <span>🌟 Positive Surplus Earnings Ledger</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Recording sessions where you exceeded your daily target</p>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                    {positiveSurplusDays.length} surplus day{positiveSurplusDays.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-x-auto">
+                  {positiveSurplusDays.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-500 italic space-y-1.5">
+                      <div className="text-2xl">🌱</div>
+                      <p className="font-semibold text-slate-300">No Surplus Earnings Yet</p>
+                      <p className="text-[11px]">Whenever you record more than your daily target (e.g. 75 min on a 60 min day), the extra +15 minutes will be safely banked here as positive earnings.</p>
                     </div>
-                  ))
-                )}
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-950/60 border-b border-slate-800/80 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                        <tr>
+                          <th className="px-4 py-2.5">Date</th>
+                          <th className="px-3 py-2.5">Daily Target</th>
+                          <th className="px-3 py-2.5">Recorded Duration</th>
+                          <th className="px-4 py-2.5 text-right">Surplus Banked</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {positiveSurplusDays.map((h) => (
+                          <tr key={h.date} className="hover:bg-slate-800/30 transition-colors">
+                            <td className="px-4 py-3 font-mono font-semibold text-slate-200">{h.date}</td>
+                            <td className="px-3 py-3 text-slate-400 font-mono">{h.dailyTarget}m</td>
+                            <td className="px-3 py-3 text-slate-200 font-mono font-bold">{h.recordedMinutes}m</td>
+                            <td className="px-4 py-3 text-right font-mono">
+                              <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full text-xs border border-emerald-500/20">
+                                +{h.surplus} min Banked 🌟
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Wallet Transaction Ledger */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <span>📜 Banked Surplus Audit Trail</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Immutable record of wallet surplus deposits</p>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono font-bold">
+                    {walletInfo.transactions.length} tx{walletInfo.transactions.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                <div className="flex-1 p-4 overflow-y-auto max-h-[380px] space-y-2">
+                  {walletInfo.transactions.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-500 italic">
+                      No wallet deposits logged yet. Extra minutes recorded beyond daily targets will appear here.
+                    </div>
+                  ) : (
+                    walletInfo.transactions.map((tx) => (
+                      <div
+                        key={tx.id}
+                        className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="font-semibold text-slate-200 flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                tx.type === 'deposit_surplus' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-purple-400 shadow-sm shadow-purple-400/50'
+                              }`}
+                            />
+                            <span>{tx.type === 'deposit_surplus' ? 'Surplus Deposit' : 'Transferred to Backlog'}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">• {tx.date}</span>
+                            {tx.appliedBy && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                                By: {tx.appliedBy}
+                              </span>
+                            )}
+                          </div>
+                          {tx.note && <div className="text-[11px] text-slate-400">{tx.note}</div>}
+                        </div>
+
+                        <div
+                          className={`text-sm font-mono font-black shrink-0 ${
+                            tx.type === 'deposit_surplus' ? 'text-emerald-400' : 'text-purple-300'
+                          }`}
+                        >
+                          {tx.type === 'deposit_surplus' ? `+${tx.amount}m` : `-${tx.amount}m`}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
 
       {/* ─── SYLLABUS TOPICS PIPELINE (SQUARE CARDS SUBJECT & UNIT SELECTOR) ─── */}
@@ -2295,6 +2247,77 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       {/* ─── DELIVERED LECTURES ─── */}
       {currentPage === 'lectures' && (
         <div className="space-y-6">
+          {/* URGENT EXTENSION WINDOW ATTENTION BANNER FOR UNRECORDED LECTURES */}
+          {activeTeacherExtensions.length > 0 && (() => {
+            const ext = activeTeacherExtensions[0];
+            const topics = ext.assignedTopicIds?.length
+              ? ext.assignedTopicIds.map((id) => assignedTopics.find((topic) => topic.id === id)?.topicTitle || 'Assigned topic').join(', ')
+              : 'All unrecorded syllabus topics';
+            const targetTopic = ext.assignedTopicIds?.length
+              ? assignedTopics.find((t) => ext.assignedTopicIds.includes(t.id) && t.status !== 'completed')
+              : undefined;
+            const remainingMins = Math.max(0, ext.allowedMinutes - ext.usedMinutes);
+            const endDate = new Date(ext.endWindow);
+            const isClosingSoon = endDate.getTime() - Date.now() < 24 * 3600 * 1000;
+
+            return (
+              <div className="bg-gradient-to-r from-purple-950/90 via-indigo-950/80 to-slate-900 border-2 border-purple-500/80 rounded-2xl p-4 sm:p-5 shadow-2xl shadow-purple-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs animate-in fade-in">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-500/50 text-purple-300 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-600 text-white uppercase tracking-wider shadow-sm animate-pulse">
+                        🔴 URGENT • Extension Window Active
+                      </span>
+                      <span className="text-[11px] text-purple-300 font-bold hidden sm:inline">Unrecorded Shortfall Attention</span>
+                    </div>
+                    <p className="font-extrabold text-slate-100 text-sm">
+                      You have an unrecorded shortfall of <span className="text-amber-300 font-mono font-black">{lateBacklogInfo.remainingBacklogMinutes > 0 ? lateBacklogInfo.remainingBacklogMinutes : remainingMins} min</span>. Record by <span className="text-purple-300 font-mono font-bold underline">{endDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>.
+                    </p>
+                    <p className="text-[11px] text-purple-200/80">
+                      Topics: <strong>{topics}</strong> • Capacity remaining: <strong>{remainingMins}m</strong> (of {ext.allowedMinutes}m)
+                      {isClosingSoon && <span className="text-rose-400 font-bold ml-1.5 animate-pulse">⚠️ Window closing soon!</span>}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => onOpenUpload(targetTopic)}
+                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-lg shadow-purple-600/40 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center cursor-pointer hover:scale-[1.02]"
+                >
+                  ⏱️ Record Outstanding Lecture →
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* If there is a cumulative shortfall but NO active extension window */}
+          {activeTeacherExtensions.length === 0 && lateBacklogInfo.remainingBacklogMinutes > 0 && (
+            <div className="bg-amber-950/30 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-amber-200">
+                    Cumulative Unrecorded Shortfall: <span className="font-mono font-black text-amber-300">{lateBacklogInfo.remainingBacklogMinutes} min</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    You have past unrecorded lecture minutes. Deliver catchup sessions or request an extension window from Academic Operations.
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => onOpenUpload()}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shrink-0"
+              >
+                Upload Lecture →
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-slate-100 tracking-tight flex flex-wrap items-center gap-2">
