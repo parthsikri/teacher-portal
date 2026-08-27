@@ -3,6 +3,7 @@ import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptR
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
+import { EmailSettingsModal } from '../Common/EmailSettingsModal';
 import { 
   Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
@@ -10,7 +11,7 @@ import {
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
-  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet
+  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -174,6 +175,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [adminEmail, setAdminEmail] = useState('admin@aew.com');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   // Subject Reference Modal State
   const [showSubjectRefModal, setShowSubjectRefModal] = useState(false);
@@ -1050,8 +1052,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <FileSpreadsheet className="w-4 h-4 text-amber-300" /> PYQ PPT Generator
               </button>
               <button
+                onClick={() => setShowEmailModal(true)}
+                className="px-4 py-3 rounded-2xl bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-500/40 text-indigo-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02] cursor-pointer"
+              >
+                <Mail className="w-4 h-4 text-indigo-400" /> Email Notifications
+              </button>
+              <button
                 onClick={() => setShowDbModal(true)}
-                className="px-4 py-3 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
+                className="px-4 py-3 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-500/40 text-emerald-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02] cursor-pointer"
               >
                 <Database className="w-4 h-4 text-emerald-400" /> Database (Supabase)
               </button>
@@ -4906,6 +4914,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <DatabaseSettingsModal
           onClose={() => setShowDbModal(false)}
           onSuccess={() => refreshState()}
+        />
+      )}
+
+      {showEmailModal && (
+        <EmailSettingsModal
+          onClose={() => setShowEmailModal(false)}
+          adminEmail={adminEmail}
         />
       )}
     </div>

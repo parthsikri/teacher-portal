@@ -1,3 +1,4 @@
+import { notificationService } from './notificationService';
 import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -555,6 +556,26 @@ export const StorageService = {
     if (!synced) {
       throw new Error('Your proposal was saved on this device but could not be shared. Check your connection and submit again.');
     }
+
+    // Operational Email Notification: Notify Admin
+    try {
+      const adminEmails = this.getUsers().filter((u) => u.role === 'admin').map((u) => u.email).filter(Boolean);
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === topics[index].teacherId.toUpperCase());
+      if (adminEmails.length > 0) {
+        notificationService.notifySubtopicsSubmitted({
+          adminEmails,
+          teacherName: teacherObj?.name || topics[index].teacherId,
+          teacherId: topics[index].teacherId,
+          subject: topics[index].subject,
+          topicTitle: topics[index].topicTitle,
+          unitNumber: topics[index].unitNumber,
+          subtopicsCount: cleanSubtopics.length,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch subtopics submitted email:', notifyErr);
+    }
+
     return topics[index];
   },
 
@@ -604,6 +625,24 @@ export const StorageService = {
     };
     this.saveAssignedTopics(topics);
     this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate subtopics approval push error:', err));
+
+    // Operational Email Notification: Notify Teacher of Approval
+    try {
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === topics[index].teacherId.toUpperCase());
+      if (teacherObj?.email) {
+        notificationService.notifySubtopicsReviewed({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || topics[index].teacherId,
+          subject: topics[index].subject,
+          topicTitle: topics[index].topicTitle,
+          status: 'approved',
+          feedback: adminApprovalComment,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch subtopics approved email:', notifyErr);
+    }
+
     return topics[index];
   },
 
@@ -717,6 +756,24 @@ export const StorageService = {
       updatedAt: new Date().toISOString(),
     };
     this.saveAssignedTopics(topics);
+
+    // Operational Email Notification: Notify Teacher of Revision Request
+    try {
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === topics[index].teacherId.toUpperCase());
+      if (teacherObj?.email) {
+        notificationService.notifySubtopicsReviewed({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || topics[index].teacherId,
+          subject: topics[index].subject,
+          topicTitle: topics[index].topicTitle,
+          status: 'revision_requested',
+          feedback,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch subtopics revision email:', notifyErr);
+    }
+
     return topics[index];
   },
 
@@ -823,6 +880,25 @@ export const StorageService = {
 
     lectures[index].adminRemarks.unshift(newRemark);
     this.saveLectures(lectures);
+
+    // Operational Email Notification: Notify Teacher of Directive
+    try {
+      const targetLec = lectures[index];
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === targetLec.teacherId.toUpperCase());
+      if (teacherObj?.email) {
+        notificationService.notifyDirectivePosted({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || targetLec.teacherName,
+          lectureTitle: targetLec.title,
+          subject: targetLec.subject,
+          remarkText,
+          adminName,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch directive posted email:', notifyErr);
+    }
+
     return newRemark;
   },
 
@@ -847,6 +923,25 @@ export const StorageService = {
     if (found) {
       this.saveLectures(lectures);
       this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate ack push error:', err));
+
+      // Operational Email Notification: Notify Admins of Acknowledgment
+      try {
+        const adminEmails = this.getUsers().filter((u) => u.role === 'admin').map((u) => u.email).filter(Boolean);
+        const ackedLec = lectures.find((l) => l.id === _lectureId || l.adminRemarks?.some((r) => r.id === remarkId));
+        const targetRemark = ackedLec?.adminRemarks?.find((r) => r.id === remarkId);
+        if (adminEmails.length > 0 && ackedLec) {
+          notificationService.notifyDirectiveAcknowledged({
+            adminEmails,
+            teacherName,
+            teacherId: ackedLec.teacherId,
+            lectureTitle: ackedLec.title,
+            subject: ackedLec.subject,
+            remarkText: targetRemark?.remarkText || '',
+          });
+        }
+      } catch (notifyErr) {
+        console.warn('[Notification] Failed to dispatch directive acknowledged email:', notifyErr);
+      }
     }
     return found;
   },
@@ -1098,6 +1193,25 @@ export const StorageService = {
     };
     list.unshift(newReq);
     this.savePptRequests(list);
+
+    // Operational Email Notification: Notify Admins of PYQ Slide Deck Request
+    try {
+      const adminEmails = this.getUsers().filter((u) => u.role === 'admin').map((u) => u.email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        notificationService.notifyPptRequested({
+          adminEmails,
+          teacherName: request.teacherName,
+          teacherId: request.teacherId,
+          subject: request.subject,
+          topicTitle: request.topicTitle,
+          unitNumber: request.unitNumber,
+          specialInstructions: request.specialInstructions,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch PPT requested email:', notifyErr);
+    }
+
     return newReq;
   },
 
@@ -1113,12 +1227,31 @@ export const StorageService = {
     };
 
     // If status changed to completed, mark as new for teacher so they get a notification mark
-    if (updates.status === 'completed' && list[index].status !== 'completed') {
+    const justCompleted = updates.status === 'completed' && list[index].status !== 'completed';
+    if (justCompleted) {
       updated.isNewForTeacher = true;
     }
 
     list[index] = updated;
     this.savePptRequests(list);
+
+    // Operational Email Notification: Notify Teacher that PPT is ready
+    if (justCompleted) {
+      try {
+        const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === list[index].teacherId.toUpperCase());
+        if (teacherObj?.email) {
+          notificationService.notifyPptReady({
+            teacherEmail: teacherObj.email,
+            teacherName: teacherObj.name || list[index].teacherName,
+            subject: list[index].subject,
+            topicTitle: list[index].topicTitle,
+          });
+        }
+      } catch (notifyErr) {
+        console.warn('[Notification] Failed to dispatch PPT ready email:', notifyErr);
+      }
+    }
+
     return updated;
   },
 
@@ -2183,6 +2316,30 @@ export const StorageService = {
     };
     list.push(newExt);
     this.saveExtensions(list);
+
+    // Operational Email Notification: Notify Teacher of Extension Grant
+    try {
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === ext.teacherId.toUpperCase());
+      if (teacherObj?.email) {
+        const topicTitles = ext.assignedTopicIds && ext.assignedTopicIds.length > 0
+          ? this.getAssignedTopics().filter((t) => ext.assignedTopicIds.includes(t.id)).map((t) => t.topicTitle).join(', ')
+          : undefined;
+
+        notificationService.notifyExtensionGranted({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || ext.teacherId,
+          subject: teacherObj.subject || teacherObj.department || 'Academic Work',
+          allowedMinutes: ext.allowedMinutes,
+          startWindow: ext.startWindow,
+          endWindow: ext.endWindow,
+          topicsCovered: topicTitles,
+          adminRemarks: ext.notes,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch extension granted email:', notifyErr);
+    }
+
     return newExt;
   },
 

@@ -680,6 +680,93 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// ─── Resend Operational Notification Email Endpoint ─────────────────────────
+app.post('/api/send-email', async (req, res) => {
+  const { to, type, data } = req.body || {};
+  const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
+  const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'Academic Operations <onboarding@resend.dev>').trim();
+  const PORTAL_URL = process.env.PORTAL_URL || 'https://teacher-portal-mu-nine.vercel.app';
+
+  if (!to || !type) {
+    return res.status(400).json({ error: 'Missing required parameters: "to" and "type".' });
+  }
+
+  const recipientList = Array.isArray(to) ? to : [to];
+  const validRecipients = recipientList.filter((email) => typeof email === 'string' && email.includes('@'));
+
+  if (validRecipients.length === 0) {
+    return res.status(400).json({ error: 'No valid recipient email addresses provided.' });
+  }
+
+  if (!RESEND_API_KEY) {
+    console.log(`[Dev SendEmail] RESEND_API_KEY not configured. Simulating email "${type}" to:`, validRecipients);
+    return res.json({
+      success: true,
+      simulated: true,
+      message: 'RESEND_API_KEY not configured in .env. Email logged to console.',
+      recipients: validRecipients,
+      type,
+    });
+  }
+
+  try {
+    let subject = `AEW Portal Operational Notification: ${type}`;
+    let bodyText = `Operational update in Teacher Portal for ${type}`;
+
+    if (type === 'admin_directive') {
+      subject = `💬 Quality Directive: Feedback on "${data?.lectureTitle || 'Delivered Lecture'}"`;
+    } else if (type === 'directive_acknowledged') {
+      subject = `✓ Directive Acknowledged: ${data?.teacherName} (${data?.teacherId})`;
+    } else if (type === 'extension_granted') {
+      subject = `⏱️ Extension Window Granted: ${data?.subject || 'Academic Work'} (${data?.allowedMinutes} min)`;
+    } else if (type === 'subtopics_submitted') {
+      subject = `📑 Subtopics Proposed: ${data?.teacherName} — "${data?.topicTitle}"`;
+    } else if (type === 'subtopics_reviewed') {
+      subject = data?.status === 'approved' 
+        ? `✅ Subtopics Approved: "${data?.topicTitle}" (${data?.subject})`
+        : `⚠️ Revision Requested: "${data?.topicTitle}" (${data?.subject})`;
+    } else if (type === 'ppt_requested') {
+      subject = `📊 PYQ PPT Requested: ${data?.teacherName} — "${data?.topicTitle}"`;
+    } else if (type === 'ppt_ready') {
+      subject = `🎉 PYQ Deck Ready: "${data?.topicTitle}" (${data?.subject})`;
+    }
+
+    const html = `
+      <div style="font-family: sans-serif; background-color: #020617; color: #e2e8f0; padding: 24px; border-radius: 8px;">
+        <h2 style="color: #ffffff;">🎓 AEW Academic Studio</h2>
+        <div style="background-color: #0f172a; border: 1px solid #334155; padding: 18px; border-radius: 8px; margin: 16px 0;">
+          <h3 style="color: #6366f1; margin-top: 0;">${subject}</h3>
+          <p>${bodyText}</p>
+          <pre style="background: #1e293b; padding: 12px; border-radius: 6px; font-size: 12px; color: #cbd5e1;">${JSON.stringify(data, null, 2)}</pre>
+          <div style="margin-top: 18px;">
+            <a href="${PORTAL_URL}" style="background: #4f46e5; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: bold;">Open Teacher Portal →</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: validRecipients,
+        subject,
+        html,
+      }),
+    });
+
+    const resendResult = await resendResponse.json();
+    return res.status(resendResponse.status).json(resendResult);
+  } catch (err) {
+    console.error('[SendEmail Local Error]', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   const drive = getDriveClient();
