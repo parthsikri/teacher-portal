@@ -35,6 +35,25 @@ class NotificationService {
   }
 
   /**
+   * 0. 📌 Admin assigns a new curriculum topic -> Email to Teacher
+   */
+  async notifyTopicAssigned(params: {
+    teacherEmail: string;
+    teacherName: string;
+    subject: string;
+    topicTitle: string;
+    unitNumber?: string;
+    notes?: string;
+  }): Promise<void> {
+    if (!params.teacherEmail) return;
+    return this.dispatch({
+      to: params.teacherEmail,
+      type: 'topic_assigned',
+      data: params,
+    });
+  }
+
+  /**
    * 1. 💬 Admin posts a directive on a lecture -> Email to Teacher
    */
   async notifyDirectivePosted(params: {

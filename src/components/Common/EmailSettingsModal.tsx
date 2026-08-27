@@ -9,7 +9,7 @@ interface EmailSettingsModalProps {
 
 export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({ onClose, adminEmail = 'admin@aew.com' }) => {
   const [testEmail, setTestEmail] = useState(adminEmail);
-  const [testType, setTestType] = useState<'admin_directive' | 'extension_granted' | 'subtopics_reviewed' | 'ppt_ready'>('admin_directive');
+  const [testType, setTestType] = useState<'topic_assigned' | 'admin_directive' | 'extension_granted' | 'subtopics_reviewed' | 'ppt_ready'>('topic_assigned');
   const [sending, setSending] = useState(false);
   const [resultMsg, setResultMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
@@ -24,7 +24,16 @@ export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({ onClose,
     setResultMsg({ type: 'info', text: 'Dispatching test notification via Resend...' });
 
     try {
-      if (testType === 'admin_directive') {
+      if (testType === 'topic_assigned') {
+        await notificationService.notifyTopicAssigned({
+          teacherEmail: testEmail.trim(),
+          teacherName: 'Dr. Test Faculty',
+          subject: 'Physics',
+          topicTitle: 'Thermodynamics & Heat Transfer',
+          unitNumber: 'UNIT 1',
+          notes: 'Please propose detailed subtopics covering Carnot cycle and entropy.',
+        });
+      } else if (testType === 'admin_directive') {
         await notificationService.notifyDirectivePosted({
           teacherEmail: testEmail.trim(),
           teacherName: 'Dr. Test Faculty',
@@ -177,6 +186,7 @@ export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({ onClose,
                   onChange={(e) => setTestType(e.target.value as any)}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
+                  <option value="topic_assigned">📌 New Topic Assigned</option>
                   <option value="admin_directive">💬 Academic Directive</option>
                   <option value="extension_granted">⏱️ Extension Window Granted</option>
                   <option value="subtopics_reviewed">✅ Subtopics Approved</option>

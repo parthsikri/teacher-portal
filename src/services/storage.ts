@@ -463,6 +463,24 @@ export const StorageService = {
     };
     topics.push(newTopic);
     this.saveAssignedTopics(topics);
+
+    // Operational Email Notification: Notify Teacher of New Topic Assignment
+    try {
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === topic.teacherId.trim().toUpperCase());
+      if (teacherObj?.email) {
+        notificationService.notifyTopicAssigned({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || topic.teacherId,
+          subject: topic.subject,
+          topicTitle: topic.topicTitle,
+          unitNumber: unitStr,
+          notes: topic.notes,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch topic assigned email:', notifyErr);
+    }
+
     return newTopic;
   },
 
@@ -514,6 +532,25 @@ export const StorageService = {
     });
 
     this.saveAssignedTopics(topics);
+
+    // Operational Email Notification: Notify Teacher of New Topic Assignment
+    try {
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === commonProps.teacherId.trim().toUpperCase());
+      if (teacherObj?.email && cleanTitles.length > 0) {
+        const titleText = cleanTitles.length === 1 ? cleanTitles[0] : `${cleanTitles[0]} (+${cleanTitles.length - 1} more topics)`;
+        notificationService.notifyTopicAssigned({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || commonProps.teacherId,
+          subject: commonProps.subject,
+          topicTitle: titleText,
+          unitNumber: unitStr,
+          notes: commonProps.notes,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch bulk topic assigned email:', notifyErr);
+    }
+
     return createdList;
   },
 

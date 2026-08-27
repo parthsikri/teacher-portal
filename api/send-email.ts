@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Type definitions for notification email payloads
 export type NotificationEventType =
+  | 'topic_assigned'
   | 'admin_directive'
   | 'directive_acknowledged'
   | 'extension_granted'
@@ -68,6 +69,35 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
   `;
 
   switch (type) {
+    case 'topic_assigned': {
+      const subject = `📌 New Syllabus Topic Assigned: "${data.topicTitle}" (${data.subject || 'Subject'})`;
+      const html = wrapContent(
+        `
+        <div style="background-color: #1e1b4b; border: 1px solid #4f46e5; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+          <span style="color: #c7d2fe; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">New Curriculum Topic Assignment</span>
+        </div>
+        <p style="font-size: 15px; color: #f8fafc; margin-top: 0;">
+          Hello <strong>${data.teacherName || 'Faculty Member'}</strong>,
+        </p>
+        <p>
+          A new curriculum topic has been assigned to your course schedule by Academic Operations:
+        </p>
+        <div style="background-color: #1e293b; border-left: 4px solid #6366f1; padding: 14px 16px; border-radius: 4px; margin: 18px 0;">
+          <div style="font-size: 14px; font-weight: 700; color: #f8fafc;">${data.topicTitle}</div>
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Subject: <strong>${data.subject || 'Academic Subject'}</strong> • Unit: <strong>${data.unitNumber || 'UNIT 1'}</strong></div>
+          ${data.notes ? `<div style="font-size: 12px; color: #cbd5e1; margin-top: 8px; font-style: italic;">Guidelines: "${data.notes}"</div>` : ''}
+        </div>
+        <p style="font-size: 13px; color: #94a3b8;">
+          Please log into the Teacher Portal to review this topic and propose your subtopic breakdown for lecture recording.
+        </p>
+        `,
+        `<a href="${PORTAL_URL}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 13px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);">
+          Propose Subtopics in Portal →
+        </a>`
+      );
+      return { subject, html };
+    }
+
     case 'admin_directive': {
       const subject = `💬 Quality Directive: Feedback on "${data.lectureTitle || 'Delivered Lecture'}"`;
       const html = wrapContent(

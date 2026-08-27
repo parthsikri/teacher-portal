@@ -713,7 +713,9 @@ app.post('/api/send-email', async (req, res) => {
     let subject = `AEW Portal Operational Notification: ${type}`;
     let bodyText = `Operational update in Teacher Portal for ${type}`;
 
-    if (type === 'admin_directive') {
+    if (type === 'topic_assigned') {
+      subject = `📌 New Syllabus Topic Assigned: "${data?.topicTitle}" (${data?.subject || 'Subject'})`;
+    } else if (type === 'admin_directive') {
       subject = `💬 Quality Directive: Feedback on "${data?.lectureTitle || 'Delivered Lecture'}"`;
     } else if (type === 'directive_acknowledged') {
       subject = `✓ Directive Acknowledged: ${data?.teacherName} (${data?.teacherId})`;
