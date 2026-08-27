@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Type definitions for notification email payloads
@@ -19,6 +20,15 @@ export interface EmailRequestBody {
 
 // Portal Base URL (for email action button links)
 const PORTAL_URL = process.env.PORTAL_URL || 'https://teacher-portal-mu-nine.vercel.app';
+
+// 1. SMTP Credentials (e.g. Gmail / Google Workspace / Office 365) — Works without any custom domain!
+const SMTP_USER = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '').trim().replace(/\s+/g, '');
+const SMTP_HOST = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
+const SMTP_FROM = (process.env.SMTP_FROM || `AEW Academic Operations <${SMTP_USER}>`).trim();
+
+// 2. Resend Credentials (Alternative API provider)
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
 const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'Academic Operations <onboarding@resend.dev>').trim();
 
@@ -375,59 +385,100 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'No valid recipient email addresses provided.' });
   }
 
-  // Graceful fallback if RESEND_API_KEY is not configured in environment
-  if (!RESEND_API_KEY) {
-    console.warn(`[SendEmail] RESEND_API_KEY is not configured. Simulating email send for "${type}" to:`, validRecipients);
-    return res.status(200).json({
-      success: true,
-      simulated: true,
-      message: 'RESEND_API_KEY not configured in environment variables. Email logged to server console.',
-      recipients: validRecipients,
-      type,
-    });
-  }
+  const { subject, html } = buildEmailTemplate(type, data || {});
 
-  try {
-    const { subject, html } = buildEmailTemplate(type, data || {});
+  // ─── A. Dispatch via SMTP (Gmail / Custom Mail Server) ─────────────────────
+  if (SMTP_USER && SMTP_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: SMTP_PORT === 465,
+        auth: {
+          user: SMTP_USER,
+          pass: SMTP_PASS,
+        },
+      });
 
-    // Dispatch via Resend REST API
-    const resendResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: RESEND_FROM_EMAIL,
-        to: validRecipients,
+      const info = await transporter.sendMail({
+        from: SMTP_FROM || SMTP_USER,
+        to: validRecipients.join(', '),
         subject,
         html,
-      }),
-    });
+      });
 
-    const resendResult = await resendResponse.json();
-
-    if (!resendResponse.ok) {
-      console.error('[SendEmail] Resend API Error:', resendResult);
-      return res.status(resendResponse.status).json({
+      console.log(`[SendEmail] SMTP delivered "${type}" email to ${validRecipients.join(', ')}. MessageId:`, info.messageId);
+      return res.status(200).json({
+        success: true,
+        provider: 'smtp',
+        messageId: info.messageId,
+        recipients: validRecipients,
+        type,
+      });
+    } catch (smtpErr: any) {
+      console.error('[SendEmail] SMTP Error:', smtpErr);
+      return res.status(500).json({
         success: false,
-        error: resendResult.message || 'Failed to dispatch email via Resend API.',
-        details: resendResult,
+        error: smtpErr.message || 'Failed to dispatch email via SMTP.',
+        provider: 'smtp',
       });
     }
-
-    console.log(`[SendEmail] Successfully dispatched "${type}" email to ${validRecipients.join(', ')}. ID:`, resendResult.id);
-    return res.status(200).json({
-      success: true,
-      id: resendResult.id,
-      recipients: validRecipients,
-      type,
-    });
-  } catch (err: any) {
-    console.error('[SendEmail] Internal error in send-email handler:', err);
-    return res.status(500).json({
-      success: false,
-      error: err.message || 'Internal server error while processing email dispatch.',
-    });
   }
+
+  // ─── B. Dispatch via Resend API ───────────────────────────────────────────
+  if (RESEND_API_KEY) {
+    try {
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: RESEND_FROM_EMAIL,
+          to: validRecipients,
+          subject,
+          html,
+        }),
+      });
+
+      const resendResult = await resendResponse.json();
+
+      if (!resendResponse.ok) {
+        console.error('[SendEmail] Resend API Error:', resendResult);
+        return res.status(resendResponse.status).json({
+          success: false,
+          error: resendResult.message || 'Failed to dispatch email via Resend API.',
+          details: resendResult,
+          provider: 'resend',
+        });
+      }
+
+      console.log(`[SendEmail] Resend delivered "${type}" email to ${validRecipients.join(', ')}. ID:`, resendResult.id);
+      return res.status(200).json({
+        success: true,
+        id: resendResult.id,
+        provider: 'resend',
+        recipients: validRecipients,
+        type,
+      });
+    } catch (resendErr: any) {
+      console.error('[SendEmail] Resend error:', resendErr);
+      return res.status(500).json({
+        success: false,
+        error: resendErr.message || 'Internal server error while processing Resend dispatch.',
+        provider: 'resend',
+      });
+    }
+  }
+
+  // ─── C. Simulated Fallback (No Credentials Configured) ───────────────────
+  console.warn(`[SendEmail] Neither SMTP (Gmail) nor RESEND_API_KEY is configured. Simulated "${type}" email to:`, validRecipients);
+  return res.status(200).json({
+    success: true,
+    simulated: true,
+    message: 'No email credentials (SMTP_USER/SMTP_PASS or RESEND_API_KEY) found. Email logged to console.',
+    recipients: validRecipients,
+    type,
+  });
 }

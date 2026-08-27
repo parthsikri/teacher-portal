@@ -1,3 +1,4 @@
+const nodemailer = require('nodemailer');
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env.local') });
 const express = require('express');
@@ -680,9 +681,15 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// ─── Resend Operational Notification Email Endpoint ─────────────────────────
+// ─── Operational Notification Email Endpoint (SMTP / Gmail & Resend) ─────────
 app.post('/api/send-email', async (req, res) => {
   const { to, type, data } = req.body || {};
+  const SMTP_USER = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '').trim().replace(/\s+/g, '');
+  const SMTP_HOST = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
+  const SMTP_FROM = (process.env.SMTP_FROM || `AEW Academic Operations <${SMTP_USER}>`).trim();
+
   const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
   const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'Academic Operations <onboarding@resend.dev>').trim();
   const PORTAL_URL = process.env.PORTAL_URL || 'https://teacher-portal-mu-nine.vercel.app';
@@ -698,75 +705,104 @@ app.post('/api/send-email', async (req, res) => {
     return res.status(400).json({ error: 'No valid recipient email addresses provided.' });
   }
 
-  if (!RESEND_API_KEY) {
-    console.log(`[Dev SendEmail] RESEND_API_KEY not configured. Simulating email "${type}" to:`, validRecipients);
-    return res.json({
-      success: true,
-      simulated: true,
-      message: 'RESEND_API_KEY not configured in .env. Email logged to console.',
-      recipients: validRecipients,
-      type,
-    });
+  let subject = `AEW Portal Operational Notification: ${type}`;
+  let bodyText = `Operational update in Teacher Portal for ${type}`;
+
+  if (type === 'topic_assigned') {
+    subject = `📌 New Syllabus Topic Assigned: "${data?.topicTitle}" (${data?.subject || 'Subject'})`;
+  } else if (type === 'admin_directive') {
+    subject = `💬 Quality Directive: Feedback on "${data?.lectureTitle || 'Delivered Lecture'}"`;
+  } else if (type === 'directive_acknowledged') {
+    subject = `✓ Directive Acknowledged: ${data?.teacherName} (${data?.teacherId})`;
+  } else if (type === 'extension_granted') {
+    subject = `⏱️ Extension Window Granted: ${data?.subject || 'Academic Work'} (${data?.allowedMinutes} min)`;
+  } else if (type === 'subtopics_submitted') {
+    subject = `📑 Subtopics Proposed: ${data?.teacherName} — "${data?.topicTitle}"`;
+  } else if (type === 'subtopics_reviewed') {
+    subject = data?.status === 'approved' 
+      ? `✅ Subtopics Approved: "${data?.topicTitle}" (${data?.subject})`
+      : `⚠️ Revision Requested: "${data?.topicTitle}" (${data?.subject})`;
+  } else if (type === 'ppt_requested') {
+    subject = `📊 PYQ PPT Requested: ${data?.teacherName} — "${data?.topicTitle}"`;
+  } else if (type === 'ppt_ready') {
+    subject = `🎉 PYQ Deck Ready: "${data?.topicTitle}" (${data?.subject})`;
   }
 
-  try {
-    let subject = `AEW Portal Operational Notification: ${type}`;
-    let bodyText = `Operational update in Teacher Portal for ${type}`;
-
-    if (type === 'topic_assigned') {
-      subject = `📌 New Syllabus Topic Assigned: "${data?.topicTitle}" (${data?.subject || 'Subject'})`;
-    } else if (type === 'admin_directive') {
-      subject = `💬 Quality Directive: Feedback on "${data?.lectureTitle || 'Delivered Lecture'}"`;
-    } else if (type === 'directive_acknowledged') {
-      subject = `✓ Directive Acknowledged: ${data?.teacherName} (${data?.teacherId})`;
-    } else if (type === 'extension_granted') {
-      subject = `⏱️ Extension Window Granted: ${data?.subject || 'Academic Work'} (${data?.allowedMinutes} min)`;
-    } else if (type === 'subtopics_submitted') {
-      subject = `📑 Subtopics Proposed: ${data?.teacherName} — "${data?.topicTitle}"`;
-    } else if (type === 'subtopics_reviewed') {
-      subject = data?.status === 'approved' 
-        ? `✅ Subtopics Approved: "${data?.topicTitle}" (${data?.subject})`
-        : `⚠️ Revision Requested: "${data?.topicTitle}" (${data?.subject})`;
-    } else if (type === 'ppt_requested') {
-      subject = `📊 PYQ PPT Requested: ${data?.teacherName} — "${data?.topicTitle}"`;
-    } else if (type === 'ppt_ready') {
-      subject = `🎉 PYQ Deck Ready: "${data?.topicTitle}" (${data?.subject})`;
-    }
-
-    const html = `
-      <div style="font-family: sans-serif; background-color: #020617; color: #e2e8f0; padding: 24px; border-radius: 8px;">
-        <h2 style="color: #ffffff;">🎓 AEW Academic Studio</h2>
-        <div style="background-color: #0f172a; border: 1px solid #334155; padding: 18px; border-radius: 8px; margin: 16px 0;">
-          <h3 style="color: #6366f1; margin-top: 0;">${subject}</h3>
-          <p>${bodyText}</p>
-          <pre style="background: #1e293b; padding: 12px; border-radius: 6px; font-size: 12px; color: #cbd5e1;">${JSON.stringify(data, null, 2)}</pre>
-          <div style="margin-top: 18px;">
-            <a href="${PORTAL_URL}" style="background: #4f46e5; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: bold;">Open Teacher Portal →</a>
-          </div>
+  const html = `
+    <div style="font-family: sans-serif; background-color: #020617; color: #e2e8f0; padding: 24px; border-radius: 8px;">
+      <h2 style="color: #ffffff;">🎓 AEW Academic Studio</h2>
+      <div style="background-color: #0f172a; border: 1px solid #334155; padding: 18px; border-radius: 8px; margin: 16px 0;">
+        <h3 style="color: #6366f1; margin-top: 0;">${subject}</h3>
+        <p>${bodyText}</p>
+        <div style="margin-top: 18px;">
+          <a href="${PORTAL_URL}" style="background: #4f46e5; color: #fff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: bold;">Open Teacher Portal →</a>
         </div>
       </div>
-    `;
+    </div>
+  `;
 
-    const resendResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: RESEND_FROM_EMAIL,
-        to: validRecipients,
+  // 1. Dispatch via SMTP (e.g. Gmail) — ZERO DOMAIN NEEDED
+  if (SMTP_USER && SMTP_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: SMTP_PORT === 465,
+        auth: {
+          user: SMTP_USER,
+          pass: SMTP_PASS,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: SMTP_FROM || SMTP_USER,
+        to: validRecipients.join(', '),
         subject,
         html,
-      }),
-    });
+      });
 
-    const resendResult = await resendResponse.json();
-    return res.status(resendResponse.status).json(resendResult);
-  } catch (err) {
-    console.error('[SendEmail Local Error]', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+      console.log(`[Dev SendEmail] SMTP (Gmail) sent "${type}" to:`, validRecipients);
+      return res.json({ success: true, provider: 'smtp', messageId: info.messageId });
+    } catch (err) {
+      console.error('[SendEmail SMTP Local Error]', err.message);
+      return res.status(500).json({ success: false, error: err.message, provider: 'smtp' });
+    }
   }
+
+  // 2. Dispatch via Resend API
+  if (RESEND_API_KEY) {
+    try {
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: RESEND_FROM_EMAIL,
+          to: validRecipients,
+          subject,
+          html,
+        }),
+      });
+
+      const resendResult = await resendResponse.json();
+      return res.status(resendResponse.status).json(resendResult);
+    } catch (err) {
+      console.error('[SendEmail Resend Local Error]', err.message);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  // 3. Fallback
+  console.log(`[Dev SendEmail] No credentials configured. Simulating email "${type}" to:`, validRecipients);
+  return res.json({
+    success: true,
+    simulated: true,
+    message: 'No SMTP or Resend credentials in .env. Email logged to console.',
+    recipients: validRecipients,
+    type,
+  });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
