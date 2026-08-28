@@ -5,7 +5,7 @@ import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { EmailSettingsModal } from '../Common/EmailSettingsModal';
 import { 
-  Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
+  RotateCcw, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
   Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
@@ -124,6 +124,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Late Extensions Modal State
   const [showExtensionModal, setShowExtensionModal] = useState(false);
+  
+  // Re-record Modal State
+  const [showReRecordModal, setShowReRecordModal] = useState(false);
+  const [selectedLectureForReRecord, setSelectedLectureForReRecord] = useState<Lecture | null>(null);
+  const [reRecordReasonInput, setReRecordReasonInput] = useState('');
+
+  // Day Off / Leave Modal State
+  const [showDayOffModal, setShowDayOffModal] = useState(false);
+  const [dayOffTeacherId, setDayOffTeacherId] = useState(teachers[0]?.teacherId || '');
+  const [dayOffDate, setDayOffDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dayOffEndDate, setDayOffEndDate] = useState('');
+  const [dayOffReason, setDayOffReason] = useState('Medical Leave');
+  const [dayOffNotes, setDayOffNotes] = useState('');
   const [extTeacherId, setExtTeacherId] = useState('');
   const [extStartWindow, setExtStartWindow] = useState('');
   const [extEndWindow, setExtEndWindow] = useState('');
@@ -1647,6 +1660,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         >
                           ⏱️ Ext
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDayOffTeacherId(t.teacherId);
+                            setShowDayOffModal(true);
+                          }}
+                          className="py-1 px-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white font-bold text-[10px] transition-all text-center cursor-pointer"
+                          title="Grant Day Off / Leave"
+                        >
+                          🏖️ Leave
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -3146,6 +3171,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                           }`}>
                                             {lec.status === 'on_time' ? '✓ On-Time Submission' : '⚠️ Late Submission'}
                                           </span>
+                                          {lec.qualityStatus === 're_record_requested' && (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white animate-pulse shadow-sm">
+                                              🔄 Re-record Requested
+                                            </span>
+                                          )}
+                                          {lec.qualityStatus === 're_recorded' && (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                              ✨ Re-recorded (v${(lec.versionHistory?.length || 1) + 1}) • +${lec.reRecordDeltaMinutes || 0}m net added
+                                            </span>
+                                          )}
                                           <span className="text-slate-600">•</span>
                                           <span className="text-[10px] text-slate-500 font-mono">
                                             {new Date(lec.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -3187,6 +3222,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                           >
                                             <FileText className="w-3.5 h-3.5" /> Notes PDF
                                           </a>
+                                        )}
+
+                                        {lec.qualityStatus === 're_record_requested' ? (
+                                          <span className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center gap-1">
+                                            <span>🔄</span> Re-record Pending
+                                          </span>
+                                        ) : (
+                                          <button
+                                            onClick={() => {
+                                              setSelectedLectureForReRecord(lec);
+                                              setReRecordReasonInput(lec.reRecordReason || '');
+                                              setShowReRecordModal(true);
+                                            }}
+                                            className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                                            title="Tell teacher to re-record this video or make changes"
+                                          >
+                                            <RotateCcw className="w-3.5 h-3.5" /> Request Re-Record
+                                          </button>
                                         )}
 
                                         <button
@@ -4915,6 +4968,243 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onClose={() => setShowDbModal(false)}
           onSuccess={() => refreshState()}
         />
+      )}
+
+      {/* ─── MODAL: REQUEST LECTURE RE-RECORD / REVISION ─── */}
+      {showReRecordModal && selectedLectureForReRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-slate-900 border border-amber-500/50 rounded-3xl shadow-2xl p-6 md:p-7 space-y-5 my-8">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-100 flex items-center gap-2">
+                  <RotateCcw className="w-5 h-5 text-amber-400" />
+                  Request Lecture Re-recording
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Tell the faculty member to re-record or update this video session</p>
+              </div>
+              <button onClick={() => setShowReRecordModal(false)} className="text-slate-400 hover:text-slate-100">✕</button>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+              <div className="font-bold text-slate-200 text-sm">{selectedLectureForReRecord.title}</div>
+              <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                <span>Faculty: <strong className="text-slate-200">{selectedLectureForReRecord.teacherName}</strong></span>
+                <span>Current Duration: <strong className="text-amber-300 font-mono">{selectedLectureForReRecord.durationMinutes || 45}m</strong></span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl text-[11px] text-indigo-200 space-y-1">
+              <div className="font-bold flex items-center gap-1 text-indigo-300">
+                <span>💡 Fair Time Accounting Rule:</span>
+              </div>
+              <p>
+                When the teacher re-records for this topic, only the net extra duration (e.g. If current is 20m and new is 25m ➔ <strong>only +5m is added</strong>) will count toward their quota to prevent double-counting.
+              </p>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <label className="block text-slate-300 font-bold">
+                Revision Guidelines & Feedback for Teacher *
+              </label>
+              <textarea
+                rows={4}
+                value={reRecordReasonInput}
+                onChange={(e) => setReRecordReasonInput(e.target.value)}
+                placeholder="e.g. The audio volume drops after 10:00, and slide 5 derivation has a typo. Please re-record or upload a corrected version covering subtopics 2 and 3."
+                className="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowReRecordModal(false)}
+                className="px-4 py-2 text-slate-400 hover:text-slate-200 text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!reRecordReasonInput.trim()}
+                onClick={() => {
+                  if (!reRecordReasonInput.trim()) return;
+                  StorageService.requestLectureReRecord(
+                    selectedLectureForReRecord.id,
+                    reRecordReasonInput.trim(),
+                    'Academic Operations'
+                  );
+                  setShowReRecordModal(false);
+                  setLectures(StorageService.getLectures());
+                  if (onRefreshData) onRefreshData();
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                Send Re-record Request ➔
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: GRANT DAY OFF / LEAVE TO TEACHER ─── */}
+      {showDayOffModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-slate-900 border border-emerald-500/50 rounded-3xl shadow-2xl p-6 md:p-7 space-y-5 my-8">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-100 flex items-center gap-2">
+                  <span>🏖️</span>
+                  Grant Approved Day Off / Leave
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Excuses daily recording quota (0 min required) with zero backlog</p>
+              </div>
+              <button onClick={() => setShowDayOffModal(false)} className="text-slate-400 hover:text-slate-100">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!dayOffTeacherId || !dayOffDate) return;
+                const targetT = teachers.find((t) => t.teacherId.toUpperCase() === dayOffTeacherId.toUpperCase());
+                StorageService.grantDayOff({
+                  teacherId: dayOffTeacherId,
+                  teacherName: targetT?.name || dayOffTeacherId,
+                  date: dayOffDate,
+                  endDate: dayOffEndDate || undefined,
+                  reason: dayOffReason,
+                  notes: dayOffNotes || undefined,
+                  grantedBy: 'Academic Operations',
+                });
+                setShowDayOffModal(false);
+                setTeachers(StorageService.getTeachers());
+                if (onRefreshData) onRefreshData();
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Select Faculty Member *</label>
+                <select
+                  value={dayOffTeacherId}
+                  onChange={(e) => setDayOffTeacherId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 font-medium"
+                >
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.teacherId}>
+                      👨‍🏫 {t.name} ({t.teacherId} — {t.subject})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Leave Date (Start) *</label>
+                  <input
+                    type="date"
+                    value={dayOffDate}
+                    onChange={(e) => setDayOffDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-100 font-mono focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">End Date (Optional for multi-day)</label>
+                  <input
+                    type="date"
+                    value={dayOffEndDate}
+                    min={dayOffDate}
+                    onChange={(e) => setDayOffEndDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-100 font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Reason / Category *</label>
+                <select
+                  value={dayOffReason}
+                  onChange={(e) => setDayOffReason(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="Medical Leave">🏥 Medical Leave</option>
+                  <option value="Official Duty / Conference">🎓 Official Duty / Conference</option>
+                  <option value="Approved Personal Day Off">🏖️ Approved Personal Day Off</option>
+                  <option value="Curriculum & Question Paper Prep">📝 Curriculum & Exam Question Preparation</option>
+                  <option value="Institutional Holiday">🎉 Institutional Holiday</option>
+                  <option value="Family / Personal Emergency">⚠️ Personal / Family Emergency</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Special Notes / Admin Remarks (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Attending AICTE National Faculty Development Program"
+                  value={dayOffNotes}
+                  onChange={(e) => setDayOffNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl text-[11px] text-emerald-200">
+                ✓ Excuses faculty from uploading videos on this date. Target will be 0 min with zero shortfall penalties.
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowDayOffModal(false)}
+                  className="px-4 py-2 text-slate-400 hover:text-slate-200 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                >
+                  Grant Approved Leave ➔
+                </button>
+              </div>
+            </form>
+
+            {/* List of Granted Leaves */}
+            <div className="pt-3 border-t border-slate-800 space-y-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Active & Upcoming Leaves ({StorageService.getDayOffGrants().length})
+              </span>
+              {StorageService.getDayOffGrants().length === 0 ? (
+                <div className="text-slate-500 italic text-[11px] p-3 text-center bg-slate-950 rounded-xl">
+                  No active leaves granted yet.
+                </div>
+              ) : (
+                <div className="max-h-40 overflow-y-auto space-y-1.5">
+                  {StorageService.getDayOffGrants().map((grant) => (
+                    <div key={grant.id} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-2 text-xs">
+                      <div>
+                        <div className="font-bold text-slate-200">{grant.teacherName} ({grant.teacherId})</div>
+                        <div className="text-[10px] text-emerald-400 font-mono">
+                          📅 {grant.date}{grant.endDate ? ` to ${grant.endDate}` : ''} • {grant.reason}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          StorageService.revokeDayOff(grant.id);
+                          setTeachers(StorageService.getTeachers());
+                          if (onRefreshData) onRefreshData();
+                        }}
+                        className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                      >
+                        Revoke
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {showEmailModal && (

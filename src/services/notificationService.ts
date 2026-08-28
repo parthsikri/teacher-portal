@@ -191,6 +191,44 @@ class NotificationService {
       data: params,
     });
   }
+  /**
+   * 8. 🔄 Admin requests lecture re-recording -> Email to Teacher
+   */
+  async notifyReRecordRequested(params: {
+    teacherEmail: string;
+    teacherName: string;
+    lectureTitle: string;
+    subject?: string;
+    reason: string;
+    adminName: string;
+  }): Promise<void> {
+    if (!params.teacherEmail) return;
+    return this.dispatch({
+      to: params.teacherEmail,
+      type: 'rerecord_requested',
+      data: params,
+    });
+  }
+
+  /**
+   * 9. 🏖️ Admin grants day off / leave -> Email to Teacher
+   */
+  async notifyDayOffGranted(params: {
+    teacherEmail: string;
+    teacherName: string;
+    teacherId: string;
+    date: string;
+    endDate?: string;
+    reason: string;
+    grantedBy: string;
+  }): Promise<void> {
+    if (!params.teacherEmail) return;
+    return this.dispatch({
+      to: params.teacherEmail,
+      type: 'day_off_granted',
+      data: params,
+    });
+  }
 }
 
 export const notificationService = new NotificationService();

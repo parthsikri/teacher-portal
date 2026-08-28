@@ -10,7 +10,9 @@ export type NotificationEventType =
   | 'subtopics_submitted'
   | 'subtopics_reviewed'
   | 'ppt_requested'
-  | 'ppt_ready';
+  | 'ppt_ready'
+  | 'rerecord_requested'
+  | 'day_off_granted';
 
 export interface EmailRequestBody {
   to: string | string[];
@@ -309,6 +311,64 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
         `<a href="${PORTAL_URL}" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 13px;">
           Open PYQ PPT Generator →
         </a>`
+      );
+      return { subject, html };
+    }
+
+    case 'rerecord_requested': {
+      const subject = `🔄 Action Required: Re-recording requested for "${data.lectureTitle}"`;
+      const html = wrapContent(
+        `
+        <div style="background-color: #451a03; border: 1px solid #d97706; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+          <span style="color: #fde68a; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Quality Audit Feedback · Re-record Requested</span>
+        </div>
+        <p style="font-size: 15px; color: #f8fafc; margin-top: 0;">
+          Hello <strong>${data.teacherName || 'Faculty Member'}</strong>,
+        </p>
+        <p>
+          Academic Operations has reviewed your uploaded lecture <strong>"${data.lectureTitle}"</strong> and requested a revised re-recording or video update.
+        </p>
+        <div style="background-color: #1e293b; border-left: 4px solid #f59e0b; padding: 14px 16px; border-radius: 4px; margin: 18px 0;">
+          <div style="font-size: 13px; color: #94a3b8;">Subject: <strong>${data.subject || 'Academic Subject'}</strong></div>
+          <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-top: 4px;">${data.lectureTitle}</div>
+          <div style="font-size: 13px; color: #fef08a; margin-top: 10px; padding: 10px; background-color: #292524; border-radius: 4px; border: 1px dashed #78350f;">
+            <strong>Admin Revision Note:</strong><br/>
+            "${data.reason || 'Please re-record or update this lecture session according to curriculum guidelines.'}"
+          </div>
+        </div>
+        <p style="font-size: 12px; color: #cbd5e1; background-color: #1e1b4b; padding: 10px 14px; border-radius: 6px; border: 1px solid #4338ca;">
+          💡 <strong>Fair Time Accounting:</strong> When re-recording for the same topic, only the net extra minutes beyond your previous version are added to your quota (no double-counting).
+        </p>
+        `,
+        `<a href="${PORTAL_URL}" style="display: inline-block; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);">🎥 Re-record & Upload Fix Now →</a>`
+      );
+      return { subject, html };
+    }
+
+    case 'day_off_granted': {
+      const subject = `🏖️ Approved Day Off / Leave Granted: ${data.date}`;
+      const html = wrapContent(
+        `
+        <div style="background-color: #064e3b; border: 1px solid #059669; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+          <span style="color: #6ee7b7; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Official Leave Confirmation</span>
+        </div>
+        <p style="font-size: 15px; color: #f8fafc; margin-top: 0;">
+          Hello <strong>${data.teacherName || 'Faculty Member'}</strong>,
+        </p>
+        <p>
+          Academic Operations has officially granted you an approved <strong>Day Off / Leave</strong> for <strong>${data.date}</strong>${data.endDate ? ` to <strong>${data.endDate}</strong>` : ''}.
+        </p>
+        <div style="background-color: #1e293b; border-left: 4px solid #10b981; padding: 14px 16px; border-radius: 4px; margin: 18px 0;">
+          <div style="font-size: 13px; color: #94a3b8;">Faculty: <strong>${data.teacherName}</strong> (${data.teacherId})</div>
+          <div style="font-size: 14px; font-weight: 700; color: #a7f3d0; margin-top: 4px;">🏖️ Approved Date: ${data.date}${data.endDate ? ` - ${data.endDate}` : ''}</div>
+          <div style="font-size: 13px; color: #f1f5f9; margin-top: 6px;">Reason: <strong>${data.reason || 'Approved Leave / Official Duty'}</strong></div>
+          <div style="font-size: 12px; color: #6ee7b7; margin-top: 8px;">Quota Requirement: <strong>0 min (Excused · No Backlog)</strong></div>
+        </div>
+        <p style="font-size: 13px; color: #94a3b8;">
+          Your required recording target is excused for this date with zero shortfall or backlog penalties.
+        </p>
+        `,
+        `<a href="${PORTAL_URL}" style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);">Open Teacher Portal →</a>`
       );
       return { subject, html };
     }

@@ -1,5 +1,8 @@
 import { notificationService } from './notificationService';
-import type { User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, EmailConfig } from '../types';
+import type {
+  DayOffGrant,
+  LectureVersion,
+  User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, EmailConfig } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
 const USERS_KEY = 'aew_portal_users_prod_v2';
@@ -11,6 +14,7 @@ const PPT_REQUESTS_KEY = 'aew_ppt_requests_prod_v2';
 const DELETED_IDS_KEY = 'aew_deleted_ids_prod_v2';
 const EXTENSIONS_KEY = 'tp_lecture_extensions';
 const WALLET_TRANSACTIONS_KEY = 'tp_time_wallet_transactions_prod_v1';
+const DAY_OFF_GRANTS_KEY = 'tp_day_off_grants_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
 // Initial Registered Administrator (Portal starts completely clean for new teachers)
@@ -858,22 +862,52 @@ export const StorageService = {
       : -1;
 
     if (existingIndex !== -1) {
-      // Re-upload / Edit: update existing lecture, keeping old id, adminRemarks, and createdAt
+      // Re-upload / Edit / Re-record for same topic:
+      // User rule: "like if original video was 20 mins and new video is 25 minutes then only 5 minutes should be added in case of record for same topic"
       const existingLec = lectures[existingIndex];
-      const diffDuration = (lecture.durationMinutes || 45) - (existingLec.durationMinutes || 45);
+      const oldDuration = existingLec.durationMinutes || 45;
+      const newDuration = lecture.durationMinutes || 45;
+      const netDelta = Math.max(0, newDuration - oldDuration);
+
+      // Archive previous version in versionHistory
+      const previousVersion: LectureVersion = {
+        versionNumber: (existingLec.versionHistory?.length || 0) + 1,
+        durationMinutes: oldDuration,
+        youtubeUrl: existingLec.youtubeUrl,
+        driveUrl: existingLec.driveUrl,
+        notesUrl: existingLec.notesUrl,
+        dppUrl: existingLec.dppUrl,
+        localFileUrl: existingLec.localFileUrl,
+        fileName: existingLec.fileName,
+        adminRemark: existingLec.reRecordReason,
+        requestedBy: existingLec.reRecordRequestedBy,
+        requestedAt: existingLec.reRecordRequestedAt,
+        uploadedAt: existingLec.createdAt,
+      };
+
+      const updatedVersions = [...(existingLec.versionHistory || []), previousVersion];
 
       const updatedLec: Lecture = {
         ...existingLec,
         ...lecture,
         unitNumber,
-        durationMinutes: lecture.durationMinutes || 45,
+        durationMinutes: newDuration,
+        originalDurationMinutes: existingLec.originalDurationMinutes || oldDuration,
+        reRecordDeltaMinutes: netDelta,
+        qualityStatus: existingLec.qualityStatus === 're_record_requested' ? 're_recorded' : (existingLec.qualityStatus || 'approved'),
+        reRecordResolvedAt: existingLec.qualityStatus === 're_record_requested' ? new Date().toISOString() : existingLec.reRecordResolvedAt,
+        versionHistory: updatedVersions,
       };
       lectures[existingIndex] = updatedLec;
       this.saveLectures(lectures);
 
+      if (lecture.assignedTopicId) {
+        this.updateAssignedTopicStatus(lecture.assignedTopicId, 'completed');
+      }
+
       const activeExt = this.getActiveExtensionForTopic(lecture.teacherId, lecture.assignedTopicId);
-      if (activeExt && diffDuration > 0) {
-        this.addExtensionMinutesUsed(activeExt.id, diffDuration);
+      if (activeExt && netDelta > 0) {
+        this.addExtensionMinutesUsed(activeExt.id, netDelta);
       }
       return updatedLec;
     } else {
@@ -885,6 +919,7 @@ export const StorageService = {
         targetMinutesAtSubmission: lecture.targetMinutesAtSubmission || teacherTarget,
         id: `lec-${Date.now()}`,
         adminRemarks: [],
+        qualityStatus: 'approved',
         createdAt: new Date().toISOString(),
       };
       lectures.unshift(newLec);
@@ -1515,6 +1550,11 @@ export const StorageService = {
     commitments: DailyCommitment[]
   ): number {
     const cleanId = (teacherId || '').toUpperCase();
+    // If faculty was granted an approved Day Off / Leave on this date, target is 0 min (excused)
+    if (this.isDayOff(cleanId, date)) {
+      return 0;
+    }
+
     const lectureTarget = lecturesForDate.find(
       (l) => Number.isFinite(l.targetMinutesAtSubmission) && (l.targetMinutesAtSubmission || 0) > 0
     )?.targetMinutesAtSubmission;
@@ -1994,10 +2034,12 @@ export const StorageService = {
     const cutoffTime = teacher?.dailyUploadCutoffTime || commitment?.promisedTime || '20:00';
 
     const backlogInfo = this.getPreviousDayBacklog(teacherId);
-    const targetMinutes = teacher?.dailyTargetMinutes || 120;
-    const maxDailyMinutes = teacher?.maxDailyMinutes || (targetMinutes * 2);
+    const todayDateKey = this.toLocalDateKey(now);
+    const isTodayDayOff = this.isDayOff(teacherId, todayDateKey);
+    const targetMinutes = isTodayDayOff ? 0 : (teacher?.dailyTargetMinutes || 120);
+    const maxDailyMinutes = teacher?.maxDailyMinutes || (targetMinutes * 2 || 240);
     const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
-    const isTargetMet = minutesRecordedToday >= targetMinutes;
+    const isTargetMet = isTodayDayOff || (minutesRecordedToday >= targetMinutes);
     const remainingMinutesToday = Math.max(0, targetMinutes - minutesRecordedToday);
     const extraMinutesRecorded = Math.max(0, minutesRecordedToday - targetMinutes);
     const remainingMaxMinutes = Math.max(0, maxDailyMinutes - minutesRecordedToday);
@@ -2039,6 +2081,147 @@ export const StorageService = {
     };
   },
 
+  // ─── DAY OFF / APPROVED LEAVE MANAGEMENT ─────────────────────────────────────
+  getDayOffGrants(): DayOffGrant[] {
+    const data = localStorage.getItem(DAY_OFF_GRANTS_KEY);
+    if (!data) return [];
+    try {
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  },
+
+  saveDayOffGrants(grants: DayOffGrant[]): void {
+    localStorage.setItem(DAY_OFF_GRANTS_KEY, JSON.stringify(grants));
+    triggerBackgroundCloudSync();
+  },
+
+  getDayOffForDate(teacherId: string, targetDateStr: string): DayOffGrant | undefined {
+    const cleanId = (teacherId || '').toUpperCase();
+    const cleanTarget = this.toLocalDateKey(targetDateStr);
+    const grants = this.getDayOffGrants();
+
+    return grants.find((g) => {
+      if (g.teacherId.toUpperCase() !== cleanId) return false;
+      const gStart = this.toLocalDateKey(g.date);
+      const gEnd = g.endDate ? this.toLocalDateKey(g.endDate) : gStart;
+      return cleanTarget >= gStart && cleanTarget <= gEnd;
+    });
+  },
+
+  isDayOff(teacherId: string, targetDateStr: string): boolean {
+    return !!this.getDayOffForDate(teacherId, targetDateStr);
+  },
+
+  grantDayOff(params: {
+    teacherId: string;
+    teacherName: string;
+    date: string;
+    endDate?: string;
+    reason: string;
+    grantedBy?: string;
+    notes?: string;
+  }): DayOffGrant {
+    const grants = this.getDayOffGrants();
+    const newGrant: DayOffGrant = {
+      id: `leave-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      teacherId: params.teacherId.toUpperCase(),
+      teacherName: params.teacherName,
+      date: params.date,
+      endDate: params.endDate || undefined,
+      reason: params.reason,
+      grantedBy: params.grantedBy || 'Academic Operations',
+      grantedAt: new Date().toISOString(),
+      notes: params.notes,
+    };
+
+    grants.unshift(newGrant);
+    this.saveDayOffGrants(grants);
+
+    // Operational Notification: Notify Teacher of Granted Leave
+    try {
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === params.teacherId.toUpperCase());
+      if (teacherObj?.email) {
+        notificationService.notifyDayOffGranted({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || params.teacherName,
+          teacherId: params.teacherId,
+          date: params.date,
+          endDate: params.endDate,
+          reason: params.reason,
+          grantedBy: params.grantedBy || 'Academic Operations',
+        }).catch(() => {});
+      }
+    } catch {
+      // non-blocking
+    }
+
+    return newGrant;
+  },
+
+  revokeDayOff(grantId: string): void {
+    const grants = this.getDayOffGrants().filter((g) => g.id !== grantId);
+    this.saveDayOffGrants(grants);
+  },
+
+  // ─── RE-RECORD / REVISION REQUEST WORKFLOW ───────────────────────────────────
+  requestLectureReRecord(lectureId: string, reason: string, adminName: string = 'Admin'): Lecture {
+    const lectures = this.getLectures();
+    const index = lectures.findIndex((l) => l.id === lectureId);
+    if (index === -1) throw new Error('Lecture not found');
+
+    const targetLec = lectures[index];
+    targetLec.qualityStatus = 're_record_requested';
+    targetLec.reRecordReason = reason;
+    targetLec.reRecordRequestedBy = adminName;
+    targetLec.reRecordRequestedAt = new Date().toISOString();
+
+    // Also attach an official Admin Directive to the lecture
+    const newRemark: AdminRemark = {
+      id: `rem-${Date.now()}`,
+      lectureId,
+      adminName,
+      remarkText: `[Re-record / Revision Requested]: ${reason}`,
+      createdAt: new Date().toISOString(),
+      isNewAckForAdmin: false,
+    };
+    if (!targetLec.adminRemarks) targetLec.adminRemarks = [];
+    targetLec.adminRemarks.unshift(newRemark);
+
+    lectures[index] = targetLec;
+    this.saveLectures(lectures);
+
+    // If there is an assigned topic, mark topic in_progress for re-delivery
+    if (targetLec.assignedTopicId) {
+      const topics = this.getAssignedTopics();
+      const tIdx = topics.findIndex((t) => t.id === targetLec.assignedTopicId);
+      if (tIdx !== -1) {
+        topics[tIdx].status = 'in_progress';
+        this.saveAssignedTopics(topics);
+      }
+    }
+
+    // Operational Notification: Notify Teacher of Re-record request
+    try {
+      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === targetLec.teacherId.toUpperCase());
+      if (teacherObj?.email) {
+        notificationService.notifyReRecordRequested({
+          teacherEmail: teacherObj.email,
+          teacherName: teacherObj.name || targetLec.teacherName,
+          lectureTitle: targetLec.title,
+          subject: targetLec.subject,
+          reason,
+          adminName,
+        }).catch(() => {});
+      }
+    } catch {
+      // non-blocking
+    }
+
+    return targetLec;
+  },
+
   // ─── ADMIN NOTIFICATION BADGES FOR TEACHER ───────────────────────────────────
   getTeacherAdminNotificationCounts(teacherId: string): {
     syllabus: number;
@@ -2046,6 +2229,7 @@ export const StorageService = {
     directives: number;
     resources: number;
     ppt: number;
+    rerecords: number;
     total: number;
   } {
     const cleanId = teacherId.toUpperCase();
@@ -2087,13 +2271,16 @@ export const StorageService = {
       return r.isNewFromAdmin || (teacherSubj && (s.includes(teacherSubj) || teacherSubj.includes(s)));
     }).length;
 
+    const pendingReRecords = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId && l.qualityStatus === 're_record_requested').length;
+
     return {
       syllabus,
       revisions,
       directives,
       resources,
       ppt,
-      total: syllabus + (ppt > 0 ? ppt : 0) + (directives > 0 ? 1 : 0),
+      rerecords: pendingReRecords,
+      total: syllabus + (ppt > 0 ? ppt : 0) + (directives > 0 ? 1 : 0) + pendingReRecords,
     };
   },
 

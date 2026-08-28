@@ -5,7 +5,7 @@ import { VideoModal } from '../Common/VideoModal';
 import { PptRequestPortal } from './PptRequestPortal';
 import confetti from 'canvas-confetti';
 import { 
-  Search, FileText, Plus, Play,
+  RotateCcw, Search, FileText, Plus, Play,
   Edit3, ExternalLink, Copy, Check, ChevronRight, ChevronDown,
   Clock, CheckCircle, AlertTriangle, MessageSquare,
   FileSpreadsheet, Award, Folder,
@@ -126,6 +126,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [searchDirectiveQuery, setSearchDirectiveQuery] = useState('');
 
   // Admin remarks for this teacher
+  const todayKey = StorageService.toLocalDateKey(new Date());
+  const todayDayOff = StorageService.getDayOffForDate(teacher.teacherId, todayKey);
+  const reRecordLectures = lectures.filter((l) => l.qualityStatus === 're_record_requested');
+
   const teacherRemarks = useMemo(() => {
     const remarks: { 
       id: string; 
@@ -666,6 +670,71 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <div className="mt-1 text-xs font-semibold text-slate-100">Time, capacity & extensions →</div>
             </button>
           </div>
+
+          {/* 0. APPROVED DAY OFF / LEAVE BANNER */}
+          {todayDayOff && (
+            <div className="bg-gradient-to-r from-emerald-950/80 via-teal-950/60 to-slate-900 border-2 border-emerald-500/70 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-xl shadow-emerald-950/30">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600/30 border border-emerald-500/50 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+                  <span className="text-xl">🏖️</span>
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white uppercase tracking-wider shadow-sm">
+                      🏖️ Approved Day Off / Leave Today
+                    </span>
+                    <span className="text-[11px] text-emerald-300 font-bold hidden sm:inline">Official Leave Granted</span>
+                  </div>
+                  <p className="font-extrabold text-slate-100 text-sm sm:text-base">
+                    You have an approved leave for {todayDayOff.date}{todayDayOff.endDate ? ` to ${todayDayOff.endDate}` : ''} ({todayDayOff.reason})
+                  </p>
+                  <p className="text-[11px] text-emerald-200/90 italic">
+                    Daily required recording quota is excused (0 min required) with zero backlog accumulation.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 1.4 RE-RECORD REQUESTED ALERT BANNER */}
+          {reRecordLectures.length > 0 && (() => {
+            const first = reRecordLectures[0];
+            const targetTopic = first.assignedTopicId 
+              ? assignedTopics.find(t => t.id === first.assignedTopicId) 
+              : null;
+            return (
+              <div className="bg-gradient-to-r from-amber-950/90 via-orange-950/70 to-slate-900 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-xl shadow-amber-950/40 animate-pulse">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-600/30 border border-amber-500/50 text-amber-300 flex items-center justify-center shrink-0 shadow-inner">
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 uppercase tracking-wider shadow-sm font-bold">
+                        🔄 Action Required: Re-record Requested ({reRecordLectures.length})
+                      </span>
+                      <span className="text-[11px] text-amber-300 font-bold hidden sm:inline">Admin Quality Audit</span>
+                    </div>
+                    <p className="font-extrabold text-slate-100 text-sm sm:text-base">
+                      Admin requested re-recording for "{first.title}" ({first.unitNumber || 'Unit'})
+                    </p>
+                    {first.reRecordReason && (
+                      <p className="text-[11px] text-amber-200/90 italic truncate max-w-xl">
+                        Admin Note: "{first.reRecordReason}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => onOpenUpload(targetTopic || undefined)}
+                  className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black rounded-xl transition-all shadow-lg shadow-amber-500/30 text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-center cursor-pointer"
+                >
+                  🎥 Re-record & Upload Fix →
+                </button>
+              </div>
+            );
+          })()}
 
           {/* 1.5 REVISION REQUESTED ALERT BANNER (IF ANY TOPIC HAS REVISION REQUESTED) */}
           {revisionTopics.length > 0 && (
@@ -2421,11 +2490,22 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                               )}
                               <span className="text-[11px] text-slate-400">{lec.subject}</span>
                             </div>
-                            <span className={`text-[10px] font-medium shrink-0 ${
-                              lec.status === 'on_time' ? 'text-emerald-400' : 'text-amber-400'
-                            }`}>
-                              {lec.status === 'on_time' ? '✓ On-Time' : '⚠️ Late'}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                              {lec.qualityStatus === 're_record_requested' ? (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                                  🔄 Re-record Requested
+                                </span>
+                              ) : lec.qualityStatus === 're_recorded' ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                  ✨ Re-recorded (v${(lec.versionHistory?.length || 1) + 1})
+                                </span>
+                              ) : null}
+                              <span className={`text-[10px] font-medium ${
+                                lec.status === 'on_time' ? 'text-emerald-400' : 'text-amber-400'
+                              }`}>
+                                {lec.status === 'on_time' ? '✓ On-Time' : '⚠️ Late'}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="flex items-center justify-between text-slate-400 text-[11px]">
