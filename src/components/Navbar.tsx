@@ -2,7 +2,7 @@ import React from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
-  LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
+  Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock
 } from 'lucide-react';
 
@@ -90,6 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'admin_wallet', label: 'Faculty Wallets', icon: Wallet },
+    { id: 'admin_leaves', label: 'Day Offs & Leaves', icon: Calendar },
     { id: 'admin_extensions', label: 'Extension Windows', icon: Clock },
     { 
       id: 'admin_syllabus', 

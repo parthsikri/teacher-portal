@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
-  LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
+  Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet
 } from 'lucide-react';
 
@@ -130,6 +130,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'admin_wallet', 
       label: 'Faculty Wallets', 
       icon: Wallet,
+    },
+    { 
+      id: 'admin_leaves', 
+      label: 'Day Offs & Leaves', 
+      icon: Calendar,
+      badge: StorageService.getDayOffGrants().filter(g => g.date >= StorageService.toLocalDateKey(new Date())).length > 0
+        ? `${StorageService.getDayOffGrants().filter(g => g.date >= StorageService.toLocalDateKey(new Date())).length} Active`
+        : undefined,
+      badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/60 font-bold',
     },
     { 
       id: 'admin_extensions', 

@@ -5,7 +5,7 @@ import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { EmailSettingsModal } from '../Common/EmailSettingsModal';
 import { 
-  Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
+  Calendar, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
   Key, Lock, User as UserIcon, EyeOff, CheckCircle2, 
   Edit3, Link2, Layers, BookMarked, FolderPlus,
@@ -2611,6 +2611,206 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
 
       {/* PAGE 3: 👨‍🏫 FACULTY ROSTER & CREDENTIALS MANAGEMENT */}
+
+      {/* ─── PAGE: 🏖️ FACULTY DAY OFFS & APPROVED LEAVES MANAGEMENT HUB ─── */}
+      {currentPage === 'admin_leaves' && (() => {
+        const todayKey = StorageService.toLocalDateKey(new Date());
+        const yesterdayObj = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1);
+        const yesterdayKey = StorageService.toLocalDateKey(yesterdayObj);
+        const allGrants = StorageService.getDayOffGrants();
+        const todayLeaves = allGrants.filter((g) => g.date === todayKey);
+        const yesterdayLeaves = allGrants.filter((g) => g.date === yesterdayKey);
+        const upcomingLeaves = allGrants.filter((g) => g.date > todayKey);
+
+        return (
+          <div className="space-y-6 animate-in fade-in duration-150">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/30 flex items-center justify-center">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-100 tracking-tight flex items-center gap-2">
+                    Faculty Day Offs & Approved Leaves Hub
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      0 min Target • No Backlog
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Grant official leaves for yesterday (retroactive backlog clearance), today, or upcoming schedules.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => {
+                    setDayOffTeacherId(teachers[0]?.teacherId || '');
+                    setShowDayOffModal(true);
+                  }}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02]"
+                >
+                  <span>🏖️</span> Grant New Day Off / Leave
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Summary Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-2xl border border-emerald-900/50 bg-gradient-to-br from-emerald-950/50 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+                  <span>Excused Today</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">Active</span>
+                </div>
+                <div className="mt-2 text-3xl font-black text-emerald-200 font-mono">{todayLeaves.length} Faculty</div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {todayLeaves.length > 0 ? todayLeaves.map((l) => l.teacherName).join(', ') : 'No faculty on leave today'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-indigo-900/40 bg-gradient-to-br from-indigo-950/40 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
+                  <span>Excused Yesterday</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono font-bold">Retroactive</span>
+                </div>
+                <div className="mt-2 text-3xl font-black text-indigo-200 font-mono">{yesterdayLeaves.length} Faculty</div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {yesterdayLeaves.length > 0 ? yesterdayLeaves.map((l) => l.teacherName).join(', ') : 'No retroactive leaves for yesterday'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-purple-900/40 bg-gradient-to-br from-purple-950/40 via-slate-900/80 to-slate-900/60 p-5 relative overflow-hidden">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-purple-400 flex items-center justify-between">
+                  <span>Upcoming Leaves</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">Scheduled</span>
+                </div>
+                <div className="mt-2 text-3xl font-black text-purple-200 font-mono">{upcomingLeaves.length} Scheduled</div>
+                <p className="mt-1 text-[11px] text-slate-400">Pre-approved upcoming leaves</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 relative overflow-hidden">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <span>Total Leaves Logged</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-bold">All-time</span>
+                </div>
+                <div className="mt-2 text-3xl font-black text-slate-100 font-mono">{allGrants.length} Records</div>
+                <p className="mt-1 text-[11px] text-slate-400">Complete institutional leave record</p>
+              </div>
+            </div>
+
+            {/* Quick Grant Banner Card */}
+            <div className="p-5 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/40 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h4 className="font-extrabold text-slate-100 text-sm flex items-center gap-2">
+                  <span>💡 Need to clear yesterday&apos;s unfulfilled quota or excuse a teacher?</span>
+                </h4>
+                <p className="text-xs text-slate-300">
+                  Granting a Day Off for yesterday immediately sets yesterday&apos;s required recording target to <strong>0 min</strong> and wipes out any shortfall/backlog debt!
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setDayOffTeacherId(teachers[0]?.teacherId || '');
+                  setShowDayOffModal(true);
+                }}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/30 shrink-0 cursor-pointer"
+              >
+                + Grant Day Off Now
+              </button>
+            </div>
+
+            {/* Complete Leaves Roster */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-extrabold text-slate-100 text-sm flex items-center gap-2">
+                  <span>📋 Approved Faculty Leaves ({allGrants.length})</span>
+                </h3>
+              </div>
+
+              {allGrants.length === 0 ? (
+                <div className="p-10 text-center text-xs text-slate-500 italic bg-slate-950/50 rounded-2xl border border-slate-800/80">
+                  No faculty leaves granted yet. Click &quot;Grant New Day Off / Leave&quot; above to excuse any teacher.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-800/80">
+                  {allGrants.map((grant) => {
+                    const isPast = grant.date < todayKey && grant.date !== yesterdayKey;
+                    const isToday = grant.date === todayKey;
+                    const isYesterday = grant.date === yesterdayKey;
+                    const isUpcoming = grant.date > todayKey;
+
+                    return (
+                      <div key={grant.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-100 text-sm">{grant.teacherName}</span>
+                            <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 font-bold">
+                              {grant.teacherId}
+                            </span>
+                            {isYesterday ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                Yesterday (Excused)
+                              </span>
+                            ) : isToday ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
+                                Today (Active Leave)
+                              </span>
+                            ) : isUpcoming ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                Upcoming Scheduled
+                              </span>
+                            ) : isPast ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] text-slate-400 bg-slate-800">
+                                Past Leave
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] text-slate-400 bg-slate-800">
+                                Excused
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-slate-300 text-xs flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+                            <span className="text-emerald-400 font-mono font-bold">
+                              📅 {grant.date}{grant.endDate ? ` to ${grant.endDate}` : ''}
+                            </span>
+                            <span>•</span>
+                            <span>Category: <strong className="text-slate-200">{grant.reason}</strong></span>
+                            {grant.notes && (
+                              <>
+                                <span>•</span>
+                                <span className="text-slate-400 italic">&quot;{grant.notes}&quot;</span>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="text-[10px] text-slate-500">
+                            Granted by {grant.grantedBy} on {new Date(grant.grantedAt).toLocaleString()}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            StorageService.revokeDayOff(grant.id);
+                            setTeachers(StorageService.getTeachers());
+                            if (onRefreshData) onRefreshData();
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white font-bold text-xs transition-all self-start md:self-center cursor-pointer"
+                        >
+                          Revoke Leave
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {currentPage === 'admin_faculty' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
