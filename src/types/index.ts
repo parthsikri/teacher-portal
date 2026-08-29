@@ -90,23 +90,6 @@ export interface AssignedTopic {
   displayOrder?: number;                // Curriculum order within unit
 }
 
-export type LectureQualityStatus = 'approved' | 're_record_requested' | 're_recorded';
-
-export interface LectureVersion {
-  versionNumber: number;
-  durationMinutes: number;
-  youtubeUrl?: string;
-  driveUrl?: string;
-  notesUrl?: string;
-  dppUrl?: string;
-  localFileUrl?: string;
-  fileName?: string;
-  adminRemark?: string;
-  requestedBy?: string;
-  requestedAt?: string;
-  uploadedAt: string;
-}
-
 export interface Lecture {
   id: string;
   teacherId: string;
@@ -120,14 +103,6 @@ export interface Lecture {
   targetMinutesAtSubmission?: number; // Immutable daily-target snapshot for historical calculations
   deadlineDate?: string;       // Optional legacy date
   status: 'on_time' | 'late' | 'overdue' | 'extended';
-  qualityStatus?: LectureQualityStatus; // 'approved' | 're_record_requested' | 're_recorded'
-  reRecordReason?: string;             // Admin reason/feedback requesting re-recording
-  reRecordRequestedBy?: string;        // Admin name
-  reRecordRequestedAt?: string;        // ISO timestamp
-  reRecordResolvedAt?: string;         // ISO timestamp when replacement was delivered
-  originalDurationMinutes?: number;    // Previous duration before re-record (e.g. 20m)
-  reRecordDeltaMinutes?: number;       // Net extra duration added from re-recording (e.g. +5m)
-  versionHistory?: LectureVersion[];   // Archive of previous versions
   youtubeUrl?: string;
   driveUrl?: string;
   notesUrl?: string;

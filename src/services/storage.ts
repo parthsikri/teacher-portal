@@ -1,7 +1,6 @@
 import { notificationService } from './notificationService';
 import type {
   DayOffGrant,
-  LectureVersion,
   User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, EmailConfig } from '../types';
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -862,41 +861,15 @@ export const StorageService = {
       : -1;
 
     if (existingIndex !== -1) {
-      // Re-upload / Edit / Re-record for same topic:
-      // User rule: "like if original video was 20 mins and new video is 25 minutes then only 5 minutes should be added in case of record for same topic"
+      // Edit / Update existing lecture
       const existingLec = lectures[existingIndex];
-      const oldDuration = existingLec.durationMinutes || 45;
-      const newDuration = lecture.durationMinutes || 45;
-      const netDelta = Math.max(0, newDuration - oldDuration);
-
-      // Archive previous version in versionHistory
-      const previousVersion: LectureVersion = {
-        versionNumber: (existingLec.versionHistory?.length || 0) + 1,
-        durationMinutes: oldDuration,
-        youtubeUrl: existingLec.youtubeUrl,
-        driveUrl: existingLec.driveUrl,
-        notesUrl: existingLec.notesUrl,
-        dppUrl: existingLec.dppUrl,
-        localFileUrl: existingLec.localFileUrl,
-        fileName: existingLec.fileName,
-        adminRemark: existingLec.reRecordReason,
-        requestedBy: existingLec.reRecordRequestedBy,
-        requestedAt: existingLec.reRecordRequestedAt,
-        uploadedAt: existingLec.createdAt,
-      };
-
-      const updatedVersions = [...(existingLec.versionHistory || []), previousVersion];
+      const diffDuration = (lecture.durationMinutes || 45) - (existingLec.durationMinutes || 45);
 
       const updatedLec: Lecture = {
         ...existingLec,
         ...lecture,
         unitNumber,
-        durationMinutes: newDuration,
-        originalDurationMinutes: existingLec.originalDurationMinutes || oldDuration,
-        reRecordDeltaMinutes: netDelta,
-        qualityStatus: existingLec.qualityStatus === 're_record_requested' ? 're_recorded' : (existingLec.qualityStatus || 'approved'),
-        reRecordResolvedAt: existingLec.qualityStatus === 're_record_requested' ? new Date().toISOString() : existingLec.reRecordResolvedAt,
-        versionHistory: updatedVersions,
+        durationMinutes: lecture.durationMinutes || 45,
       };
       lectures[existingIndex] = updatedLec;
       this.saveLectures(lectures);
@@ -906,8 +879,8 @@ export const StorageService = {
       }
 
       const activeExt = this.getActiveExtensionForTopic(lecture.teacherId, lecture.assignedTopicId);
-      if (activeExt && netDelta > 0) {
-        this.addExtensionMinutesUsed(activeExt.id, netDelta);
+      if (activeExt && diffDuration > 0) {
+        this.addExtensionMinutesUsed(activeExt.id, diffDuration);
       }
       return updatedLec;
     } else {
@@ -919,7 +892,6 @@ export const StorageService = {
         targetMinutesAtSubmission: lecture.targetMinutesAtSubmission || teacherTarget,
         id: `lec-${Date.now()}`,
         adminRemarks: [],
-        qualityStatus: 'approved',
         createdAt: new Date().toISOString(),
       };
       lectures.unshift(newLec);
@@ -2097,6 +2069,11 @@ export const StorageService = {
     triggerBackgroundCloudSync();
   },
 
+  getTeacherDayOffs(teacherId: string): DayOffGrant[] {
+    const cleanId = (teacherId || '').toUpperCase();
+    return this.getDayOffGrants().filter((g) => g.teacherId.toUpperCase() === cleanId);
+  },
+
   getDayOffForDate(teacherId: string, targetDateStr: string): DayOffGrant | undefined {
     const cleanId = (teacherId || '').toUpperCase();
     const cleanTarget = this.toLocalDateKey(targetDateStr);
@@ -2123,20 +2100,33 @@ export const StorageService = {
     grantedBy?: string;
     notes?: string;
   }): DayOffGrant {
+    const cleanDate = this.toLocalDateKey(params.date);
+    const cleanEndDate = params.endDate ? this.toLocalDateKey(params.endDate) : undefined;
     const grants = this.getDayOffGrants();
+
+    // Check if an existing grant covers this exact date/teacher to avoid duplicates
+    const existingIndex = grants.findIndex(
+      (g) => g.teacherId.toUpperCase() === params.teacherId.toUpperCase() && this.toLocalDateKey(g.date) === cleanDate
+    );
+
     const newGrant: DayOffGrant = {
-      id: `leave-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: existingIndex !== -1 ? grants[existingIndex].id : `leave-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       teacherId: params.teacherId.toUpperCase(),
       teacherName: params.teacherName,
-      date: params.date,
-      endDate: params.endDate || undefined,
+      date: cleanDate,
+      endDate: cleanEndDate,
       reason: params.reason,
       grantedBy: params.grantedBy || 'Academic Operations',
       grantedAt: new Date().toISOString(),
       notes: params.notes,
     };
 
-    grants.unshift(newGrant);
+    if (existingIndex !== -1) {
+      grants[existingIndex] = newGrant;
+    } else {
+      grants.unshift(newGrant);
+    }
+
     this.saveDayOffGrants(grants);
 
     // Operational Notification: Notify Teacher of Granted Leave
@@ -2147,8 +2137,8 @@ export const StorageService = {
           teacherEmail: teacherObj.email,
           teacherName: teacherObj.name || params.teacherName,
           teacherId: params.teacherId,
-          date: params.date,
-          endDate: params.endDate,
+          date: cleanDate,
+          endDate: cleanEndDate,
           reason: params.reason,
           grantedBy: params.grantedBy || 'Academic Operations',
         }).catch(() => {});
@@ -2165,63 +2155,6 @@ export const StorageService = {
     this.saveDayOffGrants(grants);
   },
 
-  // ─── RE-RECORD / REVISION REQUEST WORKFLOW ───────────────────────────────────
-  requestLectureReRecord(lectureId: string, reason: string, adminName: string = 'Admin'): Lecture {
-    const lectures = this.getLectures();
-    const index = lectures.findIndex((l) => l.id === lectureId);
-    if (index === -1) throw new Error('Lecture not found');
-
-    const targetLec = lectures[index];
-    targetLec.qualityStatus = 're_record_requested';
-    targetLec.reRecordReason = reason;
-    targetLec.reRecordRequestedBy = adminName;
-    targetLec.reRecordRequestedAt = new Date().toISOString();
-
-    // Also attach an official Admin Directive to the lecture
-    const newRemark: AdminRemark = {
-      id: `rem-${Date.now()}`,
-      lectureId,
-      adminName,
-      remarkText: `[Re-record / Revision Requested]: ${reason}`,
-      createdAt: new Date().toISOString(),
-      isNewAckForAdmin: false,
-    };
-    if (!targetLec.adminRemarks) targetLec.adminRemarks = [];
-    targetLec.adminRemarks.unshift(newRemark);
-
-    lectures[index] = targetLec;
-    this.saveLectures(lectures);
-
-    // If there is an assigned topic, mark topic in_progress for re-delivery
-    if (targetLec.assignedTopicId) {
-      const topics = this.getAssignedTopics();
-      const tIdx = topics.findIndex((t) => t.id === targetLec.assignedTopicId);
-      if (tIdx !== -1) {
-        topics[tIdx].status = 'in_progress';
-        this.saveAssignedTopics(topics);
-      }
-    }
-
-    // Operational Notification: Notify Teacher of Re-record request
-    try {
-      const teacherObj = this.getUsers().find((u) => u.teacherId.toUpperCase() === targetLec.teacherId.toUpperCase());
-      if (teacherObj?.email) {
-        notificationService.notifyReRecordRequested({
-          teacherEmail: teacherObj.email,
-          teacherName: teacherObj.name || targetLec.teacherName,
-          lectureTitle: targetLec.title,
-          subject: targetLec.subject,
-          reason,
-          adminName,
-        }).catch(() => {});
-      }
-    } catch {
-      // non-blocking
-    }
-
-    return targetLec;
-  },
-
   // ─── ADMIN NOTIFICATION BADGES FOR TEACHER ───────────────────────────────────
   getTeacherAdminNotificationCounts(teacherId: string): {
     syllabus: number;
@@ -2229,7 +2162,6 @@ export const StorageService = {
     directives: number;
     resources: number;
     ppt: number;
-    rerecords: number;
     total: number;
   } {
     const cleanId = teacherId.toUpperCase();
@@ -2271,16 +2203,13 @@ export const StorageService = {
       return r.isNewFromAdmin || (teacherSubj && (s.includes(teacherSubj) || teacherSubj.includes(s)));
     }).length;
 
-    const pendingReRecords = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId && l.qualityStatus === 're_record_requested').length;
-
     return {
       syllabus,
       revisions,
       directives,
       resources,
       ppt,
-      rerecords: pendingReRecords,
-      total: syllabus + (ppt > 0 ? ppt : 0) + (directives > 0 ? 1 : 0) + pendingReRecords,
+      total: syllabus + (ppt > 0 ? ppt : 0) + (directives > 0 ? 1 : 0),
     };
   },
 

@@ -256,59 +256,6 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
             </div>
           )}
 
-          {/* RE-RECORDING FAIR TIME ACCOUNTING PILL */}
-          {(() => {
-            const existingLecture = chosenTopicId 
-              ? StorageService.getLectures().find((l) => l.assignedTopicId === chosenTopicId) 
-              : null;
-            const isReRecord = !!existingLecture;
-            const existingDuration = existingLecture ? (existingLecture.durationMinutes || 0) : 0;
-            const netDeltaMinutes = Math.max(0, durationMinutes - existingDuration);
-
-            if (!isReRecord) return null;
-
-            return (
-              <div className="p-3.5 bg-gradient-to-r from-amber-950/40 via-slate-950 to-slate-950 border border-amber-500/40 rounded-xl space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-300 flex items-center gap-1.5">
-                    <span>🔄 Re-recording / Updating Existing Topic</span>
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-amber-500/20 text-amber-200 border border-amber-500/30">
-                    Net Duration Delta
-                  </span>
-                </div>
-
-                {existingLecture?.qualityStatus === 're_record_requested' && existingLecture?.reRecordReason && (
-                  <div className="p-2.5 bg-rose-950/30 border border-rose-500/40 rounded-lg text-[11px] text-rose-200 space-y-0.5">
-                    <div className="font-bold text-rose-300">Admin Revision Instructions:</div>
-                    <div className="italic">"{existingLecture.reRecordReason}"</div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-3 gap-2 text-center text-[11px] pt-1">
-                  <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px] uppercase font-semibold">Original Video</div>
-                    <div className="font-mono font-bold text-slate-200 text-xs mt-0.5">{existingDuration} min</div>
-                  </div>
-                  <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px] uppercase font-semibold">New Video</div>
-                    <div className="font-mono font-bold text-indigo-300 text-xs mt-0.5">{durationMinutes} min</div>
-                  </div>
-                  <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800">
-                    <div className="text-slate-400 text-[10px] uppercase font-semibold">Net Time Added</div>
-                    <div className={`font-mono font-bold text-xs mt-0.5 ${netDeltaMinutes > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                      +{netDeltaMinutes} min
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-[10px] text-slate-400">
-                  💡 <strong>Rule:</strong> Only the net additional <strong className="text-emerald-300 font-mono">+{netDeltaMinutes}m</strong> is counted toward your quota. The original {existingDuration}m was already credited.
-                </p>
-              </div>
-            );
-          })()}
-
           {backlogInfo && !backlogInfo.isYesterdayFulfilled && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-xl flex items-center gap-2">
               <span className="text-sm">⚠️</span>

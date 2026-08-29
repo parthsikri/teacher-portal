@@ -44,10 +44,11 @@ class NotificationService {
   async notifyTopicAssigned(params: {
     teacherEmail: string;
     teacherName: string;
-    subject: string;
+    subject?: string;
     topicTitle: string;
     unitNumber?: string;
     notes?: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.teacherEmail) return;
     return this.dispatch({
@@ -67,6 +68,7 @@ class NotificationService {
     subject?: string;
     remarkText: string;
     adminName: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.teacherEmail) return;
     return this.dispatch({
@@ -86,6 +88,7 @@ class NotificationService {
     lectureTitle: string;
     subject?: string;
     remarkText: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.adminEmails) return;
     return this.dispatch({
@@ -101,12 +104,13 @@ class NotificationService {
   async notifyExtensionGranted(params: {
     teacherEmail: string;
     teacherName: string;
-    subject: string;
     allowedMinutes: number;
-    startWindow: string;
     endWindow: string;
+    topics?: string;
     topicsCovered?: string;
+    notes?: string;
     adminRemarks?: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.teacherEmail) return;
     return this.dispatch({
@@ -117,16 +121,16 @@ class NotificationService {
   }
 
   /**
-   * 4. 📑 Teacher submits proposed subtopics -> Email to Admin
+   * 4. 📝 Teacher submits proposed subtopics -> Email to Admin
    */
   async notifySubtopicsSubmitted(params: {
     adminEmails: string | string[];
     teacherName: string;
     teacherId: string;
-    subject: string;
     topicTitle: string;
     unitNumber?: string;
-    subtopicsCount: number;
+    subtopics?: string[];
+    [key: string]: any;
   }): Promise<void> {
     if (!params.adminEmails) return;
     return this.dispatch({
@@ -137,15 +141,17 @@ class NotificationService {
   }
 
   /**
-   * 5. 📑 Admin reviews subtopics (approved or revision requested) -> Email to Teacher
+   * 5. ✅/🔄 Admin reviews subtopics (approved or revision requested) -> Email to Teacher
    */
   async notifySubtopicsReviewed(params: {
     teacherEmail: string;
     teacherName: string;
-    subject: string;
     topicTitle: string;
+    unitNumber?: string;
     status: 'approved' | 'revision_requested';
+    adminFeedback?: string;
     feedback?: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.teacherEmail) return;
     return this.dispatch({
@@ -156,16 +162,17 @@ class NotificationService {
   }
 
   /**
-   * 6. 📊 Teacher requests PYQ PPT presentation deck -> Email to Admin
+   * 6. 📊 Teacher requests PYQ slide deck -> Email to Admin
    */
   async notifyPptRequested(params: {
     adminEmails: string | string[];
     teacherName: string;
     teacherId: string;
-    subject: string;
     topicTitle: string;
-    unitNumber?: string;
-    specialInstructions?: string;
+    subject?: string;
+    targetExam?: string;
+    lectureDate?: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.adminEmails) return;
     return this.dispatch({
@@ -176,13 +183,16 @@ class NotificationService {
   }
 
   /**
-   * 7. 🎉 Admin marks PYQ PPT deck as ready -> Email to Teacher
+   * 7. 🎁 Admin completes PPT and delivers download link -> Email to Teacher
    */
   async notifyPptReady(params: {
     teacherEmail: string;
     teacherName: string;
-    subject: string;
     topicTitle: string;
+    completedPptUrl?: string;
+    completedPdfUrl?: string;
+    adminRemarks?: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.teacherEmail) return;
     return this.dispatch({
@@ -191,27 +201,9 @@ class NotificationService {
       data: params,
     });
   }
-  /**
-   * 8. 🔄 Admin requests lecture re-recording -> Email to Teacher
-   */
-  async notifyReRecordRequested(params: {
-    teacherEmail: string;
-    teacherName: string;
-    lectureTitle: string;
-    subject?: string;
-    reason: string;
-    adminName: string;
-  }): Promise<void> {
-    if (!params.teacherEmail) return;
-    return this.dispatch({
-      to: params.teacherEmail,
-      type: 'rerecord_requested',
-      data: params,
-    });
-  }
 
   /**
-   * 9. 🏖️ Admin grants day off / leave -> Email to Teacher
+   * 8. 🏖️ Admin grants day off / leave -> Email to Teacher
    */
   async notifyDayOffGranted(params: {
     teacherEmail: string;
@@ -221,6 +213,7 @@ class NotificationService {
     endDate?: string;
     reason: string;
     grantedBy: string;
+    [key: string]: any;
   }): Promise<void> {
     if (!params.teacherEmail) return;
     return this.dispatch({
