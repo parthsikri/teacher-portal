@@ -1545,24 +1545,12 @@ export const StorageService = {
       const anyLectureSnapshot = this.getLectures().find(
         (l) => l.teacherId.toUpperCase() === cleanId && Number.isFinite(l.targetMinutesAtSubmission) && (l.targetMinutesAtSubmission || 0) > 0
       )?.targetMinutesAtSubmission;
-      return anyLectureSnapshot || 60;
+      if (anyLectureSnapshot) return anyLectureSnapshot;
     }
 
-    const today = this.toLocalDateKey(new Date());
-    if (date === today) {
-      const user = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
-      return user?.dailyTargetMinutes || 120;
-    }
-
-    if (lecturesForDate.length > 0) {
-      const anyLectureSnapshot = this.getLectures().find(
-        (l) => l.teacherId.toUpperCase() === cleanId && Number.isFinite(l.targetMinutesAtSubmission) && (l.targetMinutesAtSubmission || 0) > 0
-      )?.targetMinutesAtSubmission;
-      return anyLectureSnapshot || 60;
-    }
-
-    // IMPORTANT: Do NOT use the current teacher target for an old date.
-    return 0;
+    // Default required quota for regular working days: only permitted leaves have 0m target.
+    const user = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
+    return user?.dailyTargetMinutes || 120;
   },
 
   getDailyTargetForDate(teacherId: string, date: string, dayLectures?: Lecture[]): number {
@@ -1724,30 +1712,46 @@ export const StorageService = {
     const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
     const dayOffGrants = this.getDayOffGrants().filter((g) => g.teacherId.toUpperCase() === cleanId);
 
-    const allDates = new Set<string>();
-    allDates.add(todayStr);
-    allDates.add(yesterdayStr);
-
+    // Find the earliest date of activity for this teacher
+    const activityDates: string[] = [];
     teacherLectures.forEach((l) => {
       const d = this.toLocalDateKey(l.createdAt);
-      if (d) allDates.add(d);
+      if (d) activityDates.push(d);
     });
-
     commitments.forEach((c) => {
-      if (c.date) allDates.add(c.date);
+      if (c.date) activityDates.push(c.date);
+    });
+    dayOffGrants.forEach((g) => {
+      if (g.date) activityDates.push(g.date);
+      if (g.endDate) activityDates.push(g.endDate);
     });
 
-    dayOffGrants.forEach((g) => {
-      if (g.date) allDates.add(g.date);
-      if (g.endDate && g.endDate >= g.date) {
-        const cur = new Date(g.date + 'T12:00:00');
-        const end = new Date(g.endDate + 'T12:00:00');
-        while (cur <= end) {
-          allDates.add(this.toLocalDateKey(cur));
-          cur.setDate(cur.getDate() + 1);
-        }
-      }
-    });
+    activityDates.push(yesterdayStr);
+    activityDates.push(todayStr);
+
+    activityDates.sort();
+    let earliestDateStr = activityDates[0];
+
+    // Ensure we look at least 14 days back if earliest date is recent, up to 60 days
+    const minFourteenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
+    const minFourteenStr = this.toLocalDateKey(minFourteenDaysAgo);
+    if (earliestDateStr > minFourteenStr && activityDates.length > 2) {
+      earliestDateStr = minFourteenStr;
+    }
+
+    // Generate EVERY single continuous calendar date from earliestDateStr up to todayStr
+    const allDates = new Set<string>();
+    const iterDate = new Date(earliestDateStr + 'T12:00:00');
+    const todayDateObj = new Date(todayStr + 'T12:00:00');
+
+    let safetyCount = 90;
+    while (iterDate <= todayDateObj && safetyCount > 0) {
+      allDates.add(this.toLocalDateKey(iterDate));
+      iterDate.setDate(iterDate.getDate() + 1);
+      safetyCount--;
+    }
+    allDates.add(todayStr);
+    allDates.add(yesterdayStr);
 
     const lecturesByDate = new Map<string, Lecture[]>();
     teacherLectures.forEach((l) => {
