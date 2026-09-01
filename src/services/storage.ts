@@ -44,6 +44,8 @@ const INITIAL_USERS: User[] = [
     subject: 'Data Structures & Algorithms',
     dailyTargetMinutes: 120,
     dailyLimit: 240,
+    joiningDate: '2026-08-25',
+    firstLoginDate: '2026-08-25',
   },
   {
     id: 'u-t102',
@@ -57,6 +59,8 @@ const INITIAL_USERS: User[] = [
     subject: 'Thermodynamics',
     dailyTargetMinutes: 120,
     dailyLimit: 240,
+    joiningDate: '2026-08-25',
+    firstLoginDate: '2026-08-25',
   },
   {
     id: 'u-t103',
@@ -70,6 +74,8 @@ const INITIAL_USERS: User[] = [
     subject: 'Signals & Systems',
     dailyTargetMinutes: 120,
     dailyLimit: 240,
+    joiningDate: '2026-08-25',
+    firstLoginDate: '2026-08-25',
   },
 ];
 
@@ -90,7 +96,7 @@ export const StorageService = {
   getUsers(): User[] {
     const userMap = new Map<string, User>();
 
-    // 1. Seed with initial admin
+    // 1. Seed with initial admin & mock teachers
     INITIAL_USERS.forEach((u) => {
       userMap.set(u.teacherId.toUpperCase(), { ...u });
     });
@@ -121,6 +127,9 @@ export const StorageService = {
                 dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
                 hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
                 dailyLimit: u.dailyLimit || existing.dailyLimit || 4,
+                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') ? undefined : '2026-08-25'),
+                firstLoginDate: u.firstLoginDate || existing.firstLoginDate,
+                createdAt: u.createdAt || existing.createdAt || new Date().toISOString(),
               });
             }
           });
@@ -149,6 +158,7 @@ export const StorageService = {
     const cleanTeacherId = newTeacher.teacherId.trim().toUpperCase();
     const cleanUsername = (newTeacher.username?.trim().toLowerCase() || cleanTeacherId.toLowerCase()).replace(/\s+/g, '_');
     const cleanPassword = newTeacher.password?.trim() || 'teach123';
+    const todayStr = this.toLocalDateKey(new Date());
 
     const filtered = users.filter((u) => u.teacherId.toUpperCase() !== cleanTeacherId);
 
@@ -165,6 +175,8 @@ export const StorageService = {
       dailyTargetMinutes: newTeacher.dailyTargetMinutes || 120,
       dailyLimit: newTeacher.dailyLimit || Math.ceil((newTeacher.dailyTargetMinutes || 120) / 30),
       role: 'teacher',
+      joiningDate: (newTeacher.joiningDate || todayStr).trim(),
+      createdAt: new Date().toISOString(),
     };
     filtered.push(created);
     this.saveUsers(filtered);
@@ -184,6 +196,8 @@ export const StorageService = {
       username: updates.username ? updates.username.trim().toLowerCase().replace(/\s+/g, '_') : users[index].username,
       password: updates.password ? updates.password.trim() : users[index].password,
       dailyTargetMinutes: updates.dailyTargetMinutes !== undefined ? updates.dailyTargetMinutes : users[index].dailyTargetMinutes,
+      joiningDate: updates.joiningDate !== undefined ? updates.joiningDate : users[index].joiningDate,
+      firstLoginDate: updates.firstLoginDate !== undefined ? updates.firstLoginDate : users[index].firstLoginDate,
     };
     users[index] = updatedUser;
     this.saveUsers(users);
@@ -194,6 +208,71 @@ export const StorageService = {
     }
 
     return updatedUser;
+  },
+
+  // Record faculty login date automatically upon successful login
+  recordTeacherLogin(teacherId: string): void {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    if (!cleanId || cleanId.startsWith('ADMIN')) return;
+    const users = this.getUsers();
+    const index = users.findIndex((u) => u.teacherId.toUpperCase() === cleanId);
+    if (index === -1) return;
+
+    const todayStr = this.toLocalDateKey(new Date());
+    const user = users[index];
+    let changed = false;
+
+    if (!user.firstLoginDate) {
+      user.firstLoginDate = todayStr;
+      changed = true;
+    }
+    if (!user.joiningDate) {
+      user.joiningDate = todayStr;
+      changed = true;
+    }
+
+    if (changed) {
+      users[index] = { ...user };
+      this.saveUsers(users);
+    }
+  },
+
+  // Get effective start date for backlog tracking (joining date or first login date)
+  getTeacherEffectiveStartDate(teacherId: string): string {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    const user = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
+    const todayStr = this.toLocalDateKey(new Date());
+
+    if (user?.joiningDate) {
+      return user.joiningDate;
+    }
+    if (user?.firstLoginDate) {
+      return user.firstLoginDate;
+    }
+
+    // Fallback to earliest recorded activity
+    const lectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
+    const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
+    const dayOffs = this.getDayOffGrants().filter((g) => g.teacherId.toUpperCase() === cleanId);
+
+    const dates: string[] = [];
+    lectures.forEach((l) => {
+      const d = this.toLocalDateKey(l.createdAt);
+      if (d) dates.push(d);
+    });
+    commitments.forEach((c) => {
+      if (c.date) dates.push(c.date);
+    });
+    dayOffs.forEach((g) => {
+      if (g.date) dates.push(g.date);
+    });
+
+    if (dates.length > 0) {
+      dates.sort();
+      return dates[0];
+    }
+
+    return todayStr;
   },
 
   updateAdminCredentials(data: {
@@ -1523,6 +1602,13 @@ export const StorageService = {
     commitments: DailyCommitment[]
   ): number {
     const cleanId = (teacherId || '').toUpperCase();
+
+    // Dates prior to the teacher's official joining / first login date are NOT subject to quotas
+    const startDate = this.getTeacherEffectiveStartDate(cleanId);
+    if (date < startDate) {
+      return 0;
+    }
+
     // If faculty was granted an approved Day Off / Leave on this date, target is 0 min (excused)
     if (this.isDayOff(cleanId, date)) {
       return 0;
@@ -1548,7 +1634,7 @@ export const StorageService = {
       if (anyLectureSnapshot) return anyLectureSnapshot;
     }
 
-    // Default required quota for regular working days: only permitted leaves have 0m target.
+    // Default required quota for active working days: only permitted leaves and pre-joining dates are excused.
     const user = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
     return user?.dailyTargetMinutes || 120;
   },
@@ -1712,46 +1798,30 @@ export const StorageService = {
     const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
     const dayOffGrants = this.getDayOffGrants().filter((g) => g.teacherId.toUpperCase() === cleanId);
 
-    // Find the earliest date of activity for this teacher
-    const activityDates: string[] = [];
-    teacherLectures.forEach((l) => {
-      const d = this.toLocalDateKey(l.createdAt);
-      if (d) activityDates.push(d);
-    });
-    commitments.forEach((c) => {
-      if (c.date) activityDates.push(c.date);
-    });
-    dayOffGrants.forEach((g) => {
-      if (g.date) activityDates.push(g.date);
-      if (g.endDate) activityDates.push(g.endDate);
-    });
+    // Backlog tracking begins from the official joining date or first login date
+    const startDateStr = this.getTeacherEffectiveStartDate(cleanId);
 
-    activityDates.push(yesterdayStr);
-    activityDates.push(todayStr);
-
-    activityDates.sort();
-    let earliestDateStr = activityDates[0];
-
-    // Ensure we look at least 14 days back if earliest date is recent, up to 60 days
-    const minFourteenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
-    const minFourteenStr = this.toLocalDateKey(minFourteenDaysAgo);
-    if (earliestDateStr > minFourteenStr && activityDates.length > 2) {
-      earliestDateStr = minFourteenStr;
-    }
-
-    // Generate EVERY single continuous calendar date from earliestDateStr up to todayStr
+    // Generate EVERY single continuous calendar date from startDateStr up to todayStr
     const allDates = new Set<string>();
-    const iterDate = new Date(earliestDateStr + 'T12:00:00');
+    const iterDate = new Date(startDateStr + 'T12:00:00');
     const todayDateObj = new Date(todayStr + 'T12:00:00');
 
-    let safetyCount = 90;
+    // Ensure today and yesterday are included
+    allDates.add(todayStr);
+    allDates.add(yesterdayStr);
+
+    // If teacher recorded lectures before startDateStr, include those dates as well
+    teacherLectures.forEach((l) => {
+      const d = this.toLocalDateKey(l.createdAt);
+      if (d) allDates.add(d);
+    });
+
+    let safetyCount = 180;
     while (iterDate <= todayDateObj && safetyCount > 0) {
       allDates.add(this.toLocalDateKey(iterDate));
       iterDate.setDate(iterDate.getDate() + 1);
       safetyCount--;
     }
-    allDates.add(todayStr);
-    allDates.add(yesterdayStr);
 
     const lecturesByDate = new Map<string, Lecture[]>();
     teacherLectures.forEach((l) => {
@@ -1857,6 +1927,8 @@ export const StorageService = {
 
     return {
       teacherId: cleanId,
+      joiningDate: teacher?.joiningDate || startDateStr,
+      effectiveStartDate: startDateStr,
       totalHistoricalShortfall,
       totalSurplusEarned: walletInfo.totalSurplusEarned,
       walletMinutesApplied,

@@ -15,6 +15,9 @@ export interface User {
   dailyUploadCutoffTime?: string; // Standard fixed daily upload cutoff time (e.g. "20:00" / "08:00 PM") set once upon first login
   hasSetInitialCommitment?: boolean; // Set to true once the teacher sets their initial commitment time
   dailyLimit?: number;           // Backwards compatibility
+  joiningDate?: string;          // Official faculty onboarding / joining date (YYYY-MM-DD) for backlog calculation origin
+  firstLoginDate?: string;       // Date when faculty first logged in (YYYY-MM-DD)
+  createdAt?: string;            // Account creation timestamp
 }
 
 export interface DailyCommitment {
@@ -218,6 +221,8 @@ export interface TeacherDailyLogsInfo {
   surplusDaysCount: number;
   completedDaysCount: number;
   leaveDaysCount: number;
+  joiningDate?: string;            // Faculty joining date / tracking origin (YYYY-MM-DD)
+  effectiveStartDate?: string;      // Effective date backlog calculations start from
   logs: DailyBacklogLog[];         // Sorted newest to oldest
 }
 

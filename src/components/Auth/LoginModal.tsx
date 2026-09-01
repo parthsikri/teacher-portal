@@ -70,7 +70,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     }
 
     // Successful secure authentication
-    onLoginSuccess(match);
+    if (match.role === 'teacher') {
+      StorageService.recordTeacherLogin(match.teacherId);
+    }
+    const freshUser = StorageService.getUsers().find((u) => u.teacherId.toUpperCase() === match.teacherId.toUpperCase()) || match;
+    onLoginSuccess(freshUser);
   };
 
   return (

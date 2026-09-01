@@ -112,14 +112,19 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
                   📅
                 </span>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-100 tracking-tight flex flex-wrap items-center gap-2">
                     Daily Recording & Backlog Logs
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-normal">
                       Faculty Audit Trail
                     </span>
+                    {dailyLogsInfo.joiningDate && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono font-bold flex items-center gap-1">
+                        🚀 Tracking Since: {dailyLogsInfo.joiningDate}
+                      </span>
+                    )}
                   </h2>
-                  <p className="text-xs text-slate-400">
-                    Crosscheck daily lecture targets, delivered recording minutes, shortfall backlogs, and excused leaves day-by-day.
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Day-by-day audit starting from your official joining date ({dailyLogsInfo.joiningDate || 'onboarding'}). Dates prior to joining are excluded, and approved leaves are excused with zero backlog debt.
                   </p>
                 </div>
               </div>

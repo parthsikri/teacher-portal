@@ -111,6 +111,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newSubject, setNewSubject] = useState('Data Structures & Algorithms');
   const [newTargetMinutes, setNewTargetMinutes] = useState(120);
   const [newMaxDailyMinutes, setNewMaxDailyMinutes] = useState(240);
+  const [newJoiningDate, setNewJoiningDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Edit Teacher Credentials Modal State
   const [editingTeacher, setEditingTeacher] = useState<User | null>(null);
@@ -122,6 +123,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editSubject, setEditSubject] = useState('');
   const [editTargetMinutes, setEditTargetMinutes] = useState(120);
   const [editMaxDailyMinutes, setEditMaxDailyMinutes] = useState(240);
+  const [editJoiningDate, setEditJoiningDate] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Late Extensions Modal State
@@ -303,6 +305,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       subject: newSubject.trim() || 'Engineering',
       dailyTargetMinutes: newTargetMinutes || 120,
       maxDailyMinutes: newMaxDailyMinutes || 240,
+      joiningDate: newJoiningDate || new Date().toISOString().split('T')[0],
     });
 
     setShowAddModal(false);
@@ -311,6 +314,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setNewPassword('teach123');
     setNewTargetMinutes(120);
     setNewMaxDailyMinutes(240);
+    setNewJoiningDate(new Date().toISOString().split('T')[0]);
     refreshState();
   };
 
@@ -325,6 +329,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setEditSubject(t.subject);
     setEditTargetMinutes(t.dailyTargetMinutes || 120);
     setEditMaxDailyMinutes(t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240));
+    setEditJoiningDate(t.joiningDate || t.firstLoginDate || '2026-08-25');
     setShowEditPassword(false);
   };
 
@@ -342,6 +347,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       subject: editSubject.trim(),
       dailyTargetMinutes: editTargetMinutes || 120,
       maxDailyMinutes: editMaxDailyMinutes || 240,
+      joiningDate: editJoiningDate || undefined,
     });
 
     setEditingTeacher(null);
@@ -2976,7 +2982,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         })()}
                       </div>
 
-                      {/* PERMANENT DAILY UPLOAD CUTOFF TIME */}
+                      {/* PERMANENT DAILY UPLOAD CUTOFF TIME & JOINING DATE */}
                       {(() => {
                         const cutoff = t.dailyUploadCutoffTime || StorageService.getDailyCommitment(t.teacherId)?.promisedTime;
                         const formatTime = (time24?: string) => {
@@ -2989,11 +2995,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         };
 
                         return (
-                          <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                            <span className="text-slate-400">Daily Cutoff:</span>
-                            <span className="font-mono font-bold text-amber-400">
-                              {cutoff ? formatTime(cutoff) : 'Pending 1st Login'}
-                            </span>
+                          <div className="space-y-1.5">
+                            <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                              <span className="text-slate-400">Daily Cutoff:</span>
+                              <span className="font-mono font-bold text-amber-400">
+                                {cutoff ? formatTime(cutoff) : 'Pending 1st Login'}
+                              </span>
+                            </div>
+                            <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                              <span className="text-slate-400">Joining Date:</span>
+                              <span className="font-mono font-bold text-indigo-300">
+                                {t.joiningDate || t.firstLoginDate || '2026-08-25'}
+                              </span>
+                            </div>
                           </div>
                         );
                       })()}
@@ -3848,7 +3862,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
                     <input
@@ -3860,7 +3874,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Daily Min Target (Minutes)</label>
+                    <label className="block text-slate-300 font-semibold mb-1">Daily Min Target (Min)</label>
                     <input
                       type="number"
                       min={15}
@@ -3872,15 +3886,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Daily Max Limit (Minutes)</label>
+                    <label className="block text-slate-300 font-semibold mb-1">Joining Date (Start of Backlog)</label>
                     <input
-                      type="number"
-                      min={15}
-                      max={480}
-                      step={15}
-                      value={newMaxDailyMinutes}
-                      onChange={(e) => setNewMaxDailyMinutes(parseInt(e.target.value) || 240)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                      type="date"
+                      value={newJoiningDate}
+                      onChange={(e) => setNewJoiningDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
@@ -3989,7 +4000,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
                   <input
@@ -3999,30 +4010,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
                   />
                 </div>
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Daily Min Target (Minutes)</label>
-                    <input
-                      type="number"
-                      min={15}
-                      max={480}
-                      step={15}
-                      value={editTargetMinutes}
-                      onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Daily Max Limit (Minutes)</label>
-                    <input
-                      type="number"
-                      min={15}
-                      max={480}
-                      step={15}
-                      value={editMaxDailyMinutes}
-                      onChange={(e) => setEditMaxDailyMinutes(parseInt(e.target.value) || 240)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Daily Target (Min)</label>
+                  <input
+                    type="number"
+                    min={15}
+                    max={480}
+                    step={15}
+                    value={editTargetMinutes}
+                    onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Joining Date (Backlog Origin)</label>
+                  <input
+                    type="date"
+                    value={editJoiningDate}
+                    onChange={(e) => setEditJoiningDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
