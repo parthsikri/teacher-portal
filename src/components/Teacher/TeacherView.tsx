@@ -3,6 +3,7 @@ import type { User, Lecture, AssignedTopic } from '../../types';
 import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { PptRequestPortal } from './PptRequestPortal';
+import { DailyBacklogLogsView } from './DailyBacklogLogsView';
 import confetti from 'canvas-confetti';
 import { 
   Search, FileText, Plus, Play,
@@ -11,7 +12,7 @@ import {
   FileSpreadsheet, Award, Folder,
   CheckCircle2, MessageCircle, Video,
   ArrowUp, ArrowDown, Trash2,
-  BookOpen, ArrowLeft, Layers, Grid, Sparkles, Wallet
+  BookOpen, ArrowLeft, Layers, Grid, Sparkles, Wallet, Calendar
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -241,6 +242,9 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletTransferMinutes, setWalletTransferMinutes] = useState(0);
+  const [showDailyLogsModal, setShowDailyLogsModal] = useState(false);
+  const [walletViewTab, setWalletViewTab] = useState<'surplus' | 'daily_logs'>('surplus');
+  const [showBacklogInTransferModal, setShowBacklogInTransferModal] = useState(false);
 
   // Next active deliverable
   const nextUrgentTopic = useMemo(() => {
@@ -858,9 +862,18 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   <span className="text-slate-300 font-medium">{remainingMinutesToday}m remaining</span>
                 )}
                 {backlogInfo && !backlogInfo.isYesterdayFulfilled && (
-                  <span className="text-amber-400 text-[10px] block font-medium">
-                    ⚠️ Yesterday: {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled
-                  </span>
+                  <div className="flex items-center justify-between gap-1 pt-0.5">
+                    <span className="text-amber-400 text-[10px] block font-medium truncate">
+                      ⚠️ Yesterday: {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowDailyLogsModal(true)}
+                      className="text-[9px] text-amber-300 hover:text-amber-200 font-bold underline shrink-0 cursor-pointer"
+                    >
+                      Crosscheck ➔
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1333,19 +1346,29 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           </div>
 
           {timeRemaining.yesterdayUnfulfilledMinutes > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200 flex items-center justify-between">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 ⚠️ Yesterday&apos;s unfulfilled quota: <strong>{timeRemaining.yesterdayUnfulfilledMinutes} min</strong>.
                 {backlogInfo.yesterdayPoolCompensated > 0 && (
                   <span className="text-indigo-300 ml-1">({lateBacklogInfo.walletMinutesApplied}m offset via Time Wallet).</span>
                 )}
               </div>
-              <button
-                onClick={() => onOpenUpload()}
-                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] transition-colors"
-              >
-                Fulfill Backlog →
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowDailyLogsModal(true)}
+                  className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold rounded-lg text-[11px] border border-amber-500/40 transition-colors cursor-pointer"
+                >
+                  🔍 Crosscheck Daily Logs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenUpload()}
+                  className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px] transition-colors cursor-pointer"
+                >
+                  Fulfill Backlog →
+                </button>
+              </div>
             </div>
           )}
 
@@ -1494,6 +1517,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             </section>
           )}
+
+          {/* ─── COMPREHENSIVE DAILY RECORDING & BACKLOG AUDIT LOGS ─── */}
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl space-y-4">
+            <DailyBacklogLogsView
+              teacherId={teacher.teacherId}
+              onOpenUpload={onOpenUpload}
+              onOpenWalletModal={() => setShowWalletModal(true)}
+              onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
+            />
+          </section>
         </div>
       )}
 
@@ -1565,114 +1598,161 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             </div>
 
-            {/* Surplus Earnings Ledger & Audit Log */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Positive Surplus Ledger */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                      <span>🌟 Positive Surplus Earnings Ledger</span>
-                    </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Recording sessions where you exceeded your daily target</p>
-                  </div>
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    {positiveSurplusDays.length} surplus day{positiveSurplusDays.length === 1 ? '' : 's'}
+            {/* View Mode Tabs: Positive Surplus Ledger vs Complete Daily Backlog Logs */}
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+              <button
+                type="button"
+                onClick={() => setWalletViewTab('surplus')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  walletViewTab === 'surplus'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <span>🌟 Surplus Earnings & Banked Ledger</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px] font-mono">
+                  {positiveSurplusDays.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWalletViewTab('daily_logs')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  walletViewTab === 'daily_logs'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <span>📅 Daily Recording & Backlog Logs (Crosscheck)</span>
+                {lateBacklogInfo.remainingBacklogMinutes > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono font-bold">
+                    {lateBacklogInfo.remainingBacklogMinutes}m Backlog
                   </span>
-                </div>
-
-                <div className="flex-1 overflow-x-auto">
-                  {positiveSurplusDays.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-slate-500 italic space-y-1.5">
-                      <div className="text-2xl">🌱</div>
-                      <p className="font-semibold text-slate-300">No Surplus Earnings Yet</p>
-                      <p className="text-[11px]">Whenever you record more than your daily target (e.g. 75 min on a 60 min day), the extra +15 minutes will be safely banked here as positive earnings.</p>
-                    </div>
-                  ) : (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-950/60 border-b border-slate-800/80 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                        <tr>
-                          <th className="px-4 py-2.5">Date</th>
-                          <th className="px-3 py-2.5">Daily Target</th>
-                          <th className="px-3 py-2.5">Recorded Duration</th>
-                          <th className="px-4 py-2.5 text-right">Surplus Banked</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {positiveSurplusDays.map((h) => (
-                          <tr key={h.date} className="hover:bg-slate-800/30 transition-colors">
-                            <td className="px-4 py-3 font-mono font-semibold text-slate-200">{h.date}</td>
-                            <td className="px-3 py-3 text-slate-400 font-mono">{h.dailyTarget}m</td>
-                            <td className="px-3 py-3 text-slate-200 font-mono font-bold">{h.recordedMinutes}m</td>
-                            <td className="px-4 py-3 text-right font-mono">
-                              <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full text-xs border border-emerald-500/20">
-                                +{h.surplus} min Banked 🌟
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-
-              {/* Wallet Transaction Ledger */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                      <span>📜 Banked Surplus Audit Trail</span>
-                    </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Immutable record of wallet surplus deposits</p>
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-mono font-bold">
-                    {walletInfo.transactions.length} tx{walletInfo.transactions.length === 1 ? '' : 's'}
-                  </span>
-                </div>
-
-                <div className="flex-1 p-4 overflow-y-auto max-h-[380px] space-y-2">
-                  {walletInfo.transactions.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-slate-500 italic">
-                      No wallet deposits logged yet. Extra minutes recorded beyond daily targets will appear here.
-                    </div>
-                  ) : (
-                    walletInfo.transactions.map((tx) => (
-                      <div
-                        key={tx.id}
-                        className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="font-semibold text-slate-200 flex items-center gap-2">
-                            <span
-                              className={`w-2 h-2 rounded-full ${
-                                tx.type === 'deposit_surplus' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-purple-400 shadow-sm shadow-purple-400/50'
-                              }`}
-                            />
-                            <span>{tx.type === 'deposit_surplus' ? 'Surplus Deposit' : 'Transferred to Backlog'}</span>
-                            <span className="text-[10px] text-slate-500 font-mono">• {tx.date}</span>
-                            {tx.appliedBy && (
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                                By: {tx.appliedBy}
-                              </span>
-                            )}
-                          </div>
-                          {tx.note && <div className="text-[11px] text-slate-400">{tx.note}</div>}
-                        </div>
-
-                        <div
-                          className={`text-sm font-mono font-black shrink-0 ${
-                            tx.type === 'deposit_surplus' ? 'text-emerald-400' : 'text-purple-300'
-                          }`}
-                        >
-                          {tx.type === 'deposit_surplus' ? `+${tx.amount}m` : `-${tx.amount}m`}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+                )}
+              </button>
             </div>
+
+            {walletViewTab === 'surplus' ? (
+              /* Surplus Earnings Ledger & Audit Log */
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Positive Surplus Ledger */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
+                  <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                        <span>🌟 Positive Surplus Earnings Ledger</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Recording sessions where you exceeded your daily target</p>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      {positiveSurplusDays.length} surplus day{positiveSurplusDays.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 overflow-x-auto">
+                    {positiveSurplusDays.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-slate-500 italic space-y-1.5">
+                        <div className="text-2xl">🌱</div>
+                        <p className="font-semibold text-slate-300">No Surplus Earnings Yet</p>
+                        <p className="text-[11px]">Whenever you record more than your daily target (e.g. 75 min on a 60 min day), the extra +15 minutes will be safely banked here as positive earnings.</p>
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-950/60 border-b border-slate-800/80 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                          <tr>
+                            <th className="px-4 py-2.5">Date</th>
+                            <th className="px-3 py-2.5">Daily Target</th>
+                            <th className="px-3 py-2.5">Recorded Duration</th>
+                            <th className="px-4 py-2.5 text-right">Surplus Banked</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {positiveSurplusDays.map((h) => (
+                            <tr key={h.date} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="px-4 py-3 font-mono font-semibold text-slate-200">{h.date}</td>
+                              <td className="px-3 py-3 text-slate-400 font-mono">{h.dailyTarget}m</td>
+                              <td className="px-3 py-3 text-slate-200 font-mono font-bold">{h.recordedMinutes}m</td>
+                              <td className="px-4 py-3 text-right font-mono">
+                                <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full text-xs border border-emerald-500/20">
+                                  +{h.surplus} min Banked 🌟
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+                {/* Wallet Transaction Ledger */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden flex flex-col">
+                  <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                        <span>📜 Banked Surplus Audit Trail</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Immutable record of wallet surplus deposits</p>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-mono font-bold">
+                      {walletInfo.transactions.length} tx{walletInfo.transactions.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 p-4 overflow-y-auto max-h-[380px] space-y-2">
+                    {walletInfo.transactions.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-slate-500 italic">
+                        No wallet deposits logged yet. Extra minutes recorded beyond daily targets will appear here.
+                      </div>
+                    ) : (
+                      walletInfo.transactions.map((tx) => (
+                        <div
+                          key={tx.id}
+                          className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-slate-200 flex items-center gap-2">
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  tx.type === 'deposit_surplus' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-purple-400 shadow-sm shadow-purple-400/50'
+                                }`}
+                              />
+                              <span>{tx.type === 'deposit_surplus' ? 'Surplus Deposit' : 'Transferred to Backlog'}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">• {tx.date}</span>
+                              {tx.appliedBy && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                                  By: {tx.appliedBy}
+                                </span>
+                              )}
+                            </div>
+                            {tx.note && <div className="text-[11px] text-slate-400">{tx.note}</div>}
+                          </div>
+
+                          <div
+                            className={`text-sm font-mono font-black shrink-0 ${
+                              tx.type === 'deposit_surplus' ? 'text-emerald-400' : 'text-purple-300'
+                            }`}
+                          >
+                            {tx.type === 'deposit_surplus' ? `+${tx.amount}m` : `-${tx.amount}m`}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Daily Backlog & Recording Logs Tab */
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl">
+                <DailyBacklogLogsView
+                  teacherId={teacher.teacherId}
+                  onOpenUpload={onOpenUpload}
+                  onOpenWalletModal={() => setShowWalletModal(true)}
+                  onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
+                />
+              </div>
+            )}
           </div>
         );
       })()}
@@ -2416,12 +2496,22 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => onOpenUpload()}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shrink-0"
-              >
-                Upload Lecture →
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowDailyLogsModal(true)}
+                  className="px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold rounded-xl text-xs border border-amber-500/40 transition-colors cursor-pointer"
+                >
+                  🔍 Crosscheck Logs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenUpload()}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                >
+                  Upload Lecture →
+                </button>
+              </div>
             </div>
           )}
 
@@ -3099,6 +3189,32 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
             )}
 
+            {/* Daily Backlog Breakdown Preview in Transfer Modal */}
+            <div className="pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowBacklogInTransferModal(!showBacklogInTransferModal)}
+                className="w-full py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 text-xs font-semibold flex items-center justify-between px-3 border border-slate-800/80 cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Inspect Day-by-Day Shortfall Breakdown</span>
+                </span>
+                <span className="text-[10px] text-indigo-400 underline font-mono">
+                  {showBacklogInTransferModal ? 'Hide' : 'Show Logs'}
+                </span>
+              </button>
+
+              {showBacklogInTransferModal && (
+                <div className="mt-2.5 p-2 bg-slate-950 rounded-xl border border-slate-800 max-h-56 overflow-y-auto">
+                  <DailyBacklogLogsView
+                    teacherId={teacher.teacherId}
+                    isCompactModalView={true}
+                  />
+                </div>
+              )}
+            </div>
+
             {/* Transaction History Audit Log */}
             <div className="space-y-2 pt-1 border-t border-slate-800/80">
               <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
@@ -3127,6 +3243,44 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DEDICATED DAILY BACKLOG & RECORDING CROSSCHECK OVERLAY MODAL ─── */}
+      {showDailyLogsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 font-black text-lg">📅</span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Daily Recording & Backlog Crosscheck</h3>
+                  <p className="text-xs text-slate-400">Inspect historical recording targets, delivered lectures, and shortfall calculations day-by-day</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDailyLogsModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <DailyBacklogLogsView
+              teacherId={teacher.teacherId}
+              onOpenUpload={(top) => {
+                setShowDailyLogsModal(false);
+                onOpenUpload(top);
+              }}
+              onOpenWalletModal={() => {
+                setShowDailyLogsModal(false);
+                setShowWalletModal(true);
+              }}
+              onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
+              isCompactModalView={false}
+            />
           </div>
         </div>
       )}

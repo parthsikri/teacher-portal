@@ -29,6 +29,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   const [selectedAssignedTopicId, setSelectedAssignedTopicId] = useState<string>(prefillTopic ? prefillTopic.id : '');
   const chosenTopicId = prefillTopic ? prefillTopic.id : (selectedAssignedTopicId || undefined);
   const activeExtension = StorageService.getActiveExtensionForTopic(teacher.teacherId, chosenTopicId);
+  const [showBacklogLogsDetails, setShowBacklogLogsDetails] = useState(false);
 
   // Form fields
   const [title, setTitle] = useState(prefillTopic ? prefillTopic.topicTitle : '');
@@ -257,14 +258,42 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
           )}
 
           {backlogInfo && !backlogInfo.isYesterdayFulfilled && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-xl flex items-center gap-2">
-              <span className="text-sm">⚠️</span>
-              <div>
-                <strong>Notice:</strong> You have {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled backlog from yesterday.
-                {backlogInfo.timeWalletBalance > 0 && (
-                  <span className="text-indigo-300 ml-1">(You have +{backlogInfo.timeWalletBalance}m in Time Wallet to offset backlog).</span>
-                )}
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs rounded-xl space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">⚠️</span>
+                  <div>
+                    <strong>Backlog Notice:</strong> You have {backlogInfo.yesterdayUnfulfilledMinutes}m unfulfilled backlog from yesterday ({backlogInfo.yesterdayDateStr}).
+                    {backlogInfo.timeWalletBalance > 0 && (
+                      <span className="text-indigo-300 ml-1">(+{backlogInfo.timeWalletBalance}m in Time Wallet).</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBacklogLogsDetails(!showBacklogLogsDetails)}
+                  className="text-[10px] text-amber-300 hover:text-amber-100 font-bold underline shrink-0 cursor-pointer"
+                >
+                  {showBacklogLogsDetails ? 'Hide' : 'Crosscheck ➔'}
+                </button>
               </div>
+
+              {showBacklogLogsDetails && (
+                <div className="pt-2 border-t border-amber-500/20 text-[11px] text-slate-300 space-y-1 bg-slate-950/60 p-2.5 rounded-lg">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Yesterday's Required Quota:</span>
+                    <span className="font-mono font-bold text-slate-200">{backlogInfo.yesterdayTarget} min</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Yesterday's Recorded Duration:</span>
+                    <span className="font-mono font-bold text-slate-200">{backlogInfo.yesterdayRecorded} min</span>
+                  </div>
+                  <div className="flex justify-between text-amber-300 font-bold">
+                    <span>Unfulfilled Shortfall:</span>
+                    <span className="font-mono">-{backlogInfo.yesterdayUnfulfilledMinutes} min</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -186,6 +186,41 @@ export interface TimeWalletInfo {
   transactions: WalletTransaction[]; // Audit history
 }
 
+export type DailyLogStatus = 'surplus' | 'completed' | 'shortfall' | 'leave' | 'in_progress';
+
+export interface DailyBacklogLog {
+  date: string;                   // YYYY-MM-DD
+  dayOfWeek: string;              // e.g. "Monday", "Tuesday"
+  formattedDate: string;          // e.g. "Aug 31, 2026"
+  isToday: boolean;
+  isYesterday: boolean;
+  dailyTarget: number;            // Quota in minutes (0 if approved leave)
+  recordedMinutes: number;        // Total minutes recorded from lectures on this date
+  shortfall: number;              // Raw deficit for this date Math.max(0, dailyTarget - recordedMinutes)
+  surplus: number;                // Surplus earned Math.max(0, recordedMinutes - dailyTarget)
+  isDayOff: boolean;              // True if official approved leave
+  dayOffReason?: string;          // Reason e.g. "Medical Leave"
+  status: DailyLogStatus;         // surplus | completed | shortfall | leave | in_progress
+  lectures: Lecture[];            // Complete list of lectures uploaded on this date
+  lectureCount: number;
+  walletAppliedMinutes?: number;  // If wallet minutes were applied to offset
+  notes?: string;
+}
+
+export interface TeacherDailyLogsInfo {
+  teacherId: string;
+  totalHistoricalShortfall: number;
+  totalSurplusEarned: number;
+  walletMinutesApplied: number;
+  remainingBacklogMinutes: number;
+  totalDaysLogged: number;
+  shortfallDaysCount: number;
+  surplusDaysCount: number;
+  completedDaysCount: number;
+  leaveDaysCount: number;
+  logs: DailyBacklogLog[];         // Sorted newest to oldest
+}
+
 export interface EmailConfig {
   provider: 'smtp' | 'resend';
   smtpUser?: string;
@@ -196,4 +231,5 @@ export interface EmailConfig {
   resendApiKey?: string;
   fromEmail?: string;
 }
+
 

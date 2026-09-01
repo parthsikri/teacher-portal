@@ -1,7 +1,8 @@
 import { notificationService } from './notificationService';
 import type {
   DayOffGrant,
-  User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, EmailConfig } from '../types';
+  User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig } from '../types';
+
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
 const USERS_KEY = 'aew_portal_users_prod_v2';
@@ -1709,34 +1710,42 @@ export const StorageService = {
     };
   },
 
-  getLateBacklogInfo(teacherId: string): {
-    rawHistoricalShortfall: number;
-    walletMinutesApplied: number;
-    remainingBacklogMinutes: number;
-    pastSessionsMissedCount: number;
-    history: Array<{
-      date: string;
-      recordedMinutes: number;
-      dailyTarget: number;
-      shortfall: number;
-      surplus: number;
-    }>;
-  } {
+  getTeacherDailyLogs(teacherId: string): TeacherDailyLogsInfo {
     const cleanId = (teacherId || '').trim().toUpperCase();
     const now = new Date();
     const todayStr = this.toLocalDateKey(now);
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yesterdayStr = this.toLocalDateKey(yesterday);
+
+    const teacher = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
+    const standardDailyTarget = teacher?.dailyTargetMinutes || 120;
 
     const teacherLectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
     const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
+    const dayOffGrants = this.getDayOffGrants().filter((g) => g.teacherId.toUpperCase() === cleanId);
 
-    const pastDates = new Set<string>();
+    const allDates = new Set<string>();
+    allDates.add(todayStr);
+    allDates.add(yesterdayStr);
+
     teacherLectures.forEach((l) => {
       const d = this.toLocalDateKey(l.createdAt);
-      if (d && d < todayStr) pastDates.add(d);
+      if (d) allDates.add(d);
     });
+
     commitments.forEach((c) => {
-      if (c.date && c.date < todayStr && c.isDeliveryDay !== false) {
-        pastDates.add(c.date);
+      if (c.date) allDates.add(c.date);
+    });
+
+    dayOffGrants.forEach((g) => {
+      if (g.date) allDates.add(g.date);
+      if (g.endDate && g.endDate >= g.date) {
+        const cur = new Date(g.date + 'T12:00:00');
+        const end = new Date(g.endDate + 'T12:00:00');
+        while (cur <= end) {
+          allDates.add(this.toLocalDateKey(cur));
+          cur.setDate(cur.getDate() + 1);
+        }
       }
     });
 
@@ -1749,50 +1758,139 @@ export const StorageService = {
       }
     });
 
-    let rawHistoricalShortfall = 0;
-    const history: Array<{
-      date: string;
-      recordedMinutes: number;
-      dailyTarget: number;
-      shortfall: number;
-      surplus: number;
-    }> = [];
+    let totalHistoricalShortfall = 0;
+    let shortfallDaysCount = 0;
+    let surplusDaysCount = 0;
+    let completedDaysCount = 0;
+    let leaveDaysCount = 0;
 
-    const sortedDates = Array.from(pastDates).sort();
+    // Sort descending (newest first: Today -> Yesterday -> Older)
+    const sortedDatesDesc = Array.from(allDates).sort((a, b) => b.localeCompare(a));
 
-    sortedDates.forEach((date) => {
+    const logs: DailyBacklogLog[] = sortedDatesDesc.map((date) => {
+      const isToday = date === todayStr;
+      const isYesterday = date === yesterdayStr;
       const dayLectures = lecturesByDate.get(date) || [];
-      const recorded = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
-      const target = this.getHistoricalTargetForDate(cleanId, date, dayLectures, commitments);
-      const deficit = Math.max(0, target - recorded);
-      const surplus = Math.max(0, recorded - target);
+      const recordedMinutes = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+      
+      const isDayOff = this.isDayOff(cleanId, date);
+      const dayOffGrant = dayOffGrants.find((g) => {
+        if (g.date === date) return true;
+        if (g.endDate && g.date <= date && date <= g.endDate) return true;
+        return false;
+      });
+      const dayOffReason = dayOffGrant?.reason || (isDayOff ? 'Approved Leave' : undefined);
 
-      if (deficit > 0) {
-        rawHistoricalShortfall += deficit;
+      let dailyTarget = 0;
+      if (isDayOff) {
+        dailyTarget = 0;
+      } else if (isToday) {
+        dailyTarget = standardDailyTarget;
+      } else {
+        dailyTarget = this.getHistoricalTargetForDate(cleanId, date, dayLectures, commitments);
       }
 
-      history.push({
+      const shortfall = Math.max(0, dailyTarget - recordedMinutes);
+      const surplus = Math.max(0, recordedMinutes - dailyTarget);
+
+      if (!isToday && shortfall > 0) {
+        totalHistoricalShortfall += shortfall;
+        shortfallDaysCount += 1;
+      }
+      if (surplus > 0) {
+        surplusDaysCount += 1;
+      } else if (!isDayOff && dailyTarget > 0 && recordedMinutes >= dailyTarget) {
+        completedDaysCount += 1;
+      }
+      if (isDayOff) {
+        leaveDaysCount += 1;
+      }
+
+      let status: DailyLogStatus = 'completed';
+      if (isToday) {
+        status = (recordedMinutes >= dailyTarget && dailyTarget > 0)
+          ? (surplus > 0 ? 'surplus' : 'completed')
+          : 'in_progress';
+      } else if (isDayOff) {
+        status = 'leave';
+      } else if (shortfall > 0) {
+        status = 'shortfall';
+      } else if (surplus > 0) {
+        status = 'surplus';
+      } else {
+        status = 'completed';
+      }
+
+      const dObj = new Date(date + 'T12:00:00');
+      const dayOfWeek = isNaN(dObj.getTime())
+        ? ''
+        : dObj.toLocaleDateString(undefined, { weekday: 'long' });
+      const formattedDate = isNaN(dObj.getTime())
+        ? date
+        : dObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+      return {
         date,
-        recordedMinutes: recorded,
-        dailyTarget: target,
-        shortfall: deficit,
+        dayOfWeek,
+        formattedDate,
+        isToday,
+        isYesterday,
+        dailyTarget,
+        recordedMinutes,
+        shortfall,
         surplus,
-      });
+        isDayOff,
+        dayOffReason,
+        status,
+        lectures: dayLectures,
+        lectureCount: dayLectures.length,
+      };
     });
 
     const walletInfo = this.getTimeWalletInfo(cleanId);
     const walletMinutesApplied = walletInfo.totalAppliedToBacklog;
-    const remainingBacklogMinutes = Math.max(0, rawHistoricalShortfall - walletMinutesApplied);
-    const pastSessionsMissedCount = history.filter((h) => h.shortfall > 0).length;
+    const remainingBacklogMinutes = Math.max(0, totalHistoricalShortfall - walletMinutesApplied);
 
     return {
-      rawHistoricalShortfall,
+      teacherId: cleanId,
+      totalHistoricalShortfall,
+      totalSurplusEarned: walletInfo.totalSurplusEarned,
       walletMinutesApplied,
       remainingBacklogMinutes,
-      pastSessionsMissedCount,
-      history,
+      totalDaysLogged: logs.length,
+      shortfallDaysCount,
+      surplusDaysCount,
+      completedDaysCount,
+      leaveDaysCount,
+      logs,
     };
   },
+
+  getLateBacklogInfo(teacherId: string): {
+    rawHistoricalShortfall: number;
+    walletMinutesApplied: number;
+    remainingBacklogMinutes: number;
+    pastSessionsMissedCount: number;
+    history: Array<DailyBacklogLog>;
+  } {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    const dailyLogs = this.getTeacherDailyLogs(cleanId);
+
+    // Historical past days only (sorted ascending for backwards compatibility with chart views)
+    const pastLogs = dailyLogs.logs
+      .filter((l) => !l.isToday)
+      .slice()
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      rawHistoricalShortfall: dailyLogs.totalHistoricalShortfall,
+      walletMinutesApplied: dailyLogs.walletMinutesApplied,
+      remainingBacklogMinutes: dailyLogs.remainingBacklogMinutes,
+      pastSessionsMissedCount: dailyLogs.shortfallDaysCount,
+      history: pastLogs,
+    };
+  },
+
 
   applyWalletToBacklog(
     teacherId: string,

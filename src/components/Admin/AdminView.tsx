@@ -4,6 +4,7 @@ import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { EmailSettingsModal } from '../Common/EmailSettingsModal';
+import { DailyBacklogLogsView } from '../Teacher/DailyBacklogLogsView';
 import { 
   Calendar, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
@@ -58,6 +59,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [searchTeacherQuery, setSearchTeacherQuery] = useState('');
   const [searchLectureQuery, setSearchLectureQuery] = useState('');
   const [searchTopicQuery, setSearchTopicQuery] = useState('');
+  const [adminInspectDailyLogsTeacherId, setAdminInspectDailyLogsTeacherId] = useState<string | null>(null);
 
   // Step-by-Step Subject & Unit Square Card Selection State for Admin Syllabus
   const [selectedSubjectAdminSyllabus, setSelectedSubjectAdminSyllabus] = useState<string | null>(null);
@@ -2513,6 +2515,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 ⚡ Apply ({Math.min(w.balance, b.remainingBacklogMinutes)}m)
                               </button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => setAdminInspectDailyLogsTeacherId(t.teacherId)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-slate-700/60"
+                              title="Inspect Day-by-Day Recording and Backlog Logs"
+                            >
+                              📅 Daily Logs
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -5412,6 +5422,44 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onClose={() => setShowEmailModal(false)}
           adminEmail={adminEmail}
         />
+      )}
+
+      {/* Admin Faculty Daily Backlog & Recording Logs Modal */}
+      {adminInspectDailyLogsTeacherId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 font-black text-lg">📅</span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">
+                    Faculty Daily Logs & Backlog Audit:{' '}
+                    <span className="text-indigo-300">
+                      {teachers.find((t) => t.teacherId.toUpperCase() === adminInspectDailyLogsTeacherId.toUpperCase())?.name || adminInspectDailyLogsTeacherId}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Inspect historical recording targets, delivered sessions, shortfalls, and leaves</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdminInspectDailyLogsTeacherId(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <DailyBacklogLogsView
+              teacherId={adminInspectDailyLogsTeacherId}
+              onOpenWalletModal={() => {
+                setAdminInspectDailyLogsTeacherId(null);
+              }}
+              onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
+              isCompactModalView={false}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
