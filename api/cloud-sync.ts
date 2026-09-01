@@ -33,6 +33,7 @@ const DEFAULT_STATE = {
     pptRequests: [],
     extensions: [],
     walletTransactions: [],
+    dayOffGrants: [],
   };
 
 function mergeMasterStates(current: any, incoming: any): any {
@@ -257,6 +258,24 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
+  // Merge Day Off Grants (Leaves)
+  const dayOffMap = new Map<string, any>();
+  if (Array.isArray(current.dayOffGrants)) {
+    current.dayOffGrants.forEach((g: any) => {
+      if (g && g.id && !deletedIds.has(g.id.toUpperCase())) dayOffMap.set(g.id, g);
+    });
+  }
+  if (Array.isArray(incoming.dayOffGrants)) {
+    incoming.dayOffGrants.forEach((g: any) => {
+      if (g && g.id && !deletedIds.has(g.id.toUpperCase())) {
+        dayOffMap.set(g.id, {
+          ...dayOffMap.get(g.id),
+          ...g,
+        });
+      }
+    });
+  }
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -269,6 +288,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     pptRequests: Array.from(pptMap.values()),
     extensions: Array.from(extMap.values()),
     walletTransactions: Array.from(walletMap.values()),
+    dayOffGrants: Array.from(dayOffMap.values()),
   };
 }
 

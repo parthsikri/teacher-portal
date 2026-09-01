@@ -2182,10 +2182,12 @@ export const StorageService = {
     const backlogInfo = this.getPreviousDayBacklog(teacherId);
     const todayDateKey = this.toLocalDateKey(now);
     const isTodayDayOff = this.isDayOff(teacherId, todayDateKey);
-    const targetMinutes = isTodayDayOff ? 0 : (teacher?.dailyTargetMinutes || 120);
+    const startDateStr = this.getTeacherEffectiveStartDate(teacherId);
+    const isPreJoining = todayDateKey < startDateStr;
+    const targetMinutes = (isTodayDayOff || isPreJoining) ? 0 : (teacher?.dailyTargetMinutes || 120);
     const maxDailyMinutes = teacher?.maxDailyMinutes || (targetMinutes * 2 || 240);
     const minutesRecordedToday = this.getMinutesRecordedToday(teacherId);
-    const isTargetMet = isTodayDayOff || (minutesRecordedToday >= targetMinutes);
+    const isTargetMet = (isTodayDayOff || isPreJoining) || (minutesRecordedToday >= targetMinutes);
     const remainingMinutesToday = Math.max(0, targetMinutes - minutesRecordedToday);
     const extraMinutesRecorded = Math.max(0, minutesRecordedToday - targetMinutes);
     const remainingMaxMinutes = Math.max(0, maxDailyMinutes - minutesRecordedToday);
@@ -2427,6 +2429,7 @@ export const StorageService = {
       pptRequests: this.getPptRequests(),
       extensions: this.getExtensions(),
       walletTransactions: this.getWalletTransactions(),
+      dayOffGrants: this.getDayOffGrants(),
       emailConfig: this.getEmailConfig(),
     };
   },
@@ -2627,6 +2630,31 @@ export const StorageService = {
 
       localStorage.setItem(WALLET_TRANSACTIONS_KEY, JSON.stringify(mergedTxs));
     }
+
+    if (Array.isArray(state.dayOffGrants)) {
+      const localGrants = this.getDayOffGrants();
+      const localMap = new Map<string, DayOffGrant>();
+      localGrants.forEach((g) => localMap.set(g.id, g));
+
+      const mergedGrants: DayOffGrant[] = (state.dayOffGrants as DayOffGrant[])
+        .filter((g: DayOffGrant) => !deletedIds.has(g.id.toUpperCase()))
+        .map((cloudGrant: DayOffGrant): DayOffGrant => {
+          const localGrant = localMap.get(cloudGrant.id);
+          if (!localGrant) return cloudGrant;
+          return {
+            ...cloudGrant,
+            ...localGrant,
+          };
+        });
+
+      localGrants.forEach((locG: DayOffGrant) => {
+        if (!deletedIds.has(locG.id.toUpperCase()) && !mergedGrants.some((mg: DayOffGrant) => mg.id === locG.id)) {
+          mergedGrants.unshift(locG);
+        }
+      });
+
+      localStorage.setItem(DAY_OFF_GRANTS_KEY, JSON.stringify(mergedGrants));
+    }
   },
 
   getExtensions(): LectureExtension[] {
@@ -2773,10 +2801,16 @@ export const StorageService = {
     const undeliveredTopicsCount = undeliveredTopics.length;
     const undeliveredTopicsMinutes = undeliveredTopics.reduce((sum, t) => sum + (t.durationMinutes || 45), 0);
 
-    // 2. TODAY'S WORK & CUTOFF STATUS
+    // 2. TODAY'S WORK & CUTOFF STATUS (Respects Approved Leaves and Joining Date)
+    const todayDateKey = this.toLocalDateKey(now);
+    const isTodayDayOff = this.isDayOff(cleanId, todayDateKey);
+    const startDateStr = this.getTeacherEffectiveStartDate(cleanId);
+    const isPreJoining = todayDateKey < startDateStr;
+    const effectiveTodayTarget = (isTodayDayOff || isPreJoining) ? 0 : dailyTargetMinutes;
+
     const minutesRecordedToday = this.getMinutesRecordedToday(cleanId);
-    const isTodayTargetMet = minutesRecordedToday >= dailyTargetMinutes;
-    const todayPendingMinutes = Math.max(0, dailyTargetMinutes - minutesRecordedToday);
+    const isTodayTargetMet = (isTodayDayOff || isPreJoining) || (minutesRecordedToday >= effectiveTodayTarget);
+    const todayPendingMinutes = Math.max(0, effectiveTodayTarget - minutesRecordedToday);
     const todayOverdueDeficit = isPassedCutoff ? todayPendingMinutes : 0;
 
     // 3. DECOUPLED TIME WALLET & LATE BACKLOG (Surplus does NOT auto-cancel backlog!)
