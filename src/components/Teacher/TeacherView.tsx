@@ -4,6 +4,7 @@ import { StorageService } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { PptRequestPortal } from './PptRequestPortal';
 import { DailyBacklogLogsView } from './DailyBacklogLogsView';
+import { ReuploadVideoModal } from './ReuploadVideoModal';
 import confetti from 'canvas-confetti';
 import { 
   Search, FileText, Plus, Play,
@@ -12,7 +13,7 @@ import {
   FileSpreadsheet, Award, Folder,
   CheckCircle2, MessageCircle, Video,
   ArrowUp, ArrowDown, Trash2,
-  BookOpen, ArrowLeft, Layers, Grid, Sparkles, Wallet, Calendar
+  BookOpen, ArrowLeft, Layers, Grid, Sparkles, Wallet, Calendar, RefreshCw
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -33,6 +34,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [topicFilter, setTopicFilter] = useState<'all' | 'revision_needed' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
+  const [reuploadingLecture, setReuploadingLecture] = useState<Lecture | null>(null);
 
   // Step-by-Step Subject & Unit Square Card Selection State for Syllabus
   const [selectedSubjectSyllabus, setSelectedSubjectSyllabus] = useState<string | null>(null);
@@ -1525,6 +1527,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               onOpenUpload={onOpenUpload}
               onOpenWalletModal={() => setShowWalletModal(true)}
               onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
+              onReuploadLecture={(lec) => setReuploadingLecture(lec)}
             />
           </section>
         </div>
@@ -1750,6 +1753,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   onOpenUpload={onOpenUpload}
                   onOpenWalletModal={() => setShowWalletModal(true)}
                   onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
+                  onReuploadLecture={(lec) => setReuploadingLecture(lec)}
                 />
               </div>
             )}
@@ -2617,12 +2621,28 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                                 </button>
                               )}
                               <span className="text-[11px] text-slate-400">{lec.subject}</span>
+                              {lec.reuploadReason && (
+                                <span className="block text-[10px] text-purple-300 italic truncate">
+                                  Reupload (v{(lec.reuploadCount || 0) + 1}): "{lec.reuploadReason}"
+                                </span>
+                              )}
                             </div>
-                            <span className={`text-[10px] font-medium shrink-0 ${
-                              lec.status === 'on_time' ? 'text-emerald-400' : 'text-amber-400'
-                            }`}>
-                              {lec.status === 'on_time' ? '✓ On-Time' : '⚠️ Late'}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {lec.reuploadedAt && (
+                                <span
+                                  title={`Reuploaded on ${new Date(lec.reuploadedAt).toLocaleString()}`}
+                                  className="px-1.5 py-0.5 rounded-md font-mono font-bold text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-0.5"
+                                >
+                                  <RefreshCw className="w-2.5 h-2.5" />
+                                  <span>v{(lec.reuploadCount || 0) + 1}</span>
+                                </span>
+                              )}
+                              <span className={`text-[10px] font-medium ${
+                                lec.status === 'on_time' ? 'text-emerald-400' : 'text-amber-400'
+                              }`}>
+                                {lec.status === 'on_time' ? '✓ On-Time' : '⚠️ Late'}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="flex items-center justify-between text-slate-400 text-[11px]">
@@ -2695,10 +2715,19 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           )}
                         </div>
 
-                        <div className="pt-2 border-t border-slate-800/50 flex items-center justify-between gap-2">
+                        <div className="pt-2 border-t border-slate-800/50 flex flex-wrap items-center justify-between gap-2">
                           <span className="text-[11px] text-slate-500">{new Date(lec.createdAt).toLocaleDateString()}</span>
                           
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => setReuploadingLecture(lec)}
+                              className="px-2.5 py-1 bg-purple-950/60 hover:bg-purple-600 border border-purple-500/40 text-purple-300 hover:text-white rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                              title="Re-upload or replace video recording"
+                            >
+                              <RefreshCw className="w-3 h-3 text-purple-400" />
+                              <span>Reupload</span>
+                            </button>
+
                             {lec.notesUrl && (
                               <a
                                 href={lec.notesUrl}
@@ -3083,6 +3112,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
         <VideoModal
           lecture={selectedLectureForPreview}
           onClose={() => setSelectedLectureForPreview(null)}
+          onReupload={(lec) => setReuploadingLecture(lec)}
         />
       )}
 
@@ -3210,6 +3240,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   <DailyBacklogLogsView
                     teacherId={teacher.teacherId}
                     isCompactModalView={true}
+                    onReuploadLecture={(lec) => setReuploadingLecture(lec)}
                   />
                 </div>
               )}
@@ -3279,10 +3310,29 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 setShowWalletModal(true);
               }}
               onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
+              onReuploadLecture={(lec) => {
+                setShowDailyLogsModal(false);
+                setReuploadingLecture(lec);
+              }}
               isCompactModalView={false}
             />
           </div>
         </div>
+      )}
+
+      {/* ─── RE-UPLOAD / REPLACE LECTURE VIDEO MODAL ─── */}
+      {reuploadingLecture && (
+        <ReuploadVideoModal
+          lecture={reuploadingLecture}
+          onClose={() => setReuploadingLecture(null)}
+          onSuccess={(updatedLec) => {
+            setReuploadingLecture(null);
+            setRefreshKey((k) => k + 1);
+            if (selectedLectureForPreview?.id === updatedLec.id) {
+              setSelectedLectureForPreview(updatedLec);
+            }
+          }}
+        />
       )}
     </div>
   );

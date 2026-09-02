@@ -222,6 +222,29 @@ class NotificationService {
       data: params,
     });
   }
+
+  /**
+   * 9. 🔄 Teacher replaces / reuploads video -> Email to Admin
+   */
+  async notifyVideoReuploaded(params: {
+    adminEmails: string | string[];
+    teacherName: string;
+    teacherId: string;
+    lectureTitle: string;
+    subject?: string;
+    newVideoUrl: string;
+    videoType: 'youtube' | 'drive';
+    reuploadReason?: string;
+    durationMinutes?: number;
+    [key: string]: any;
+  }): Promise<void> {
+    if (!params.adminEmails) return;
+    return this.dispatch({
+      to: params.adminEmails,
+      type: 'video_reuploaded',
+      data: params,
+    });
+  }
 }
 
 export const notificationService = new NotificationService();

@@ -11,7 +11,8 @@ export type NotificationEventType =
   | 'subtopics_reviewed'
   | 'ppt_requested'
   | 'ppt_ready'
-  | 'day_off_granted';
+  | 'day_off_granted'
+  | 'video_reuploaded';
 
 export interface EmailRequestBody {
   to: string | string[];
@@ -369,6 +370,34 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
         `<a href="${PORTAL_URL}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 13px; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.4);">
           Download Presentation Deck →
         </a>`
+      );
+      return { subject, html };
+    }
+
+    case 'video_reuploaded': {
+      const subject = `🔄 Video Reuploaded: "${data.lectureTitle}" (${data.teacherName})`;
+      const html = wrapContent(
+        `
+        <div style="background-color: #31104b; border: 1px solid #7c3aed; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+          <span style="color: #c4b5fd; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Lecture Video Replaced</span>
+        </div>
+        <p style="font-size: 15px; color: #f8fafc; margin-top: 0;">
+          Hello Academic Operations,
+        </p>
+        <p>
+          Faculty member <strong>${data.teacherName}</strong> (<code>${data.teacherId}</code>) has re-uploaded and replaced the video for lecture:
+        </p>
+        <div style="background-color: #1e293b; border-left: 4px solid #8b5cf6; padding: 14px 16px; border-radius: 4px; margin: 18px 0;">
+          <div style="font-size: 14px; font-weight: 700; color: #ffffff;">${data.lectureTitle}</div>
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Subject: ${data.subject || 'N/A'} • Duration: ${data.durationMinutes || 45} min</div>
+          <div style="font-size: 12px; color: #cbd5e1; margin-top: 6px;">Reason: <em>"${data.reuploadReason || 'Video replaced by teacher'}"</em></div>
+          <div style="font-size: 11px; color: #a78bfa; margin-top: 6px; word-break: break-all;">New Link (${data.videoType}): <a href="${data.newVideoUrl}" style="color: #a78bfa;">${data.newVideoUrl}</a></div>
+        </div>
+        <p style="font-size: 13px; color: #94a3b8;">
+          The updated video recording is now live and linked across the platform.
+        </p>
+        `,
+        `<a href="${PORTAL_URL}" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);">View in Admin Portal →</a>`
       );
       return { subject, html };
     }

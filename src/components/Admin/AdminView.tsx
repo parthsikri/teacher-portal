@@ -3386,42 +3386,65 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                   >
                                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                                       <div className="space-y-1.5 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                            {unitGroup.unitName}
-                                          </span>
-                                          <span className="font-bold text-amber-400">
-                                            ⏱️ {lec.durationMinutes || 45} min
-                                          </span>
-                                          <span className="text-slate-600">•</span>
-                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                            lec.status === 'on_time'
-                                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                          }`}>
-                                            {lec.status === 'on_time' ? '✓ On-Time Submission' : '⚠️ Late Submission'}
-                                          </span>
-                                          <span className="text-slate-600">•</span>
-                                          <span className="text-[10px] text-slate-500 font-mono">
-                                            {new Date(lec.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                          </span>
-                                        </div>
-
-                                        <h4 className="text-base font-extrabold text-slate-100">{lec.title}</h4>
-
-                                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-0.5">
-                                          <span className="font-semibold text-slate-300">Topic: {lec.primaryTopic}</span>
-                                          {lec.subtopics && lec.subtopics.length > 0 && (
-                                            <>
-                                              <span className="text-slate-600">•</span>
-                                              {lec.subtopics.map((st, i) => (
-                                                <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
-                                                  #{st}
+                                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                              {unitGroup.unitName}
+                                            </span>
+                                            <span className="font-bold text-amber-400">
+                                              ⏱️ {lec.durationMinutes || 45} min
+                                            </span>
+                                            <span className="text-slate-600">•</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                              lec.status === 'on_time'
+                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                            }`}>
+                                              {lec.status === 'on_time' ? '✓ On-Time Submission' : '⚠️ Late Submission'}
+                                            </span>
+                                            {lec.reuploadedAt && (
+                                              <>
+                                                <span className="text-slate-600">•</span>
+                                                <span 
+                                                  title={`Video replaced (v${(lec.reuploadCount || 0) + 1}) on ${new Date(lec.reuploadedAt).toLocaleString()}`}
+                                                  className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1"
+                                                >
+                                                  <span>🔄 v{(lec.reuploadCount || 0) + 1} Reuploaded</span>
                                                 </span>
-                                              ))}
-                                            </>
+                                              </>
+                                            )}
+                                            <span className="text-slate-600">•</span>
+                                            <span className="text-[10px] text-slate-500 font-mono">
+                                              {new Date(lec.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                          </div>
+
+                                          <h4 className="text-base font-extrabold text-slate-100">{lec.title}</h4>
+
+                                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-0.5">
+                                            <span className="font-semibold text-slate-300">Topic: {lec.primaryTopic}</span>
+                                            {lec.subtopics && lec.subtopics.length > 0 && (
+                                              <>
+                                                <span className="text-slate-600">•</span>
+                                                {lec.subtopics.map((st, i) => (
+                                                  <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
+                                                    #{st}
+                                                  </span>
+                                                ))}
+                                              </>
+                                            )}
+                                          </div>
+
+                                          {lec.reuploadReason && (
+                                            <div className="text-[11px] text-purple-300 bg-purple-950/40 border border-purple-500/30 rounded-xl px-3 py-1.5 flex items-center gap-1.5 w-fit">
+                                              <span className="font-bold">🔄 Re-upload Changelog:</span>
+                                              <span className="italic">"{lec.reuploadReason}"</span>
+                                              {lec.reuploadedAt && (
+                                                <span className="text-[10px] text-purple-400 font-mono">
+                                                  ({new Date(lec.reuploadedAt).toLocaleDateString()})
+                                                </span>
+                                              )}
+                                            </div>
                                           )}
-                                        </div>
                                       </div>
 
                                       {/* Action Buttons */}

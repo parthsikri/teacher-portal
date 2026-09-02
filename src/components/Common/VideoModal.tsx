@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, HardDrive, FileText, CheckCircle2, Clock, MessageSquare } from 'lucide-react';
+import { X, HardDrive, FileText, CheckCircle2, Clock, MessageSquare, RefreshCw } from 'lucide-react';
 import { YoutubeIcon as Youtube } from './YoutubeIcon';
 import type { Lecture } from '../../types';
 import { getYouTubeEmbedUrl, getDriveEmbedUrl } from '../../utils/urlHelper';
@@ -7,9 +7,10 @@ import { getYouTubeEmbedUrl, getDriveEmbedUrl } from '../../utils/urlHelper';
 interface VideoModalProps {
   lecture: Lecture | null;
   onClose: () => void;
+  onReupload?: (lecture: Lecture) => void;
 }
 
-export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose }) => {
+export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose, onReupload }) => {
   const ytEmbed = getYouTubeEmbedUrl(lecture?.youtubeUrl);
   const driveEmbed = getDriveEmbedUrl(lecture?.driveUrl);
   const notesEmbed = getDriveEmbedUrl(lecture?.notesUrl);
@@ -42,23 +43,45 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose }) => {
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 bg-slate-900 flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 {lecture.subject}
               </span>
               <span className="text-xs text-slate-400 font-medium">{lecture.department}</span>
+              {lecture.reuploadedAt && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                  <RefreshCw className="w-2.5 h-2.5" />
+                  <span>v{(lecture.reuploadCount || 0) + 1} Reuploaded</span>
+                </span>
+              )}
             </div>
             <h3 className="text-lg font-bold text-slate-100 line-clamp-1">{lecture.title}</h3>
             <p className="text-xs text-slate-400">By {lecture.teacherName}</p>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
-            title="Close Preview"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onReupload && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onReupload(lecture);
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-purple-950/70 hover:bg-purple-600 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="Re-upload or replace this lecture video"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+                <span>Reupload Video</span>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+              title="Close Preview"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}

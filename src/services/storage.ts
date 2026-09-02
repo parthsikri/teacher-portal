@@ -989,6 +989,67 @@ export const StorageService = {
     }
   },
 
+  reuploadLectureVideo(
+    lectureId: string,
+    params: {
+      videoLinkType: 'youtube' | 'drive';
+      videoUrl: string;
+      notesUrl?: string;
+      durationMinutes?: number;
+      reuploadReason?: string;
+    }
+  ): Lecture | null {
+    const lectures = this.getLectures();
+    const index = lectures.findIndex((l) => l.id === lectureId);
+    if (index === -1) return null;
+
+    const currentLec = lectures[index];
+    const prevUrl = currentLec.youtubeUrl || currentLec.driveUrl || '';
+    const prevType: 'youtube' | 'drive' = currentLec.youtubeUrl ? 'youtube' : 'drive';
+
+    const youtubeUrl = params.videoLinkType === 'youtube' && params.videoUrl.trim() ? params.videoUrl.trim() : undefined;
+    const driveUrl = params.videoLinkType === 'drive' && params.videoUrl.trim() ? params.videoUrl.trim() : undefined;
+
+    const updatedLec: Lecture = {
+      ...currentLec,
+      youtubeUrl,
+      driveUrl,
+      notesUrl: params.notesUrl !== undefined ? (params.notesUrl.trim() || undefined) : currentLec.notesUrl,
+      durationMinutes: params.durationMinutes && params.durationMinutes > 0 ? params.durationMinutes : currentLec.durationMinutes,
+      reuploadedAt: new Date().toISOString(),
+      reuploadReason: params.reuploadReason?.trim() || 'Video replaced by teacher',
+      reuploadCount: (currentLec.reuploadCount || 0) + 1,
+      previousVideoUrl: prevUrl || currentLec.previousVideoUrl,
+      previousVideoType: prevType,
+    };
+
+    lectures[index] = updatedLec;
+    this.saveLectures(lectures);
+    this.syncToCloud().catch((err) => console.warn('[CloudSync] Reupload lecture sync error:', err));
+
+    // Operational Email Notification: Notify Admin of Reuploaded Video
+    try {
+      const adminEmails = this.getUsers().filter((u) => u.role === 'admin').map((u) => u.email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        notificationService.notifyVideoReuploaded({
+          adminEmails,
+          teacherName: currentLec.teacherName,
+          teacherId: currentLec.teacherId,
+          lectureTitle: currentLec.title,
+          subject: currentLec.subject,
+          newVideoUrl: params.videoUrl,
+          videoType: params.videoLinkType,
+          reuploadReason: params.reuploadReason || 'Video replaced by faculty',
+          durationMinutes: updatedLec.durationMinutes,
+        });
+      }
+    } catch (notifyErr) {
+      console.warn('[Notification] Failed to dispatch video reupload email:', notifyErr);
+    }
+
+    return updatedLec;
+  },
+
   addAdminRemark(lectureId: string, remarkText: string, adminName: string = 'Admin'): AdminRemark {
     const lectures = this.getLectures();
     const index = lectures.findIndex((l) => l.id === lectureId);

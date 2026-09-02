@@ -116,6 +116,11 @@ export interface Lecture {
   unitNumber?: string;        // e.g. "UNIT 1", "UNIT 2", "UNIT 3"
   adminRemarks: AdminRemark[];
   createdAt: string;
+  reuploadedAt?: string;      // ISO timestamp of latest video replacement
+  reuploadReason?: string;    // Reason specified by teacher for reuploading
+  reuploadCount?: number;     // Total number of times video was replaced (e.g. 1 for v2)
+  previousVideoUrl?: string;  // Preserved previous link for audit/reference
+  previousVideoType?: 'youtube' | 'drive';
 }
 
 export interface DayOffGrant {

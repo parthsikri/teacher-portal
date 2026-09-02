@@ -5,7 +5,7 @@ import {
   Clock, CheckCircle2, AlertTriangle, 
   ChevronDown, ChevronRight, Search, Wallet, 
   Plus, Video, ExternalLink, Play, Sparkles, 
-  ArrowUpDown, ShieldCheck, Info
+  ArrowUpDown, ShieldCheck, Info, RefreshCw
 } from 'lucide-react';
 
 interface DailyBacklogLogsViewProps {
@@ -13,6 +13,7 @@ interface DailyBacklogLogsViewProps {
   onOpenUpload?: (prefillTopic?: any) => void;
   onOpenWalletModal?: () => void;
   onPreviewLecture?: (lecture: Lecture) => void;
+  onReuploadLecture?: (lecture: Lecture) => void;
   isCompactModalView?: boolean;
 }
 
@@ -21,6 +22,7 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
   onOpenUpload,
   onOpenWalletModal,
   onPreviewLecture,
+  onReuploadLecture,
   isCompactModalView = false,
 }) => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'shortfall' | 'surplus' | 'completed' | 'leave'>('all');
@@ -620,6 +622,15 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
                                     }`}>
                                       {lecture.status === 'on_time' ? 'On Time' : lecture.status === 'late' ? 'Late' : 'Extended'}
                                     </span>
+                                    {lecture.reuploadedAt && (
+                                      <span
+                                        title={`Reuploaded (v${(lecture.reuploadCount || 0) + 1}): "${lecture.reuploadReason || 'Video replaced'}" on ${new Date(lecture.reuploadedAt).toLocaleDateString()}`}
+                                        className="px-1.5 py-0.2 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[9px] font-mono font-bold flex items-center gap-0.5"
+                                      >
+                                        <RefreshCw className="w-2.5 h-2.5 text-purple-400" />
+                                        <span>v{(lecture.reuploadCount || 0) + 1}</span>
+                                      </span>
+                                    )}
                                   </div>
 
                                   <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
@@ -632,11 +643,19 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
                                     )}
                                     <span>•</span>
                                     <span className="text-slate-500 font-mono">Submitted at {submitTime}</span>
+                                    {lecture.reuploadReason && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="text-purple-300 italic text-[10px]">
+                                          Reupload: "{lecture.reuploadReason}"
+                                        </span>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
 
                                 {/* Right: Duration & Actions */}
-                                <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center">
+                                <div className="flex items-center gap-2 shrink-0 self-start sm:self-center flex-wrap">
                                   <div className="px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-800/60 text-indigo-200 font-mono font-bold text-xs">
                                     ⏱️ {lecture.durationMinutes || 45} min
                                   </div>
@@ -649,6 +668,18 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
                                       title="Preview Lecture Details"
                                     >
                                       <Play className="w-3.5 h-3.5 text-indigo-400" />
+                                    </button>
+                                  )}
+
+                                  {onReuploadLecture && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onReuploadLecture(lecture)}
+                                      className="px-2 py-1 rounded-lg bg-purple-950/50 hover:bg-purple-600 border border-purple-500/40 text-purple-300 hover:text-white transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                                      title="Re-upload or replace video recording"
+                                    >
+                                      <RefreshCw className="w-3 h-3 text-purple-400" />
+                                      <span>Reupload</span>
                                     </button>
                                   )}
 
