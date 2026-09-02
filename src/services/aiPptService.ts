@@ -34,9 +34,18 @@ export interface PyqItem {
   solution?: string;
 }
 
+export interface AnswerPointersData {
+  coreConcept?: string;
+  pointers: string[];
+  formulaOrResult?: string;
+  commonPitfall?: string;
+  examYear?: string;
+  marks?: string;
+}
+
 export interface AiSlide {
   slideNumber: number;
-  type: 'title' | 'unit_divider' | 'topic_divider' | 'direct_pyq' | 'first_principles' | 'concept_card' | 'two_column' | 'step_by_step' | 'pyq_solution' | 'common_mistakes' | 'summary' | string;
+  type: 'title' | 'unit_divider' | 'topic_divider' | 'direct_pyq' | 'blank_workspace' | 'answer_pointers' | 'first_principles' | 'concept_card' | 'two_column' | 'step_by_step' | 'pyq_solution' | 'common_mistakes' | 'summary' | string;
   badge?: string;
   title: string;
   subtitle?: string;
@@ -55,6 +64,12 @@ export interface AiSlide {
     keyTakeaway?: string;
   };
   calloutTip?: string;
+  // Blank Working Sheets & Separate Answer Pointers
+  workspacePage?: number;
+  workspaceTotalPages?: number;
+  questionReference?: string;
+  questionNumber?: number;
+  answerPointers?: AnswerPointersData;
 }
 
 export interface SubtopicRoadmapItem {
@@ -310,8 +325,73 @@ export const AiPptService = {
   },
 
   /**
+   * Formats raw solution notes or questions into clean, high-yield Answer Pointers
+   * (Pointers only, not verbose text, structured with concept, step milestones, and pitfall checks)
+   */
+  formatSolutionIntoPointers(
+    solutionText?: string,
+    questionText?: string,
+    topicName?: string
+  ): AnswerPointersData {
+    const cleanSol = (solutionText || '').trim();
+    const cleanQ = (questionText || '').trim();
+    const cleanTopic = (topicName || 'Core Examination Concept').trim();
+
+    if (cleanSol) {
+      // Split into clean sentence or step pointers
+      const rawChunks = cleanSol
+        .split(/(?:\r?\n|;|\.\s+(?=[A-Z0-9])|(?:\b(?:Step\s*\d+|[1-9]\.|\([a-z]\))\s*[:.-]?\s*))/i)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 5);
+
+      const pointerList = (rawChunks.length > 0 ? rawChunks : [cleanSol])
+        .slice(0, 5)
+        .map((p) => {
+          const stripped = p.replace(/^(?:Step\s*\d+[:.-]?|[1-9]\.[:.-]?)\s*/i, '').trim();
+          return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+        });
+
+      // Extract formula or complexity if available
+      let formulaResult: string | undefined;
+      const formulaMatch = cleanSol.match(/(?:T\(n\)\s*=[^.\n]+|O\([^)]+\)|Theta\([^)]+\)|Omega\([^)]+\)|[A-Za-z0-9_]+\s*=\s*[^.,;\n]+)/i);
+      if (formulaMatch && formulaMatch[0].length < 70) {
+        formulaResult = formulaMatch[0].trim();
+      }
+
+      const commonPitfall = cleanQ.toLowerCase().includes('recurrence') || cleanSol.toLowerCase().includes('master')
+        ? 'Pitfall: Verify Master Theorem regularity condition f(n) vs n^(log_b a) before concluding.'
+        : cleanQ.toLowerCase().includes('list') || cleanQ.toLowerCase().includes('tree')
+        ? 'Pitfall: Don\'t forget pointer reassignment sequence to avoid memory leaks or lost links.'
+        : cleanQ.toLowerCase().includes('complexity')
+        ? 'Pitfall: Differentiate worst-case vs average-case tight bounds (Theta vs Big-O).'
+        : 'Pitfall: State initial boundary conditions and justify every step reduction for full marks.';
+
+      return {
+        coreConcept: `Core Foundation: ${cleanTopic}`,
+        pointers: pointerList,
+        formulaOrResult: formulaResult || 'Key Invariant / Result Verification Required',
+        commonPitfall,
+      };
+    }
+
+    // High quality pedagogical default pointers if no custom solution notes in sheet
+    return {
+      coreConcept: `Methodology & Concept: ${cleanTopic}`,
+      pointers: [
+        'Identify Problem Inputs: Extract given boundary values, constraints, and target objective.',
+        'Theoretical Formulation: State the governing theorem, mathematical recurrence, or algorithm pattern.',
+        'Execution Trace: Perform intermediate derivation steps, pointer manipulation, or trace table.',
+        'Complexity Audit: Verify Time Complexity and Space Complexity against constraints.',
+      ],
+      formulaOrResult: 'Target Metric: Optimal Asymptotic Time & Space Bounds',
+      commonPitfall: 'Avoid skipping base cases or boundary edge conditions during exam evaluation.',
+    };
+  },
+
+  /**
    * Deterministically generates a presentation deck from PYQs without DeepSeek / AI
    * Combines all questions of a topic, then all topics of a unit!
+   * Supports 2 Blank Workspace pages per question and Separate Answer Pointers slides.
    */
   generateDirectPyqDeck(params: {
     subject: string;
@@ -320,6 +400,10 @@ export const AiPptService = {
     syllabusTopicsOrder?: string[];
     includeUnitDividers?: boolean;
     includeTopicDividers?: boolean;
+    addBlankPagesPerQuestion?: boolean;
+    blankPagesCount?: number;
+    generateAnswerPointers?: boolean;
+    answersPlacement?: 'after_question' | 'end_of_deck' | 'none';
   }): AiGeneratedDeck {
     const {
       subject,
@@ -328,6 +412,10 @@ export const AiPptService = {
       syllabusTopicsOrder = [],
       includeUnitDividers = true,
       includeTopicDividers = true,
+      addBlankPagesPerQuestion = true,
+      blankPagesCount = 2,
+      generateAnswerPointers = true,
+      answersPlacement = 'after_question',
     } = params;
 
     const unitGroups = this.groupAndSortPyqsByUnitAndTopic(pyqs, syllabusTopicsOrder);
@@ -347,10 +435,13 @@ export const AiPptService = {
       bullets: [
         `Curriculum Scope: ${unitNames || 'Complete Syllabus Units'}`,
         `Problem Set: ${totalQuestions} Curated Examination Questions`,
-        `Curriculum Mapping: Unit-Wise & Topic-Wise Chronological Sequence`,
+        `Structure: ${addBlankPagesPerQuestion ? `${blankPagesCount} Blank Working Sheets/Q` : 'Question Slides'} ${generateAnswerPointers ? '• Separate Answer Pointers' : ''}`,
       ],
       calloutTip: `Academic Session • Department of Computer Science & Engineering`,
     });
+
+    // Staging container for end_of_deck answer pointers if selected
+    const endDeckAnswerPointers: AiSlide[] = [];
 
     // 2. Iterate Unit Groups -> Topic Groups -> Questions
     let globalQuestionCounter = 1;
@@ -393,37 +484,110 @@ export const AiPptService = {
 
         // 2c. Question Slides for this Topic
         tGroup.questions.forEach((pyq, qIdxInTopic) => {
+          const currentQNum = globalQuestionCounter;
+          const pointersData = this.formatSolutionIntoPointers(pyq.solution, pyq.questionText, tGroup.topicName);
+          pointersData.examYear = pyq.yearExam;
+          pointersData.marks = pyq.marks;
+
+          // (i) PURE QUESTION SLIDE (Answers kept completely separate!)
           slides.push({
             slideNumber: slideCounter++,
             type: 'direct_pyq',
             badge: `${uGroup.unitNumber} • ${tGroup.topicName}`,
             title: `${tGroup.topicName} — Problem ${qIdxInTopic + 1} of ${tGroup.questions.length}`,
             subtitle: pyq.yearExam ? `${pyq.yearExam}${pyq.marks ? ` • Weightage: ${pyq.marks}` : ''}` : undefined,
+            questionNumber: currentQNum,
             pyqDetails: {
               examYear: pyq.yearExam,
               marks: pyq.marks,
               question: pyq.questionText,
-              stepByStepSolution: pyq.solution
-                ? [pyq.solution]
-                : [
-                    'Step 1: Identify given parameters, problem constraints & base assumptions.',
-                    'Step 2: Apply core theoretical principles and step-by-step mathematical derivation.',
-                    'Step 3: State final solution with Time & Space Complexity verification.',
-                  ],
+              // Only attach inline step solution if answer pointers are disabled AND placement is none
+              stepByStepSolution: (!generateAnswerPointers && answersPlacement === 'none')
+                ? (pyq.solution ? [pyq.solution] : undefined)
+                : undefined,
             },
-            calloutTip: `${uGroup.unitNumber} • Topic: ${tGroup.topicName} • Problem #${globalQuestionCounter}`,
+            calloutTip: `${uGroup.unitNumber} • Topic: ${tGroup.topicName} • Problem #${currentQNum}`,
           });
+
+          // (ii) ADD BLANK PAGES PER QUESTION (Default 2 pages for live digital pen derivation)
+          if (addBlankPagesPerQuestion) {
+            const numPages = Math.max(1, Math.min(5, blankPagesCount || 2));
+            for (let page = 1; page <= numPages; page++) {
+              slides.push({
+                slideNumber: slideCounter++,
+                type: 'blank_workspace',
+                badge: `${uGroup.unitNumber} • WORKING CANVAS`,
+                title: `Problem ${currentQNum} Working Canvas (Sheet ${page} of ${numPages})`,
+                subtitle: `${tGroup.topicName}${pyq.yearExam ? ` • ${pyq.yearExam}` : ''}`,
+                workspacePage: page,
+                workspaceTotalPages: numPages,
+                questionNumber: currentQNum,
+                questionReference: pyq.questionText,
+                calloutTip: `Use digital stylus or whiteboard pen to derive equations and write proofs in class`,
+              });
+            }
+          }
+
+          // (iii) ANSWER POINTERS SLIDE (Pointers only, well formatted, kept separate)
+          if (generateAnswerPointers && answersPlacement === 'after_question') {
+            slides.push({
+              slideNumber: slideCounter++,
+              type: 'answer_pointers',
+              badge: `${uGroup.unitNumber} • KEY ANSWER POINTERS`,
+              title: `Problem ${currentQNum} — Solution Pointers & Concept Roadmap`,
+              subtitle: `${tGroup.topicName} • Reference for ${pyq.yearExam || `Problem #${currentQNum}`}${pyq.marks ? ` [${pyq.marks}]` : ''}`,
+              questionNumber: currentQNum,
+              questionReference: pyq.questionText,
+              answerPointers: pointersData,
+              calloutTip: `Evaluation Checklist • Core Formulas • Key Intermediate Steps`,
+            });
+          } else if (generateAnswerPointers && answersPlacement === 'end_of_deck') {
+            endDeckAnswerPointers.push({
+              slideNumber: 0, // Assigned sequentially later
+              type: 'answer_pointers',
+              badge: `${uGroup.unitNumber} • KEY ANSWER POINTERS`,
+              title: `Problem ${currentQNum} — Solution Pointers & Concept Roadmap`,
+              subtitle: `${tGroup.topicName} • Reference for ${pyq.yearExam || `Problem #${currentQNum}`}${pyq.marks ? ` [${pyq.marks}]` : ''}`,
+              questionNumber: currentQNum,
+              questionReference: pyq.questionText,
+              answerPointers: pointersData,
+              calloutTip: `Evaluation Checklist • Core Formulas • Key Intermediate Steps`,
+            });
+          }
+
           globalQuestionCounter++;
         });
       });
     });
+
+    // If answers are placed at the end of the deck, append section divider and pointer slides
+    if (generateAnswerPointers && answersPlacement === 'end_of_deck' && endDeckAnswerPointers.length > 0) {
+      slides.push({
+        slideNumber: slideCounter++,
+        type: 'unit_divider',
+        badge: 'PART II: SOLUTIONS APPENDIX',
+        title: 'Complete Solution Pointers & Concept Roadmaps',
+        subtitle: `Separate Reference Section • ${endDeckAnswerPointers.length} Solved Problem Sets`,
+        bullets: [
+          'Structured Key Pointers for Faculty Reference & Evaluation Criteria',
+          'Core Mathematical & Algorithmic Formulas',
+          'Common Student Examination Pitfalls to Highlight in Class',
+        ],
+        calloutTip: 'Apna Engineering Wallah • Faculty Solution Pointers Directory',
+      });
+
+      endDeckAnswerPointers.forEach((pSlide) => {
+        pSlide.slideNumber = slideCounter++;
+        slides.push(pSlide);
+      });
+    }
 
     return {
       deckTitle,
       subject,
       unit: unitNames,
       topicTitle: `${totalQuestions} Exam PYQs`,
-      summary: `Comprehensive presentation of ${totalQuestions} previous year questions combined topic-wise and unit-wise in syllabus order.`,
+      summary: `Comprehensive presentation of ${totalQuestions} previous year questions combined topic-wise and unit-wise with separate answer pointers and live working pages.`,
       relevantPyqCount: totalQuestions,
       slides,
       generatedAt: new Date().toISOString(),
@@ -929,12 +1093,15 @@ export const AiPptService = {
 
       // ── 4. TYPE: DIRECT PYQ (EXCEL PYQ) ───────────────────────────────
       else if (slide.type === 'direct_pyq' && slide.pyqDetails) {
+        const hasInlineSolution = slide.pyqDetails.stepByStepSolution && slide.pyqDetails.stepByStepSolution.length > 0;
+        const qBoxHeight = hasInlineSolution ? 2.0 : 3.25;
+
         // Question Problem Box (Top Container)
         pptSlide.addShape(pptx.ShapeType.roundRect, {
           x: 0.8,
           y: contentStartY,
           w: 8.4,
-          h: 2.0,
+          h: qBoxHeight,
           fill: { color: themeColors.cardBg },
           line: { color: themeColors.cardBorder, width: 1.5 },
           rectRadius: 0.1,
@@ -962,39 +1129,244 @@ export const AiPptService = {
           x: 1.0,
           y: contentStartY + (slide.pyqDetails.examYear ? 0.45 : 0.2),
           w: 8.0,
-          h: slide.pyqDetails.examYear ? 1.45 : 1.7,
-          fontSize: 13,
+          h: hasInlineSolution ? 1.45 : 2.65,
+          fontSize: hasInlineSolution ? 13 : 15,
           bold: true,
           color: themeColors.textPrimary,
           fontFace: 'Arial',
-          lineSpacing: 18,
+          lineSpacing: hasInlineSolution ? 18 : 22,
         });
 
-        // Solution & Derivation Workspace (Bottom Box)
+        // Solution & Derivation Workspace (Bottom Box) - only if inline solution exists
+        if (hasInlineSolution) {
+          pptSlide.addShape(pptx.ShapeType.roundRect, {
+            x: 0.8,
+            y: contentStartY + 2.15,
+            w: 8.4,
+            h: 1.05,
+            fill: { color: themeColors.codeBg },
+            line: { color: themeColors.accentPrimary, width: 1 },
+            rectRadius: 0.08,
+          });
+
+          const solText = slide.pyqDetails.stepByStepSolution!.join('\n');
+
+          pptSlide.addText(`💡 Faculty Notes & Solution Derivation:\n${solText}`, {
+            x: 1.0,
+            y: contentStartY + 2.22,
+            w: 8.0,
+            h: 0.9,
+            fontSize: 10,
+            color: themeColors.textSecondary,
+            fontFace: 'Arial',
+            lineSpacing: 15,
+          });
+        }
+      }
+
+      // ── 4b. TYPE: BLANK WORKSPACE / LIVE SOLVING SHEET ─────────────────
+      else if (slide.type === 'blank_workspace') {
+        // Top Whiteboard Header Banner
         pptSlide.addShape(pptx.ShapeType.roundRect, {
           x: 0.8,
-          y: contentStartY + 2.15,
+          y: contentStartY,
           w: 8.4,
-          h: 1.05,
-          fill: { color: themeColors.codeBg },
+          h: 0.55,
+          fill: { color: themeColors.cardBg },
+          line: { color: themeColors.accentSecondary, width: 1.2 },
+          rectRadius: 0.08,
+        });
+
+        pptSlide.addText(
+          `✍️ Live Working Canvas (Sheet ${slide.workspacePage || 1} of ${slide.workspaceTotalPages || 2}) • ${slide.subtitle || 'Faculty Derivation'}`,
+          {
+            x: 1.0,
+            y: contentStartY + 0.1,
+            w: 8.0,
+            h: 0.35,
+            fontSize: 12,
+            bold: true,
+            color: themeColors.accentSecondary,
+            fontFace: 'Arial',
+          }
+        );
+
+        // Large Open Writing Canvas
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 0.8,
+          y: contentStartY + 0.65,
+          w: 8.4,
+          h: 2.65,
+          fill: { color: themeColors.bg },
+          line: { color: themeColors.cardBorder, width: 1.5, dashType: 'dash' },
+          rectRadius: 0.1,
+        });
+
+        // Question preview snippet at the top of workspace
+        if (slide.questionReference) {
+          const previewText = slide.questionReference.length > 140 
+            ? `${slide.questionReference.slice(0, 140)}…` 
+            : slide.questionReference;
+          pptSlide.addText(`Problem Statement: ${previewText}`, {
+            x: 1.0,
+            y: contentStartY + 0.75,
+            w: 8.0,
+            h: 0.45,
+            fontSize: 10,
+            italic: true,
+            color: themeColors.textSecondary,
+            fontFace: 'Arial',
+          });
+        }
+
+        // Center Guide Note
+        pptSlide.addText(
+          `[ DIGITAL WHITEBOARD / LIVE STYLUS DERIVATION WORKSPACE ]\nFaculty members can write step-by-step mathematical proofs, draw diagrams, and trace algorithm states here.`,
+          {
+            x: 1.2,
+            y: contentStartY + 1.55,
+            w: 7.6,
+            h: 0.8,
+            fontSize: 10,
+            color: themeColors.cardBorder,
+            align: 'center',
+            fontFace: 'Arial',
+          }
+        );
+      }
+
+      // ── 4c. TYPE: ANSWER POINTERS (KEPT SEPARATE, NOT ANSWERS JUST POINTERS) ──
+      else if (slide.type === 'answer_pointers' && slide.answerPointers) {
+        const pointers = slide.answerPointers;
+
+        // Top Concept Headline Card
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 0.8,
+          y: contentStartY,
+          w: 8.4,
+          h: 0.5,
+          fill: { color: themeColors.badgeBg },
           line: { color: themeColors.accentPrimary, width: 1 },
           rectRadius: 0.08,
         });
 
-        const solText = (slide.pyqDetails.stepByStepSolution && slide.pyqDetails.stepByStepSolution.length > 0)
-          ? slide.pyqDetails.stepByStepSolution.join('\n')
-          : '• Step 1: Identify parameters & constraints\n• Step 2: Apply core algorithm principles\n• Step 3: Verify Time & Space Complexity';
+        pptSlide.addText(
+          `🎯 ${pointers.coreConcept || 'Core Solution Formulation & Verification Pointers'}`,
+          {
+            x: 1.0,
+            y: contentStartY + 0.08,
+            w: 8.0,
+            h: 0.35,
+            fontSize: 12,
+            bold: true,
+            color: themeColors.badgeText,
+            fontFace: 'Arial',
+          }
+        );
 
-        pptSlide.addText(`💡 Faculty Notes & Solution Derivation:\n${solText}`, {
-          x: 1.0,
-          y: contentStartY + 2.22,
-          w: 8.0,
-          h: 0.9,
-          fontSize: 10,
-          color: themeColors.textSecondary,
-          fontFace: 'Arial',
-          lineSpacing: 15,
+        // Left Container: Step Pointers (Width: 5.2, Height: 2.65)
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 0.8,
+          y: contentStartY + 0.6,
+          w: 5.2,
+          h: 2.65,
+          fill: { color: themeColors.cardBg },
+          line: { color: themeColors.cardBorder, width: 1.2 },
+          rectRadius: 0.1,
         });
+
+        pptSlide.addText('📌 Key Solving Milestones & Derivation Pointers:', {
+          x: 1.0,
+          y: contentStartY + 0.72,
+          w: 4.8,
+          h: 0.28,
+          fontSize: 11,
+          bold: true,
+          color: themeColors.accentSecondary,
+          fontFace: 'Arial',
+        });
+
+        const pointerBullets = pointers.pointers.map((p, idx) => `${idx + 1}. ${p}`).join('\n\n');
+        pptSlide.addText(pointerBullets, {
+          x: 1.0,
+          y: contentStartY + 1.05,
+          w: 4.8,
+          h: 2.1,
+          fontSize: 11,
+          color: themeColors.textPrimary,
+          fontFace: 'Arial',
+          lineSpacing: 16,
+        });
+
+        // Right Container: Formula & Examination Pitfall (Width: 3.05, Height: 2.65)
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 6.15,
+          y: contentStartY + 0.6,
+          w: 3.05,
+          h: 2.65,
+          fill: { color: themeColors.cardBg },
+          line: { color: themeColors.cardBorder, width: 1.2 },
+          rectRadius: 0.1,
+        });
+
+        // Top right: Formula / Target Check
+        pptSlide.addText('⚡ Formula / Invariant Check:', {
+          x: 6.3,
+          y: contentStartY + 0.72,
+          w: 2.75,
+          h: 0.25,
+          fontSize: 10,
+          bold: true,
+          color: themeColors.accentPrimary,
+          fontFace: 'Arial',
+        });
+
+        pptSlide.addShape(pptx.ShapeType.roundRect, {
+          x: 6.3,
+          y: contentStartY + 1.0,
+          w: 2.75,
+          h: 0.65,
+          fill: { color: themeColors.codeBg },
+          line: { color: themeColors.accentPrimary, width: 1 },
+          rectRadius: 0.06,
+        });
+
+        pptSlide.addText(pointers.formulaOrResult || 'O(n log n) Complexity Form', {
+          x: 6.4,
+          y: contentStartY + 1.05,
+          w: 2.55,
+          h: 0.55,
+          fontSize: 10,
+          bold: true,
+          color: themeColors.textPrimary,
+          fontFace: 'Courier New',
+        });
+
+        // Bottom right: Examination Trap / Pitfall
+        pptSlide.addText('⚠️ Marking Pitfall & Trap:', {
+          x: 6.3,
+          y: contentStartY + 1.75,
+          w: 2.75,
+          h: 0.25,
+          fontSize: 10,
+          bold: true,
+          color: 'F59E0B',
+          fontFace: 'Arial',
+        });
+
+        pptSlide.addText(
+          pointers.commonPitfall || 'Always justify base cases and intermediate transitions to score full marks.',
+          {
+            x: 6.3,
+            y: contentStartY + 2.05,
+            w: 2.75,
+            h: 1.1,
+            fontSize: 10,
+            color: themeColors.textSecondary,
+            fontFace: 'Arial',
+            lineSpacing: 14,
+          }
+        );
       }
 
       // ── 5. TYPE: FIRST PRINCIPLES / ANALOGY ─────────────────────────────
@@ -1300,8 +1672,79 @@ export const AiPptService = {
 
       let currentY = contentY + 12;
 
-      // PYQ Question
-      if (slide.pyqDetails) {
+      // ── 2. BLANK WORKSPACE / DERIVATION SHEET ───────────────────────
+      if (slide.type === 'blank_workspace') {
+        doc.setTextColor(16, 185, 129); // Emerald
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`✍️ Live Working Canvas (Sheet ${slide.workspacePage || 1} of ${slide.workspaceTotalPages || 2}):`, 26, currentY);
+        currentY += 7;
+
+        if (slide.questionReference) {
+          doc.setTextColor(textSecondaryRGB[0], textSecondaryRGB[1], textSecondaryRGB[2]);
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'italic');
+          const previewText = slide.questionReference.length > 140 ? `${slide.questionReference.slice(0, 140)}…` : slide.questionReference;
+          const splitQRef = doc.splitTextToSize(`Problem Statement: ${previewText}`, 245);
+          doc.text(splitQRef, 26, currentY);
+          currentY += splitQRef.length * 5 + 4;
+        }
+
+        // Dashed writing area
+        doc.setDrawColor(textSecondaryRGB[0], textSecondaryRGB[1], textSecondaryRGB[2]);
+        doc.setLineDashPattern([2, 2], 0);
+        doc.roundedRect(26, currentY, 245, 95, 2, 2, 'S');
+        doc.setLineDashPattern([], 0); // reset
+
+        doc.setTextColor(textSecondaryRGB[0], textSecondaryRGB[1], textSecondaryRGB[2]);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('[ Digital Whiteboard / Tablet Stylus Derivation Space ]', 148.5, currentY + 45, { align: 'center' });
+      }
+
+      // ── 3. ANSWER POINTERS (KEPT SEPARATE) ───────────────────────────
+      else if (slide.type === 'answer_pointers' && slide.answerPointers) {
+        const pointers = slide.answerPointers;
+        doc.setTextColor(99, 102, 241); // Indigo
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`🎯 ${pointers.coreConcept || 'Solution Roadmap & Key Pointers'}:`, 26, currentY);
+        currentY += 8;
+
+        // Pointers list
+        doc.setTextColor(textPrimaryRGB[0], textPrimaryRGB[1], textPrimaryRGB[2]);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        pointers.pointers.forEach((p, pIdx) => {
+          const splitP = doc.splitTextToSize(`${pIdx + 1}. ${p}`, 245);
+          doc.text(splitP, 26, currentY);
+          currentY += splitP.length * 5.5 + 2;
+        });
+
+        currentY += 4;
+
+        // Formula / Result check
+        if (pointers.formulaOrResult) {
+          doc.setTextColor(16, 185, 129);
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`⚡ Formula & Result Check: ${pointers.formulaOrResult}`, 26, currentY);
+          currentY += 7;
+        }
+
+        // Pitfall
+        if (pointers.commonPitfall) {
+          doc.setTextColor(245, 158, 11); // Amber
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          const splitPitfall = doc.splitTextToSize(`⚠️ Examination Tip: ${pointers.commonPitfall}`, 245);
+          doc.text(splitPitfall, 26, currentY);
+          currentY += splitPitfall.length * 5 + 2;
+        }
+      }
+
+      // ── 4. PYQ Question (Question Only or with Solution) ─────────────
+      else if (slide.pyqDetails) {
         doc.setTextColor(16, 185, 129); // Emerald
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
@@ -1357,5 +1800,60 @@ export const AiPptService = {
 
     const safeFileName = `${deck.topicTitle.replace(/[^a-zA-Z0-9_-]/g, '_')}_Deck.pdf`;
     doc.save(safeFileName);
+  },
+
+  /**
+   * Export only Answer Pointers slides as a separate PowerPoint presentation
+   */
+  async exportAnswerPointersOnlyPptx(
+    deck: AiGeneratedDeck,
+    theme: 'dark_tech' | 'deep_navy' | 'clean_minimal' = 'dark_tech'
+  ): Promise<void> {
+    const answerSlides = deck.slides.filter(
+      (s) => s.type === 'title' || s.type === 'unit_divider' || s.type === 'answer_pointers'
+    );
+    const answersOnlyDeck: AiGeneratedDeck = {
+      ...deck,
+      deckTitle: `${deck.deckTitle} - Answer Pointers Guide`,
+      topicTitle: `${deck.topicTitle} - Answer Pointers`,
+      slides: answerSlides.map((s, idx) => ({ ...s, slideNumber: idx + 1 })),
+    };
+    await this.exportToPptx(answersOnlyDeck, theme);
+  },
+
+  /**
+   * Export only Questions and Blank Workspace slides (without answers)
+   */
+  async exportQuestionsAndBlanksOnlyPptx(
+    deck: AiGeneratedDeck,
+    theme: 'dark_tech' | 'deep_navy' | 'clean_minimal' = 'dark_tech'
+  ): Promise<void> {
+    const questionsSlides = deck.slides.filter((s) => s.type !== 'answer_pointers');
+    const questionsOnlyDeck: AiGeneratedDeck = {
+      ...deck,
+      deckTitle: `${deck.deckTitle} - Questions & Whiteboard`,
+      topicTitle: `${deck.topicTitle} - Questions`,
+      slides: questionsSlides.map((s, idx) => ({ ...s, slideNumber: idx + 1 })),
+    };
+    await this.exportToPptx(questionsOnlyDeck, theme);
+  },
+
+  /**
+   * Export only Answer Pointers slides as a separate PDF document
+   */
+  async exportAnswerPointersOnlyPdf(
+    deck: AiGeneratedDeck,
+    theme: 'dark_tech' | 'deep_navy' | 'clean_minimal' = 'dark_tech'
+  ): Promise<void> {
+    const answerSlides = deck.slides.filter(
+      (s) => s.type === 'title' || s.type === 'unit_divider' || s.type === 'answer_pointers'
+    );
+    const answersOnlyDeck: AiGeneratedDeck = {
+      ...deck,
+      deckTitle: `${deck.deckTitle} - Answer Pointers Guide`,
+      topicTitle: `${deck.topicTitle} - Answer Pointers`,
+      slides: answerSlides.map((s, idx) => ({ ...s, slideNumber: idx + 1 })),
+    };
+    await this.exportToPdf(answersOnlyDeck, theme);
   },
 };

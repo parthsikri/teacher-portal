@@ -65,6 +65,14 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const [showBulkTopicModal, setShowBulkTopicModal] = useState<boolean>(false);
   const [bulkTopicText, setBulkTopicText] = useState<string>('');
 
+  // Blank Working Sheets & Separate Answer Pointers State
+  const [addBlankPages, setAddBlankPages] = useState<boolean>(true);
+  const [blankPagesCount, setBlankPagesCount] = useState<number>(2);
+  const [generateAnswerPointers, setGenerateAnswerPointers] = useState<boolean>(true);
+  const [answersPlacement, setAnswersPlacement] = useState<'after_question' | 'end_of_deck' | 'none'>('after_question');
+  const [isExportingAnswersOnly, setIsExportingAnswersOnly] = useState<boolean>(false);
+  const [isExportingQuestionsOnly, setIsExportingQuestionsOnly] = useState<boolean>(false);
+
   const directFileInputRef = useRef<HTMLInputElement>(null);
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -285,7 +293,12 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     setTimeout(() => setSuccessToast(null), 3000);
   };
 
-  const handleGenerateDirectDeck = () => {
+  const handleGenerateDirectDeck = (overrideOptions?: {
+    addBlankPages?: boolean;
+    blankPagesCount?: number;
+    generateAnswerPointers?: boolean;
+    answersPlacement?: 'after_question' | 'end_of_deck' | 'none';
+  }) => {
     if (directPyqRows.length === 0) {
       setErrorMessage('Please upload an Excel file containing PYQs first.');
       return;
@@ -293,6 +306,11 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
     setErrorMessage(null);
     setIsGenerating(true);
+
+    const useBlankPages = overrideOptions?.addBlankPages !== undefined ? overrideOptions.addBlankPages : addBlankPages;
+    const useBlankCount = overrideOptions?.blankPagesCount !== undefined ? overrideOptions.blankPagesCount : blankPagesCount;
+    const useAnswerPointers = overrideOptions?.generateAnswerPointers !== undefined ? overrideOptions.generateAnswerPointers : generateAnswerPointers;
+    const usePlacement = overrideOptions?.answersPlacement !== undefined ? overrideOptions.answersPlacement : answersPlacement;
 
     try {
       const deck = AiPptService.generateDirectPyqDeck({
@@ -302,12 +320,19 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         syllabusTopicsOrder: syllabusTopicsList,
         includeUnitDividers,
         includeTopicDividers,
+        addBlankPagesPerQuestion: useBlankPages,
+        blankPagesCount: useBlankCount,
+        generateAnswerPointers: useAnswerPointers,
+        answersPlacement: usePlacement,
       });
 
       setGeneratedDeck(deck);
       setActiveSlideIndex(0);
       setIsGenerating(false);
-      setSuccessToast(`✨ Generated ${deck.slides.length} slides successfully in exact syllabus order!`);
+
+      const blankCount = useBlankPages ? useBlankCount * directPyqRows.length : 0;
+      const pointersCount = useAnswerPointers ? directPyqRows.length : 0;
+      setSuccessToast(`✨ Generated ${deck.slides.length} slides (${directPyqRows.length} Questions, ${blankCount} Blank Sheets, ${pointersCount} Answer Pointers)`);
       setTimeout(() => setSuccessToast(null), 4000);
 
       if (onDeckGenerated) {
@@ -490,6 +515,34 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       setErrorMessage(`Failed to export PDF: ${err?.message || 'Unknown error'}`);
     } finally {
       setIsExportingPdf(false);
+    }
+  };
+
+  const handleExportAnswerPointersOnlyPptx = async () => {
+    if (!generatedDeck) return;
+    setIsExportingAnswersOnly(true);
+    try {
+      await AiPptService.exportAnswerPointersOnlyPptx(generatedDeck, theme);
+      setSuccessToast('✓ Separate Answer Pointers guide (.pptx) downloaded!');
+      setTimeout(() => setSuccessToast(null), 3500);
+    } catch (err: any) {
+      setErrorMessage(`Failed to export Answer Pointers: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsExportingAnswersOnly(false);
+    }
+  };
+
+  const handleExportQuestionsOnlyPptx = async () => {
+    if (!generatedDeck) return;
+    setIsExportingQuestionsOnly(true);
+    try {
+      await AiPptService.exportQuestionsAndBlanksOnlyPptx(generatedDeck, theme);
+      setSuccessToast('✓ Questions & Blank Whiteboard presentation (.pptx) downloaded!');
+      setTimeout(() => setSuccessToast(null), 3500);
+    } catch (err: any) {
+      setErrorMessage(`Failed to export Questions: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsExportingQuestionsOnly(false);
     }
   };
 
@@ -703,7 +756,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   </div>
                 </div>
 
-                {/* Include Unit Transition Slides */}
+                {/* Include Unit & Topic Transition Slides */}
                 <div className="space-y-2 pt-1">
                   <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
                     <input
@@ -724,6 +777,76 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                     />
                     <span>Include Topic Section Slides (combining topic questions)</span>
                   </label>
+                </div>
+
+                {/* Blank Working Sheets & Separate Answer Pointers Structure */}
+                <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+                  <span className="text-[10px] font-bold text-slate-300 block uppercase tracking-wider">
+                    Lecture Solving & Answer Structure:
+                  </span>
+
+                  <label className="flex items-start gap-2 text-slate-200 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={addBlankPages}
+                      onChange={(e) => setAddBlankPages(e.target.checked)}
+                      className="rounded border-slate-700 text-emerald-500 focus:ring-0 w-4 h-4 mt-0.5"
+                    />
+                    <div>
+                      <span className="font-bold text-xs text-emerald-400">Add Blank Working Pages per Question</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                        Inserts digital whiteboard sheets after each question for live tablet/stylus derivation during lecture recording.
+                      </p>
+                    </div>
+                  </label>
+
+                  {addBlankPages && (
+                    <div className="pl-6 pt-0.5 flex items-center justify-between gap-2">
+                      <label className="text-[10px] text-slate-400 font-semibold">
+                        Blank Sheets per Question:
+                      </label>
+                      <select
+                        value={blankPagesCount}
+                        onChange={(e) => setBlankPagesCount(Number(e.target.value))}
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-slate-200 text-xs focus:outline-none focus:border-emerald-500 font-medium"
+                      >
+                        <option value={1}>1 Blank Sheet</option>
+                        <option value={2}>2 Blank Sheets (Recommended)</option>
+                        <option value={3}>3 Blank Sheets</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <label className="flex items-start gap-2 text-slate-200 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={generateAnswerPointers}
+                      onChange={(e) => setGenerateAnswerPointers(e.target.checked)}
+                      className="rounded border-slate-700 text-indigo-500 focus:ring-0 w-4 h-4 mt-0.5"
+                    />
+                    <div>
+                      <span className="font-bold text-xs text-indigo-300">Keep Answer Pages Separate (Pointers Only)</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                        Removes answers from question slides. Generates structured key pointers, formula checks & exam traps on separate pages.
+                      </p>
+                    </div>
+                  </label>
+
+                  {generateAnswerPointers && (
+                    <div className="pl-6 pt-0.5 space-y-1">
+                      <label className="block text-[10px] text-slate-400 font-semibold">
+                        Answer Pointers Placement:
+                      </label>
+                      <select
+                        value={answersPlacement}
+                        onChange={(e) => setAnswersPlacement(e.target.value as 'after_question' | 'end_of_deck')}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-medium"
+                      >
+                        <option value="after_question">Consecutive: [Question ➔ 2 Blank Pages ➔ Answer Pointers]</option>
+                        <option value="end_of_deck">Separate Appendix: [All Questions First ➔ End-of-Deck Pointers]</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -844,7 +967,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             {/* GENERATE ACTION BUTTON */}
             <button
               type="button"
-              onClick={handleGenerateDirectDeck}
+              onClick={() => handleGenerateDirectDeck()}
               disabled={isGenerating || directPyqRows.length === 0}
               className="w-full py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 font-extrabold text-white shadow-xl shadow-indigo-600/30 transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -951,6 +1074,121 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
             ) : (
               <div className={`space-y-4 ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-950 p-6 flex flex-col justify-center' : ''}`}>
                 
+                {/* POST-GENERATION CONTROL BAR: ANSWER POINTERS & BLANK PAGES OPTIONS */}
+                <div className="bg-gradient-to-r from-indigo-950/70 via-slate-900 to-purple-950/70 border border-indigo-500/30 rounded-3xl p-4 shadow-xl space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-800/80">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-xl bg-indigo-600 text-white font-mono font-bold text-xs shadow-md shadow-indigo-600/30">
+                        ✨ Deck Ready • {generatedDeck.slides.length} Slides
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-medium border border-slate-700">
+                        📝 {directPyqRows.length || generatedDeck.relevantPyqCount || 0} Questions
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium">
+                        ✍️ {generatedDeck.slides.filter((s) => s.type === 'blank_workspace').length} Blank Workspaces
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-medium">
+                        🎯 {generatedDeck.slides.filter((s) => s.type === 'answer_pointers').length} Answer Pointers
+                      </span>
+                    </div>
+
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Configure Post-Generation Lecture Structure:
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {/* 2 Blank Pages per Question Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextVal = !addBlankPages;
+                          setAddBlankPages(nextVal);
+                          handleGenerateDirectDeck({ addBlankPages: nextVal });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          addBlankPages
+                            ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-300 shadow-sm'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                        title="Toggle 2 Blank Whiteboard Working Pages per question for live tablet/stylus derivation"
+                      >
+                        <span>✍️ 2 Blank Pages / Q</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                          addBlankPages ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {addBlankPages ? 'ON' : 'OFF'}
+                        </span>
+                      </button>
+
+                      {/* Separate Answer Pointers Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextVal = !generateAnswerPointers;
+                          setGenerateAnswerPointers(nextVal);
+                          handleGenerateDirectDeck({ generateAnswerPointers: nextVal });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          generateAnswerPointers
+                            ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-sm'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                        title="Toggle Answer Pointers pages kept separate from questions"
+                      >
+                        <span>🎯 Separate Answer Pointers</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                          generateAnswerPointers ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {generateAnswerPointers ? 'ON' : 'OFF'}
+                        </span>
+                      </button>
+
+                      {/* Placement Selector */}
+                      {generateAnswerPointers && (
+                        <select
+                          value={answersPlacement}
+                          onChange={(e) => {
+                            const val = e.target.value as 'after_question' | 'end_of_deck';
+                            setAnswersPlacement(val);
+                            handleGenerateDirectDeck({ answersPlacement: val });
+                          }}
+                          className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium"
+                        >
+                          <option value="after_question">Placement: Consecutive (Q ➔ 2 Blanks ➔ Pointers)</option>
+                          <option value="end_of_deck">Placement: End-of-Deck Appendix</option>
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Specialized Separate Deck Exports */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleExportAnswerPointersOnlyPptx}
+                        disabled={isExportingAnswersOnly || generatedDeck.slides.filter((s) => s.type === 'answer_pointers').length === 0}
+                        className="px-3 py-1.5 bg-purple-950/80 hover:bg-purple-900 border border-purple-500/40 text-purple-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40"
+                        title="Download separate presentation containing ONLY Answer Pointers"
+                      >
+                        <Download className="w-3.5 h-3.5 text-purple-400" />
+                        <span>{isExportingAnswersOnly ? 'Exporting...' : 'Answer Pointers Only (.pptx)'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleExportQuestionsOnlyPptx}
+                        disabled={isExportingQuestionsOnly}
+                        className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-40"
+                        title="Download presentation with Questions and 2 Blank Pages only (without answers)"
+                      >
+                        <Download className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{isExportingQuestionsOnly ? 'Exporting...' : 'Questions + Blanks (.pptx)'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* SLIDE FRAME (16:9) */}
                 <div
                   className={`aspect-[16/9] w-full rounded-3xl border shadow-2xl overflow-hidden flex flex-col justify-between p-6 md:p-8 transition-all ${
@@ -1105,40 +1343,151 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                       </div>
                     )}
 
-                    {/* 3. DIRECT PYQ QUESTION CARD */}
-                    {(activeSlide?.type === 'direct_pyq' || activeSlide?.pyqDetails) && (
+                    {/* 3. DIRECT PYQ QUESTION CARD (Pure Question without answer leak) */}
+                    {activeSlide?.type === 'direct_pyq' && activeSlide.pyqDetails && (
                       <div className="space-y-3">
-                        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 shadow-inner">
+                        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 shadow-inner">
                           <div className="flex items-center justify-between text-xs">
                             <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[11px]">
-                              📝 {activeSlide.pyqDetails?.examYear || 'Exam Question'}
+                              📝 {activeSlide.pyqDetails.examYear || 'Exam Question'}
                             </span>
-                            {activeSlide.pyqDetails?.marks && (
-                              <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                            {activeSlide.pyqDetails.marks && (
+                              <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
                                 {activeSlide.pyqDetails.marks}
                               </span>
                             )}
                           </div>
                           
-                          <p className="font-bold text-sm md:text-base text-slate-100 leading-relaxed pt-1">
-                            {activeSlide.pyqDetails?.question}
+                          <p className="font-bold text-base md:text-lg text-slate-100 leading-relaxed pt-1">
+                            {activeSlide.pyqDetails.question}
                           </p>
                         </div>
 
-                        {/* Solution / Notes working box */}
-                        <div className="p-3 rounded-xl bg-slate-950 border border-indigo-500/30 text-xs space-y-1">
-                          <div className="text-indigo-400 font-bold text-[11px] flex items-center gap-1.5">
-                            <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                            Faculty Solution & Derivation Notes:
+                        {/* Pedagogy Note if answers are separated */}
+                        {generateAnswerPointers ? (
+                          <div className="p-3 rounded-xl bg-slate-950/80 border border-indigo-500/20 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                              <span>Answers kept separate on subsequent Solution Pointers slide</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-indigo-300 font-semibold bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30">
+                              {addBlankPages ? '✍️ 2 Blank Whiteboard Sheets Follow' : '🎯 Answer Pointers Follow'}
+                            </span>
                           </div>
-                          <div className="text-[11px] text-slate-300 space-y-0.5 pl-1 leading-relaxed">
-                            {activeSlide.pyqDetails?.stepByStepSolution && activeSlide.pyqDetails.stepByStepSolution.length > 0 ? (
-                              activeSlide.pyqDetails.stepByStepSolution.map((s, idx) => (
+                        ) : activeSlide.pyqDetails.stepByStepSolution && activeSlide.pyqDetails.stepByStepSolution.length > 0 ? (
+                          <div className="p-3 rounded-xl bg-slate-950 border border-indigo-500/30 text-xs space-y-1">
+                            <div className="text-indigo-400 font-bold text-[11px] flex items-center gap-1.5">
+                              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                              Faculty Solution & Derivation Notes:
+                            </div>
+                            <div className="text-[11px] text-slate-300 space-y-0.5 pl-1 leading-relaxed">
+                              {activeSlide.pyqDetails.stepByStepSolution.map((s, idx) => (
                                 <p key={idx} className="text-slate-300">{s}</p>
-                              ))
-                            ) : (
-                              <p className="text-slate-400 italic">Detailed working steps, formula derivation, and step-by-step trace tables.</p>
-                            )}
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* 3b. BLANK WORKSPACE / LIVE DERIVATION CANVAS */}
+                    {activeSlide?.type === 'blank_workspace' && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-900 border border-emerald-500/30">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[10px] font-bold">
+                              ✍️ SHEET {activeSlide.workspacePage || 1} OF {activeSlide.workspaceTotalPages || 2}
+                            </span>
+                            <span className="text-xs font-bold text-slate-100">
+                              {activeSlide.title}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                            Digital Whiteboard Canvas
+                          </span>
+                        </div>
+
+                        {activeSlide.questionReference && (
+                          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 line-clamp-2">
+                            <span className="font-bold text-slate-300">Problem Statement: </span>
+                            {activeSlide.questionReference}
+                          </div>
+                        )}
+
+                        <div
+                          className="min-h-[160px] md:min-h-[200px] rounded-2xl border-2 border-dashed border-slate-800/90 bg-slate-950/60 p-6 flex flex-col items-center justify-center text-center space-y-2 relative overflow-hidden"
+                          style={{
+                            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)',
+                            backgroundSize: '16px 16px',
+                          }}
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                            ✍️
+                          </div>
+                          <p className="text-xs font-bold text-slate-200">
+                            Digital Whiteboard & Live Derivation Sheet
+                          </p>
+                          <p className="text-[10px] text-slate-500 max-w-sm">
+                            Space for faculty to derive mathematical equations, trace algorithms, and write notes with stylus/pen during class recordings.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3c. ANSWER POINTERS SLIDE (KEPT SEPARATE, NOT ANSWERS JUST POINTERS) */}
+                    {activeSlide?.type === 'answer_pointers' && activeSlide.answerPointers && (
+                      <div className="space-y-3">
+                        <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white font-mono font-bold text-[10px]">
+                              🎯 KEY POINTERS
+                            </span>
+                            <span className="text-xs font-bold text-indigo-200">
+                              {activeSlide.answerPointers.coreConcept || 'Solution Roadmap & Core Formulation'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-indigo-400 font-mono font-bold bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30">
+                            Separate Answers Page
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          {/* Left: Solving Milestones */}
+                          <div className="md:col-span-7 p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 shadow-inner">
+                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                              📌 Key Solving Milestones & Derivation Pointers
+                            </span>
+                            <div className="space-y-1.5 pt-0.5">
+                              {activeSlide.answerPointers.pointers.map((pointer, pIdx) => (
+                                <div key={pIdx} className="flex items-start gap-2 p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-200 leading-relaxed">
+                                  <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                    {pIdx + 1}
+                                  </span>
+                                  <span>{pointer}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Right: Formula Check & Pitfall */}
+                          <div className="md:col-span-5 space-y-2.5">
+                            <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 space-y-1 shadow-inner">
+                              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">
+                                ⚡ Formula / Invariant Check
+                              </span>
+                              <div className="p-2 rounded-xl bg-slate-950 border border-indigo-500/20 text-indigo-300 font-mono text-[11px] font-bold break-all">
+                                {activeSlide.answerPointers.formulaOrResult || 'Optimal Time & Space Bounds'}
+                              </div>
+                            </div>
+
+                            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+                              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                                ⚠️ Marking Trap & Common Pitfall
+                              </span>
+                              <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                                {activeSlide.answerPointers.commonPitfall || 'Ensure all intermediate steps and boundary conditions are stated for full marks.'}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
