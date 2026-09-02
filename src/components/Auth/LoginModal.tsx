@@ -158,38 +158,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* QUICK DEMO / TEST ACCOUNT SELECTOR */}
-        <div className="space-y-2 pt-2 border-t border-slate-800">
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
-            <span>⚡ Quick Faculty & Admin Select</span>
-            <span className="text-[10px] text-indigo-400">Click to autofill</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {StorageService.getUsers().map((u) => {
-              const pass = u.password || (u.role === 'admin' ? 'admin123' : 'teach123');
-              return (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => {
-                    setIdentifier(u.username || u.teacherId);
-                    setPassword(pass);
-                    setErrorMsg('');
-                  }}
-                  className="p-2 bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/50 rounded-xl text-left transition-all group cursor-pointer"
-                >
-                  <div className="font-bold text-slate-200 group-hover:text-indigo-300 text-[11px] truncate">
-                    {u.role === 'admin' ? '🛡️ ' : '👨‍🏫 '}{u.name}
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono truncate">
-                    {u.username || u.teacherId} • {u.subject || u.role}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Secure Academic Authentication Footer */}
         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-center text-[11px] text-slate-500">
           <span className="flex items-center gap-1.5">
