@@ -4,7 +4,8 @@ import {
   type AiGeneratedDeck, 
   type AiSlide, 
   type PyqItem,
-  type DirectPyqRow
+  type DirectPyqRow,
+  type AnswerPointersData
 } from '../../services/aiPptService';
 import { StorageService } from '../../services/storage';
 import { 
@@ -70,6 +71,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const [blankPagesCount, setBlankPagesCount] = useState<number>(2);
   const [generateAnswerPointers, setGenerateAnswerPointers] = useState<boolean>(true);
   const [answersPlacement, setAnswersPlacement] = useState<'after_question' | 'end_of_deck' | 'none'>('after_question');
+  const [deepSeekPointersMap, setDeepSeekPointersMap] = useState<Record<number, AnswerPointersData>>({});
+  const [isGeneratingDeepSeekPointers, setIsGeneratingDeepSeekPointers] = useState<boolean>(false);
   const [isExportingAnswersOnly, setIsExportingAnswersOnly] = useState<boolean>(false);
   const [isExportingQuestionsOnly, setIsExportingQuestionsOnly] = useState<boolean>(false);
 
@@ -298,6 +301,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     blankPagesCount?: number;
     generateAnswerPointers?: boolean;
     answersPlacement?: 'after_question' | 'end_of_deck' | 'none';
+    deepSeekPointersMap?: Record<number, AnswerPointersData>;
   }) => {
     if (directPyqRows.length === 0) {
       setErrorMessage('Please upload an Excel file containing PYQs first.');
@@ -311,6 +315,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     const useBlankCount = overrideOptions?.blankPagesCount !== undefined ? overrideOptions.blankPagesCount : blankPagesCount;
     const useAnswerPointers = overrideOptions?.generateAnswerPointers !== undefined ? overrideOptions.generateAnswerPointers : generateAnswerPointers;
     const usePlacement = overrideOptions?.answersPlacement !== undefined ? overrideOptions.answersPlacement : answersPlacement;
+    const usePointersMap = overrideOptions?.deepSeekPointersMap !== undefined ? overrideOptions.deepSeekPointersMap : deepSeekPointersMap;
 
     try {
       const deck = AiPptService.generateDirectPyqDeck({
@@ -324,6 +329,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         blankPagesCount: useBlankCount,
         generateAnswerPointers: useAnswerPointers,
         answersPlacement: usePlacement,
+        deepSeekPointersMap: usePointersMap,
       });
 
       setGeneratedDeck(deck);
@@ -341,6 +347,64 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     } catch (err: any) {
       setErrorMessage(`Error building deck: ${err?.message || 'Unknown error'}`);
       setIsGenerating(false);
+    }
+  };
+
+  /**
+   * Generates authentic, professor-grade answer pointers for all PYQs via DeepSeek API
+   */
+  const handleGenerateAnswerPointersWithDeepSeek = async () => {
+    if (directPyqRows.length === 0) {
+      setErrorMessage('Please upload PYQs Excel file first.');
+      return;
+    }
+
+    setIsGeneratingDeepSeekPointers(true);
+    setErrorMessage(null);
+
+    const questionsInput = directPyqRows.map((r, idx) => ({
+      id: idx,
+      questionText: r.questionText,
+      examYear: r.yearExam,
+      marks: r.marks,
+      topic: r.mappedTopic,
+      solution: r.solution,
+    }));
+
+    try {
+      const result = await AiPptService.fetchDeepSeekAnswerPointers({
+        subject: directSubject,
+        questions: questionsInput,
+        apiKey: apiKey || undefined,
+      });
+
+      if (!result.success) {
+        if (result.needsApiKey) {
+          setShowApiKeyModal(true);
+          setErrorMessage('DeepSeek API Key is needed to generate AI answer pointers. Enter your API key below.');
+        } else {
+          setErrorMessage(result.error || 'Failed to generate answer pointers via DeepSeek.');
+        }
+        setIsGeneratingDeepSeekPointers(false);
+        return;
+      }
+
+      if (result.pointersMap) {
+        setDeepSeekPointersMap(result.pointersMap);
+        setGenerateAnswerPointers(true);
+        // Instantly re-generate deck with DeepSeek pointers
+        handleGenerateDirectDeck({
+          generateAnswerPointers: true,
+          deepSeekPointersMap: result.pointersMap,
+        });
+
+        setSuccessToast(`✨ Generated concise, human-professor solution pointers for ${Object.keys(result.pointersMap).length} questions via DeepSeek API!`);
+        setTimeout(() => setSuccessToast(null), 4000);
+      }
+    } catch (err: any) {
+      setErrorMessage(`DeepSeek Pointer generation error: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsGeneratingDeepSeekPointers(false);
     }
   };
 
@@ -1160,6 +1224,36 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                           <option value="end_of_deck">Placement: End-of-Deck Appendix</option>
                         </select>
                       )}
+
+                      {/* DeepSeek Answer Pointers Generator Button */}
+                      <button
+                        type="button"
+                        onClick={handleGenerateAnswerPointersWithDeepSeek}
+                        disabled={isGeneratingDeepSeekPointers}
+                        className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
+                          Object.keys(deepSeekPointersMap).length > 0
+                            ? 'bg-purple-600/20 border-purple-500/50 text-purple-200'
+                            : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-500/50'
+                        }`}
+                        title="Generate authentic, professor-style board solution pointers via DeepSeek API"
+                      >
+                        {isGeneratingDeepSeekPointers ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-300" />
+                            <span>DeepSeek is generating pointers...</span>
+                          </>
+                        ) : Object.keys(deepSeekPointersMap).length > 0 ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                            <span>DeepSeek Pointers Active ({Object.keys(deepSeekPointersMap).length} Qs)</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lightbulb className="w-3.5 h-3.5 text-amber-300" />
+                            <span>Generate Answer Pointers (DeepSeek API)</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     {/* Specialized Separate Deck Exports */}
@@ -1434,33 +1528,34 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                       </div>
                     )}
 
-                    {/* 3c. ANSWER POINTERS SLIDE (KEPT SEPARATE, NOT ANSWERS JUST POINTERS) */}
+                    {/* 3c. ANSWER POINTERS SLIDE (KEPT SEPARATE, NOT ANSWERS JUST POINTERS, CLEAN & NON-AI) */}
                     {activeSlide?.type === 'answer_pointers' && activeSlide.answerPointers && (
-                      <div className="space-y-3">
-                        <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white font-mono font-bold text-[10px]">
-                              🎯 KEY POINTERS
+                      <div className="space-y-3.5">
+                        {/* Clean Academic Header Banner */}
+                        <div className="p-3 rounded-2xl bg-slate-900 border border-slate-700/80 flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold text-[10px] tracking-wider uppercase">
+                              SOLUTION ROADMAP
                             </span>
-                            <span className="text-xs font-bold text-indigo-200">
-                              {activeSlide.answerPointers.coreConcept || 'Solution Roadmap & Core Formulation'}
+                            <span className="text-xs md:text-sm font-bold text-slate-100">
+                              Question {activeSlide.questionNumber || ''} • {activeSlide.answerPointers.coreConcept || 'Solution Roadmap & Key Pointers'}
                             </span>
                           </div>
-                          <span className="text-[10px] text-indigo-400 font-mono font-bold bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30">
-                            Separate Answers Page
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Marking Guide & Formulas
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
                           {/* Left: Solving Milestones */}
-                          <div className="md:col-span-7 p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 shadow-inner">
-                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
-                              📌 Key Solving Milestones & Derivation Pointers
+                          <div className="md:col-span-7 p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2.5 shadow-inner">
+                            <span className="text-[11px] font-bold text-slate-200 tracking-wide block uppercase border-b border-slate-800 pb-1.5">
+                              Solving Milestones & Derivation Steps
                             </span>
-                            <div className="space-y-1.5 pt-0.5">
+                            <div className="space-y-2 pt-0.5">
                               {activeSlide.answerPointers.pointers.map((pointer, pIdx) => (
-                                <div key={pIdx} className="flex items-start gap-2 p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-200 leading-relaxed">
-                                  <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                <div key={pIdx} className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] text-slate-200 leading-relaxed">
+                                  <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                                     {pIdx + 1}
                                   </span>
                                   <span>{pointer}</span>
@@ -1469,23 +1564,23 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                             </div>
                           </div>
 
-                          {/* Right: Formula Check & Pitfall */}
-                          <div className="md:col-span-5 space-y-2.5">
-                            <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 space-y-1 shadow-inner">
-                              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">
-                                ⚡ Formula / Invariant Check
+                          {/* Right: Governing Formula & Examiner Note */}
+                          <div className="md:col-span-5 space-y-3">
+                            <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1.5 shadow-inner">
+                              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
+                                Governing Formula / Result Check
                               </span>
-                              <div className="p-2 rounded-xl bg-slate-950 border border-indigo-500/20 text-indigo-300 font-mono text-[11px] font-bold break-all">
-                                {activeSlide.answerPointers.formulaOrResult || 'Optimal Time & Space Bounds'}
+                              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-emerald-300 font-mono text-[11px] font-bold break-all">
+                                {activeSlide.answerPointers.formulaOrResult || 'Dimensional & Boundary Verification Required'}
                               </div>
                             </div>
 
-                            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+                            <div className="p-3.5 rounded-2xl bg-amber-950/20 border border-amber-500/30 space-y-1">
                               <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                                ⚠️ Marking Trap & Common Pitfall
+                                Examiner's Note & Grading Check
                               </span>
-                              <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                                {activeSlide.answerPointers.commonPitfall || 'Ensure all intermediate steps and boundary conditions are stated for full marks.'}
+                              <p className="text-[11px] text-amber-200/90 leading-relaxed font-medium">
+                                {activeSlide.answerPointers.commonPitfall || 'State initial assumptions and justify intermediate transitions to receive full step credit.'}
                               </p>
                             </div>
                           </div>

@@ -333,9 +333,9 @@ export const AiPptService = {
     questionText?: string,
     topicName?: string
   ): AnswerPointersData {
-    const cleanSol = (solutionText || '').trim();
-    const cleanQ = (questionText || '').trim();
-    const cleanTopic = (topicName || 'Core Examination Concept').trim();
+    const cleanSol = solutionText?.replace(/<[^>]*>?/gm, '').trim() || '';
+    const cleanQ = questionText?.replace(/<[^>]*>?/gm, '').trim() || '';
+    const cleanTopic = topicName || 'General Engineering';
 
     if (cleanSol) {
       // Split into clean sentence or step pointers
@@ -359,37 +359,149 @@ export const AiPptService = {
       }
 
       const commonPitfall = cleanQ.toLowerCase().includes('recurrence') || cleanSol.toLowerCase().includes('master')
-        ? 'Pitfall: Verify Master Theorem regularity condition f(n) vs n^(log_b a) before concluding.'
+        ? 'Examiner Note: Verify Master Theorem regularity condition f(n) vs n^(log_b a) before concluding.'
         : cleanQ.toLowerCase().includes('list') || cleanQ.toLowerCase().includes('tree')
-        ? 'Pitfall: Don\'t forget pointer reassignment sequence to avoid memory leaks or lost links.'
+        ? 'Examiner Note: Don\'t forget pointer reassignment sequence to avoid memory leaks or lost links.'
         : cleanQ.toLowerCase().includes('complexity')
-        ? 'Pitfall: Differentiate worst-case vs average-case tight bounds (Theta vs Big-O).'
-        : 'Pitfall: State initial boundary conditions and justify every step reduction for full marks.';
+        ? 'Examiner Note: Differentiate worst-case vs average-case tight bounds (Theta vs Big-O).'
+        : 'Examiner Note: State initial boundary conditions and justify every step reduction for full marks.';
 
       return {
-        coreConcept: `Core Foundation: ${cleanTopic}`,
+        coreConcept: `${cleanTopic}: Core Formulation`,
         pointers: pointerList,
         formulaOrResult: formulaResult || 'Key Invariant / Result Verification Required',
         commonPitfall,
       };
     }
 
-    // High quality pedagogical default pointers if no custom solution notes in sheet
+    // Realistic professor lecture board pointers (No AI jargon)
     return {
-      coreConcept: `Methodology & Concept: ${cleanTopic}`,
+      coreConcept: `${cleanTopic}: Solution Roadmap`,
       pointers: [
-        'Identify Problem Inputs: Extract given boundary values, constraints, and target objective.',
-        'Theoretical Formulation: State the governing theorem, mathematical recurrence, or algorithm pattern.',
-        'Execution Trace: Perform intermediate derivation steps, pointer manipulation, or trace table.',
-        'Complexity Audit: Verify Time Complexity and Space Complexity against constraints.',
+        'State given parameters, constraints, and boundary conditions clearly.',
+        'Apply fundamental governing theorem or recurrence relation.',
+        'Show intermediate derivation steps or execution trace table.',
+        'Compute final symbolic/numerical result and state appropriate units.',
       ],
-      formulaOrResult: 'Target Metric: Optimal Asymptotic Time & Space Bounds',
-      commonPitfall: 'Avoid skipping base cases or boundary edge conditions during exam evaluation.',
+      formulaOrResult: 'Governing Formula & Dimensional Consistency Verification',
+      commonPitfall: 'Examiner Note: Ensure all intermediate derivation steps are explicitly stated to receive step marks.',
     };
   },
 
   /**
-   * Deterministically generates a presentation deck from PYQs without DeepSeek / AI
+   * Generates concise, human-professor style solution pointers for questions using DeepSeek API.
+   * Strips out all AI fluff and conversational filler to produce clean, authentic lecture board notes.
+   */
+  async fetchDeepSeekAnswerPointers(params: {
+    subject: string;
+    questions: Array<{
+      id?: string | number;
+      questionText: string;
+      examYear?: string;
+      marks?: string;
+      topic?: string;
+      solution?: string;
+    }>;
+    apiKey?: string;
+  }): Promise<{
+    success: boolean;
+    pointersMap?: Record<number, AnswerPointersData>;
+    error?: string;
+    needsApiKey?: boolean;
+  }> {
+    const activeApiKey = params.apiKey || this.getStoredApiKey();
+
+    // 1. Try internal serverless endpoint
+    try {
+      const response = await fetch('/api/deepseek-generate-pointers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: params.subject,
+          questions: params.questions,
+          apiKey: activeApiKey || undefined,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.pointersMap) {
+          return { success: true, pointersMap: data.pointersMap };
+        }
+      } else if (response.status === 400) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.needsApiKey) {
+          return { success: false, needsApiKey: true, error: errorData.error };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Endpoint /api/deepseek-generate-pointers unavailable, checking direct DeepSeek API...', apiErr);
+    }
+
+    // 2. Direct DeepSeek API fallback (if user has API key configured in localStorage / client)
+    if (activeApiKey && activeApiKey.trim() !== '') {
+      try {
+        const trimmedQuestions = params.questions.slice(0, 30);
+        const formattedQuestionsList = trimmedQuestions
+          .map((q, idx) => `[Q#${idx + 1}] ${q.examYear ? `[${q.examYear}]` : ''} ${q.marks ? `[${q.marks}]` : ''}\nQuestion: ${q.questionText}`)
+          .join('\n\n');
+
+        const systemPrompt = `You are a distinguished university engineering professor writing concise board solution pointers and marking roadmap for exam questions in ${params.subject}.
+CRITICAL STYLE RULES:
+- MUST NOT LOOK LIKE AI: No conversational fluff, no "Certainly!", no "Here is...", no robotic emoji spam.
+- Write crisp, authentic professor notes like written on a classroom whiteboard.
+- Return ONLY valid JSON: {"results": [{"questionIndex": 0, "coreConcept": "...", "pointers": ["...", "..."], "formulaOrResult": "...", "commonPitfall": "..."}]}`;
+
+        const directRes = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeApiKey.trim()}`,
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: `Generate concise professor solution pointers for:\n\n${formattedQuestionsList}` },
+            ],
+            temperature: 0.3,
+            response_format: { type: 'json_object' },
+          }),
+        });
+
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          const content = directData.choices?.[0]?.message?.content;
+          if (content) {
+            const parsed = JSON.parse(content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim());
+            const list: any[] = Array.isArray(parsed) ? parsed : (parsed.results || parsed.pointers || []);
+            const pointersMap: Record<number, AnswerPointersData> = {};
+            list.forEach((item, idx) => {
+              const qIdx = typeof item.questionIndex === 'number' ? item.questionIndex : idx;
+              pointersMap[qIdx] = {
+                coreConcept: item.coreConcept || 'Solution Roadmap',
+                pointers: Array.isArray(item.pointers) ? item.pointers : ['State given parameters clearly', 'Apply governing theorem', 'Compute final expression'],
+                formulaOrResult: item.formulaOrResult,
+                commonPitfall: item.commonPitfall,
+              };
+            });
+            return { success: true, pointersMap };
+          }
+        }
+      } catch (directErr: any) {
+        return { success: false, error: directErr?.message || 'Direct DeepSeek API call failed.' };
+      }
+    }
+
+    return {
+      success: false,
+      needsApiKey: true,
+      error: 'DeepSeek API Key is required to generate AI answer pointers.',
+    };
+  },
+
+  /**
+   * Deterministically generates a presentation deck from PYQs
    * Combines all questions of a topic, then all topics of a unit!
    * Supports 2 Blank Workspace pages per question and Separate Answer Pointers slides.
    */
@@ -404,6 +516,7 @@ export const AiPptService = {
     blankPagesCount?: number;
     generateAnswerPointers?: boolean;
     answersPlacement?: 'after_question' | 'end_of_deck' | 'none';
+    deepSeekPointersMap?: Record<number, AnswerPointersData>;
   }): AiGeneratedDeck {
     const {
       subject,
@@ -416,6 +529,7 @@ export const AiPptService = {
       blankPagesCount = 2,
       generateAnswerPointers = true,
       answersPlacement = 'after_question',
+      deepSeekPointersMap,
     } = params;
 
     const unitGroups = this.groupAndSortPyqsByUnitAndTopic(pyqs, syllabusTopicsOrder);
@@ -485,9 +599,24 @@ export const AiPptService = {
         // 2c. Question Slides for this Topic
         tGroup.questions.forEach((pyq, qIdxInTopic) => {
           const currentQNum = globalQuestionCounter;
-          const pointersData = this.formatSolutionIntoPointers(pyq.solution, pyq.questionText, tGroup.topicName);
-          pointersData.examYear = pyq.yearExam;
-          pointersData.marks = pyq.marks;
+          const currentZeroBasedIdx = globalQuestionCounter - 1;
+          const deepSeekItem = deepSeekPointersMap?.[currentZeroBasedIdx];
+
+          const pointersData: AnswerPointersData = deepSeekItem
+            ? {
+                coreConcept: deepSeekItem.coreConcept,
+                pointers: deepSeekItem.pointers,
+                formulaOrResult: deepSeekItem.formulaOrResult,
+                commonPitfall: deepSeekItem.commonPitfall,
+                examYear: pyq.yearExam,
+                marks: pyq.marks,
+              }
+            : this.formatSolutionIntoPointers(pyq.solution, pyq.questionText, tGroup.topicName);
+
+          if (!deepSeekItem) {
+            pointersData.examYear = pyq.yearExam;
+            pointersData.marks = pyq.marks;
+          }
 
           // (i) PURE QUESTION SLIDE (Answers kept completely separate!)
           slides.push({
@@ -1251,7 +1380,7 @@ export const AiPptService = {
         });
 
         pptSlide.addText(
-          `🎯 ${pointers.coreConcept || 'Core Solution Formulation & Verification Pointers'}`,
+          `${pointers.coreConcept || 'Solution Roadmap & Key Pointers'}`,
           {
             x: 1.0,
             y: contentStartY + 0.08,
@@ -1275,7 +1404,7 @@ export const AiPptService = {
           rectRadius: 0.1,
         });
 
-        pptSlide.addText('📌 Key Solving Milestones & Derivation Pointers:', {
+        pptSlide.addText('Solving Milestones & Derivation Steps:', {
           x: 1.0,
           y: contentStartY + 0.72,
           w: 4.8,
@@ -1310,7 +1439,7 @@ export const AiPptService = {
         });
 
         // Top right: Formula / Target Check
-        pptSlide.addText('⚡ Formula / Invariant Check:', {
+        pptSlide.addText('Governing Formula / Result Check:', {
           x: 6.3,
           y: contentStartY + 0.72,
           w: 2.75,
@@ -1331,7 +1460,7 @@ export const AiPptService = {
           rectRadius: 0.06,
         });
 
-        pptSlide.addText(pointers.formulaOrResult || 'O(n log n) Complexity Form', {
+        pptSlide.addText(pointers.formulaOrResult || 'Verification Check Required', {
           x: 6.4,
           y: contentStartY + 1.05,
           w: 2.55,
@@ -1343,7 +1472,7 @@ export const AiPptService = {
         });
 
         // Bottom right: Examination Trap / Pitfall
-        pptSlide.addText('⚠️ Marking Pitfall & Trap:', {
+        pptSlide.addText("Examiner's Note & Grading Check:", {
           x: 6.3,
           y: contentStartY + 1.75,
           w: 2.75,
@@ -1355,7 +1484,7 @@ export const AiPptService = {
         });
 
         pptSlide.addText(
-          pointers.commonPitfall || 'Always justify base cases and intermediate transitions to score full marks.',
+          pointers.commonPitfall || 'State initial assumptions and justify intermediate transitions to receive full step credit.',
           {
             x: 6.3,
             y: contentStartY + 2.05,
@@ -1708,7 +1837,7 @@ export const AiPptService = {
         doc.setTextColor(99, 102, 241); // Indigo
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text(`🎯 ${pointers.coreConcept || 'Solution Roadmap & Key Pointers'}:`, 26, currentY);
+        doc.text(`${pointers.coreConcept || 'Solution Roadmap & Key Pointers'}:`, 26, currentY);
         currentY += 8;
 
         // Pointers list
@@ -1728,7 +1857,7 @@ export const AiPptService = {
           doc.setTextColor(16, 185, 129);
           doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
-          doc.text(`⚡ Formula & Result Check: ${pointers.formulaOrResult}`, 26, currentY);
+          doc.text(`Governing Formula / Result: ${pointers.formulaOrResult}`, 26, currentY);
           currentY += 7;
         }
 
@@ -1737,7 +1866,7 @@ export const AiPptService = {
           doc.setTextColor(245, 158, 11); // Amber
           doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
-          const splitPitfall = doc.splitTextToSize(`⚠️ Examination Tip: ${pointers.commonPitfall}`, 245);
+          const splitPitfall = doc.splitTextToSize(`Examiner's Note: ${pointers.commonPitfall}`, 245);
           doc.text(splitPitfall, 26, currentY);
           currentY += splitPitfall.length * 5 + 2;
         }
