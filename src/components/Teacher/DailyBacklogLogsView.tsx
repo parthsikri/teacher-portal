@@ -126,6 +126,10 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
                   <p className="text-xs text-slate-400 mt-0.5">
                     Day-by-day audit starting from your official joining date ({dailyLogsInfo.joiningDate || 'onboarding'}). Dates prior to joining are excluded, and approved leaves are excused with zero backlog debt.
                   </p>
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-950/80 border border-indigo-500/30 text-[11px] text-slate-300">
+                    <span className="text-indigo-400 font-bold">📌 Note:</span>
+                    <span>Today&apos;s extra / pending recording time is not included in calculating backlog shortfall (tracks live until midnight rollover).</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -175,8 +179,8 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
               </div>
               <p className="mt-1 text-[10px] text-slate-400">
                 {dailyLogsInfo.remainingBacklogMinutes > 0 
-                  ? `Across ${dailyLogsInfo.shortfallDaysCount} shortfall session${dailyLogsInfo.shortfallDaysCount === 1 ? '' : 's'}`
-                  : 'All historical obligations fulfilled'}
+                  ? `Across ${dailyLogsInfo.shortfallDaysCount} shortfall session${dailyLogsInfo.shortfallDaysCount === 1 ? '' : 's'} (excludes today's active time)`
+                  : 'All historical obligations fulfilled (excludes today\'s active time)'}
               </p>
             </div>
 
@@ -522,7 +526,9 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          {log.isDayOff
+                          {log.isToday
+                            ? "Today's recording session is active. Today's extra or pending time is not factored into past backlog debt until midnight rollover."
+                            : log.isDayOff
                             ? 'Approved Faculty Leave: quota was excused by Academic Operations with zero shortfall penalty.'
                             : log.shortfall > 0
                             ? `This date contributed ${log.shortfall} minutes to historical late backlog because daily recording was below target.`

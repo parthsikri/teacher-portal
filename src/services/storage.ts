@@ -2243,6 +2243,7 @@ export const StorageService = {
   saveDayOffGrants(grants: DayOffGrant[]): void {
     localStorage.setItem(DAY_OFF_GRANTS_KEY, JSON.stringify(grants));
     triggerBackgroundCloudSync();
+    this.syncToCloud().catch((err) => console.warn('[CloudSync] saveDayOffGrants push error:', err));
   },
 
   getTeacherDayOffs(teacherId: string): DayOffGrant[] {
@@ -2304,6 +2305,7 @@ export const StorageService = {
     }
 
     this.saveDayOffGrants(grants);
+    this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate grantDayOff push error:', err));
 
     // Operational Notification: Notify Teacher of Granted Leave
     try {
@@ -2327,8 +2329,10 @@ export const StorageService = {
   },
 
   revokeDayOff(grantId: string): void {
+    this.addDeletedId(grantId);
     const grants = this.getDayOffGrants().filter((g) => g.id !== grantId);
     this.saveDayOffGrants(grants);
+    this.syncToCloud().catch((err) => console.warn('[CloudSync] Immediate revokeDayOff push error:', err));
   },
 
   // ─── ADMIN NOTIFICATION BADGES FOR TEACHER ───────────────────────────────────

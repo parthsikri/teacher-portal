@@ -100,6 +100,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
     }
   }, [currentPage]);
 
+  useEffect(() => {
+    setTeachers(StorageService.getTeachers());
+    setLectures(StorageService.getLectures());
+    setAssignedTopics(StorageService.getAssignedTopics());
+    setSubjectReferences(StorageService.getSubjectReferences());
+    setPptRequests(StorageService.getPptRequests());
+    setRefreshCounter((prev) => prev + 1);
+  }, [refreshTrigger]);
+
   // Add Teacher Modal state with Credentials
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTeacherId, setNewTeacherId] = useState('');
@@ -2811,6 +2820,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           onClick={() => {
                             StorageService.revokeDayOff(grant.id);
                             setTeachers(StorageService.getTeachers());
+                            setRefreshCounter((c) => c + 1);
                             if (onRefreshData) onRefreshData();
                           }}
                           className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white font-bold text-xs transition-all self-start md:self-center cursor-pointer"
@@ -5196,6 +5206,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   });
                   setShowDayOffModal(false);
                   setTeachers(StorageService.getTeachers());
+                  setRefreshCounter((c) => c + 1);
                   if (onRefreshData) onRefreshData();
                 }}
                 className="space-y-4 text-xs"
