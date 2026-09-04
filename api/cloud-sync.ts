@@ -34,6 +34,13 @@ const DEFAULT_STATE = {
     extensions: [],
     walletTransactions: [],
     dayOffGrants: [],
+    emailConfig: {
+      provider: 'smtp',
+      smtpHost: 'smtp.gmail.com',
+      smtpPort: 465,
+      senderName: 'AEW Academic Operations',
+    },
+    emailLogs: [],
   };
 
 function mergeMasterStates(current: any, incoming: any): any {
@@ -58,9 +65,15 @@ function mergeMasterStates(current: any, incoming: any): any {
     incoming.users.forEach((u: any) => {
       if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
         const existing = userMap.get(u.teacherId.toUpperCase());
+        // Preserve custom email if incoming is dummy/empty
+        const isExistingRealEmail = existing?.email && !String(existing.email).endsWith('@aew.com');
+        const isIncomingRealEmail = u?.email && !String(u.email).endsWith('@aew.com');
+        const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing.email : (u.email || existing?.email));
+
         userMap.set(u.teacherId.toUpperCase(), {
           ...existing,
           ...u,
+          email: resolvedEmail,
         });
       }
     });
@@ -276,6 +289,54 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
+  // Merge Email Configuration (Never wipe valid credentials with empty/default state)
+  const curConfig = current.emailConfig || {};
+  const incConfig = incoming.emailConfig || {};
+  const curHasCreds = Boolean(curConfig.smtpPass || curConfig.smtpUser || curConfig.resendApiKey);
+  const incHasCreds = Boolean(incConfig.smtpPass || incConfig.smtpUser || incConfig.resendApiKey);
+
+  let mergedEmailConfig = curConfig;
+  if (incHasCreds) {
+    mergedEmailConfig = {
+      ...curConfig,
+      ...incConfig,
+      updatedAt: new Date().toISOString(),
+    };
+  } else if (curHasCreds) {
+    mergedEmailConfig = {
+      ...incConfig,
+      ...curConfig,
+    };
+  } else {
+    mergedEmailConfig = {
+      provider: 'smtp',
+      smtpHost: 'smtp.gmail.com',
+      smtpPort: 465,
+      senderName: 'AEW Academic Operations',
+      ...curConfig,
+      ...incConfig,
+    };
+  }
+
+  // Merge Sent Email Logs (Deduplicated by id, sorted by timestamp descending, capped at 200 items)
+  const logMap = new Map<string, any>();
+  if (Array.isArray(current.emailLogs)) {
+    current.emailLogs.forEach((l: any) => {
+      if (l && l.id) logMap.set(l.id, l);
+    });
+  }
+  if (Array.isArray(incoming.emailLogs)) {
+    incoming.emailLogs.forEach((l: any) => {
+      if (l && l.id) {
+        const ex = logMap.get(l.id);
+        logMap.set(l.id, ex ? { ...ex, ...l } : l);
+      }
+    });
+  }
+  const mergedEmailLogs = Array.from(logMap.values())
+    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+    .slice(0, 200);
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -289,6 +350,8 @@ function mergeMasterStates(current: any, incoming: any): any {
     extensions: Array.from(extMap.values()),
     walletTransactions: Array.from(walletMap.values()),
     dayOffGrants: Array.from(dayOffMap.values()),
+    emailConfig: mergedEmailConfig,
+    emailLogs: mergedEmailLogs,
   };
 }
 

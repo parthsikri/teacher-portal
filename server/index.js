@@ -778,36 +778,45 @@ app.post('/api/send-email', async (req, res) => {
   const activeSmtpPass = (bodyConfig.smtpPass ? String(bodyConfig.smtpPass).trim().replace(/\s+/g, '') : SMTP_PASS);
   const activeSmtpHost = (bodyConfig.smtpHost || SMTP_HOST || 'smtp.gmail.com').trim();
   const activeSmtpPort = parseInt(bodyConfig.smtpPort || SMTP_PORT || '465', 10);
-  const activeSenderName = (bodyConfig.senderName || 'AEW Academic Operations').trim();
-  const activeSmtpFrom = (bodyConfig.smtpFrom || `${activeSenderName} <${activeSmtpUser}>`).trim();
+  const activeSenderName = (bodyConfig.senderName || 'AEW Academic Operations').replace(/["\r\n]/g, '').trim();
+  const activeSmtpFrom = `"${activeSenderName}" <${activeSmtpUser}>`;
   const activeResendKey = (bodyConfig.resendApiKey || RESEND_API_KEY).trim();
   const activeResendFrom = (bodyConfig.fromEmail || RESEND_FROM_EMAIL).trim();
 
   // 1. Dispatch via SMTP (e.g. Gmail) — ZERO DOMAIN NEEDED
   if (activeSmtpUser && activeSmtpPass) {
     try {
+      const isSecure = activeSmtpPort === 465;
       const transporter = nodemailer.createTransport({
         host: activeSmtpHost,
         port: activeSmtpPort,
-        secure: activeSmtpPort === 465,
+        secure: isSecure,
+        requireTLS: !isSecure && activeSmtpPort === 587,
         auth: {
           user: activeSmtpUser,
           pass: activeSmtpPass,
         },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
       });
 
       const info = await transporter.sendMail({
-        from: activeSmtpFrom || activeSmtpUser,
+        from: activeSmtpFrom,
         to: validRecipients.join(', '),
         subject,
         html,
       });
 
       console.log(`[Dev SendEmail] SMTP (Gmail) sent "${type}" to:`, validRecipients);
-      return res.json({ success: true, provider: 'smtp', messageId: info.messageId });
+      return res.json({ success: true, status: 'delivered', provider: 'smtp', messageId: info.messageId, subject });
     } catch (err) {
       console.error('[SendEmail SMTP Local Error]', err.message);
-      return res.status(500).json({ success: false, error: err.message, provider: 'smtp' });
+      let friendlyError = err.message || 'Failed to dispatch email via SMTP.';
+      if (err.code === 'EAUTH' || friendlyError.includes('535-5.7.8')) {
+        friendlyError = 'Google SMTP Authentication Failed (535-5.7.8). Ensure 2-Step Verification is enabled and you generated a 16-character Google App Password.';
+      }
+      return res.status(500).json({ success: false, status: 'failed', error: friendlyError, provider: 'smtp', subject });
     }
   }
 
@@ -829,10 +838,14 @@ app.post('/api/send-email', async (req, res) => {
       });
 
       const resendResult = await resendResponse.json();
-      return res.status(resendResponse.status).json(resendResult);
+      return res.status(resendResponse.status).json({
+        ...resendResult,
+        status: resendResponse.ok ? 'delivered' : 'failed',
+        subject,
+      });
     } catch (err) {
       console.error('[SendEmail Resend Local Error]', err.message);
-      return res.status(500).json({ success: false, error: err.message });
+      return res.status(500).json({ success: false, status: 'failed', error: err.message, subject });
     }
   }
   // 3. Fallback
@@ -840,8 +853,10 @@ app.post('/api/send-email', async (req, res) => {
   return res.json({
     success: true,
     simulated: true,
-    message: 'No SMTP or Resend credentials in .env. Email logged to console.',
+    status: 'simulated',
+    message: 'No email credentials (SMTP_USER/SMTP_PASS or RESEND_API_KEY) found. Email logged in simulated mode.',
     recipients: validRecipients,
+    subject,
     type,
   });
 });

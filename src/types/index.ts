@@ -237,9 +237,26 @@ export interface EmailConfig {
   smtpPass?: string;
   smtpHost?: string;
   smtpPort?: number;
+  smtpSecure?: boolean;
   senderName?: string;
   resendApiKey?: string;
   fromEmail?: string;
+  lastTestedAt?: string;
+  updatedAt?: string;
 }
+
+export interface EmailLogItem {
+  id: string;
+  to: string | string[];
+  type: string;
+  subject: string;
+  status: 'delivered' | 'failed' | 'simulated';
+  provider?: 'smtp' | 'resend' | 'simulated';
+  messageId?: string;
+  errorMessage?: string;
+  timestamp: string;
+  dataSummary?: string;
+}
+
 
 

@@ -13,7 +13,19 @@ interface EmailDispatchOptions {
  * Non-blocking, fire-and-forget.
  */
 class NotificationService {
-  private async dispatch(options: EmailDispatchOptions): Promise<void> {
+  public async dispatch(options: EmailDispatchOptions): Promise<{
+    success: boolean;
+    status: 'delivered' | 'failed' | 'simulated';
+    error?: string;
+    messageId?: string;
+    subject?: string;
+  }> {
+    const config = StorageService.getEmailConfig();
+    let status: 'delivered' | 'failed' | 'simulated' = 'failed';
+    let errorMessage: string | undefined;
+    let messageId: string | undefined;
+    let subject = options.data?.subject || `AEW Notification: ${options.type}`;
+
     try {
       const response = await fetch('/api/send-email', {
         method: 'POST',
@@ -22,20 +34,84 @@ class NotificationService {
         },
         body: JSON.stringify({
           ...options,
-          config: StorageService.getEmailConfig(),
+          config,
         }),
       });
 
+      const result = await response.json().catch(() => ({}));
+      if (result.subject) subject = result.subject;
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.warn('[NotificationService] Dispatch response not OK:', response.status, errorText);
+        status = 'failed';
+        errorMessage = result.error || `HTTP ${response.status}: Failed to dispatch email.`;
+        console.warn('[NotificationService] Email dispatch failed:', errorMessage);
       } else {
-        const result = await response.json();
-        console.log('[NotificationService] Email dispatch successful:', result);
+        status = result.simulated ? 'simulated' : 'delivered';
+        messageId = result.messageId || result.id;
+        console.log('[NotificationService] Email dispatch result:', result);
       }
-    } catch (err) {
-      console.warn('[NotificationService] Failed to dispatch email notification (non-blocking):', err);
+    } catch (err: any) {
+      status = 'failed';
+      errorMessage = err?.message || 'Network error while attempting to dispatch email.';
+      console.warn('[NotificationService] Failed to dispatch email notification:', err);
     }
+
+    // Persist into audit history and sync to cloud
+    try {
+      const summaryParts = [];
+      if (options.data?.topicTitle) summaryParts.push(`Topic: ${options.data.topicTitle}`);
+      if (options.data?.teacherName) summaryParts.push(`Teacher: ${options.data.teacherName}`);
+      if (options.data?.lectureTitle) summaryParts.push(`Lecture: ${options.data.lectureTitle}`);
+
+      StorageService.addEmailLog({
+        to: options.to,
+        type: options.type,
+        subject,
+        status,
+        provider: config.provider || 'smtp',
+        messageId,
+        errorMessage,
+        dataSummary: summaryParts.join(' • ') || undefined,
+      });
+    } catch (logErr) {
+      console.warn('[NotificationService] Error recording email log:', logErr);
+    }
+
+    return {
+      success: status !== 'failed',
+      status,
+      error: errorMessage,
+      messageId,
+      subject,
+    };
+  }
+
+  /**
+   * Retry sending a previously recorded email log
+   */
+  async retryEmail(logId: string): Promise<{ success: boolean; status: string; error?: string }> {
+    const logs = StorageService.getEmailLogs();
+    const target = logs.find((l) => l.id === logId);
+    if (!target) return { success: false, status: 'failed', error: 'Log entry not found' };
+
+    return this.dispatch({
+      to: target.to,
+      type: target.type as any,
+      data: { subject: target.subject },
+    });
+  }
+
+  /**
+   * Send an immediate test dispatch to verify credentials
+   */
+  async sendTestEmail(recipientEmail: string): Promise<{ success: boolean; status: string; error?: string }> {
+    return this.dispatch({
+      to: recipientEmail,
+      type: 'test_dispatch',
+      data: {
+        provider: StorageService.getEmailConfig().provider === 'resend' ? 'Resend API' : 'Gmail / SMTP',
+      },
+    });
   }
 
   /**
@@ -49,7 +125,7 @@ class NotificationService {
     unitNumber?: string;
     notes?: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.teacherEmail) return;
     return this.dispatch({
       to: params.teacherEmail,
@@ -69,7 +145,7 @@ class NotificationService {
     remarkText: string;
     adminName: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.teacherEmail) return;
     return this.dispatch({
       to: params.teacherEmail,
@@ -89,7 +165,7 @@ class NotificationService {
     subject?: string;
     remarkText: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.adminEmails) return;
     return this.dispatch({
       to: params.adminEmails,
@@ -111,7 +187,7 @@ class NotificationService {
     notes?: string;
     adminRemarks?: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.teacherEmail) return;
     return this.dispatch({
       to: params.teacherEmail,
@@ -131,7 +207,7 @@ class NotificationService {
     unitNumber?: string;
     subtopics?: string[];
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.adminEmails) return;
     return this.dispatch({
       to: params.adminEmails,
@@ -152,7 +228,7 @@ class NotificationService {
     adminFeedback?: string;
     feedback?: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.teacherEmail) return;
     return this.dispatch({
       to: params.teacherEmail,
@@ -173,7 +249,7 @@ class NotificationService {
     targetExam?: string;
     lectureDate?: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.adminEmails) return;
     return this.dispatch({
       to: params.adminEmails,
@@ -193,7 +269,7 @@ class NotificationService {
     completedPdfUrl?: string;
     adminRemarks?: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.teacherEmail) return;
     return this.dispatch({
       to: params.teacherEmail,
@@ -214,7 +290,7 @@ class NotificationService {
     reason: string;
     grantedBy: string;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.teacherEmail) return;
     return this.dispatch({
       to: params.teacherEmail,
@@ -237,7 +313,7 @@ class NotificationService {
     reuploadReason?: string;
     durationMinutes?: number;
     [key: string]: any;
-  }): Promise<void> {
+  }): Promise<any> {
     if (!params.adminEmails) return;
     return this.dispatch({
       to: params.adminEmails,

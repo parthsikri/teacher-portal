@@ -12,7 +12,8 @@ export type NotificationEventType =
   | 'ppt_requested'
   | 'ppt_ready'
   | 'day_off_granted'
-  | 'video_reuploaded';
+  | 'video_reuploaded'
+  | 'test_dispatch';
 
 export interface EmailRequestBody {
   to: string | string[];
@@ -402,6 +403,33 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
       return { subject, html };
     }
 
+    case 'test_dispatch': {
+      const subject = `✅ AEW Portal Email Verification: Delivery Successful!`;
+      const html = wrapContent(
+        `
+        <div style="background-color: #064e3b; border: 1px solid #059669; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+          <span style="color: #6ee7b7; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Email Setup Verified ✓</span>
+        </div>
+        <p style="font-size: 15px; color: #f8fafc; margin-top: 0;">
+          Hello Academic Operations Admin,
+        </p>
+        <p>
+          Your email notification system is functioning perfectly! Real-time notifications for topic assignments, directives, extensions, and slide decks will be dispatched to your faculty members.
+        </p>
+        <div style="background-color: #1e293b; border-left: 4px solid #10b981; padding: 14px 16px; border-radius: 4px; margin: 18px 0;">
+          <div style="font-size: 13px; font-weight: 700; color: #f8fafc;">Delivery Pipeline Active</div>
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Provider: ${data.provider || 'Gmail / SMTP'} • Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</div>
+          <div style="font-size: 12px; color: #34d399; margin-top: 6px; font-weight: 600;">Status: Verified & Cloud-Synced ✓</div>
+        </div>
+        <p style="font-size: 13px; color: #94a3b8;">
+          All email settings and audit logs are securely stored and synced to the cloud database.
+        </p>
+        `,
+        `<a href="${PORTAL_URL}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 13px; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.4);">Open Teacher Portal →</a>`
+      );
+      return { subject, html };
+    }
+
     default: {
       const subject = `AEW Portal Operational Notification: ${type}`;
       const html = wrapContent(`<p>New update in Teacher Portal regarding your academic activities.</p>`);
@@ -411,7 +439,7 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
 }
 
 /**
- * Serverless Handler for Sending Operational Notification Emails via Resend
+ * Serverless Handler for Sending Operational Notification Emails via SMTP / Resend
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS Headers
@@ -446,31 +474,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { subject, html } = buildEmailTemplate(type, data || {});
 
-    const bodyConfig = (req.body?.config || {}) as Record<string, any>;
+  const bodyConfig = (req.body?.config || {}) as Record<string, any>;
   const activeSmtpUser = (bodyConfig.smtpUser || SMTP_USER).trim();
   const activeSmtpPass = (bodyConfig.smtpPass ? String(bodyConfig.smtpPass).trim().replace(/\s+/g, '') : SMTP_PASS);
   const activeSmtpHost = (bodyConfig.smtpHost || SMTP_HOST || 'smtp.gmail.com').trim();
   const activeSmtpPort = parseInt(bodyConfig.smtpPort || SMTP_PORT || '465', 10);
-  const activeSenderName = (bodyConfig.senderName || 'AEW Academic Operations').trim();
-  const activeSmtpFrom = (bodyConfig.smtpFrom || `${activeSenderName} <${activeSmtpUser}>`).trim();
+  const activeSenderName = (bodyConfig.senderName || 'AEW Academic Operations').replace(/["\r\n]/g, '').trim();
+  const activeSmtpFrom = `"${activeSenderName}" <${activeSmtpUser}>`;
   const activeResendKey = (bodyConfig.resendApiKey || RESEND_API_KEY).trim();
   const activeResendFrom = (bodyConfig.fromEmail || RESEND_FROM_EMAIL).trim();
 
   // ─── A. Dispatch via SMTP (Gmail / Custom Mail Server) ─────────────────────
   if (activeSmtpUser && activeSmtpPass) {
     try {
+      const isSecure = activeSmtpPort === 465;
       const transporter = nodemailer.createTransport({
         host: activeSmtpHost,
         port: activeSmtpPort,
-        secure: activeSmtpPort === 465,
+        secure: isSecure,
+        requireTLS: !isSecure && activeSmtpPort === 587,
         auth: {
           user: activeSmtpUser,
           pass: activeSmtpPass,
         },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
       });
 
       const info = await transporter.sendMail({
-        from: activeSmtpFrom || activeSmtpUser,
+        from: activeSmtpFrom,
         to: validRecipients.join(', '),
         subject,
         html,
@@ -479,17 +512,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[SendEmail] SMTP delivered "${type}" email to ${validRecipients.join(', ')}. MessageId:`, info.messageId);
       return res.status(200).json({
         success: true,
+        status: 'delivered',
         provider: 'smtp',
         messageId: info.messageId,
         recipients: validRecipients,
+        subject,
         type,
       });
     } catch (smtpErr: any) {
       console.error('[SendEmail] SMTP Error:', smtpErr);
+      let friendlyError = smtpErr.message || 'Failed to dispatch email via SMTP.';
+      if (smtpErr.code === 'EAUTH' || friendlyError.includes('535-5.7.8') || friendlyError.includes('Username and Password not accepted')) {
+        friendlyError = 'Google SMTP Authentication Failed (535-5.7.8). Ensure 2-Step Verification is enabled on your Google Account and you generated a 16-character Google App Password (not your personal password).';
+      } else if (smtpErr.code === 'ETIMEDOUT') {
+        friendlyError = `SMTP connection timed out connecting to ${activeSmtpHost}:${activeSmtpPort}. Check network connectivity or firewall settings.`;
+      }
+
       return res.status(500).json({
         success: false,
-        error: smtpErr.message || 'Failed to dispatch email via SMTP.',
+        status: 'failed',
+        error: friendlyError,
         provider: 'smtp',
+        subject,
       });
     }
   }
@@ -517,36 +561,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('[SendEmail] Resend API Error:', resendResult);
         return res.status(resendResponse.status).json({
           success: false,
+          status: 'failed',
           error: resendResult.message || 'Failed to dispatch email via Resend API.',
           details: resendResult,
           provider: 'resend',
+          subject,
         });
       }
 
       console.log(`[SendEmail] Resend delivered "${type}" email to ${validRecipients.join(', ')}. ID:`, resendResult.id);
       return res.status(200).json({
         success: true,
+        status: 'delivered',
         id: resendResult.id,
         provider: 'resend',
         recipients: validRecipients,
+        subject,
         type,
       });
     } catch (resendErr: any) {
       console.error('[SendEmail] Resend error:', resendErr);
       return res.status(500).json({
         success: false,
+        status: 'failed',
         error: resendErr.message || 'Internal server error while processing Resend dispatch.',
         provider: 'resend',
+        subject,
       });
     }
   }
+
   // ─── C. Simulated Fallback (No Credentials Configured) ───────────────────
   console.warn(`[SendEmail] Neither SMTP (Gmail) nor RESEND_API_KEY is configured. Simulated "${type}" email to:`, validRecipients);
   return res.status(200).json({
     success: true,
     simulated: true,
-    message: 'No email credentials (SMTP_USER/SMTP_PASS or RESEND_API_KEY) found. Email logged to console.',
+    status: 'simulated',
+    message: 'No email credentials (SMTP_USER/SMTP_PASS or RESEND_API_KEY) found. Email logged in simulated mode.',
     recipients: validRecipients,
+    subject,
     type,
   });
 }

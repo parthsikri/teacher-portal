@@ -1,7 +1,7 @@
 import { notificationService } from './notificationService';
 import type {
   DayOffGrant,
-  User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig } from '../types';
+  User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem } from '../types';
 
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -15,6 +15,8 @@ const DELETED_IDS_KEY = 'aew_deleted_ids_prod_v2';
 const EXTENSIONS_KEY = 'tp_lecture_extensions';
 const WALLET_TRANSACTIONS_KEY = 'tp_time_wallet_transactions_prod_v1';
 const DAY_OFF_GRANTS_KEY = 'tp_day_off_grants_prod_v1';
+const EMAIL_CONFIG_KEY = 'aew_email_config';
+const EMAIL_LOGS_KEY = 'aew_email_logs_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 
 // Initial Registered Administrator (Portal starts completely clean for new teachers)
@@ -120,7 +122,11 @@ export const StorageService = {
                 password: (u.password || existing.password || (u.role === 'admin' ? 'admin123' : 'teach123')).trim(),
                 name: (u.name || existing.name || cleanId).trim(),
                 role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : 'teacher'),
-                email: (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`).trim(),
+                email: (u.email && !String(u.email).endsWith('@aew.com')
+                  ? u.email
+                  : (existing.email && !String(existing.email).endsWith('@aew.com')
+                    ? existing.email
+                    : (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`))).trim(),
                 department: u.department || existing.department || 'Engineering',
                 subject: u.subject || existing.subject || 'Engineering',
                 dailyTargetMinutes: u.dailyTargetMinutes || existing.dailyTargetMinutes || 120,
@@ -1458,7 +1464,7 @@ export const StorageService = {
   // ─── EMAIL CREDENTIALS & SENDER CONFIGURATION ───────────────────────────
   getEmailConfig(): EmailConfig {
     try {
-      const stored = localStorage.getItem('aew_email_config');
+      const stored = localStorage.getItem(EMAIL_CONFIG_KEY);
       return stored ? JSON.parse(stored) : { provider: 'smtp', smtpHost: 'smtp.gmail.com', smtpPort: 465, senderName: 'AEW Academic Operations' };
     } catch {
       return { provider: 'smtp', smtpHost: 'smtp.gmail.com', smtpPort: 465, senderName: 'AEW Academic Operations' };
@@ -1466,8 +1472,55 @@ export const StorageService = {
   },
 
   saveEmailConfig(config: EmailConfig): void {
-    localStorage.setItem('aew_email_config', JSON.stringify(config));
-    this.syncToCloud().catch((err) => console.warn('[CloudSync] Email config sync error:', err));
+    const updated = {
+      ...config,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(EMAIL_CONFIG_KEY, JSON.stringify(updated));
+    triggerBackgroundCloudSync();
+  },
+
+  // ─── SENT EMAIL LOGS & CLOUD AUDIT HISTORY ──────────────────────────────
+  getEmailLogs(): EmailLogItem[] {
+    try {
+      const data = localStorage.getItem(EMAIL_LOGS_KEY);
+      if (!data) return [];
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveEmailLogs(logs: EmailLogItem[]): void {
+    try {
+      // Keep up to 200 newest logs
+      const trimmed = logs
+        .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+        .slice(0, 200);
+      localStorage.setItem(EMAIL_LOGS_KEY, JSON.stringify(trimmed));
+      triggerBackgroundCloudSync();
+    } catch {
+      // ignore
+    }
+  },
+
+  addEmailLog(logData: Omit<EmailLogItem, 'id' | 'timestamp'>): EmailLogItem {
+    const newLog: EmailLogItem = {
+      ...logData,
+      id: `elog-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: new Date().toISOString(),
+    };
+
+    const currentLogs = this.getEmailLogs();
+    const updated = [newLog, ...currentLogs.filter((l) => l.id !== newLog.id)];
+    this.saveEmailLogs(updated);
+    return newLog;
+  },
+
+  clearEmailLogs(): void {
+    localStorage.removeItem(EMAIL_LOGS_KEY);
+    triggerBackgroundCloudSync();
   },
 
   // ─── TEACHER ON-TIME SUBMISSION PERCENTAGE & METRICS (ACCURATE MULTI-DAY & MINUTE-WEIGHTED) ──
@@ -2496,6 +2549,7 @@ export const StorageService = {
       walletTransactions: this.getWalletTransactions(),
       dayOffGrants: this.getDayOffGrants(),
       emailConfig: this.getEmailConfig(),
+      emailLogs: this.getEmailLogs(),
     };
   },
 
@@ -2511,8 +2565,37 @@ export const StorageService = {
       localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(deletedIds)));
     }
 
+    // Smart merge emailConfig: Never overwrite valid local credentials with empty cloud object
     if (state.emailConfig && typeof state.emailConfig === 'object') {
-      localStorage.setItem('aew_email_config', JSON.stringify(state.emailConfig));
+      const localConfig = this.getEmailConfig();
+      const cloudHasCreds = Boolean(state.emailConfig.smtpPass || state.emailConfig.smtpUser || state.emailConfig.resendApiKey);
+      const localHasCreds = Boolean(localConfig.smtpPass || localConfig.smtpUser || localConfig.resendApiKey);
+
+      if (cloudHasCreds) {
+        localStorage.setItem(EMAIL_CONFIG_KEY, JSON.stringify({
+          ...localConfig,
+          ...state.emailConfig,
+        }));
+      } else if (localHasCreds) {
+        triggerBackgroundCloudSync();
+      }
+    }
+
+    // Smart merge emailLogs: Preserve audit history across devices
+    if (Array.isArray(state.emailLogs)) {
+      const localLogs = this.getEmailLogs();
+      const logMap = new Map<string, EmailLogItem>();
+      localLogs.forEach((l) => logMap.set(l.id, l));
+      state.emailLogs.forEach((l: EmailLogItem) => {
+        if (l && l.id) {
+          const existing = logMap.get(l.id);
+          logMap.set(l.id, existing ? { ...existing, ...l } : l);
+        }
+      });
+      const mergedLogs = Array.from(logMap.values())
+        .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+        .slice(0, 200);
+      localStorage.setItem(EMAIL_LOGS_KEY, JSON.stringify(mergedLogs));
     }
 
     if (Array.isArray(state.users) && state.users.length > 0) {
@@ -2525,7 +2608,16 @@ export const StorageService = {
       });
       state.users.forEach((u: User) => {
         if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
-          userMap.set(u.teacherId.toUpperCase(), u);
+          const existing = userMap.get(u.teacherId.toUpperCase());
+          const isExistingReal = Boolean(existing?.email && !String(existing.email).endsWith('@aew.com'));
+          const isCloudReal = Boolean(u?.email && !String(u.email).endsWith('@aew.com'));
+          const resolvedEmail: string = (isCloudReal ? u.email : (isExistingReal ? existing?.email : (u.email || existing?.email || `${u.teacherId.toLowerCase()}@aew.com`))) || `${u.teacherId.toLowerCase()}@aew.com`;
+
+          userMap.set(u.teacherId.toUpperCase(), {
+            ...existing,
+            ...u,
+            email: resolvedEmail,
+          });
         }
       });
       localStorage.setItem(USERS_KEY, JSON.stringify(Array.from(userMap.values())));
