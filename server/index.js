@@ -559,20 +559,33 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
 
   // 4. References
   const refMap = new Map();
+  const getRefKey = (r) => {
+    if (r && r.id) return String(r.id);
+    const dept = (r?.department || 'general').trim().toLowerCase().replace(/\s+/g, ' ');
+    const subj = (r?.subjectName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const title = (r?.title || '').trim().toLowerCase();
+    return `${dept}::${subj}::${title}`;
+  };
+
   if (Array.isArray(current.subjectReferences)) {
     current.subjectReferences.forEach((r) => {
       if (r && (r.id || r.subjectName) && !deletedIds.has((r.id || '').toUpperCase())) {
-        refMap.set(r.id || r.subjectName.toLowerCase(), r);
+        refMap.set(getRefKey(r), r);
       }
     });
   }
   if (Array.isArray(incoming.subjectReferences)) {
     incoming.subjectReferences.forEach((r) => {
       if (r && (r.id || r.subjectName) && !deletedIds.has((r.id || '').toUpperCase())) {
-        refMap.set(r.id || r.subjectName.toLowerCase(), {
-          ...refMap.get(r.id || r.subjectName.toLowerCase()),
-          ...r,
-        });
+        const key = getRefKey(r);
+        const existing = refMap.get(key);
+        if (!existing) {
+          refMap.set(key, r);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+          refMap.set(key, inTime >= exTime ? { ...existing, ...r } : { ...r, ...existing });
+        }
       }
     });
   }

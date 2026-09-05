@@ -383,6 +383,7 @@ export const StorageService = {
   },
 
   addOrUpdateSubjectReference(ref: {
+    id?: string;
     subjectName: string;
     department?: string;
     title: string;
@@ -391,15 +392,31 @@ export const StorageService = {
   }): SubjectReference {
     const refs = this.getSubjectReferences();
     const cleanSubject = ref.subjectName.trim();
-    const existingIndex = refs.findIndex(
-      (r) => r.subjectName.toLowerCase() === cleanSubject.toLowerCase()
-    );
+    const cleanDept = ref.department?.trim() || 'General';
+    const cleanTitle = ref.title.trim();
+    const normSubj = cleanSubject.toLowerCase().replace(/\s+/g, ' ');
+    const normDept = cleanDept.toLowerCase().replace(/\s+/g, ' ');
+    const normTitle = cleanTitle.toLowerCase();
+
+    // 1. If explicit ID provided, find that exact reference
+    let existingIndex = ref.id ? refs.findIndex((r) => r.id === ref.id) : -1;
+
+    // 2. If no explicit ID, match by composite key (department + subject + title)
+    // This allows multiple resources per subject & department, but prevents duplicate entries with identical title.
+    if (existingIndex === -1 && !ref.id) {
+      existingIndex = refs.findIndex(
+        (r) =>
+          (r.subjectName || '').trim().toLowerCase().replace(/\s+/g, ' ') === normSubj &&
+          (r.department || 'General').trim().toLowerCase().replace(/\s+/g, ' ') === normDept &&
+          (r.title || '').trim().toLowerCase() === normTitle
+      );
+    }
 
     const updatedRef: SubjectReference = {
-      id: existingIndex !== -1 ? refs[existingIndex].id : `sref-${Date.now()}`,
+      id: existingIndex !== -1 ? refs[existingIndex].id : (ref.id || `sref-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
       subjectName: cleanSubject,
-      department: ref.department?.trim() || (existingIndex !== -1 ? refs[existingIndex].department : 'Engineering'),
-      title: ref.title.trim(),
+      department: cleanDept,
+      title: cleanTitle,
       referenceUrl: ref.referenceUrl.trim(),
       notes: ref.notes?.trim() || undefined,
       updatedAt: new Date().toISOString(),
@@ -421,13 +438,37 @@ export const StorageService = {
     this.saveSubjectReferences(refs);
   },
 
-  getReferenceForSubject(subjectName: string): SubjectReference | undefined {
-    if (!subjectName) return undefined;
-    const clean = subjectName.trim().toLowerCase();
+  /**
+   * Retrieves all reference resources matching the given subjectName and optional department.
+   * Matches EXACT subject names (case-insensitive, whitespace normalized) to prevent false matches
+   * like "Physics" matching "Engineering Physics".
+   * Filters by department: matches the teacher's department, or global resources ('general' / 'all' / empty).
+   */
+  getReferencesForSubject(subjectName: string, department?: string): SubjectReference[] {
+    if (!subjectName) return [];
+    const normTargetSubj = subjectName.trim().toLowerCase().replace(/\s+/g, ' ');
+    const normTargetDept = department ? department.trim().toLowerCase().replace(/\s+/g, ' ') : '';
     const refs = this.getSubjectReferences();
-    return refs.find(
-      (r) => r.subjectName.toLowerCase() === clean || clean.includes(r.subjectName.toLowerCase()) || r.subjectName.toLowerCase().includes(clean)
-    );
+
+    return refs.filter((r) => {
+      const normRefSubj = (r.subjectName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      // Exact subject match only
+      if (normRefSubj !== normTargetSubj) return false;
+
+      // If department is specified on both sides, check match
+      const normRefDept = (r.department || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!normTargetDept || !normRefDept || normRefDept === 'general' || normRefDept === 'all') {
+        return true;
+      }
+      return normRefDept === normTargetDept;
+    });
+  },
+
+  /**
+   * Backwards-compatible single-reference lookup for a subject.
+   */
+  getReferenceForSubject(subjectName: string, department?: string): SubjectReference | undefined {
+    return this.getReferencesForSubject(subjectName, department)[0];
   },
 
   // ─── ASSIGNED TOPICS WITH SUBTOPIC DEADLINES ────────────────────────────────
@@ -2486,13 +2527,11 @@ export const StorageService = {
     );
     const ppt = pptRequests.length;
 
-    // 4. Resources: Available materials for this teacher's subject
+    // 4. Resources: Available materials for this teacher's subject & department
     const teacherUser = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
-    const teacherSubj = (teacherUser?.subject || '').toLowerCase().trim();
-    const resources = this.getSubjectReferences().filter((r) => {
-      const s = r.subjectName.toLowerCase().trim();
-      return r.isNewFromAdmin || (teacherSubj && (s.includes(teacherSubj) || teacherSubj.includes(s)));
-    }).length;
+    const teacherSubj = (teacherUser?.subject || '').trim();
+    const teacherDept = (teacherUser?.department || '').trim();
+    const resources = this.getReferencesForSubject(teacherSubj, teacherDept).length;
 
     return {
       syllabus,
@@ -2715,8 +2754,24 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.subjectReferences)) {
-      const filtered = state.subjectReferences.filter((r: SubjectReference) => !deletedIds.has(r.id.toUpperCase()));
-      localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(filtered));
+      const localRefs = this.getSubjectReferences();
+      const refMap = new Map<string, SubjectReference>();
+      localRefs.forEach((r) => {
+        if (!deletedIds.has(r.id.toUpperCase())) refMap.set(r.id, r);
+      });
+      state.subjectReferences.forEach((cloudRef: SubjectReference) => {
+        if (cloudRef && cloudRef.id && !deletedIds.has(cloudRef.id.toUpperCase())) {
+          const local = refMap.get(cloudRef.id);
+          if (!local) {
+            refMap.set(cloudRef.id, cloudRef);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudRef.updatedAt ? new Date(cloudRef.updatedAt).getTime() : 0;
+            refMap.set(cloudRef.id, cloudTime >= localTime ? { ...local, ...cloudRef } : { ...cloudRef, ...local });
+          }
+        }
+      });
+      localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(Array.from(refMap.values())));
     }
 
     if (Array.isArray(state.dailyCommitments)) {

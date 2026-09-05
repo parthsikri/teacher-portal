@@ -201,12 +201,64 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Subject Reference Modal State
   const [showSubjectRefModal, setShowSubjectRefModal] = useState(false);
-  const [refSubjectName, setRefSubjectName] = useState('');
+  const [editingRefId, setEditingRefId] = useState<string | null>(null);
   const [refDepartment, setRefDepartment] = useState('Engineering');
+  const [isCustomDept, setIsCustomDept] = useState(false);
+  const [customDeptInput, setCustomDeptInput] = useState('');
+  const [refSubjectName, setRefSubjectName] = useState('');
+  const [isCustomSubject, setIsCustomSubject] = useState(false);
+  const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [refTitle, setRefTitle] = useState('Master Subject Syllabus & Standard Reference Notes');
   const [refUrl, setRefUrl] = useState('');
   const [refNotes, setRefNotes] = useState('');
+  const [adminResourceDeptFilter, setAdminResourceDeptFilter] = useState<string>('all');
 
+  // Canonical departments across the institution
+  const canonicalDepartments = useMemo(() => {
+    const depts = new Set<string>();
+    teachers.forEach((t) => { if (t.department?.trim()) depts.add(t.department.trim()); });
+    subjectReferences.forEach((r) => { if (r.department?.trim() && r.department.trim().toLowerCase() !== 'all' && r.department.trim().toLowerCase() !== 'general') depts.add(r.department.trim()); });
+    if (depts.size === 0) {
+      ['Computer Science & Engineering', 'Civil Engineering', 'Mechanical Engineering', 'Electronics & Communication', 'Applied Sciences', 'Management'].forEach((d) => depts.add(d));
+    }
+    return Array.from(depts).sort();
+  }, [teachers, subjectReferences]);
+
+  // Helper to get subjects specifically taught or referenced within a chosen department
+  const getCanonicalSubjectsForDept = (dept: string): string[] => {
+    const normDept = dept.trim().toLowerCase();
+    const subjects = new Set<string>();
+    teachers.forEach((t) => {
+      if ((t.department || '').trim().toLowerCase() === normDept && t.subject?.trim()) {
+        subjects.add(t.subject.trim());
+      }
+    });
+    subjectReferences.forEach((r) => {
+      if ((r.department || '').trim().toLowerCase() === normDept && r.subjectName?.trim()) {
+        subjects.add(r.subjectName.trim());
+      }
+    });
+    assignedTopics.forEach((top) => {
+      const teacherMatch = teachers.find((t) => t.teacherId.toUpperCase() === top.teacherId.toUpperCase());
+      if (teacherMatch && (teacherMatch.department || '').trim().toLowerCase() === normDept && top.subject?.trim()) {
+        subjects.add(top.subject.trim());
+      }
+    });
+    if (subjects.size === 0 || normDept === 'all' || normDept === 'general') {
+      teachers.forEach((t) => { if (t.subject?.trim()) subjects.add(t.subject.trim()); });
+      subjectReferences.forEach((r) => { if (r.subjectName?.trim()) subjects.add(r.subjectName.trim()); });
+    }
+    return Array.from(subjects).sort();
+  };
+
+  // Filtered Subject References by selected department in admin resources view
+  const filteredAdminSubjectReferences = useMemo(() => {
+    if (adminResourceDeptFilter === 'all') return subjectReferences;
+    const normFilter = adminResourceDeptFilter.trim().toLowerCase();
+    return subjectReferences.filter(
+      (r) => (r.department || '').trim().toLowerCase() === normFilter
+    );
+  }, [subjectReferences, adminResourceDeptFilter]);
 
   // Subtopic Review & Approval Modal State
   const [reviewingTopic, setReviewingTopic] = useState<AssignedTopic | null>(null);
@@ -225,11 +277,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       .filter((t) => t.length > 0);
   }, [assignTopicInput]);
 
-  // Unique list of subjects taught by faculty
-  const availableSubjects = useMemo(() => {
-    const list = Array.from(new Set(teachers.map((t) => t.subject).filter(Boolean)));
-    return list.length > 0 ? list : ['Data Structures & Algorithms', 'Thermodynamics', 'Signals & Systems'];
-  }, [teachers]);
+
 
 
   const refreshState = () => {
@@ -423,20 +471,70 @@ export const AdminView: React.FC<AdminViewProps> = ({
     refreshState();
   };
 
+  // Open Add / Edit Subject Reference Modal
+  const handleOpenSubjectRefModal = (existingRef?: SubjectReference) => {
+    if (existingRef) {
+      setEditingRefId(existingRef.id);
+      const isCustomD = existingRef.department ? !canonicalDepartments.includes(existingRef.department) && existingRef.department !== 'General' : false;
+      setIsCustomDept(isCustomD);
+      setCustomDeptInput(isCustomD ? (existingRef.department || '') : '');
+      setRefDepartment(isCustomD ? 'custom' : (existingRef.department || 'General'));
+
+      const deptSubjects = getCanonicalSubjectsForDept(existingRef.department || 'General');
+      const isCustomS = !deptSubjects.includes(existingRef.subjectName);
+      setIsCustomSubject(isCustomS);
+      setCustomSubjectInput(isCustomS ? existingRef.subjectName : '');
+      setRefSubjectName(isCustomS ? 'custom' : existingRef.subjectName);
+
+      setRefTitle(existingRef.title);
+      setRefUrl(existingRef.referenceUrl);
+      setRefNotes(existingRef.notes || '');
+    } else {
+      setEditingRefId(null);
+      const defaultDept = canonicalDepartments[0] || 'General';
+      setRefDepartment(defaultDept);
+      setIsCustomDept(false);
+      setCustomDeptInput('');
+
+      const deptSubjects = getCanonicalSubjectsForDept(defaultDept);
+      const defaultSubj = deptSubjects[0] || '';
+      setRefSubjectName(defaultSubj);
+      setIsCustomSubject(false);
+      setCustomSubjectInput('');
+
+      setRefTitle('Master Subject Syllabus & Standard Reference Notes');
+      setRefUrl('');
+      setRefNotes('');
+    }
+    setShowSubjectRefModal(true);
+  };
+
   // Admin Adds/Updates Subject-Level Reference Material
   const handleSubjectRefSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!refSubjectName.trim() || !refUrl.trim()) return;
+    const resolvedDept = isCustomDept ? customDeptInput.trim() : (refDepartment === 'custom' ? customDeptInput.trim() : refDepartment.trim());
+    const resolvedSubject = isCustomSubject ? customSubjectInput.trim() : (refSubjectName === 'custom' ? customSubjectInput.trim() : refSubjectName.trim());
+
+    if (!resolvedSubject) {
+      alert('Please provide a valid Subject Name.');
+      return;
+    }
+    if (!refUrl.trim()) {
+      alert('Please provide a Google Drive or document reference URL.');
+      return;
+    }
 
     StorageService.addOrUpdateSubjectReference({
-      subjectName: refSubjectName.trim(),
-      department: refDepartment.trim(),
+      id: editingRefId || undefined,
+      subjectName: resolvedSubject,
+      department: resolvedDept || 'General',
       title: refTitle.trim() || 'Master Subject Reference Material',
       referenceUrl: refUrl.trim(),
       notes: refNotes.trim() || undefined,
     });
 
     setShowSubjectRefModal(false);
+    setEditingRefId(null);
     setRefSubjectName('');
     setRefUrl('');
     setRefNotes('');
@@ -3050,48 +3148,81 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setRefSubjectName(availableSubjects[0] || '');
-                setShowSubjectRefModal(true);
-              }}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 shrink-0"
-            >
-              <FolderPlus className="w-4 h-4" /> + Attach Subject Material
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Department Filter */}
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+                <span className="text-[11px] font-semibold text-slate-400">Department:</span>
+                <select
+                  value={adminResourceDeptFilter}
+                  onChange={(e) => setAdminResourceDeptFilter(e.target.value)}
+                  className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  <option value="all" className="bg-slate-900 text-slate-200">All Departments ({subjectReferences.length})</option>
+                  {canonicalDepartments.map((d) => (
+                    <option key={d} value={d} className="bg-slate-900 text-slate-200">{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={() => handleOpenSubjectRefModal()}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 shrink-0 transition-colors"
+              >
+                <FolderPlus className="w-4 h-4" /> + Attach Subject Material
+              </button>
+            </div>
           </div>
 
-          {subjectReferences.length === 0 ? (
+          {filteredAdminSubjectReferences.length === 0 ? (
             <div className="p-16 text-center bg-slate-950 rounded-3xl border border-slate-800 space-y-3">
               <div className="text-4xl">📚</div>
-              <div className="font-bold text-slate-200 text-base">No Subject Resources Configured Yet</div>
-              <p className="text-xs text-slate-400">Click "+ Attach Subject Material" to link Google Drive course folders to subjects.</p>
+              <div className="font-bold text-slate-200 text-base">
+                {subjectReferences.length === 0 ? 'No Subject Resources Configured Yet' : 'No Resources Found For Selected Department'}
+              </div>
+              <p className="text-xs text-slate-400">
+                {subjectReferences.length === 0 
+                  ? 'Click "+ Attach Subject Material" to link Google Drive course folders to subjects.'
+                  : 'Try switching the department filter to "All Departments" or attach a new resource.'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {subjectReferences.map((sref) => (
-                <div key={sref.id} className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-5 space-y-3 flex flex-col justify-between shadow-md">
+              {filteredAdminSubjectReferences.map((sref) => (
+                <div key={sref.id} className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-5 space-y-3 flex flex-col justify-between shadow-md hover:border-emerald-500/50 transition-colors">
                   <div className="space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          {sref.subjectName}
-                        </span>
-                        <h4 className="font-extrabold text-sm text-slate-100 mt-1">{sref.title}</h4>
-                        <p className="text-[11px] text-slate-400">{sref.department}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                          <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            {sref.subjectName}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">
+                            {sref.department || 'General'}
+                          </span>
+                        </div>
+                        <h4 className="font-extrabold text-sm text-slate-100 mt-1 leading-snug">{sref.title}</h4>
                       </div>
 
-                      <button
-                        onClick={() => handleRemoveSubjectRef(sref.id)}
-                        className="text-slate-500 hover:text-red-400 text-xs p-1"
-                        title="Remove Reference Material"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handleOpenSubjectRefModal(sref)}
+                          className="text-slate-400 hover:text-emerald-400 text-xs p-1.5 rounded hover:bg-slate-900 transition-colors"
+                          title="Edit Reference Material"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleRemoveSubjectRef(sref.id)}
+                          className="text-slate-500 hover:text-red-400 text-xs p-1.5 rounded hover:bg-slate-900 transition-colors"
+                          title="Remove Reference Material"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     {sref.notes && (
-                      <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-[11px] text-slate-300 italic">
+                      <div className="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] text-slate-300 italic">
                         "{sref.notes}"
                       </div>
                     )}
@@ -4812,45 +4943,136 @@ export const AdminView: React.FC<AdminViewProps> = ({
         );
       })()}
 
-      {/* MODAL 5: ADMIN ATTACHES SUBJECT REFERENCE MATERIAL */}
+      {/* MODAL 5: ADMIN ATTACHES / EDITS SUBJECT REFERENCE MATERIAL */}
       {showSubjectRefModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
                   <BookMarked className="w-4 h-4 text-emerald-400" />
-                  Attach Subject Reference Material
+                  {editingRefId ? 'Edit Subject Reference Material' : 'Attach Subject Reference Material'}
                 </h3>
-                <p className="text-xs text-slate-400">Add course syllabus drive link or notes folder for an entire subject</p>
+                <p className="text-xs text-slate-400">
+                  {editingRefId 
+                    ? 'Update course syllabus drive link, department, or notes' 
+                    : 'Add course syllabus drive link or notes folder for an entire subject'}
+                </p>
               </div>
-              <button onClick={() => setShowSubjectRefModal(false)} className="text-slate-400 hover:text-slate-100">✕</button>
+              <button 
+                onClick={() => {
+                  setShowSubjectRefModal(false);
+                  setEditingRefId(null);
+                }} 
+                className="text-slate-400 hover:text-slate-100"
+              >
+                ✕
+              </button>
             </div>
 
             <form onSubmit={handleSubjectRefSubmit} className="space-y-4 text-xs">
+              {/* Department Selection */}
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Select or Type Subject Name *</label>
-                <input
-                  type="text"
-                  list="available-subjects-datalist"
-                  placeholder="e.g. Data Structures & Algorithms or Thermodynamics"
-                  value={refSubjectName}
-                  onChange={(e) => setRefSubjectName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500 font-semibold"
-                  required
-                />
-                <datalist id="available-subjects-datalist">
-                  {availableSubjects.map((s, i) => (
-                    <option key={i} value={s} />
+                <label className="block text-slate-300 font-semibold mb-1">Department *</label>
+                <select
+                  value={isCustomDept ? 'custom' : refDepartment}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'custom') {
+                      setIsCustomDept(true);
+                    } else {
+                      setIsCustomDept(false);
+                      setRefDepartment(val);
+                      // Update subject dropdown to default to first canonical subject for this department
+                      const deptSubjects = getCanonicalSubjectsForDept(val);
+                      if (deptSubjects.length > 0 && !isCustomSubject) {
+                        setRefSubjectName(deptSubjects[0]);
+                      }
+                    }
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                >
+                  <option value="General">General / All Departments (Institutional)</option>
+                  {canonicalDepartments.map((d) => (
+                    <option key={d} value={d}>{d}</option>
                   ))}
-                </datalist>
+                  <option value="custom">➕ Enter New / Custom Department...</option>
+                </select>
+
+                {isCustomDept && (
+                  <input
+                    type="text"
+                    placeholder="Enter custom department name (e.g. Artificial Intelligence)"
+                    value={customDeptInput}
+                    onChange={(e) => setCustomDeptInput(e.target.value)}
+                    className="w-full mt-2 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                )}
               </div>
 
+              {/* Subject Selection (Canonical dropdown based on department) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">Canonical Subject Name *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomSubject(!isCustomSubject);
+                      if (!isCustomSubject) {
+                        setCustomSubjectInput(refSubjectName !== 'custom' ? refSubjectName : '');
+                      }
+                    }}
+                    className="text-[11px] text-emerald-400 hover:underline"
+                  >
+                    {isCustomSubject ? '← Pick from list' : '+ Enter custom subject'}
+                  </button>
+                </div>
+
+                {!isCustomSubject ? (
+                  <select
+                    value={refSubjectName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'custom') {
+                        setIsCustomSubject(true);
+                      } else {
+                        setRefSubjectName(val);
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500 font-semibold cursor-pointer"
+                  >
+                    {(() => {
+                      const activeDept = isCustomDept ? customDeptInput : refDepartment;
+                      const subs = getCanonicalSubjectsForDept(activeDept);
+                      return (
+                        <>
+                          {subs.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                          <option value="custom">➕ Enter New / Custom Subject...</option>
+                        </>
+                      );
+                    })()}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="e.g. Data Structures & Algorithms, Thermodynamics"
+                    value={customSubjectInput}
+                    onChange={(e) => setCustomSubjectInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500 font-semibold"
+                    required
+                  />
+                )}
+              </div>
+
+              {/* Resource Title */}
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Resource Title *</label>
                 <input
                   type="text"
-                  placeholder="e.g. Master Course Syllabus, Textbook & Standard Notes"
+                  placeholder="e.g. Master Course Syllabus, Standard Textbook & Notes"
                   value={refTitle}
                   onChange={(e) => setRefTitle(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"
@@ -4858,6 +5080,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 />
               </div>
 
+              {/* URL */}
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">
                   Google Drive / Reference Document URL *
@@ -4875,17 +5098,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Department</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Computer Science / Engineering"
-                  value={refDepartment}
-                  onChange={(e) => setRefDepartment(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none"
-                />
-              </div>
-
+              {/* Course Guidelines / Notes */}
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Course Guidelines / Recommended Books</label>
                 <textarea
@@ -4900,16 +5113,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowSubjectRefModal(false)}
+                  onClick={() => {
+                    setShowSubjectRefModal(false);
+                    setEditingRefId(null);
+                  }}
                   className="px-4 py-2 text-slate-400 hover:text-slate-200 font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-md"
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-md transition-colors"
                 >
-                  Save Subject Reference Material
+                  {editingRefId ? 'Update Subject Reference' : 'Save Subject Reference Material'}
                 </button>
               </div>
             </form>

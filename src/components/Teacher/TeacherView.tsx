@@ -81,10 +81,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     return StorageService.getAssignedTopics().filter((t) => t.teacherId.toUpperCase() === teacher.teacherId.toUpperCase());
   }, [teacher.teacherId, refreshKey]);
 
-  const subjectReference = useMemo(() => {
+  const teacherSubjectReferences = useMemo(() => {
     void refreshKey;
-    return StorageService.getReferenceForSubject(teacher.subject);
-  }, [teacher.subject, refreshKey]);
+    return StorageService.getReferencesForSubject(teacher.subject, teacher.department);
+  }, [teacher.subject, teacher.department, refreshKey]);
 
   const pptRequests = useMemo(() => {
     void refreshKey;
@@ -268,8 +268,13 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       completedCount: number;
     }>();
 
-    // From subject references
+    // From subject references (scoped to teacher's department or general institution)
+    const teacherDeptNorm = (teacher.department || '').trim().toLowerCase();
     subjectReferences.forEach((ref) => {
+      const refDeptNorm = (ref.department || '').trim().toLowerCase();
+      if (refDeptNorm && teacherDeptNorm && refDeptNorm !== 'general' && refDeptNorm !== 'all' && refDeptNorm !== teacherDeptNorm) {
+        return; // Exclude subjects from other departments
+      }
       const sKey = ref.subjectName.trim().toUpperCase();
       if (!subjectsMap.has(sKey)) {
         subjectsMap.set(sKey, {
@@ -2759,47 +2764,68 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
       {/* ─── SUBJECT REFERENCE LIBRARY ─── */}
       {currentPage === 'resources' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-xl font-bold text-slate-100 tracking-tight">Subject Library</h2>
-            <p className="text-xs text-slate-400">Curriculum reference materials and master Drive folder for {teacher.subject}</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-indigo-400" />
+                Subject Library ({teacherSubjectReferences.length})
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Curriculum reference materials and master Drive folders for <span className="text-slate-200 font-semibold">{teacher.subject}</span> {teacher.department && `• ${teacher.department}`}
+              </p>
+            </div>
           </div>
 
-          {subjectReference ? (
-            <div className="bg-slate-900/40 border border-slate-800/70 rounded-xl p-5 space-y-4 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/60 pb-3">
-                <div>
-                  <h3 className="font-semibold text-slate-100">{subjectReference.title}</h3>
-                  <span className="text-[11px] text-slate-400">{subjectReference.subjectName} • {subjectReference.department}</span>
-                </div>
+          {teacherSubjectReferences.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {teacherSubjectReferences.map((ref) => (
+                <div key={ref.id} className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg hover:border-slate-700 transition-colors">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                          {ref.department || teacher.department || 'General'}
+                        </span>
+                        <h3 className="font-bold text-sm text-slate-100 mt-1.5 leading-snug">{ref.title}</h3>
+                        <span className="text-[11px] text-slate-400 font-mono">{ref.subjectName}</span>
+                      </div>
+                    </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => copyToClipboard(subjectReference.referenceUrl, 'Drive Link')}
-                    className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg flex items-center gap-1.5 transition-colors"
-                  >
-                    <Copy className="w-3 h-3" /> Copy Link
-                  </button>
-                  <a
-                    href={subjectReference.referenceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center gap-1.5 transition-colors"
-                  >
-                    <ExternalLink className="w-3 h-3" /> Open Drive
-                  </a>
-                </div>
-              </div>
+                    {ref.notes && (
+                      <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800/70 text-slate-300 space-y-1">
+                        <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide">Admin Instructions:</div>
+                        <p className="italic text-[11px] leading-relaxed">{ref.notes}</p>
+                      </div>
+                    )}
+                  </div>
 
-              {subjectReference.notes && (
-                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/60 text-slate-300 space-y-1">
-                  <div className="text-[10px] uppercase font-semibold text-slate-400">Admin Instructions:</div>
-                  <p className="italic">{subjectReference.notes}</p>
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-800/60">
+                    <button
+                      onClick={() => copyToClipboard(ref.referenceUrl, 'Drive Link')}
+                      className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg flex items-center gap-1.5 transition-colors"
+                      title="Copy resource URL"
+                    >
+                      <Copy className="w-3 h-3" /> Copy Link
+                    </button>
+                    <a
+                      href={ref.referenceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Open Drive
+                    </a>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           ) : (
-            <div className="p-8 text-center bg-slate-900/30 border border-slate-800/60 rounded-xl text-slate-500 text-xs italic">
-              No reference materials added for this subject.
+            <div className="p-12 text-center bg-slate-900/30 border border-slate-800/60 rounded-2xl text-slate-400 text-xs space-y-2">
+              <div className="text-3xl">📚</div>
+              <div className="font-semibold text-slate-300 text-sm">No Reference Materials Available</div>
+              <p className="text-slate-500 italic">
+                No reference materials have been configured yet for <span className="font-medium text-slate-400">{teacher.subject}</span> ({teacher.department || 'General'}).
+              </p>
             </div>
           )}
         </div>
