@@ -10,7 +10,7 @@ import {
   sanitizeUser,
   getCloudPortalState,
   saveCloudPortalState,
-} from './auth-utils';
+} from './auth-utils.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (applyCors(req, res)) {

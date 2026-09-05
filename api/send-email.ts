@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils';
+import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils.js';
 
 // Type definitions for notification email payloads
 export type NotificationEventType =

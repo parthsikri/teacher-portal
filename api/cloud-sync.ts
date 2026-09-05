@@ -9,7 +9,7 @@ import {
   SUPABASE_URL,
   SUPABASE_KEY,
   DEFAULT_STATE,
-} from './auth-utils';
+} from './auth-utils.js';
 
 // In-memory fallback cache
 let inMemoryStateCache: any = null;

@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
-import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils';
+import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils.js';
 
 export const config = {
   api: {

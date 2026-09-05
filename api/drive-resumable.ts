@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
-import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils';
+import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils.js';
 
 function getAuthClient() {
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
