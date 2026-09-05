@@ -1,50 +1,21 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-// Supabase credentials — stored as Vercel env vars, trimmed to handle whitespace issues
-const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://yczcnpsdmhftvpwdenoy.supabase.co').trim();
-const SUPABASE_KEY = (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemNucHNkbWhmdHZwd2Rlbm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODMwNjQsImV4cCI6MjEwMjk1OTA2NH0.H_qomZFkVTfIsvmSkS9UUWn5hNjP9h1kGB3YEpPA3Vk').trim();
+import {
+  applyCors,
+  authenticateRequest,
+  checkRateLimit,
+  getClientIp,
+  hashPassword,
+  sanitizePortalState,
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  DEFAULT_STATE,
+} from './auth-utils';
 
 // In-memory fallback cache
 let inMemoryStateCache: any = null;
 
-const DEFAULT_STATE = {
-  version: 2,
-  updatedAt: new Date().toISOString(),
-  deletedIds: [],
-  users: [
-    {
-      id: 'u-admin',
-      teacherId: 'ADMIN-01',
-      username: 'admin',
-      password: 'admin123',
-      name: 'Academic Operations Admin',
-      email: 'admin@aew.com',
-      role: 'admin',
-      department: 'Academic Operations',
-      subject: 'Management',
-      dailyTargetMinutes: 9999,
-      dailyLimit: 999,
-    },
-  ],
-  assignedTopics: [],
-  lectures: [],
-  subjectReferences: [],
-    dailyCommitments: [],
-    pptRequests: [],
-    extensions: [],
-    walletTransactions: [],
-    dayOffGrants: [],
-    emailConfig: {
-      provider: 'smtp',
-      smtpHost: 'smtp.gmail.com',
-      smtpPort: 465,
-      senderName: 'AEW Academic Operations',
-    },
-    emailLogs: [],
-  };
-
-function mergeMasterStates(current: any, incoming: any): any {
-  if (!current) return incoming || DEFAULT_STATE;
+function mergeMasterStates(current: any, incoming: any, callerRole: string = 'admin'): any {
+  if (!current) current = DEFAULT_STATE;
   if (!incoming) return current || DEFAULT_STATE;
 
   const deletedIds = new Set<string>([
@@ -52,7 +23,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []),
   ]);
 
-  // Merge Users
+  // 1. Merge Users — PRIVILEGED: ONLY ADMIN CAN MUTATE USERS
   const userMap = new Map<string, any>();
   if (Array.isArray(current.users)) {
     current.users.forEach((u: any) => {
@@ -61,18 +32,25 @@ function mergeMasterStates(current: any, incoming: any): any {
       }
     });
   }
-  if (Array.isArray(incoming.users)) {
+
+  if (callerRole === 'admin' && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
       if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
         const existing = userMap.get(u.teacherId.toUpperCase());
-        // Preserve custom email if incoming is dummy/empty
         const isExistingRealEmail = existing?.email && !String(existing.email).endsWith('@aew.com');
         const isIncomingRealEmail = u?.email && !String(u.email).endsWith('@aew.com');
-        const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing.email : (u.email || existing?.email));
+        const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing?.email : (u.email || existing?.email));
+
+        let passwordToStore = existing?.password;
+        if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
+          // If a new password is provided by admin, hash it if not already scrypt
+          passwordToStore = u.password.startsWith('scrypt:') ? u.password : hashPassword(u.password.trim());
+        }
 
         userMap.set(u.teacherId.toUpperCase(), {
           ...existing,
           ...u,
+          password: passwordToStore,
           email: resolvedEmail,
         });
       }
@@ -85,7 +63,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     userMap.set('ADMIN-01', DEFAULT_STATE.users[0]);
   }
 
-  // Merge Assigned Topics
+  // 2. Merge Assigned Topics
   const topicMap = new Map<string, any>();
   if (Array.isArray(current.assignedTopics)) {
     current.assignedTopics.forEach((t: any) => {
@@ -102,8 +80,6 @@ function mergeMasterStates(current: any, incoming: any): any {
           const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
           const incomingTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
 
-          // Incoming wins when it's genuinely newer OR when both timestamps are missing/equal
-          // (equal timestamps = fresh push from client should always be merged in)
           if (incomingTime >= existingTime) {
             topicMap.set(t.id, {
               ...existing,
@@ -111,8 +87,6 @@ function mergeMasterStates(current: any, incoming: any): any {
               subtopics: (t.subtopics && t.subtopics.length > 0) ? t.subtopics : (existing.subtopics || []),
               subtopicItems: (t.subtopicItems && t.subtopicItems.length > 0) ? t.subtopicItems : (existing.subtopicItems || []),
               proposedSubtopics: (t.proposedSubtopics && t.proposedSubtopics.length > 0) ? t.proposedSubtopics : (existing.proposedSubtopics || []),
-              // Topic workflow is not monotonic: an approved topic can be reset or
-              // resubmitted. The newest record must own the workflow state.
               subtopicsApprovalState: t.subtopicsApprovalState || existing.subtopicsApprovalState || 'pending_teacher_input',
               adminApprovalComment: t.adminApprovalComment !== undefined ? t.adminApprovalComment : existing.adminApprovalComment,
               updatedAt: t.updatedAt || new Date().toISOString(),
@@ -128,7 +102,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Lectures & Remarks Smartly
+  // 3. Merge Lectures & Remarks Smartly
   const lectureMap = new Map<string, any>();
   if (Array.isArray(current.lectures)) {
     current.lectures.forEach((l: any) => {
@@ -142,7 +116,6 @@ function mergeMasterStates(current: any, incoming: any): any {
         if (!existing) {
           lectureMap.set(l.id, l);
         } else {
-          // Merge adminRemarks remark-by-remark
           const remarkMap = new Map<string, any>();
           (existing.adminRemarks || []).forEach((r: any) => {
             if (r && r.id) remarkMap.set(r.id, r);
@@ -153,7 +126,6 @@ function mergeMasterStates(current: any, incoming: any): any {
               if (!exRemark) {
                 remarkMap.set(r.id, r);
               } else {
-                // If either has isAcknowledged: true, acknowledge state is preserved
                 const isAck = Boolean(r.isAcknowledged || exRemark.isAcknowledged);
                 remarkMap.set(r.id, {
                   ...exRemark,
@@ -177,7 +149,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Subject References
+  // 4. Merge Subject References
   const refMap = new Map<string, any>();
   if (Array.isArray(current.subjectReferences)) {
     current.subjectReferences.forEach((r: any) => {
@@ -197,7 +169,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Daily Commitments
+  // 5. Merge Daily Commitments
   const commitmentMap = new Map<string, any>();
   if (Array.isArray(current.dailyCommitments)) {
     current.dailyCommitments.forEach((c: any) => {
@@ -217,7 +189,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge PPT Requests
+  // 6. Merge PPT Requests
   const pptMap = new Map<string, any>();
   if (Array.isArray(current.pptRequests)) {
     current.pptRequests.forEach((p: any) => {
@@ -235,7 +207,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Extensions
+  // 7. Merge Extensions
   const extMap = new Map<string, any>();
   if (Array.isArray(current.extensions)) {
     current.extensions.forEach((e: any) => {
@@ -253,7 +225,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Wallet Transactions
+  // 8. Merge Wallet Transactions
   const walletMap = new Map<string, any>();
   if (Array.isArray(current.walletTransactions)) {
     current.walletTransactions.forEach((w: any) => {
@@ -271,7 +243,7 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Day Off Grants (Leaves)
+  // 9. Merge Day Off Grants (Leaves)
   const dayOffMap = new Map<string, any>();
   if (Array.isArray(current.dayOffGrants)) {
     current.dayOffGrants.forEach((g: any) => {
@@ -289,36 +261,38 @@ function mergeMasterStates(current: any, incoming: any): any {
     });
   }
 
-  // Merge Email Configuration (Never wipe valid credentials with empty/default state)
+  // 10. Merge Email Configuration — PRIVILEGED: ONLY ADMIN CAN MUTATE
   const curConfig = current.emailConfig || {};
-  const incConfig = incoming.emailConfig || {};
-  const curHasCreds = Boolean(curConfig.smtpPass || curConfig.smtpUser || curConfig.resendApiKey);
-  const incHasCreds = Boolean(incConfig.smtpPass || incConfig.smtpUser || incConfig.resendApiKey);
-
   let mergedEmailConfig = curConfig;
-  if (incHasCreds) {
-    mergedEmailConfig = {
-      ...curConfig,
-      ...incConfig,
-      updatedAt: new Date().toISOString(),
-    };
-  } else if (curHasCreds) {
-    mergedEmailConfig = {
-      ...incConfig,
-      ...curConfig,
-    };
-  } else {
-    mergedEmailConfig = {
-      provider: 'smtp',
-      smtpHost: 'smtp.gmail.com',
-      smtpPort: 465,
-      senderName: 'AEW Academic Operations',
-      ...curConfig,
-      ...incConfig,
-    };
+  if (callerRole === 'admin') {
+    const incConfig = incoming.emailConfig || {};
+    const curHasCreds = Boolean(curConfig.smtpPass || curConfig.smtpUser || curConfig.resendApiKey);
+    const incHasCreds = Boolean(incConfig.smtpPass || incConfig.smtpUser || incConfig.resendApiKey);
+
+    if (incHasCreds) {
+      mergedEmailConfig = {
+        ...curConfig,
+        ...incConfig,
+        updatedAt: new Date().toISOString(),
+      };
+    } else if (curHasCreds) {
+      mergedEmailConfig = {
+        ...incConfig,
+        ...curConfig,
+      };
+    } else {
+      mergedEmailConfig = {
+        provider: 'smtp',
+        smtpHost: 'smtp.gmail.com',
+        smtpPort: 465,
+        senderName: 'AEW Academic Operations',
+        ...curConfig,
+        ...incConfig,
+      };
+    }
   }
 
-  // Merge Sent Email Logs (Deduplicated by id, sorted by timestamp descending, capped at 200 items)
+  // 11. Merge Sent Email Logs
   const logMap = new Map<string, any>();
   if (Array.isArray(current.emailLogs)) {
     current.emailLogs.forEach((l: any) => {
@@ -356,21 +330,30 @@ function mergeMasterStates(current: any, incoming: any): any {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  // Apply strict dynamic CORS
+  if (applyCors(req, res)) {
+    return;
   }
 
-  // GET: Fetch the latest shared portal state from Supabase PostgreSQL
+  // ─── AUTHENTICATION CHECK ──────────────────────────────────────────────────
+  const auth = authenticateRequest(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({
+      success: false,
+      error: auth.error || 'Authentication required to access cloud sync.',
+    });
+  }
+
+  const callerRole = auth.user.role;
+  const ip = getClientIp(req);
+
+  // ─── GET: FETCH PORTAL STATE ───────────────────────────────────────────────
   if (req.method === 'GET') {
+    const rl = checkRateLimit(`sync_get:${auth.user.sub}:${ip}`, 120, 60 * 1000); // 120 requests/min
+    if (!rl.allowed) {
+      return res.status(429).json({ success: false, error: 'Too many sync requests. Please wait a moment.' });
+    }
+
     try {
       const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
         headers: {
@@ -387,7 +370,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             success: true,
             source: 'supabase',
-            data: rows[0].data,
+            data: sanitizePortalState(rows[0].data, callerRole),
           });
         }
       }
@@ -395,25 +378,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         success: true,
         source: inMemoryStateCache ? 'memory' : 'default',
-        data: inMemoryStateCache || DEFAULT_STATE,
+        data: sanitizePortalState(inMemoryStateCache || DEFAULT_STATE, callerRole),
       });
     } catch {
       return res.status(200).json({
         success: true,
         source: inMemoryStateCache ? 'memory' : 'default',
-        data: inMemoryStateCache || DEFAULT_STATE,
+        data: sanitizePortalState(inMemoryStateCache || DEFAULT_STATE, callerRole),
       });
     }
   }
 
-  // POST: Sync/Save the latest portal state across all devices to Supabase
+  // ─── POST: SYNC/SAVE PORTAL STATE ──────────────────────────────────────────
   if (req.method === 'POST') {
+    const rl = checkRateLimit(`sync_post:${auth.user.sub}:${ip}`, 60, 60 * 1000); // 60 updates/min
+    if (!rl.allowed) {
+      return res.status(429).json({ success: false, error: 'Too many update requests. Please wait a moment.' });
+    }
+
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const incomingData = body.data || body;
+      const incomingData = body?.data || body;
 
       if (!incomingData || typeof incomingData !== 'object') {
-        return res.status(400).json({ error: 'Missing data payload' });
+        return res.status(400).json({ success: false, error: 'Missing data payload' });
       }
 
       // Fetch latest cloud state from Supabase
@@ -436,7 +424,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // fallback to memory cache
       }
 
-      const mergedData = mergeMasterStates(currentCloudData, incomingData);
+      const mergedData = mergeMasterStates(currentCloudData, incomingData, callerRole);
       inMemoryStateCache = mergedData;
 
       // Update Supabase PostgreSQL table
@@ -464,12 +452,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         success: true,
         source: 'supabase',
         updatedAt: mergedData.updatedAt,
-        data: mergedData,
+        data: sanitizePortalState(mergedData, callerRole),
       });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Failed to save cloud sync' });
+      return res.status(500).json({ success: false, error: err.message || 'Failed to save cloud sync' });
     }
   }
 
-  return res.status(405).json({ error: 'Method Not Allowed' });
+  return res.status(405).json({ success: false, error: 'Method Not Allowed' });
 }

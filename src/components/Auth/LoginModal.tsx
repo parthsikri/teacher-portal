@@ -28,7 +28,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     setErrorMsg('');
 
     const rawQuery = identifier.trim();
-    const query = rawQuery.toLowerCase();
     const inputPass = password.trim();
 
     if (!rawQuery || !inputPass) {
@@ -38,43 +37,49 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
     setIsAuthenticating(true);
 
-    // Always do a fresh cloud sync before checking credentials
-    // This ensures a new teacher onboarded from another device is found
     try {
-      await StorageService.syncFromCloud();
-    } catch {
-      // If sync fails, proceed with locally cached data
-    }
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'login',
+          identifier: rawQuery,
+          password: inputPass,
+        }),
+      });
 
-    const currentUsers = StorageService.getUsers();
+      const data = await response.json().catch(() => ({}));
 
-    const match = currentUsers.find((u) => {
-      const uTeacherId = (u.teacherId || '').toLowerCase();
-      const uUsername = (u.username || '').toLowerCase();
-      const uEmail = (u.email || '').toLowerCase();
-      return uTeacherId === query || uUsername === query || uEmail === query;
-    });
+      if (!response.ok || !data.success || !data.token) {
+        setErrorMsg(data.error || 'Authentication failed. Please check your credentials.');
+        setIsAuthenticating(false);
+        return;
+      }
 
-    if (!match) {
-      setErrorMsg('Account not found. Please check your Teacher ID / Username, or contact Admin.');
+      // Store server-issued stateless session Bearer token
+      StorageService.setSessionToken(data.token);
+
+      const authenticatedUser: User = data.user;
+
+      // Sync latest cloud state authenticated
+      try {
+        await StorageService.syncFromCloud();
+      } catch {
+        // ignore sync error
+      }
+
+      if (authenticatedUser.role === 'teacher') {
+        StorageService.recordTeacherLogin(authenticatedUser.teacherId);
+      }
+
       setIsAuthenticating(false);
-      return;
-    }
-
-    // Verify Password
-    const expectedPassword = (match.password || (match.role === 'admin' ? 'admin123' : 'teach123')).trim();
-    if (expectedPassword !== inputPass) {
-      setErrorMsg('Incorrect password. Please try again.');
+      onLoginSuccess(authenticatedUser);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Network error while attempting to log in. Please try again.');
       setIsAuthenticating(false);
-      return;
     }
-
-    // Successful secure authentication
-    if (match.role === 'teacher') {
-      StorageService.recordTeacherLogin(match.teacherId);
-    }
-    const freshUser = StorageService.getUsers().find((u) => u.teacherId.toUpperCase() === match.teacherId.toUpperCase()) || match;
-    onLoginSuccess(freshUser);
   };
 
   return (

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import PptxGenJS from 'pptxgenjs';
 import { jsPDF } from 'jspdf';
+import { StorageService } from './storage';
 
 export interface TopicQuestionGroup {
   topicName: string;
@@ -415,7 +416,10 @@ export const AiPptService = {
     try {
       const response = await fetch('/api/deepseek-generate-pointers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...StorageService.getAuthHeaders(),
+        },
         body: JSON.stringify({
           subject: params.subject,
           questions: params.questions,
@@ -872,6 +876,7 @@ CRITICAL STYLE RULES:
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...StorageService.getAuthHeaders(),
         },
         body: JSON.stringify({
           ...params,

@@ -1,5 +1,6 @@
 // uploadService.ts
 // Direct Resumable Google Drive uploads: Streams 100MB-5GB+ files directly to Google Drive CDN
+import { StorageService } from './storage';
 
 const getApiBaseUrl = () => {
   if (typeof window === 'undefined') return '';
@@ -52,6 +53,7 @@ export async function uploadFileToDrive(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...StorageService.getAuthHeaders(),
       },
       body: JSON.stringify({
         action: 'create_session',
@@ -128,6 +130,7 @@ export async function uploadFileToDrive(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...StorageService.getAuthHeaders(),
       },
       body: JSON.stringify({
         action: 'make_public',

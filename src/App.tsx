@@ -20,6 +20,46 @@ export const App: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
   useEffect(() => {
+    // Validate session token with server on initial application boot
+    const validateActiveSession = async () => {
+      const token = StorageService.getSessionToken();
+      if (!token) {
+        StorageService.setCurrentUser(null);
+        setCurrentUser(null);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action: 'me' }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            StorageService.setCurrentUser(data.user);
+            setCurrentUser(data.user);
+            setCurrentPage(data.user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+            return;
+          }
+        }
+
+        // Invalid or expired token: clear session
+        StorageService.clearSessionToken();
+        StorageService.setCurrentUser(null);
+        setCurrentUser(null);
+      } catch {
+        // In offline/network failure, keep existing cached user
+      }
+    };
+
+    validateActiveSession();
+
     // Initialize real-time cross-device cloud sync
     const cleanup = StorageService.initCloudSync(() => {
       const user = StorageService.getCurrentUser();
@@ -70,6 +110,20 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    // Notify server of logout (fire-and-forget)
+    const token = StorageService.getSessionToken();
+    if (token) {
+      fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'logout' }),
+      }).catch(() => {});
+    }
+
+    StorageService.clearSessionToken();
     StorageService.setCurrentUser(null);
     setCurrentUser(null);
     setCurrentPage('dashboard');

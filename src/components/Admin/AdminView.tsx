@@ -206,7 +206,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [refTitle, setRefTitle] = useState('Master Subject Syllabus & Standard Reference Notes');
   const [refUrl, setRefUrl] = useState('');
   const [refNotes, setRefNotes] = useState('');
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
 
 
   // Subtopic Review & Approval Modal State
@@ -331,7 +330,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleOpenEditTeacher = (t: User) => {
     setEditingTeacher(t);
     setEditUsername(t.username || t.teacherId.toLowerCase());
-    setEditPassword(t.password || 'teach123');
+    setEditPassword(''); // Blank indicates keep current password unless a new one is typed
     setEditName(t.name);
     setEditEmail(t.email);
     setEditDept(t.department);
@@ -347,17 +346,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
     e.preventDefault();
     if (!editingTeacher) return;
 
-    StorageService.updateUser(editingTeacher.id, {
+    const updates: Partial<User> = {
       name: editName.trim(),
       username: editUsername.trim().toLowerCase(),
-      password: editPassword.trim(),
       email: editEmail.trim(),
       department: editDept.trim(),
       subject: editSubject.trim(),
       dailyTargetMinutes: editTargetMinutes || 120,
       maxDailyMinutes: editMaxDailyMinutes || 240,
       joiningDate: editJoiningDate || undefined,
-    });
+    };
+    if (editPassword.trim()) {
+      updates.password = editPassword.trim();
+    }
+
+    StorageService.updateUser(editingTeacher.id, updates);
 
     setEditingTeacher(null);
     refreshState();
@@ -368,7 +371,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const adminUser = StorageService.getUsers().find((u) => u.role === 'admin') || StorageService.getCurrentUser();
     if (adminUser) {
       setAdminUsername(adminUser.username || 'admin');
-      setAdminPassword(adminUser.password || 'admin123');
+      setAdminPassword('');
       setAdminName(adminUser.name || 'Academic Operations Admin');
       setAdminEmail(adminUser.email || 'admin@aew.com');
     }
@@ -378,14 +381,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Save Admin Credentials
   const handleSaveAdminProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminUsername.trim() || !adminPassword.trim()) {
-      alert('Username and password cannot be empty.');
+    if (!adminUsername.trim()) {
+      alert('Username cannot be empty.');
       return;
     }
 
     StorageService.updateAdminCredentials({
       username: adminUsername.trim(),
-      password: adminPassword.trim(),
+      password: adminPassword.trim() || undefined,
       name: adminName.trim(),
       email: adminEmail.trim(),
     });
@@ -2918,19 +2921,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <span className="text-slate-400 flex items-center gap-1 font-medium">
                             <Lock className="w-3 h-3 text-purple-400" /> Password:
                           </span>
-                          <div className="flex items-center gap-1">
-                            <span className="font-mono font-bold text-amber-400">
-                              {visiblePasswords[t.teacherId] ? (t.password || 'teach123') : '••••••••'}
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-slate-400 text-[11px]">
+                              ••••••••
                             </span>
                             <button
-                              onClick={() => setVisiblePasswords(prev => ({
-                                ...prev,
-                                [t.teacherId]: !prev[t.teacherId]
-                              }))}
-                              className="p-0.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
-                              title={visiblePasswords[t.teacherId] ? "Hide password" : "Show password"}
+                              onClick={() => handleOpenEditTeacher(t)}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-medium text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/40 border border-indigo-900/40 transition-colors"
+                              title="Reset Password"
                             >
-                              {visiblePasswords[t.teacherId] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              Reset
                             </button>
                           </div>
                         </div>
@@ -3981,7 +3981,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-slate-300 font-semibold">Password *</label>
+                    <label className="text-slate-300 font-semibold">New Password (Optional)</label>
                     <button
                       type="button"
                       onClick={() => setShowEditPassword(!showEditPassword)}
@@ -3995,8 +3995,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     type={showEditPassword ? 'text' : 'password'}
                     value={editPassword}
                     onChange={(e) => setEditPassword(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
-                    required
+                    placeholder="Leave blank to keep existing password"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500 text-xs"
                   />
                 </div>
               </div>
@@ -5128,9 +5128,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   type={showAdminPassword ? 'text' : 'password'}
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="Enter new strong password"
+                  placeholder="Leave blank to keep current password"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
-                  required
                 />
               </div>
 

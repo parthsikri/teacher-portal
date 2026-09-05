@@ -31,6 +31,7 @@ class NotificationService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...StorageService.getAuthHeaders(),
         },
         body: JSON.stringify({
           ...options,

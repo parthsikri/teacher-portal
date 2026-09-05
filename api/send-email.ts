@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils';
 
 // Type definitions for notification email payloads
 export type NotificationEventType =
@@ -442,21 +443,27 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
  * Serverless Handler for Sending Operational Notification Emails via SMTP / Resend
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
-  );
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (applyCors(req, res)) {
+    return;
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+  }
+
+  // ─── AUTHENTICATION CHECK ──────────────────────────────────────────────────
+  const auth = authenticateRequest(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({
+      success: false,
+      error: auth.error || 'Authentication required to dispatch notification emails.',
+    });
+  }
+
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`email:${auth.user.sub}:${ip}`, 20, 60 * 1000); // 20 emails/min
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Email dispatch rate limit exceeded. Please wait a moment.' });
   }
 
   const { to, type, data } = (req.body || {}) as EmailRequestBody;
@@ -474,7 +481,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { subject, html } = buildEmailTemplate(type, data || {});
 
-  const bodyConfig = (req.body?.config || {}) as Record<string, any>;
+  // For security, only admins may supply or test custom SMTP/Resend credentials in the request body
+  const bodyConfig = (auth.user.role === 'admin' ? (req.body?.config || {}) : {}) as Record<string, any>;
   const activeSmtpUser = (bodyConfig.smtpUser || SMTP_USER).trim();
   const activeSmtpPass = (bodyConfig.smtpPass ? String(bodyConfig.smtpPass).trim().replace(/\s+/g, '') : SMTP_PASS);
   const activeSmtpHost = (bodyConfig.smtpHost || SMTP_HOST || 'smtp.gmail.com').trim();

@@ -18,14 +18,14 @@ const DAY_OFF_GRANTS_KEY = 'tp_day_off_grants_prod_v1';
 const EMAIL_CONFIG_KEY = 'aew_email_config';
 const EMAIL_LOGS_KEY = 'aew_email_logs_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
+const SESSION_TOKEN_KEY = 'aew_portal_session_token_v2';
 
-// Initial Registered Administrator (Portal starts completely clean for new teachers)
+// Initial Registered Administrator (Credentials verified server-side only; passwords never stored in frontend bundle)
 const INITIAL_USERS: User[] = [
   {
     id: 'u-admin',
     teacherId: 'ADMIN-01',
     username: 'admin',
-    password: 'admin123',
     name: 'Academic Operations Admin',
     email: 'admin@aew.com',
     role: 'admin',
@@ -38,7 +38,6 @@ const INITIAL_USERS: User[] = [
     id: 'u-t101',
     teacherId: 'AEW-T-101',
     username: 'teacher_101',
-    password: 'teach123',
     name: 'Dr. Ananya Sharma',
     email: 'ananya@aew.com',
     role: 'teacher',
@@ -53,7 +52,6 @@ const INITIAL_USERS: User[] = [
     id: 'u-t102',
     teacherId: 'AEW-T-102',
     username: 'teacher_102',
-    password: 'teach123',
     name: 'Prof. Rajesh Verma',
     email: 'rajesh@aew.com',
     role: 'teacher',
@@ -68,7 +66,6 @@ const INITIAL_USERS: User[] = [
     id: 'u-t103',
     teacherId: 'AEW-T-103',
     username: 'teacher_103',
-    password: 'teach123',
     name: 'Dr. Vikram Malhotra',
     email: 'vikram@aew.com',
     role: 'teacher',
@@ -119,7 +116,7 @@ export const StorageService = {
                 id: u.id || existing.id || `u-${Date.now()}`,
                 teacherId: cleanId,
                 username: (u.username || existing.username || cleanId.toLowerCase()).trim().toLowerCase().replace(/\s+/g, '_'),
-                password: (u.password || existing.password || (u.role === 'admin' ? 'admin123' : 'teach123')).trim(),
+                password: (u.password || existing.password || '').trim() || undefined,
                 name: (u.name || existing.name || cleanId).trim(),
                 role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : 'teacher'),
                 email: (u.email && !String(u.email).endsWith('@aew.com')
@@ -3081,13 +3078,53 @@ export const StorageService = {
     }
   },
 
+  getSessionToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(SESSION_TOKEN_KEY);
+  },
+
+  setSessionToken(token: string | null): void {
+    if (typeof window === 'undefined') return;
+    if (token) {
+      localStorage.setItem(SESSION_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+    }
+  },
+
+  clearSessionToken(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+  },
+
+  getAuthHeaders(): Record<string, string> {
+    const token = this.getSessionToken();
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+    return {};
+  },
+
   async syncFromCloud(): Promise<boolean> {
-    // All sync goes through the secure Vercel serverless API.
-    // The API handler talks to Supabase server-side - no credentials in the browser.
+    // Only perform cloud sync if user has an active authenticated session
+    const authHeaders = this.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return false;
+    }
+
     try {
       const res = await fetch('/api/cloud-sync', {
-        headers: { 'Accept': 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          ...authHeaders,
+        },
       });
+
+      if (res.status === 401) {
+        // Token invalid or expired
+        return false;
+      }
+
       if (!res.ok) return false;
       const json = await res.json();
       if (json && json.data) {
@@ -3102,16 +3139,27 @@ export const StorageService = {
   },
 
   async syncToCloud(): Promise<boolean> {
+    const authHeaders = this.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return false;
+    }
+
     const payload = this.exportMasterState();
 
-    // All sync goes through the secure Vercel serverless API.
-    // The API handler talks to Supabase server-side - no credentials in the browser.
     try {
       const res = await fetch('/api/cloud-sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
         body: JSON.stringify({ data: payload }),
       });
+
+      if (res.status === 401) {
+        return false;
+      }
+
       return res.ok;
     } catch (err) {
       console.warn('[CloudSync] Sync push error:', err);
@@ -3122,7 +3170,7 @@ export const StorageService = {
   initCloudSync(onUpdate?: () => void): () => void {
     if (typeof window === 'undefined') return () => {};
 
-    // Initial fetch on mount
+    // Initial fetch on mount (only runs if session token is present)
     this.syncFromCloud().then((success) => {
       if (success && onUpdate) onUpdate();
     });

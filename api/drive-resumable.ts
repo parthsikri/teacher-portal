@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
+import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils';
 
 function getAuthClient() {
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
@@ -26,23 +27,34 @@ function getAuthClient() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (applyCors(req, res)) {
+    return;
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const auth = getAuthClient();
-  if (!auth) {
+  // ─── AUTHENTICATION CHECK ──────────────────────────────────────────────────
+  const auth = authenticateRequest(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({
+      success: false,
+      error: auth.error || 'Authentication required to use Google Drive upload service.',
+    });
+  }
+
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`drive_resumable:${auth.user.sub}:${ip}`, 40, 60 * 1000); // 40 requests/min
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Upload rate limit exceeded. Please wait a moment.' });
+  }
+
+  const driveAuth = getAuthClient();
+  if (!driveAuth) {
     return res.status(503).json({
       success: false,
-      error: 'Google Drive is not configured. Please set GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY in Vercel environment variables.',
+      error: 'Google Drive is not configured. Please set GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY in environment variables.',
     });
   }
 
@@ -55,8 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      // Get OAuth access token
-      const tokenResponse = await auth.getAccessToken();
+      const tokenResponse = await driveAuth.getAccessToken();
       const accessToken = tokenResponse.token;
 
       if (!accessToken) {
@@ -73,7 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metadata.parents = [folderId.trim()];
       }
 
-      // Initiate Resumable Upload Session with Google Drive API
       const initResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
         method: 'POST',
         headers: {
@@ -117,9 +127,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      const drive = google.drive({ version: 'v3', auth });
+      const drive = google.drive({ version: 'v3', auth: driveAuth });
 
-      // Make file readable by anyone with the link
       try {
         await drive.permissions.create({
           fileId,
@@ -132,7 +141,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn('[Drive Permission Warning]', permErr?.message);
       }
 
-      // Fetch file webViewLink and download link
       const fileData = await drive.files.get({
         fileId,
         fields: 'id, name, webViewLink, webContentLink',

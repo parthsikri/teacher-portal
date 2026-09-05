@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { google } from 'googleapis';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
+import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils';
 
 export const config = {
   api: {
@@ -35,16 +36,27 @@ function getDriveClient() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (applyCors(req, res)) {
+    return;
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  // ─── AUTHENTICATION CHECK ──────────────────────────────────────────────────
+  const auth = authenticateRequest(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({
+      success: false,
+      error: auth.error || 'Authentication required to upload files.',
+    });
+  }
+
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`upload:${auth.user.sub}:${ip}`, 40, 60 * 1000); // 40 uploads/min
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Upload rate limit exceeded. Please wait a moment.' });
   }
 
   const drive = getDriveClient();

@@ -6,14 +6,35 @@ const cors = require('cors');
 const multer = require('multer');
 const { google } = require('googleapis');
 
+const {
+  isOriginAllowed,
+  checkRateLimit,
+  getClientIp,
+  hashPassword,
+  verifyPassword,
+  createSessionToken,
+  authenticateRequest,
+  requireAuth,
+  sanitizeUser,
+  sanitizePortalState,
+} = require('./auth-utils');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || isOriginAllowed(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '50mb' }));
 
-// ─── Multer (memory storage — we stream directly to Drive) ───────────────────
+// ─── Multer (memory storage — streamed directly to Drive) ────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB max
@@ -25,7 +46,7 @@ function getDriveClient() {
   const privateKey  = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 
   if (!clientEmail || !privateKey || privateKey.trim() === '' || privateKey === '\n') {
-    return null; // credentials not configured
+    return null;
   }
 
   const auth = new google.auth.JWT({
@@ -35,6 +56,95 @@ function getDriveClient() {
   });
 
   return google.drive({ version: 'v3', auth });
+}
+
+// ─── Cloud Sync Persistence Config ───────────────────────────────────────────
+const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://yczcnpsdmhftvpwdenoy.supabase.co').trim();
+const SUPABASE_KEY = (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemNucHNkbWhmdHZwd2Rlbm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODMwNjQsImV4cCI6MjEwMjk1OTA2NH0.H_qomZFkVTfIsvmSkS9UUWn5hNjP9h1kGB3YEpPA3Vk').trim();
+
+let inMemoryStateCache = null;
+
+const DEFAULT_STATE = {
+  version: 2,
+  updatedAt: new Date().toISOString(),
+  deletedIds: [],
+  users: [
+    {
+      id: 'u-admin',
+      teacherId: 'ADMIN-01',
+      username: 'admin',
+      password: 'admin123',
+      name: 'Academic Operations Admin',
+      email: 'admin@aew.com',
+      role: 'admin',
+      department: 'Academic Operations',
+      subject: 'Management',
+      dailyTargetMinutes: 9999,
+      dailyLimit: 999,
+    },
+  ],
+  assignedTopics: [],
+  lectures: [],
+  subjectReferences: [],
+  dailyCommitments: [],
+  pptRequests: [],
+  extensions: [],
+  walletTransactions: [],
+  dayOffGrants: [],
+  emailConfig: {
+    provider: 'smtp',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 465,
+    senderName: 'AEW Academic Operations',
+  },
+  emailLogs: [],
+};
+
+async function getLatestPortalState() {
+  try {
+    const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (dbRes.ok) {
+      const rows = await dbRes.json();
+      if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
+        inMemoryStateCache = rows[0].data;
+        return rows[0].data;
+      }
+    }
+  } catch (err) {
+    console.warn('[server] Error fetching Supabase portal state:', err?.message);
+  }
+
+  return inMemoryStateCache || DEFAULT_STATE;
+}
+
+async function persistPortalState(mergedData) {
+  inMemoryStateCache = mergedData;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        id: 'aew_portal_master',
+        version: 2,
+        data: mergedData,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch (upstreamErr) {
+    console.warn('[server] Failed to update Supabase, saved to local cache:', upstreamErr?.message);
+  }
 }
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
@@ -47,8 +157,150 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// ─── Authentication Endpoints ────────────────────────────────────────────────
+app.get('/api/auth', requireAuth, async (req, res) => {
+  const state = await getLatestPortalState();
+  const users = Array.isArray(state.users) ? state.users : [];
+  const freshUser = users.find((u) => u.id === req.user.sub || u.teacherId?.toUpperCase() === req.user.teacherId?.toUpperCase());
+  return res.json({
+    success: true,
+    user: sanitizeUser(freshUser || req.user),
+  });
+});
+
+app.post('/api/auth', async (req, res) => {
+  const body = req.body || {};
+  const action = body.action || 'login';
+
+  // LOGIN
+  if (action === 'login') {
+    const rawIdentifier = String(body.username || body.identifier || '').trim();
+    const inputPass = String(body.password || '').trim();
+
+    if (!rawIdentifier || !inputPass) {
+      return res.status(400).json({ success: false, error: 'Username/Teacher ID and password are required.' });
+    }
+
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(`login:${ip}:${rawIdentifier.toLowerCase()}`, 10, 15 * 60 * 1000);
+    if (!rl.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: `Too many login attempts. Please try again in ${Math.ceil(rl.resetMs / 60000)} minutes.`,
+      });
+    }
+
+    const state = await getLatestPortalState();
+    const users = Array.isArray(state.users) ? state.users : [];
+    const query = rawIdentifier.toLowerCase();
+
+    const matchedUser = users.find((u) => {
+      const uTeacherId = (u.teacherId || '').toLowerCase();
+      const uUsername = (u.username || '').toLowerCase();
+      const uEmail = (u.email || '').toLowerCase();
+      return uTeacherId === query || uUsername === query || uEmail === query;
+    });
+
+    if (!matchedUser) {
+      return res.status(401).json({ success: false, error: 'Account not found. Please verify your credentials or contact Admin.' });
+    }
+
+    const storedPassword = (matchedUser.password || (matchedUser.role === 'admin' ? 'admin123' : 'teach123')).trim();
+    const verifyResult = verifyPassword(inputPass, storedPassword);
+
+    if (!verifyResult.valid) {
+      return res.status(401).json({ success: false, error: 'Incorrect password. Please try again.' });
+    }
+
+    if (verifyResult.needsRehash) {
+      try {
+        matchedUser.password = hashPassword(inputPass);
+        state.updatedAt = new Date().toISOString();
+        await persistPortalState(state);
+      } catch (err) {
+        console.warn('[auth] Failed to persist migrated password hash:', err?.message);
+      }
+    }
+
+    const token = createSessionToken(matchedUser);
+    return res.json({
+      success: true,
+      token,
+      user: sanitizeUser(matchedUser),
+    });
+  }
+
+  // ME
+  if (action === 'me') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated || !auth.user) {
+      return res.status(401).json({ success: false, error: auth.error || 'Unauthorized' });
+    }
+
+    const state = await getLatestPortalState();
+    const users = Array.isArray(state.users) ? state.users : [];
+    const freshUser = users.find((u) => u.id === auth.user.sub || u.teacherId?.toUpperCase() === auth.user.teacherId?.toUpperCase());
+
+    return res.json({
+      success: true,
+      user: sanitizeUser(freshUser || auth.user),
+    });
+  }
+
+  // LOGOUT
+  if (action === 'logout') {
+    return res.json({ success: true, message: 'Logged out successfully' });
+  }
+
+  // CHANGE PASSWORD
+  if (action === 'change_password') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated || !auth.user) {
+      return res.status(401).json({ success: false, error: auth.error || 'Unauthorized' });
+    }
+
+    const { currentPassword, newPassword } = body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Both current password and new password are required.' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+    }
+
+    const state = await getLatestPortalState();
+    const users = Array.isArray(state.users) ? state.users : [];
+    const targetUser = users.find((u) => u.id === auth.user.sub || u.teacherId?.toUpperCase() === auth.user.teacherId?.toUpperCase());
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'User account not found.' });
+    }
+
+    const storedPassword = (targetUser.password || (targetUser.role === 'admin' ? 'admin123' : 'teach123')).trim();
+    const verifyResult = verifyPassword(String(currentPassword).trim(), storedPassword);
+
+    if (!verifyResult.valid) {
+      return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
+    }
+
+    targetUser.password = hashPassword(String(newPassword).trim());
+    state.updatedAt = new Date().toISOString();
+    await persistPortalState(state);
+
+    return res.json({ success: true, message: 'Password changed successfully.' });
+  }
+
+  return res.status(400).json({ success: false, error: `Unsupported auth action: ${action}` });
+});
+
 // ─── Direct Resumable Google Drive Endpoint ──────────────────────────────────
-app.post('/api/drive-resumable', async (req, res) => {
+app.post('/api/drive-resumable', requireAuth, async (req, res) => {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`drive_resumable:${req.user.sub}:${ip}`, 40, 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Upload rate limit exceeded. Please wait a moment.' });
+  }
+
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
   const privateKey  = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 
@@ -171,43 +423,9 @@ app.post('/api/drive-resumable', async (req, res) => {
   return res.status(400).json({ success: false, error: `Invalid action: ${action}` });
 });
 
-// ─── Cloud Sync Endpoint ──────────────────────────────────────────────────────
-const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://yczcnpsdmhftvpwdenoy.supabase.co').trim();
-const SUPABASE_KEY = (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemNucHNkbWhmdHZwd2Rlbm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODMwNjQsImV4cCI6MjEwMjk1OTA2NH0.H_qomZFkVTfIsvmSkS9UUWn5hNjP9h1kGB3YEpPA3Vk').trim();
-
-let inMemoryStateCache = null;
-
-const DEFAULT_STATE = {
-  version: 2,
-  updatedAt: new Date().toISOString(),
-  deletedIds: [],
-  users: [
-    {
-      id: 'u-admin',
-      teacherId: 'ADMIN-01',
-      username: 'admin',
-      password: 'admin123',
-      name: 'Academic Operations Admin',
-      email: 'admin@aew.com',
-      role: 'admin',
-      department: 'Academic Operations',
-      subject: 'Management',
-      dailyTargetMinutes: 9999,
-      dailyLimit: 999,
-    },
-  ],
-  assignedTopics: [],
-  lectures: [],
-  subjectReferences: [],
-  dailyCommitments: [],
-  pptRequests: [],
-  extensions: [],
-  walletTransactions: [],
-  dayOffGrants: [],
-};
-
-function mergeMasterStates(current, incoming) {
-  if (!current) return incoming || DEFAULT_STATE;
+// ─── Cloud Sync Merging Logic ────────────────────────────────────────────────
+function mergeMasterStates(current, incoming, callerRole = 'admin') {
+  if (!current) current = DEFAULT_STATE;
   if (!incoming) return current || DEFAULT_STATE;
 
   const deletedIds = new Set([
@@ -215,6 +433,7 @@ function mergeMasterStates(current, incoming) {
     ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id) => id.toUpperCase()) : []),
   ]);
 
+  // 1. Users — ONLY ADMIN CAN MUTATE
   const userMap = new Map();
   if (Array.isArray(current.users)) {
     current.users.forEach((u) => {
@@ -223,11 +442,26 @@ function mergeMasterStates(current, incoming) {
       }
     });
   }
-  if (Array.isArray(incoming.users)) {
+
+  if (callerRole === 'admin' && Array.isArray(incoming.users)) {
     incoming.users.forEach((u) => {
       if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
         const existing = userMap.get(u.teacherId.toUpperCase());
-        userMap.set(u.teacherId.toUpperCase(), { ...existing, ...u });
+        const isExistingRealEmail = existing?.email && !String(existing.email).endsWith('@aew.com');
+        const isIncomingRealEmail = u?.email && !String(u.email).endsWith('@aew.com');
+        const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing.email : (u.email || existing?.email));
+
+        let passwordToStore = existing?.password;
+        if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
+          passwordToStore = u.password.startsWith('scrypt:') ? u.password : hashPassword(u.password.trim());
+        }
+
+        userMap.set(u.teacherId.toUpperCase(), {
+          ...existing,
+          ...u,
+          password: passwordToStore,
+          email: resolvedEmail,
+        });
       }
     });
   }
@@ -237,6 +471,7 @@ function mergeMasterStates(current, incoming) {
     userMap.set('ADMIN-01', DEFAULT_STATE.users[0]);
   }
 
+  // 2. Topics
   const topicMap = new Map();
   if (Array.isArray(current.assignedTopics)) {
     current.assignedTopics.forEach((t) => {
@@ -265,13 +500,17 @@ function mergeMasterStates(current, incoming) {
               updatedAt: t.updatedAt || new Date().toISOString(),
             });
           } else {
-            topicMap.set(t.id, { ...t, ...existing });
+            topicMap.set(t.id, {
+              ...t,
+              ...existing,
+            });
           }
         }
       }
     });
   }
 
+  // 3. Lectures
   const lectureMap = new Map();
   if (Array.isArray(current.lectures)) {
     current.lectures.forEach((l) => {
@@ -318,6 +557,7 @@ function mergeMasterStates(current, incoming) {
     });
   }
 
+  // 4. References
   const refMap = new Map();
   if (Array.isArray(current.subjectReferences)) {
     current.subjectReferences.forEach((r) => {
@@ -337,6 +577,7 @@ function mergeMasterStates(current, incoming) {
     });
   }
 
+  // 5. Commitments
   const commitmentMap = new Map();
   if (Array.isArray(current.dailyCommitments)) {
     current.dailyCommitments.forEach((c) => {
@@ -356,6 +597,7 @@ function mergeMasterStates(current, incoming) {
     });
   }
 
+  // 6. PPT Requests
   const pptMap = new Map();
   if (Array.isArray(current.pptRequests)) {
     current.pptRequests.forEach((p) => {
@@ -365,11 +607,15 @@ function mergeMasterStates(current, incoming) {
   if (Array.isArray(incoming.pptRequests)) {
     incoming.pptRequests.forEach((p) => {
       if (p && p.id && !deletedIds.has(p.id.toUpperCase())) {
-        pptMap.set(p.id, { ...pptMap.get(p.id), ...p });
+        pptMap.set(p.id, {
+          ...pptMap.get(p.id),
+          ...p,
+        });
       }
     });
   }
 
+  // 7. Extensions
   const extMap = new Map();
   if (Array.isArray(current.extensions)) {
     current.extensions.forEach((e) => {
@@ -379,11 +625,15 @@ function mergeMasterStates(current, incoming) {
   if (Array.isArray(incoming.extensions)) {
     incoming.extensions.forEach((e) => {
       if (e && e.id && !deletedIds.has(e.id.toUpperCase())) {
-        extMap.set(e.id, { ...extMap.get(e.id), ...e });
+        extMap.set(e.id, {
+          ...extMap.get(e.id),
+          ...e,
+        });
       }
     });
   }
 
+  // 8. Wallet Transactions
   const walletMap = new Map();
   if (Array.isArray(current.walletTransactions)) {
     current.walletTransactions.forEach((w) => {
@@ -393,11 +643,15 @@ function mergeMasterStates(current, incoming) {
   if (Array.isArray(incoming.walletTransactions)) {
     incoming.walletTransactions.forEach((w) => {
       if (w && w.id && !deletedIds.has(w.id.toUpperCase())) {
-        walletMap.set(w.id, { ...walletMap.get(w.id), ...w });
+        walletMap.set(w.id, {
+          ...walletMap.get(w.id),
+          ...w,
+        });
       }
     });
   }
 
+  // 9. Day Off Grants
   const dayOffMap = new Map();
   if (Array.isArray(current.dayOffGrants)) {
     current.dayOffGrants.forEach((g) => {
@@ -407,10 +661,63 @@ function mergeMasterStates(current, incoming) {
   if (Array.isArray(incoming.dayOffGrants)) {
     incoming.dayOffGrants.forEach((g) => {
       if (g && g.id && !deletedIds.has(g.id.toUpperCase())) {
-        dayOffMap.set(g.id, { ...dayOffMap.get(g.id), ...g });
+        dayOffMap.set(g.id, {
+          ...dayOffMap.get(g.id),
+          ...g,
+        });
       }
     });
   }
+
+  // 10. Email Configuration — ONLY ADMIN CAN MUTATE
+  const curConfig = current.emailConfig || {};
+  let mergedEmailConfig = curConfig;
+  if (callerRole === 'admin') {
+    const incConfig = incoming.emailConfig || {};
+    const curHasCreds = Boolean(curConfig.smtpPass || curConfig.smtpUser || curConfig.resendApiKey);
+    const incHasCreds = Boolean(incConfig.smtpPass || incConfig.smtpUser || incConfig.resendApiKey);
+
+    if (incHasCreds) {
+      mergedEmailConfig = {
+        ...curConfig,
+        ...incConfig,
+        updatedAt: new Date().toISOString(),
+      };
+    } else if (curHasCreds) {
+      mergedEmailConfig = {
+        ...incConfig,
+        ...curConfig,
+      };
+    } else {
+      mergedEmailConfig = {
+        provider: 'smtp',
+        smtpHost: 'smtp.gmail.com',
+        smtpPort: 465,
+        senderName: 'AEW Academic Operations',
+        ...curConfig,
+        ...incConfig,
+      };
+    }
+  }
+
+  // 11. Email Logs
+  const logMap = new Map();
+  if (Array.isArray(current.emailLogs)) {
+    current.emailLogs.forEach((l) => {
+      if (l && l.id) logMap.set(l.id, l);
+    });
+  }
+  if (Array.isArray(incoming.emailLogs)) {
+    incoming.emailLogs.forEach((l) => {
+      if (l && l.id) {
+        const ex = logMap.get(l.id);
+        logMap.set(l.id, ex ? { ...ex, ...l } : l);
+      }
+    });
+  }
+  const mergedEmailLogs = Array.from(logMap.values())
+    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+    .slice(0, 200);
 
   return {
     version: 2,
@@ -425,95 +732,63 @@ function mergeMasterStates(current, incoming) {
     extensions: Array.from(extMap.values()),
     walletTransactions: Array.from(walletMap.values()),
     dayOffGrants: Array.from(dayOffMap.values()),
+    emailConfig: mergedEmailConfig,
+    emailLogs: mergedEmailLogs,
   };
 }
 
-app.get('/api/cloud-sync', async (_req, res) => {
-  try {
-    const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        Accept: 'application/json',
-      },
-    });
-
-    if (dbRes.ok) {
-      const rows = await dbRes.json();
-      if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
-        inMemoryStateCache = rows[0].data;
-        return res.status(200).json({ success: true, source: 'supabase', data: rows[0].data });
-      }
-    }
-
-    return res.status(200).json({ success: true, source: inMemoryStateCache ? 'memory' : 'default', data: inMemoryStateCache || DEFAULT_STATE });
-  } catch {
-    return res.status(200).json({ success: true, source: inMemoryStateCache ? 'memory' : 'default', data: inMemoryStateCache || DEFAULT_STATE });
+// ─── Cloud Sync Endpoints ─────────────────────────────────────────────────────
+app.get('/api/cloud-sync', requireAuth, async (req, res) => {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`sync_get:${req.user.sub}:${ip}`, 120, 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Too many sync requests.' });
   }
+
+  const state = await getLatestPortalState();
+  return res.status(200).json({
+    success: true,
+    source: inMemoryStateCache ? 'memory' : 'default',
+    data: sanitizePortalState(state, req.user.role),
+  });
 });
 
-app.post('/api/cloud-sync', async (req, res) => {
+app.post('/api/cloud-sync', requireAuth, async (req, res) => {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`sync_post:${req.user.sub}:${ip}`, 60, 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Too many update requests.' });
+  }
+
   try {
-    const incomingData = req.body.data || req.body;
+    const incomingData = req.body?.data || req.body;
     if (!incomingData || typeof incomingData !== 'object') {
-      return res.status(400).json({ error: 'Missing data payload' });
+      return res.status(400).json({ success: false, error: 'Missing data payload' });
     }
 
-    let currentCloudData = inMemoryStateCache;
-    try {
-      const fetchCurrent = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          Accept: 'application/json',
-        },
-      });
-      if (fetchCurrent.ok) {
-        const rows = await fetchCurrent.json();
-        if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
-          currentCloudData = rows[0].data;
-        }
-      }
-    } catch {
-      // fallback to memory cache
-    }
-
-    const mergedData = mergeMasterStates(currentCloudData, incomingData);
-    inMemoryStateCache = mergedData;
-
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates',
-        },
-        body: JSON.stringify({
-          id: 'aew_portal_master',
-          version: 2,
-          data: mergedData,
-          updated_at: new Date().toISOString(),
-        }),
-      });
-    } catch (upstreamErr) {
-      console.warn('Failed to update Supabase, saved to local cache:', upstreamErr?.message);
-    }
+    const currentCloudData = await getLatestPortalState();
+    const mergedData = mergeMasterStates(currentCloudData, incomingData, req.user.role);
+    await persistPortalState(mergedData);
 
     return res.status(200).json({
       success: true,
       source: 'supabase',
       updatedAt: mergedData.updatedAt,
-      data: mergedData,
+      data: sanitizePortalState(mergedData, req.user.role),
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message || 'Failed to save cloud sync' });
+    return res.status(500).json({ success: false, error: err.message || 'Failed to save cloud sync' });
   }
 });
 
 // ─── DeepSeek PPT Generator Endpoint ──────────────────────────────────────────
-app.post('/api/deepseek-generate-ppt', async (req, res) => {
+app.post('/api/deepseek-generate-ppt', requireAuth, async (req, res) => {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`ai_ppt:${req.user.sub}:${ip}`, 20, 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'AI generation rate limit exceeded.' });
+  }
+
   const {
     subject = 'Engineering',
     unit = 'UNIT 1',
@@ -534,7 +809,7 @@ app.post('/api/deepseek-generate-ppt', async (req, res) => {
   if (!apiKey || apiKey.trim() === '') {
     return res.status(400).json({
       success: false,
-      error: 'DeepSeek API Key is not configured. Please enter your DeepSeek API key in the studio settings or set DEEPSEEK_API_KEY in environment variables.',
+      error: 'DeepSeek API Key is not configured. Please enter your DeepSeek API key in settings or set DEEPSEEK_API_KEY.',
       needsApiKey: true,
     });
   }
@@ -634,14 +909,105 @@ Please generate the complete JSON slide deck now.`;
   }
 });
 
-// ─── Upload Endpoint ──────────────────────────────────────────────────────────
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+// ─── DeepSeek Answer Pointers Endpoint ───────────────────────────────────────
+app.post('/api/deepseek-generate-pointers', requireAuth, async (req, res) => {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`ai_pointers:${req.user.sub}:${ip}`, 20, 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'AI pointer generation rate limit exceeded.' });
+  }
+
+  const {
+    subject = 'Engineering',
+    questions = [],
+    apiKey: userApiKey,
+  } = req.body || {};
+
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ success: false, error: 'No questions provided for pointer generation.' });
+  }
+
+  const apiKey = (userApiKey && typeof userApiKey === 'string' && userApiKey.trim() !== '')
+    ? userApiKey.trim()
+    : process.env.DEEPSEEK_API_KEY;
+
+  if (!apiKey || apiKey.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      error: 'DeepSeek API Key is not configured. Please enter your DeepSeek API key in settings or set DEEPSEEK_API_KEY.',
+      needsApiKey: true,
+    });
+  }
+
+  const formattedQuestions = questions
+    .map(
+      (q, idx) =>
+        `[Question #${idx + 1}] ID: ${q.id || idx + 1} | Year: ${q.examYear || 'N/A'} | Marks: ${q.marks || 'N/A'} | Topic: ${q.topic || 'General'}\nProblem Statement: ${q.questionText}${q.solution ? `\nReference Note: ${q.solution}` : ''}`
+    )
+    .join('\n\n');
+
+  const systemPrompt = `You are a distinguished Engineering Professor creating high-yield answer pointer cards for university students. Return valid JSON containing a "pointersList" array.`;
+  const userPrompt = `Generate answer pointer cards for:
+Subject: ${subject}
+Questions:
+${formattedQuestions}`;
+
+  try {
+    const deepSeekResponse = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+      }),
+    });
+
+    if (!deepSeekResponse.ok) {
+      const errText = await deepSeekResponse.text();
+      return res.status(deepSeekResponse.status).json({
+        success: false,
+        error: `DeepSeek API returned error (${deepSeekResponse.status}): ${errText}`,
+      });
+    }
+
+    const data = await deepSeekResponse.json();
+    const messageContent = data.choices?.[0]?.message?.content;
+    const cleanJson = messageContent.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleanJson);
+
+    return res.status(200).json({
+      success: true,
+      pointersMap: parsed.pointersList || parsed,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Error communicating with DeepSeek API',
+    });
+  }
+});
+
+// ─── Upload Endpoint (Multipart fallback) ────────────────────────────────────
+app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`upload:${req.user.sub}:${ip}`, 40, 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Upload rate limit exceeded.' });
+  }
+
   if (!req.file) {
     return res.status(400).json({ success: false, error: 'No file received.' });
   }
 
   const drive = getDriveClient();
-
   if (!drive) {
     return res.status(503).json({
       success: false,
@@ -703,7 +1069,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       downloadLink: fileData.data.webContentLink,
       fileName: fileData.data.name,
     });
-
   } catch (err) {
     console.error('[Drive Upload Error]', err.message);
     return res.status(500).json({
@@ -713,14 +1078,19 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// ─── Operational Notification Email Endpoint (SMTP / Gmail & Resend) ─────────
-app.post('/api/send-email', async (req, res) => {
+// ─── Operational Notification Email Endpoint ─────────────────────────────────
+app.post('/api/send-email', requireAuth, async (req, res) => {
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`email:${req.user.sub}:${ip}`, 20, 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'Email dispatch rate limit exceeded.' });
+  }
+
   const { to, type, data } = req.body || {};
   const SMTP_USER = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
   const SMTP_PASS = (process.env.SMTP_PASS || process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '').trim().replace(/\s+/g, '');
   const SMTP_HOST = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-  const SMTP_FROM = (process.env.SMTP_FROM || `AEW Academic Operations <${SMTP_USER}>`).trim();
 
   const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
   const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'Academic Operations <onboarding@resend.dev>').trim();
@@ -773,7 +1143,8 @@ app.post('/api/send-email', async (req, res) => {
     </div>
   `;
 
-  const bodyConfig = (req.body?.config || {});
+  // For security, only admins may supply custom SMTP config in body
+  const bodyConfig = (req.user.role === 'admin' ? (req.body?.config || {}) : {});
   const activeSmtpUser = (bodyConfig.smtpUser || SMTP_USER).trim();
   const activeSmtpPass = (bodyConfig.smtpPass ? String(bodyConfig.smtpPass).trim().replace(/\s+/g, '') : SMTP_PASS);
   const activeSmtpHost = (bodyConfig.smtpHost || SMTP_HOST || 'smtp.gmail.com').trim();
@@ -783,7 +1154,7 @@ app.post('/api/send-email', async (req, res) => {
   const activeResendKey = (bodyConfig.resendApiKey || RESEND_API_KEY).trim();
   const activeResendFrom = (bodyConfig.fromEmail || RESEND_FROM_EMAIL).trim();
 
-  // 1. Dispatch via SMTP (e.g. Gmail) — ZERO DOMAIN NEEDED
+  // 1. Dispatch via SMTP
   if (activeSmtpUser && activeSmtpPass) {
     try {
       const isSecure = activeSmtpPort === 465;
@@ -808,10 +1179,10 @@ app.post('/api/send-email', async (req, res) => {
         html,
       });
 
-      console.log(`[Dev SendEmail] SMTP (Gmail) sent "${type}" to:`, validRecipients);
+      console.log(`[SendEmail] SMTP sent "${type}" to:`, validRecipients);
       return res.json({ success: true, status: 'delivered', provider: 'smtp', messageId: info.messageId, subject });
     } catch (err) {
-      console.error('[SendEmail SMTP Local Error]', err.message);
+      console.error('[SendEmail SMTP Error]', err.message);
       let friendlyError = err.message || 'Failed to dispatch email via SMTP.';
       if (err.code === 'EAUTH' || friendlyError.includes('535-5.7.8')) {
         friendlyError = 'Google SMTP Authentication Failed (535-5.7.8). Ensure 2-Step Verification is enabled and you generated a 16-character Google App Password.';
@@ -844,12 +1215,13 @@ app.post('/api/send-email', async (req, res) => {
         subject,
       });
     } catch (err) {
-      console.error('[SendEmail Resend Local Error]', err.message);
+      console.error('[SendEmail Resend Error]', err.message);
       return res.status(500).json({ success: false, status: 'failed', error: err.message, subject });
     }
   }
+
   // 3. Fallback
-  console.log(`[Dev SendEmail] No credentials configured. Simulating email "${type}" to:`, validRecipients);
+  console.log(`[SendEmail] Simulating email "${type}" to:`, validRecipients);
   return res.json({
     success: true,
     simulated: true,
@@ -859,4 +1231,10 @@ app.post('/api/send-email', async (req, res) => {
     subject,
     type,
   });
+});
+
+// ─── START LOCAL SERVER LISTENER ─────────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`[Teacher Portal Server] Running on http://localhost:${PORT}`);
+  console.log(`[Teacher Portal Server] Health check available at http://localhost:${PORT}/api/health`);
 });

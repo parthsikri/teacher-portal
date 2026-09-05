@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { applyCors, authenticateRequest, checkRateLimit, getClientIp } from './auth-utils';
 
 export interface QuestionPointerInput {
   id?: string | number;
@@ -18,16 +19,27 @@ export interface AnswerPointerResult {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (applyCors(req, res)) {
+    return;
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  // ─── AUTHENTICATION CHECK ──────────────────────────────────────────────────
+  const auth = authenticateRequest(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({
+      success: false,
+      error: auth.error || 'Authentication required to generate PYQ pointers.',
+    });
+  }
+
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(`ai_pointers:${auth.user.sub}:${ip}`, 20, 60 * 1000); // 20 requests/min
+  if (!rl.allowed) {
+    return res.status(429).json({ success: false, error: 'AI pointer generation rate limit exceeded. Please wait a moment.' });
   }
 
   const {
