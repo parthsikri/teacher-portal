@@ -3,7 +3,8 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet
+  Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
+  Award, CheckCircle2, DollarSign, Star, TrendingUp, Building2, FileText
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -31,6 +32,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const adminPptRequestsQueueCount = currentUser.role === 'admin'
     ? StorageService.getPptRequests().filter((r) => r.status === 'pending' || r.status === 'in_progress').length
+    : 0;
+
+  const adminPrSubmissionsCount = currentUser.role === 'admin'
+    ? StorageService.getPrTasks().filter((t) => t.status === 'submitted').length
+    : 0;
+
+  const prPendingTasksCount = currentUser.role === 'pr_intern'
+    ? StorageService.getPrTasks().filter(
+        (t) => t.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase() && t.status === 'pending'
+      ).length
     : 0;
 
   const teacherActionRequiredCount = currentUser.role === 'teacher'
@@ -71,6 +82,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isTargetReached = currentUser.role === 'teacher' ? minutesRecordedToday >= targetMinutes : false;
   const teacherActiveExtensions = currentUser.role === 'teacher' ? StorageService.getActiveExtensions(currentUser.teacherId).length : 0;
   const adminActiveExtensions = currentUser.role === 'admin' ? StorageService.getActiveExtensions().length : 0;
+
+  // PR Intern Navigation Links
+  const prNavItems = [
+    { id: 'pr_dashboard', label: 'Mission Control & Tier', icon: Award },
+    { 
+      id: 'pr_tasks', 
+      label: 'Assigned Tasks', 
+      icon: CheckCircle2,
+      badge: prPendingTasksCount > 0 ? `${prPendingTasksCount} New` : undefined,
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30 font-mono',
+    },
+    { id: 'pr_leads', label: 'Sponsorship Leads', icon: DollarSign },
+    { id: 'pr_mou_maker', label: 'MoU Maker & Legal', icon: FileText },
+    { id: 'pr_colleges', label: 'Campus Network', icon: Building2 },
+    { id: 'pr_earnings', label: 'Commission Ledger', icon: TrendingUp },
+  ];
 
   // Teacher Navigation Links
   const teacherNavItems = [
@@ -127,6 +154,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
     { 
+      id: 'admin_pr', 
+      label: 'PR Team & Gamification', 
+      icon: Award,
+      badge: adminPrSubmissionsCount > 0 ? `${adminPrSubmissionsCount} Sub` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+    },
+    { 
       id: 'admin_wallet', 
       label: 'Faculty Wallets', 
       icon: Wallet,
@@ -175,7 +209,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  const navItems = currentUser.role === 'admin' ? adminNavItems : teacherNavItems;
+  const navItems = currentUser.role === 'admin' 
+    ? adminNavItems 
+    : currentUser.role === 'pr_intern'
+    ? prNavItems
+    : teacherNavItems;
 
   const handleNavClick = (id: string) => {
     onPageChange(id);
@@ -266,6 +304,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* BOTTOM USER PROFILE & LOGOUT */}
         <div className="p-4 border-t border-slate-800/60 space-y-3 text-xs">
+          {currentUser.role === 'pr_intern' && (
+            <div className="space-y-2">
+              <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">Intern Tier:</span>
+                  <span className="font-extrabold text-amber-300 flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-amber-400" />
+                    {currentUser.prTier || 'Silver'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-mono">
+                  <span className="text-slate-400">Take-Home Share:</span>
+                  <span className="font-bold text-emerald-400">
+                    {StorageService.getTierCommissionRate(currentUser.prTier || 'Silver')}%
+                  </span>
+                </div>
+                <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-amber-300 font-bold flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {currentUser.prStars || 0} Stars
+                  </span>
+                  <span className="text-indigo-300 font-bold">
+                    🎖️ {currentUser.prPoints || 0} Pts
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {currentUser.role === 'teacher' && (
             <div className="space-y-2">
               <div className="p-3 bg-slate-950/60 border border-slate-800/70 rounded-xl space-y-1.5">

@@ -1,4 +1,6 @@
-export type UserRole = 'teacher' | 'admin';
+export type UserRole = 'teacher' | 'admin' | 'pr_intern';
+
+export type PrTier = 'Silver' | 'Gold' | 'Premium';
 
 export interface User {
   id: string;
@@ -18,6 +20,13 @@ export interface User {
   joiningDate?: string;          // Official faculty onboarding / joining date (YYYY-MM-DD) for backlog calculation origin
   firstLoginDate?: string;       // Date when faculty first logged in (YYYY-MM-DD)
   createdAt?: string;            // Account creation timestamp
+  phone?: string;
+  // PR Intern specific fields
+  prTier?: PrTier;
+  prPoints?: number;
+  prStars?: number;
+  totalSponsorshipRevenue?: number;
+  totalCommissionEarned?: number;
 }
 
 export interface DailyCommitment {
@@ -257,6 +266,132 @@ export interface EmailLogItem {
   timestamp: string;
   dataSummary?: string;
 }
+
+// ─── PR INTERNS DOMAIN TYPES ────────────────────────────────────────────────
+
+export type PrTaskStatus = 'pending' | 'submitted' | 'approved' | 'revision_requested';
+export type PrTaskPriority = 'urgent' | 'high' | 'medium' | 'normal';
+export type PrTaskCategory = 'college_sponsorship' | 'fest_mou' | 'influencer_collab' | 'campus_ambassador' | 'content_promo';
+
+export interface PrTask {
+  id: string;
+  title: string;
+  description: string;
+  category?: PrTaskCategory;
+  assignedToInternId: string;
+  assignedToInternName: string;
+  assignedByAdminName?: string;
+  deadline: string;
+  pointsReward: number;     // e.g. 25 points
+  starsReward: number;      // e.g. 2 stars
+  priority: PrTaskPriority;
+  status: PrTaskStatus;
+  submissionNotes?: string;
+  submissionProofUrl?: string; // e.g. Drive doc, event link, social post link
+  submittedAt?: string;
+  reviewedAt?: string;
+  adminRemarks?: string;
+  awardedPoints?: number;
+  awardedStars?: number;
+  createdAt: string;
+}
+
+export type PrLeadStage = 
+  | 'lead' 
+  | 'contacted' 
+  | 'pitch_deck_sent' 
+  | 'negotiation' 
+  | 'mou_drafted' 
+  | 'closed_won' 
+  | 'closed_lost';
+
+export type PrLeadType = 
+  | 'college_sponsorship' 
+  | 'event_partner' 
+  | 'brand_sponsor' 
+  | 'campus_ambassador_lead';
+
+export interface PrLead {
+  id: string;
+  internId: string;
+  internName: string;
+  type: PrLeadType;
+  organizationName: string;
+  contactPerson: string;
+  designation: string;
+  email: string;
+  phone: string;
+  expectedSponsorshipAmount: number;
+  closedAmount?: number;
+  stage: PrLeadStage;
+  internTierAtClosure?: PrTier;
+  commissionRate?: number; // 3.3, 7.0, or 12.0 (%)
+  commissionEarned?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PrMouStatus = 'draft' | 'pending_admin_approval' | 'approved' | 'signed' | 'rejected';
+
+export interface PrMouRequest {
+  id: string;
+  mouNumber: string; // e.g. "AEW/MOU/2026/018"
+  internId: string;
+  internName: string;
+  partnerOrganization: string;
+  partnerSignatory: string;
+  partnerDesignation: string;
+  partnerAddress: string;
+  purpose: string;
+  terms: string[];
+  sponsorshipAmount?: number;
+  startDate: string;
+  endDate: string;
+  status: PrMouStatus;
+  adminFeedback?: string;
+  generatedAt: string;
+  approvedAt?: string;
+  signedAt?: string;
+}
+
+export interface PrCollege {
+  id: string;
+  name: string;
+  university?: string;
+  state: string;
+  city: string;
+  tier: 'Tier 1' | 'Tier 2' | 'Tier 3';
+  contactPerson: string;
+  designation: string;
+  phone: string;
+  email: string;
+  status: 'lead' | 'contacted' | 'meeting_scheduled' | 'partner' | 'inactive';
+  studentCount?: number;
+  notes?: string;
+  assignedInternId?: string;
+  assignedInternName?: string;
+  lastContactedDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PrDailyWorklog {
+  id: string;
+  internId: string;
+  internName: string;
+  date: string; // YYYY-MM-DD
+  callsMade: number;
+  emailsSent: number;
+  collegesContacted: number;
+  leadsGenerated: number;
+  tasksCompleted: string;
+  keyBlockers?: string;
+  planForTomorrow?: string;
+  createdAt: string;
+  reviewedByAdmin?: boolean;
+}
+
 
 
 

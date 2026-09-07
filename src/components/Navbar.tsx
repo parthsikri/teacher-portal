@@ -3,8 +3,16 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock
+  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award
 } from 'lucide-react';
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: any;
+  badge?: number | string;
+  badgeColor?: string;
+}
 
 interface NavbarProps {
   currentUser: User | null;
@@ -53,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const teacherWalletInfo = currentUser?.role === 'teacher' ? StorageService.getTimeWalletInfo(currentUser.teacherId) : null;
 
   // Teacher Navigation Links
-  const teacherNavItems = [
+  const teacherNavItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'recording_status', label: 'Recording Status', icon: Clock },
     { 
@@ -87,7 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   // Admin Navigation Links
-  const adminNavItems = [
+  const adminNavItems: NavItem[] = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
     { id: 'admin_wallet', label: 'Faculty Wallets', icon: Wallet },
     { id: 'admin_leaves', label: 'Day Offs & Leaves', icon: Calendar },
@@ -110,6 +118,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: ImageIcon,
     },
     { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
+    { 
+      id: 'admin_pr', 
+      label: 'PR Team & Tasks', 
+      icon: Award,
+    },
     { id: 'admin_resources', label: 'Subject Library', icon: BookMarked },
     { 
       id: 'admin_lectures', 
@@ -120,7 +133,20 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
   ];
 
-  const currentNavItems = currentUser?.role === 'admin' ? adminNavItems : teacherNavItems;
+  const prNavItems: NavItem[] = [
+    { id: 'pr_dashboard', label: 'Mission Control', icon: Award },
+    { id: 'pr_tasks', label: 'Tasks', icon: LayoutDashboard },
+    { id: 'pr_leads', label: 'Leads', icon: Wallet },
+    { id: 'pr_mou_maker', label: 'MoU Maker', icon: FileSpreadsheet },
+    { id: 'pr_colleges', label: 'Colleges', icon: Users },
+    { id: 'pr_earnings', label: 'Earnings', icon: Layers },
+  ];
+
+  const currentNavItems = currentUser?.role === 'admin' 
+    ? adminNavItems 
+    : currentUser?.role === 'pr_intern'
+    ? prNavItems
+    : teacherNavItems;
 
   return (
     <header className="w-full bg-slate-900/95 border-b border-slate-800 backdrop-blur-md sticky top-0 z-40 shadow-xl">

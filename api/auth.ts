@@ -75,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Default legacy password if not yet initialized
-    const storedPassword = (matchedUser.password || (matchedUser.role === 'admin' ? 'admin123' : 'teach123')).trim();
+    const storedPassword = (matchedUser.password || (matchedUser.role === 'admin' ? 'admin123' : matchedUser.role === 'pr_intern' ? 'intern123' : 'teach123')).trim();
     const verifyResult = verifyPassword(password, storedPassword);
 
     if (!verifyResult.valid) {

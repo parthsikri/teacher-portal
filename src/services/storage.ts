@@ -1,7 +1,8 @@
 import { notificationService } from './notificationService';
 import type {
   DayOffGrant,
-  User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem } from '../types';
+  User, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem,
+  PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage, PrMouStatus } from '../types';
 
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -17,6 +18,10 @@ const WALLET_TRANSACTIONS_KEY = 'tp_time_wallet_transactions_prod_v1';
 const DAY_OFF_GRANTS_KEY = 'tp_day_off_grants_prod_v1';
 const EMAIL_CONFIG_KEY = 'aew_email_config';
 const EMAIL_LOGS_KEY = 'aew_email_logs_prod_v1';
+const PR_TASKS_KEY = 'aew_pr_tasks_prod_v1';
+const PR_LEADS_KEY = 'aew_pr_leads_prod_v1';
+const PR_MOUS_KEY = 'aew_pr_mous_prod_v1';
+const PR_COLLEGES_KEY = 'aew_pr_colleges_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 const SESSION_TOKEN_KEY = 'aew_portal_session_token_v2';
 
@@ -76,6 +81,40 @@ const INITIAL_USERS: User[] = [
     joiningDate: '2026-08-25',
     firstLoginDate: '2026-08-25',
   },
+  {
+    id: 'u-pr101',
+    teacherId: 'AEW-PR-01',
+    username: 'pr_intern_1',
+    name: 'Rohan Verma',
+    email: 'rohan.pr@aew.com',
+    role: 'pr_intern',
+    department: 'Public Relations & Sponsorship',
+    subject: 'College Sponsorship & Outreach',
+    dailyTargetMinutes: 0,
+    dailyLimit: 0,
+    prTier: 'Gold',
+    prPoints: 165,
+    prStars: 8,
+    totalSponsorshipRevenue: 85000,
+    totalCommissionEarned: 5950,
+  },
+  {
+    id: 'u-pr102',
+    teacherId: 'AEW-PR-02',
+    username: 'pr_intern_2',
+    name: 'Priya Saini',
+    email: 'priya.pr@aew.com',
+    role: 'pr_intern',
+    department: 'Public Relations & Sponsorship',
+    subject: 'Brand Alliance & Ambassador Network',
+    dailyTargetMinutes: 0,
+    dailyLimit: 0,
+    prTier: 'Silver',
+    prPoints: 45,
+    prStars: 2,
+    totalSponsorshipRevenue: 25000,
+    totalCommissionEarned: 825,
+  },
 ];
 
 let syncDebounceTimer: any = null;
@@ -118,21 +157,26 @@ export const StorageService = {
                 username: (u.username || existing.username || cleanId.toLowerCase()).trim().toLowerCase().replace(/\s+/g, '_'),
                 password: (u.password || existing.password || '').trim() || undefined,
                 name: (u.name || existing.name || cleanId).trim(),
-                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : 'teacher'),
+                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : cleanId.startsWith('AEW-PR') ? 'pr_intern' : 'teacher'),
                 email: (u.email && !String(u.email).endsWith('@aew.com')
                   ? u.email
                   : (existing.email && !String(existing.email).endsWith('@aew.com')
                     ? existing.email
                     : (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`))).trim(),
-                department: u.department || existing.department || 'Engineering',
-                subject: u.subject || existing.subject || 'Engineering',
-                dailyTargetMinutes: u.dailyTargetMinutes || existing.dailyTargetMinutes || 120,
+                department: u.department || existing.department || (cleanId.startsWith('AEW-PR') ? 'Public Relations & Sponsorship' : 'Engineering'),
+                subject: u.subject || existing.subject || (cleanId.startsWith('AEW-PR') ? 'College Sponsorship & Outreach' : 'Engineering'),
+                dailyTargetMinutes: u.dailyTargetMinutes !== undefined ? u.dailyTargetMinutes : (existing.dailyTargetMinutes || (cleanId.startsWith('AEW-PR') ? 0 : 120)),
                 dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
                 hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
-                dailyLimit: u.dailyLimit || existing.dailyLimit || 4,
-                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') ? undefined : '2026-08-25'),
+                dailyLimit: u.dailyLimit !== undefined ? u.dailyLimit : (existing.dailyLimit || (cleanId.startsWith('AEW-PR') ? 0 : 4)),
+                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') || cleanId.startsWith('AEW-PR') ? undefined : '2026-08-25'),
                 firstLoginDate: u.firstLoginDate || existing.firstLoginDate,
                 createdAt: u.createdAt || existing.createdAt || new Date().toISOString(),
+                prTier: u.prTier || existing.prTier || (cleanId.startsWith('AEW-PR') ? 'Silver' : undefined),
+                prPoints: u.prPoints !== undefined ? u.prPoints : (existing.prPoints !== undefined ? existing.prPoints : (cleanId.startsWith('AEW-PR') ? 0 : undefined)),
+                prStars: u.prStars !== undefined ? u.prStars : (existing.prStars !== undefined ? existing.prStars : (cleanId.startsWith('AEW-PR') ? 0 : undefined)),
+                totalSponsorshipRevenue: u.totalSponsorshipRevenue !== undefined ? u.totalSponsorshipRevenue : (existing.totalSponsorshipRevenue || 0),
+                totalCommissionEarned: u.totalCommissionEarned !== undefined ? u.totalCommissionEarned : (existing.totalCommissionEarned || 0),
               });
             }
           });
@@ -186,6 +230,42 @@ export const StorageService = {
     return created;
   },
 
+  getPrInterns(): User[] {
+    return this.getUsers().filter((u) => u.role === 'pr_intern');
+  },
+
+  addPrIntern(newIntern: Omit<User, 'id' | 'role'>): User {
+    const users = this.getUsers();
+    const cleanId = newIntern.teacherId.trim().toUpperCase();
+    const cleanUsername = (newIntern.username?.trim().toLowerCase() || cleanId.toLowerCase()).replace(/\s+/g, '_');
+    const cleanPassword = newIntern.password?.trim() || 'intern123';
+    const filtered = users.filter((u) => u.teacherId.toUpperCase() !== cleanId);
+
+    const created: User = {
+      ...newIntern,
+      id: `u-${Date.now()}`,
+      teacherId: cleanId,
+      username: cleanUsername,
+      password: cleanPassword,
+      name: newIntern.name.trim(),
+      email: newIntern.email.trim() || `${cleanId.toLowerCase()}@aew.com`,
+      department: newIntern.department?.trim() || 'Public Relations & Sponsorship',
+      subject: newIntern.subject?.trim() || 'College Sponsorship & Outreach',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      role: 'pr_intern',
+      prTier: newIntern.prTier || 'Silver',
+      prPoints: newIntern.prPoints || 0,
+      prStars: newIntern.prStars || 0,
+      totalSponsorshipRevenue: newIntern.totalSponsorshipRevenue || 0,
+      totalCommissionEarned: newIntern.totalCommissionEarned || 0,
+      createdAt: new Date().toISOString(),
+    };
+    filtered.push(created);
+    this.saveUsers(filtered);
+    return created;
+  },
+
   updateUser(userId: string, updates: Partial<User>): User | null {
     const users = this.getUsers();
     const cleanLookup = userId.trim().toUpperCase();
@@ -201,6 +281,11 @@ export const StorageService = {
       dailyTargetMinutes: updates.dailyTargetMinutes !== undefined ? updates.dailyTargetMinutes : users[index].dailyTargetMinutes,
       joiningDate: updates.joiningDate !== undefined ? updates.joiningDate : users[index].joiningDate,
       firstLoginDate: updates.firstLoginDate !== undefined ? updates.firstLoginDate : users[index].firstLoginDate,
+      prTier: updates.prTier !== undefined ? updates.prTier : users[index].prTier,
+      prPoints: updates.prPoints !== undefined ? updates.prPoints : users[index].prPoints,
+      prStars: updates.prStars !== undefined ? updates.prStars : users[index].prStars,
+      totalSponsorshipRevenue: updates.totalSponsorshipRevenue !== undefined ? updates.totalSponsorshipRevenue : users[index].totalSponsorshipRevenue,
+      totalCommissionEarned: updates.totalCommissionEarned !== undefined ? updates.totalCommissionEarned : users[index].totalCommissionEarned,
     };
     users[index] = updatedUser;
     this.saveUsers(users);
@@ -440,28 +525,115 @@ export const StorageService = {
 
   /**
    * Retrieves all reference resources matching the given subjectName and optional department.
-   * Matches EXACT subject names (case-insensitive, whitespace normalized) to prevent false matches
-   * like "Physics" matching "Engineering Physics".
-   * Filters by department: matches the teacher's department, or global resources ('general' / 'all' / empty).
+   * Matches normalized canonical subject names with department compatibility checking.
+   * Also performs near-canonical fallback matching (e.g. "Data Structures" with "Data Structures & Algorithms")
+   * when within the same or compatible department.
    */
   getReferencesForSubject(subjectName: string, department?: string): SubjectReference[] {
     if (!subjectName) return [];
-    const normTargetSubj = subjectName.trim().toLowerCase().replace(/\s+/g, ' ');
-    const normTargetDept = department ? department.trim().toLowerCase().replace(/\s+/g, ' ') : '';
+    const normTargetSubj = (subjectName || '')
+      .toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     const refs = this.getSubjectReferences();
 
-    return refs.filter((r) => {
-      const normRefSubj = (r.subjectName || '').trim().toLowerCase().replace(/\s+/g, ' ');
-      // Exact subject match only
-      if (normRefSubj !== normTargetSubj) return false;
+    const areDeptsCompatible = (d1?: string, d2?: string): boolean => {
+      if (!d1 || !d2) return true;
+      const n1 = d1.trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
+      const n2 = d2.trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
+      if (!n1 || !n2 || n1 === 'general' || n1 === 'all' || n2 === 'general' || n2 === 'all') return true;
+      if (n1 === n2) return true;
+      if (n1.includes(n2) || n2.includes(n1)) return true;
+      if ((n1 === 'cse' && n2.includes('computer')) || (n2 === 'cse' && n1.includes('computer'))) return true;
+      if ((n1 === 'ece' && n2.includes('electronics')) || (n2 === 'ece' && n1.includes('electronics'))) return true;
+      if ((n1 === 'me' && n2.includes('mechanical')) || (n2 === 'me' && n1.includes('mechanical'))) return true;
+      if ((n1 === 'ce' && n2.includes('civil')) || (n2 === 'ce' && n1.includes('civil'))) return true;
+      return false;
+    };
 
-      // If department is specified on both sides, check match
-      const normRefDept = (r.department || '').trim().toLowerCase().replace(/\s+/g, ' ');
-      if (!normTargetDept || !normRefDept || normRefDept === 'general' || normRefDept === 'all') {
-        return true;
-      }
-      return normRefDept === normTargetDept;
+    // 1. Exact normalized match with compatible department
+    const exactMatches = refs.filter((r) => {
+      const normRefSubj = (r.subjectName || '')
+        .toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (normRefSubj !== normTargetSubj) return false;
+      return areDeptsCompatible(r.department, department);
     });
+
+    if (exactMatches.length > 0) return exactMatches;
+
+    // 2. Near-canonical match (e.g. "Data Structures" vs "Data Structures & Algorithms")
+    const nearMatches = refs.filter((r) => {
+      const normRefSubj = (r.subjectName || '')
+        .toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const isNear =
+        normRefSubj.length >= 4 &&
+        normTargetSubj.length >= 4 &&
+        (normRefSubj.includes(normTargetSubj) || normTargetSubj.includes(normRefSubj));
+      if (!isNear) return false;
+      return areDeptsCompatible(r.department, department);
+    });
+
+    return nearMatches;
+  },
+
+  /**
+   * Retrieves all relevant references for a teacher across all subjects they teach
+   * (primary subject + any subjects in assigned topics) and their department.
+   */
+  getAllReferencesForTeacher(
+    teacher: { subject?: string; department?: string },
+    assignedTopics?: Array<{ subject?: string }>
+  ): SubjectReference[] {
+    const seenIds = new Set<string>();
+    const result: SubjectReference[] = [];
+
+    const subjects = new Set<string>();
+    if (teacher?.subject?.trim()) subjects.add(teacher.subject.trim());
+    (assignedTopics || []).forEach((t) => {
+      if (t.subject?.trim()) subjects.add(t.subject.trim());
+    });
+
+    for (const subj of subjects) {
+      const matched = this.getReferencesForSubject(subj, teacher?.department);
+      for (const m of matched) {
+        if (!seenIds.has(m.id)) {
+          seenIds.add(m.id);
+          result.push(m);
+        }
+      }
+    }
+
+    // If still no references found, check if there are any departmental or institutional references
+    if (result.length === 0 && teacher?.department) {
+      const allRefs = this.getSubjectReferences();
+      const normTeacherDept = (teacher.department || '').trim().toLowerCase();
+      for (const r of allRefs) {
+        const normRefDept = (r.department || '').trim().toLowerCase();
+        if (
+          !seenIds.has(r.id) &&
+          (!normRefDept ||
+            normRefDept === 'general' ||
+            normRefDept === 'all' ||
+            normRefDept.includes(normTeacherDept) ||
+            normTeacherDept.includes(normRefDept))
+        ) {
+          seenIds.add(r.id);
+          result.push(r);
+        }
+      }
+    }
+
+    return result;
   },
 
   /**
@@ -2569,6 +2741,645 @@ export const StorageService = {
     localStorage.removeItem(`${PDF_STORE_PREFIX}${lectureId}`);
   },
 
+  // ─── PR INTERNS TIER & GAMIFICATION HELPERS ─────────────────────────────────
+
+  getTierCommissionRate(tier: PrTier = 'Silver'): number {
+    switch (tier) {
+      case 'Premium': return 12.0;
+      case 'Gold': return 7.0;
+      case 'Silver':
+      default: return 3.3;
+    }
+  },
+
+  calculateTierFromPointsAndStars(points: number = 0, stars: number = 0): PrTier {
+    if (points >= 300 && stars >= 15) return 'Premium';
+    if (points >= 100 && stars >= 5) return 'Gold';
+    return 'Silver';
+  },
+
+  // ─── PR TASKS ───────────────────────────────────────────────────────────────
+
+  getPrTasks(): PrTask[] {
+    const data = localStorage.getItem(PR_TASKS_KEY);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+
+    const defaultTasks: PrTask[] = [
+      {
+        id: 'pr-task-1',
+        title: 'Pitch Title Sponsorship for DTU Yuvaan Fest 2026',
+        description: 'Connect with DTU Cultural Council & Student Convener to pitch AEW Title Sponsorship for the annual college fest. Deliver proposal deck and negotiate deliverables.',
+        assignedToInternId: 'AEW-PR-01',
+        assignedToInternName: 'Rohan Verma',
+        assignedByAdminName: 'Academic Operations Admin',
+        deadline: '2026-09-18',
+        pointsReward: 45,
+        starsReward: 3,
+        priority: 'high',
+        status: 'approved',
+        submissionNotes: 'Held in-person meeting with Convener Aarav Gupta. Presented AEW deck with ₹60k sponsorship offer for logo on all banners, workshop slot, and student app booth.',
+        submissionProofUrl: 'https://drive.google.com/drive/folders/dtu-yuvaan-proposal',
+        submittedAt: '2026-09-02T14:30:00.000Z',
+        reviewedAt: '2026-09-03T10:15:00.000Z',
+        adminRemarks: 'Outstanding work securing the preliminary sponsorship agreement. Well negotiated.',
+        awardedPoints: 45,
+        awardedStars: 3,
+        createdAt: '2026-08-28T09:00:00.000Z',
+      },
+      {
+        id: 'pr-task-2',
+        title: 'Onboard 5 Campus Ambassadors in Delhi NCR Engineering Colleges',
+        description: 'Interview and onboard at least 5 active student council or technical club members across NSUT, IPU, and Jamia to act as AEW Campus Ambassadors.',
+        assignedToInternId: 'AEW-PR-01',
+        assignedToInternName: 'Rohan Verma',
+        assignedByAdminName: 'Academic Operations Admin',
+        deadline: '2026-09-15',
+        pointsReward: 35,
+        starsReward: 2,
+        priority: 'medium',
+        status: 'submitted',
+        submissionNotes: 'Successfully onboarded 5 student reps from NSUT, MAIT, BPIT, USICT, and MSIT. Created dedicated WhatsApp community channel with 350+ student joins.',
+        submissionProofUrl: 'https://docs.google.com/spreadsheets/d/delhi-ambassadors-roster',
+        submittedAt: '2026-09-05T18:00:00.000Z',
+        createdAt: '2026-08-30T10:00:00.000Z',
+      },
+      {
+        id: 'pr-task-3',
+        title: 'Organize AEW Free Workshop with VIT Vellore IEEE Chapter',
+        description: 'Coordinate a 2-hour online masterclass on "Mastering Tree DP for Product Interviews" with Dr. Ananya Sharma as keynote speaker.',
+        assignedToInternId: 'AEW-PR-01',
+        assignedToInternName: 'Rohan Verma',
+        assignedByAdminName: 'Academic Operations Admin',
+        deadline: '2026-09-22',
+        pointsReward: 50,
+        starsReward: 4,
+        priority: 'high',
+        status: 'pending',
+        createdAt: '2026-09-04T11:00:00.000Z',
+      },
+      {
+        id: 'pr-task-4',
+        title: 'Compile Verified Directory of 20 Engineering College Placement Cells',
+        description: 'Research and verify official emails, TPO officer names, and contact numbers of placement and training heads across tier-1/2 institutes.',
+        assignedToInternId: 'AEW-PR-02',
+        assignedToInternName: 'Priya Saini',
+        assignedByAdminName: 'Academic Operations Admin',
+        deadline: '2026-09-20',
+        pointsReward: 25,
+        starsReward: 2,
+        priority: 'normal',
+        status: 'pending',
+        createdAt: '2026-09-04T12:00:00.000Z',
+      },
+    ];
+
+    localStorage.setItem(PR_TASKS_KEY, JSON.stringify(defaultTasks));
+    return defaultTasks;
+  },
+
+  savePrTasks(tasks: PrTask[]): void {
+    localStorage.setItem(PR_TASKS_KEY, JSON.stringify(tasks));
+    triggerBackgroundCloudSync();
+  },
+
+  createPrTask(task: Omit<PrTask, 'id' | 'createdAt' | 'status'>): PrTask {
+    const tasks = this.getPrTasks();
+    const newTask: PrTask = {
+      ...task,
+      id: `pr-task-${Date.now()}`,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    tasks.unshift(newTask);
+    this.savePrTasks(tasks);
+    return newTask;
+  },
+
+  submitPrTask(taskId: string, submissionNotes: string, proofUrl?: string): PrTask | null {
+    const tasks = this.getPrTasks();
+    const idx = tasks.findIndex((t) => t.id === taskId);
+    if (idx === -1) return null;
+
+    tasks[idx] = {
+      ...tasks[idx],
+      status: 'submitted',
+      submissionNotes: submissionNotes.trim(),
+      submissionProofUrl: proofUrl?.trim(),
+      submittedAt: new Date().toISOString(),
+    };
+    this.savePrTasks(tasks);
+    return tasks[idx];
+  },
+
+  approvePrTask(
+    taskId: string,
+    awardedPoints?: number,
+    awardedStars?: number,
+    remarks?: string
+  ): { task: PrTask; intern: User | null; promoted: boolean } | null {
+    const tasks = this.getPrTasks();
+    const idx = tasks.findIndex((t) => t.id === taskId);
+    if (idx === -1) return null;
+
+    const task = tasks[idx];
+    const finalPoints = awardedPoints !== undefined ? awardedPoints : task.pointsReward;
+    const finalStars = awardedStars !== undefined ? awardedStars : task.starsReward;
+
+    tasks[idx] = {
+      ...task,
+      status: 'approved',
+      awardedPoints: finalPoints,
+      awardedStars: finalStars,
+      adminRemarks: remarks?.trim() || 'Task approved and verified by Academic Operations Admin.',
+      reviewedAt: new Date().toISOString(),
+    };
+    this.savePrTasks(tasks);
+
+    // Update Intern's cumulative points, stars, and evaluate tier promotion
+    const users = this.getUsers();
+    const internIdx = users.findIndex((u) => u.teacherId.toUpperCase() === task.assignedToInternId.toUpperCase());
+    let promoted = false;
+    let updatedIntern: User | null = null;
+
+    if (internIdx !== -1) {
+      const prev = users[internIdx];
+      const newPoints = (prev.prPoints || 0) + finalPoints;
+      const newStars = (prev.prStars || 0) + finalStars;
+      const newTier = this.calculateTierFromPointsAndStars(newPoints, newStars);
+      promoted = prev.prTier !== newTier && (newTier === 'Gold' || newTier === 'Premium');
+
+      users[internIdx] = {
+        ...prev,
+        prPoints: newPoints,
+        prStars: newStars,
+        prTier: newTier,
+      };
+      this.saveUsers(users);
+      updatedIntern = users[internIdx];
+
+      // Update current session if the logged in user is this intern
+      const current = this.getCurrentUser();
+      if (current && current.teacherId.toUpperCase() === prev.teacherId.toUpperCase()) {
+        this.setCurrentUser(users[internIdx]);
+      }
+    }
+
+    return { task: tasks[idx], intern: updatedIntern, promoted };
+  },
+
+  rejectPrTask(taskId: string, remarks: string): PrTask | null {
+    const tasks = this.getPrTasks();
+    const idx = tasks.findIndex((t) => t.id === taskId);
+    if (idx === -1) return null;
+
+    tasks[idx] = {
+      ...tasks[idx],
+      status: 'revision_requested',
+      adminRemarks: remarks.trim(),
+      reviewedAt: new Date().toISOString(),
+    };
+    this.savePrTasks(tasks);
+    return tasks[idx];
+  },
+
+  deletePrTask(taskId: string): void {
+    const tasks = this.getPrTasks().filter((t) => t.id !== taskId);
+    this.savePrTasks(tasks);
+  },
+
+  // ─── PR LEADS (SPONSORSHIP PIPELINE) ───────────────────────────────────────
+
+  getPrLeads(): PrLead[] {
+    const data = localStorage.getItem(PR_LEADS_KEY);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+
+    const defaultLeads: PrLead[] = [
+      {
+        id: 'pr-lead-1',
+        internId: 'AEW-PR-01',
+        internName: 'Rohan Verma',
+        type: 'college_sponsorship',
+        organizationName: 'Delhi Technological University (Yuvaan Fest)',
+        contactPerson: 'Aarav Gupta',
+        designation: 'Festival Convener',
+        email: 'convener.yuvaan@dtu.ac.in',
+        phone: '+91 98112 34567',
+        expectedSponsorshipAmount: 60000,
+        stage: 'negotiation',
+        internTierAtClosure: 'Gold',
+        commissionRate: 7.0,
+        commissionEarned: 4200,
+        notes: 'Negotiating logo placement on all mainstage LED backdrops, 2000+ delegate handbook feature, and student coding contest sponsorship.',
+        createdAt: '2026-08-29T10:00:00.000Z',
+        updatedAt: '2026-09-04T12:00:00.000Z',
+      },
+      {
+        id: 'pr-lead-2',
+        internId: 'AEW-PR-01',
+        internName: 'Rohan Verma',
+        type: 'event_partner',
+        organizationName: 'Vellore Institute of Technology (Riviera Tech Track)',
+        contactPerson: 'Dr. S. Ramanathan',
+        designation: 'Faculty Advisor & Techfest Chair',
+        email: 's.ramanathan@vit.ac.in',
+        phone: '+91 94441 98765',
+        expectedSponsorshipAmount: 80000,
+        stage: 'pitch_deck_sent',
+        internTierAtClosure: 'Gold',
+        commissionRate: 7.0,
+        notes: 'Shared formal proposal for Title Sponsorship of the Algorithms Track. Meeting scheduled for Friday.',
+        createdAt: '2026-09-01T11:00:00.000Z',
+        updatedAt: '2026-09-05T15:30:00.000Z',
+      },
+      {
+        id: 'pr-lead-3',
+        internId: 'AEW-PR-01',
+        internName: 'Rohan Verma',
+        type: 'brand_sponsor',
+        organizationName: 'IIT Delhi Rendezvous Coding Arena',
+        contactPerson: 'Meera Nair',
+        designation: 'Overall Events Lead',
+        email: 'meera.rendezvous@iitd.ac.in',
+        phone: '+91 98710 54321',
+        expectedSponsorshipAmount: 85000,
+        closedAmount: 85000,
+        stage: 'closed_won',
+        internTierAtClosure: 'Gold',
+        commissionRate: 7.0,
+        commissionEarned: 5950,
+        notes: 'Deal finalized! AEW is exclusive Knowledge Partner. Full sponsorship amount of ₹85,000 received in escrow.',
+        createdAt: '2026-08-20T09:00:00.000Z',
+        updatedAt: '2026-09-03T16:00:00.000Z',
+      },
+      {
+        id: 'pr-lead-4',
+        internId: 'AEW-PR-02',
+        internName: 'Priya Saini',
+        type: 'event_partner',
+        organizationName: 'BITS Pilani Waves Hackathon',
+        contactPerson: 'Tanmay Joshi',
+        designation: 'Sponsorship Coordinator',
+        email: 'tanmay.waves@pilani.bits-pilani.ac.in',
+        phone: '+91 97230 11223',
+        expectedSponsorshipAmount: 45000,
+        stage: 'contacted',
+        internTierAtClosure: 'Silver',
+        commissionRate: 3.3,
+        notes: 'Initial pitch sent via LinkedIn and official mail. Follow-up call scheduled.',
+        createdAt: '2026-09-03T14:00:00.000Z',
+        updatedAt: '2026-09-05T11:00:00.000Z',
+      },
+    ];
+
+    localStorage.setItem(PR_LEADS_KEY, JSON.stringify(defaultLeads));
+    return defaultLeads;
+  },
+
+  savePrLeads(leads: PrLead[]): void {
+    localStorage.setItem(PR_LEADS_KEY, JSON.stringify(leads));
+    triggerBackgroundCloudSync();
+  },
+
+  createPrLead(lead: Omit<PrLead, 'id' | 'createdAt' | 'updatedAt'>): PrLead {
+    const leads = this.getPrLeads();
+    const newLead: PrLead = {
+      ...lead,
+      id: `pr-lead-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    leads.unshift(newLead);
+    this.savePrLeads(leads);
+    return newLead;
+  },
+
+  updatePrLead(id: string, updates: Partial<PrLead>): PrLead | null {
+    const leads = this.getPrLeads();
+    const idx = leads.findIndex((l) => l.id === id);
+    if (idx === -1) return null;
+
+    leads[idx] = {
+      ...leads[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.savePrLeads(leads);
+    return leads[idx];
+  },
+
+  updatePrLeadStage(id: string, stage: PrLeadStage, closedAmount?: number): PrLead | null {
+    const leads = this.getPrLeads();
+    const idx = leads.findIndex((l) => l.id === id);
+    if (idx === -1) return null;
+
+    const lead = leads[idx];
+    const isClosing = stage === 'closed_won';
+    const finalAmount = isClosing ? (closedAmount || lead.expectedSponsorshipAmount) : lead.closedAmount;
+
+    // Determine commission using intern's current tier
+    const intern = this.getUsers().find((u) => u.teacherId.toUpperCase() === lead.internId.toUpperCase());
+    const tier: PrTier = intern?.prTier || lead.internTierAtClosure || 'Silver';
+    const rate = this.getTierCommissionRate(tier);
+    const commission = isClosing && finalAmount ? Math.round((finalAmount * rate) / 100) : lead.commissionEarned;
+
+    leads[idx] = {
+      ...lead,
+      stage,
+      closedAmount: finalAmount,
+      internTierAtClosure: tier,
+      commissionRate: rate,
+      commissionEarned: commission,
+      updatedAt: new Date().toISOString(),
+    };
+    this.savePrLeads(leads);
+
+    // If closed won, credit intern's lifetime revenue and earnings
+    if (isClosing && intern && finalAmount && commission) {
+      this.updateUser(intern.id, {
+        totalSponsorshipRevenue: (intern.totalSponsorshipRevenue || 0) + finalAmount,
+        totalCommissionEarned: (intern.totalCommissionEarned || 0) + commission,
+      });
+    }
+
+    return leads[idx];
+  },
+
+  deletePrLead(id: string): void {
+    const leads = this.getPrLeads().filter((l) => l.id !== id);
+    this.savePrLeads(leads);
+  },
+
+  // ─── PR MOUS (MEMORANDUM OF UNDERSTANDING MAKER) ───────────────────────────
+
+  getPrMous(): PrMouRequest[] {
+    const data = localStorage.getItem(PR_MOUS_KEY);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+
+    const defaultMous: PrMouRequest[] = [
+      {
+        id: 'mou-001',
+        mouNumber: 'AEW/MOU/2026/001',
+        internId: 'AEW-PR-01',
+        internName: 'Rohan Verma',
+        partnerOrganization: 'Delhi Technological University Cultural Council',
+        partnerSignatory: 'Prof. K. Sharma',
+        partnerDesignation: 'Dean, Student Welfare & Community Affairs',
+        partnerAddress: 'Shahbad Daulatpur, Main Bawana Road, Delhi - 110042',
+        purpose: 'Official Academic Knowledge Partner & Title Sponsor for Annual National Techfest (Yuvaan 2026)',
+        terms: [
+          'AEW shall be recognized as the Principal Title Sponsor across all digital, print, and physical campus collaterals.',
+          'AEW shall have dedicated 60-minute keynote slot conducted by expert faculty (Dr. Ananya Sharma).',
+          'DTU shall provide prime on-ground interactive booth space in the Main Quadrangle for student counseling.',
+          'Consideration Amount of ₹60,000 to be disbursed in two equal milestones: 50% upon signing, 50% post-event.',
+          'DTU shall grant AEW permission to conduct on-campus coding scholarship diagnostic tests.',
+        ],
+        sponsorshipAmount: 60000,
+        startDate: '2026-09-15',
+        endDate: '2026-09-20',
+        status: 'approved',
+        adminFeedback: 'Approved by Director of Academic Operations. Official digital seal applied.',
+        generatedAt: '2026-09-01T10:00:00.000Z',
+        approvedAt: '2026-09-02T11:30:00.000Z',
+      },
+      {
+        id: 'mou-002',
+        mouNumber: 'AEW/MOU/2026/002',
+        internId: 'AEW-PR-01',
+        internName: 'Rohan Verma',
+        partnerOrganization: 'Vellore Institute of Technology IEEE Student Branch',
+        partnerSignatory: 'Dr. S. Ramanathan',
+        partnerDesignation: 'Faculty Chair, IEEE Computer Society VIT',
+        partnerAddress: 'VIT Campus, Tiruvalam Road, Katpadi, Vellore, Tamil Nadu - 632014',
+        purpose: 'Strategic Partnership for Competitive Programming Hackathon & Campus Workshops',
+        terms: [
+          'AEW to provide cash prize pool sponsorship of ₹80,000 for top 3 winning teams in Hack-Algorithms.',
+          'VIT IEEE branch shall mandate free enrollment of all 1,200+ members in AEW foundation study decks.',
+          'Co-branded digital participation certificates with AEW & IEEE logos for all participants.',
+        ],
+        sponsorshipAmount: 80000,
+        startDate: '2026-09-25',
+        endDate: '2026-09-27',
+        status: 'pending_admin_approval',
+        generatedAt: '2026-09-05T14:20:00.000Z',
+      },
+    ];
+
+    localStorage.setItem(PR_MOUS_KEY, JSON.stringify(defaultMous));
+    return defaultMous;
+  },
+
+  savePrMous(mous: PrMouRequest[]): void {
+    localStorage.setItem(PR_MOUS_KEY, JSON.stringify(mous));
+    triggerBackgroundCloudSync();
+  },
+
+  createPrMou(mou: Omit<PrMouRequest, 'id' | 'generatedAt' | 'mouNumber'>): PrMouRequest {
+    const list = this.getPrMous();
+    const count = list.length + 1;
+    const mouNumber = `AEW/MOU/2026/${String(count).padStart(3, '0')}`;
+    const newMou: PrMouRequest = {
+      ...mou,
+      id: `mou-${Date.now()}`,
+      mouNumber,
+      status: mou.status || 'pending_admin_approval',
+      generatedAt: new Date().toISOString(),
+    };
+    list.unshift(newMou);
+    this.savePrMous(list);
+    return newMou;
+  },
+
+  updatePrMouStatus(id: string, status: PrMouStatus, feedback?: string): PrMouRequest | null {
+    const list = this.getPrMous();
+    const idx = list.findIndex((m) => m.id === id);
+    if (idx === -1) return null;
+
+    list[idx] = {
+      ...list[idx],
+      status,
+      adminFeedback: feedback?.trim() || list[idx].adminFeedback,
+      approvedAt: status === 'approved' ? new Date().toISOString() : list[idx].approvedAt,
+      signedAt: status === 'signed' ? new Date().toISOString() : list[idx].signedAt,
+    };
+    this.savePrMous(list);
+    return list[idx];
+  },
+
+  deletePrMou(id: string): void {
+    const list = this.getPrMous().filter((m) => m.id !== id);
+    this.savePrMous(list);
+  },
+
+  // ─── PR COLLEGES (CAMPUS DIRECTORY) ────────────────────────────────────────
+
+  getPrColleges(): PrCollege[] {
+    const data = localStorage.getItem(PR_COLLEGES_KEY);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+
+    const defaultColleges: PrCollege[] = [
+      {
+        id: 'col-1',
+        name: 'Delhi Technological University (DTU)',
+        university: 'Delhi Technological University',
+        state: 'Delhi',
+        city: 'New Delhi',
+        tier: 'Tier 1',
+        contactPerson: 'Dr. V. Singh',
+        designation: 'Head, Training & Placement Cell',
+        phone: '+91 11 2787 1018',
+        email: 'tpo@dtu.ac.in',
+        status: 'partner',
+        studentCount: 14000,
+        notes: 'Active partner for Yuvaan Fest 2026. Very receptive to DSA masterclasses.',
+        assignedInternId: 'AEW-PR-01',
+        assignedInternName: 'Rohan Verma',
+        lastContactedDate: '2026-09-04',
+        createdAt: '2026-08-25T10:00:00.000Z',
+        updatedAt: '2026-09-04T12:00:00.000Z',
+      },
+      {
+        id: 'col-2',
+        name: 'Netaji Subhas University of Technology (NSUT)',
+        university: 'State University',
+        state: 'Delhi',
+        city: 'New Delhi',
+        tier: 'Tier 1',
+        contactPerson: 'Prof. M. Batra',
+        designation: 'HOD, Computer Science & Engineering',
+        phone: '+91 11 2500 0000',
+        email: 'hod.cse@nsut.ac.in',
+        status: 'meeting_scheduled',
+        studentCount: 9500,
+        notes: 'Meeting scheduled next Tuesday for placement preparatory series.',
+        assignedInternId: 'AEW-PR-01',
+        assignedInternName: 'Rohan Verma',
+        lastContactedDate: '2026-09-05',
+        createdAt: '2026-08-26T10:00:00.000Z',
+        updatedAt: '2026-09-05T16:00:00.000Z',
+      },
+      {
+        id: 'col-3',
+        name: 'Vellore Institute of Technology (VIT Vellore)',
+        university: 'VIT Deemed University',
+        state: 'Tamil Nadu',
+        city: 'Vellore',
+        tier: 'Tier 1',
+        contactPerson: 'Dr. S. Ramanathan',
+        designation: 'Dean, Academic Research & Student Bodies',
+        phone: '+91 416 220 2011',
+        email: 'dean.acad@vit.ac.in',
+        status: 'contacted',
+        studentCount: 35000,
+        notes: 'Proposal sent for Riviera tech track sponsorship.',
+        assignedInternId: 'AEW-PR-01',
+        assignedInternName: 'Rohan Verma',
+        lastContactedDate: '2026-09-05',
+        createdAt: '2026-08-27T10:00:00.000Z',
+        updatedAt: '2026-09-05T16:00:00.000Z',
+      },
+      {
+        id: 'col-4',
+        name: 'National Institute of Technology (NIT Trichy)',
+        university: 'Institute of National Importance',
+        state: 'Tamil Nadu',
+        city: 'Tiruchirappalli',
+        tier: 'Tier 1',
+        contactPerson: 'Dr. B. Anand',
+        designation: 'Dean, Student Affairs & Outreach',
+        phone: '+91 431 250 3000',
+        email: 'dean.sa@nitt.edu',
+        status: 'partner',
+        studentCount: 7500,
+        notes: 'Pragyan techfest knowledge collaboration signed.',
+        assignedInternId: 'AEW-PR-02',
+        assignedInternName: 'Priya Saini',
+        lastContactedDate: '2026-09-02',
+        createdAt: '2026-08-27T10:00:00.000Z',
+        updatedAt: '2026-09-02T11:00:00.000Z',
+      },
+      {
+        id: 'col-5',
+        name: 'Thapar Institute of Engineering & Technology',
+        university: 'Deemed University',
+        state: 'Punjab',
+        city: 'Patiala',
+        tier: 'Tier 2',
+        contactPerson: 'Dr. P. Grover',
+        designation: 'Director, Corporate Relations & Placement',
+        phone: '+91 175 239 3000',
+        email: 'placements@thapar.edu',
+        status: 'lead',
+        studentCount: 11000,
+        notes: 'Targeting for GATE & coding bootcamp partnership.',
+        assignedInternId: 'AEW-PR-02',
+        assignedInternName: 'Priya Saini',
+        lastContactedDate: '2026-09-03',
+        createdAt: '2026-08-28T10:00:00.000Z',
+        updatedAt: '2026-09-03T14:00:00.000Z',
+      },
+    ];
+
+    localStorage.setItem(PR_COLLEGES_KEY, JSON.stringify(defaultColleges));
+    return defaultColleges;
+  },
+
+  savePrColleges(colleges: PrCollege[]): void {
+    localStorage.setItem(PR_COLLEGES_KEY, JSON.stringify(colleges));
+    triggerBackgroundCloudSync();
+  },
+
+  addPrCollege(college: Omit<PrCollege, 'id' | 'createdAt' | 'updatedAt'>): PrCollege {
+    const list = this.getPrColleges();
+    const newCol: PrCollege = {
+      ...college,
+      id: `col-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    list.unshift(newCol);
+    this.savePrColleges(list);
+    return newCol;
+  },
+
+  updatePrCollege(id: string, updates: Partial<PrCollege>): PrCollege | null {
+    const list = this.getPrColleges();
+    const idx = list.findIndex((c) => c.id === id);
+    if (idx === -1) return null;
+
+    list[idx] = {
+      ...list[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.savePrColleges(list);
+    return list[idx];
+  },
+
+  deletePrCollege(id: string): void {
+    const list = this.getPrColleges().filter((c) => c.id !== id);
+    this.savePrColleges(list);
+  },
+
   // ─── MASTER CLOUD PERSISTENCE & MULTI-DEVICE SYNC ───────────────────────────
   exportMasterState() {
     return {
@@ -2584,6 +3395,10 @@ export const StorageService = {
       extensions: this.getExtensions(),
       walletTransactions: this.getWalletTransactions(),
       dayOffGrants: this.getDayOffGrants(),
+      prTasks: this.getPrTasks(),
+      prLeads: this.getPrLeads(),
+      prMous: this.getPrMous(),
+      prColleges: this.getPrColleges(),
       emailConfig: this.getEmailConfig(),
       emailLogs: this.getEmailLogs(),
     };
@@ -2863,6 +3678,22 @@ export const StorageService = {
       });
 
       localStorage.setItem(DAY_OFF_GRANTS_KEY, JSON.stringify(mergedGrants));
+    }
+
+    if (Array.isArray(state.prTasks)) {
+      localStorage.setItem(PR_TASKS_KEY, JSON.stringify(state.prTasks));
+    }
+
+    if (Array.isArray(state.prLeads)) {
+      localStorage.setItem(PR_LEADS_KEY, JSON.stringify(state.prLeads));
+    }
+
+    if (Array.isArray(state.prMous)) {
+      localStorage.setItem(PR_MOUS_KEY, JSON.stringify(state.prMous));
+    }
+
+    if (Array.isArray(state.prColleges)) {
+      localStorage.setItem(PR_COLLEGES_KEY, JSON.stringify(state.prColleges));
     }
   },
 

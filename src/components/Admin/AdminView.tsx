@@ -5,6 +5,7 @@ import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { EmailSettingsModal } from '../Common/EmailSettingsModal';
 import { DailyBacklogLogsView } from '../Teacher/DailyBacklogLogsView';
+import { PrManagementSection } from './PrManagementSection';
 import { 
   Calendar, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
@@ -2937,6 +2938,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         );
       })()}
+
+      {/* PAGE: 🤝 PR GAMIFICATION, TIERS & OUTREACH WAR ROOM */}
+      {currentPage === 'admin_pr' && (
+        <PrManagementSection
+          onRefreshData={onRefreshData}
+          refreshTrigger={refreshTrigger}
+        />
+      )}
 
       {currentPage === 'admin_faculty' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">

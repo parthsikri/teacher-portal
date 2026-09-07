@@ -82,6 +82,42 @@ const DEFAULT_STATE = {
       dailyTargetMinutes: 9999,
       dailyLimit: 999,
     },
+    {
+      id: 'u-pr101',
+      teacherId: 'AEW-PR-01',
+      username: 'pr_intern_1',
+      password: 'intern123',
+      name: 'Rohan Verma',
+      email: 'rohan.pr@aew.com',
+      role: 'pr_intern',
+      department: 'Public Relations & Sponsorship',
+      subject: 'College Sponsorship & Outreach',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      prTier: 'Gold',
+      prPoints: 165,
+      prStars: 8,
+      totalSponsorshipRevenue: 85000,
+      totalCommissionEarned: 5950,
+    },
+    {
+      id: 'u-pr102',
+      teacherId: 'AEW-PR-02',
+      username: 'pr_intern_2',
+      password: 'intern123',
+      name: 'Priya Saini',
+      email: 'priya.pr@aew.com',
+      role: 'pr_intern',
+      department: 'Public Relations & Sponsorship',
+      subject: 'Brand Alliance & Ambassador Network',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      prTier: 'Silver',
+      prPoints: 45,
+      prStars: 2,
+      totalSponsorshipRevenue: 25000,
+      totalCommissionEarned: 825,
+    },
   ],
   assignedTopics: [],
   lectures: [],
@@ -91,6 +127,10 @@ const DEFAULT_STATE = {
   extensions: [],
   walletTransactions: [],
   dayOffGrants: [],
+  prTasks: [],
+  prLeads: [],
+  prMous: [],
+  prColleges: [],
   emailConfig: {
     provider: 'smtp',
     smtpHost: 'smtp.gmail.com',
@@ -205,7 +245,7 @@ app.post('/api/auth', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Account not found. Please verify your credentials or contact Admin.' });
     }
 
-    const storedPassword = (matchedUser.password || (matchedUser.role === 'admin' ? 'admin123' : 'teach123')).trim();
+    const storedPassword = (matchedUser.password || (matchedUser.role === 'admin' ? 'admin123' : matchedUser.role === 'pr_intern' ? 'intern123' : 'teach123')).trim();
     const verifyResult = verifyPassword(inputPass, storedPassword);
 
     if (!verifyResult.valid) {

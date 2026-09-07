@@ -27,6 +27,42 @@ export const DEFAULT_STATE: any = {
       dailyTargetMinutes: 9999,
       dailyLimit: 999,
     },
+    {
+      id: 'u-pr101',
+      teacherId: 'AEW-PR-01',
+      username: 'pr_intern_1',
+      password: 'intern123',
+      name: 'Rohan Verma',
+      email: 'rohan.pr@aew.com',
+      role: 'pr_intern',
+      department: 'Public Relations & Sponsorship',
+      subject: 'College Sponsorship & Outreach',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      prTier: 'Gold',
+      prPoints: 165,
+      prStars: 8,
+      totalSponsorshipRevenue: 85000,
+      totalCommissionEarned: 5950,
+    },
+    {
+      id: 'u-pr102',
+      teacherId: 'AEW-PR-02',
+      username: 'pr_intern_2',
+      password: 'intern123',
+      name: 'Priya Saini',
+      email: 'priya.pr@aew.com',
+      role: 'pr_intern',
+      department: 'Public Relations & Sponsorship',
+      subject: 'Brand Alliance & Ambassador Network',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      prTier: 'Silver',
+      prPoints: 45,
+      prStars: 2,
+      totalSponsorshipRevenue: 25000,
+      totalCommissionEarned: 825,
+    },
   ],
   assignedTopics: [],
   lectures: [],
@@ -36,6 +72,10 @@ export const DEFAULT_STATE: any = {
   extensions: [],
   walletTransactions: [],
   dayOffGrants: [],
+  prTasks: [],
+  prLeads: [],
+  prMous: [],
+  prColleges: [],
   emailConfig: {
     provider: 'smtp',
     smtpHost: 'smtp.gmail.com',
@@ -181,9 +221,9 @@ function base64UrlDecode(str: string): string {
 
 export interface SessionPayload {
   sub: string;           // User ID
-  teacherId: string;     // Teacher ID or ADMIN-01
+  teacherId: string;     // Teacher ID or ADMIN-01 or AEW-PR-01
   username?: string;
-  role: 'admin' | 'teacher';
+  role: 'admin' | 'teacher' | 'pr_intern';
   name?: string;
   iat: number;
   exp: number;
@@ -196,7 +236,7 @@ export function createSessionToken(user: { id: string; teacherId: string; userna
     sub: user.id,
     teacherId: user.teacherId,
     username: user.username,
-    role: user.role as 'admin' | 'teacher',
+    role: user.role as 'admin' | 'teacher' | 'pr_intern',
     name: user.name,
     iat: now,
     exp: now + 14 * 24 * 3600, // 14 days expiration

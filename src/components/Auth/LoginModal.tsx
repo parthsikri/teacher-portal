@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, RefreshCw, Sparkles, GraduationCap, ShieldAlert, Award } from 'lucide-react';
 
 interface LoginModalProps {
   onLoginSuccess: (user: User) => void;
@@ -22,6 +22,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
       .catch(() => {})
       .finally(() => setIsSyncing(false));
   }, []);
+
+  const handleQuickFill = (userType: 'teacher' | 'admin' | 'pr_intern') => {
+    setErrorMsg('');
+    if (userType === 'teacher') {
+      setIdentifier('teacher_101');
+      setPassword('teach123');
+    } else if (userType === 'admin') {
+      setIdentifier('admin');
+      setPassword('admin123');
+    } else if (userType === 'pr_intern') {
+      setIdentifier('pr_intern_1');
+      setPassword('intern123');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,16 +97,51 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+      <div className="w-full max-w-md bg-slate-900/95 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 mb-1">
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-600/15 border border-indigo-500/25 text-indigo-400 shadow-inner">
             <Lock className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-black text-slate-100 tracking-tight">Academic Portal Login</h2>
+          <h2 className="text-xl font-black text-slate-100 tracking-tight">Academic & PR Portal Login</h2>
           <p className="text-xs text-slate-400">
-            Sign in to manage lectures, syllabus milestones, and curriculum pacing.
+            Sign in to access faculty curriculum, academic ops, or PR intern workspace.
           </p>
+        </div>
+
+        {/* ONE-CLICK DEMO LOGIN SWITCHER */}
+        <div className="p-2.5 bg-slate-950/70 border border-slate-800/80 rounded-2xl space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-400" /> Quick Demo Switcher:
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+            <button
+              type="button"
+              onClick={() => handleQuickFill('teacher')}
+              className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/50 text-slate-200 font-semibold transition-all flex flex-col items-center gap-0.5 cursor-pointer"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Teacher</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('admin')}
+              className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 hover:border-purple-500/50 text-slate-200 font-semibold transition-all flex flex-col items-center gap-0.5 cursor-pointer"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
+              <span>Admin</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('pr_intern')}
+              className="py-1.5 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 text-amber-300 font-bold transition-all flex flex-col items-center gap-0.5 shadow-sm cursor-pointer"
+            >
+              <Award className="w-3.5 h-3.5 text-amber-400" />
+              <span>PR Intern</span>
+            </button>
+          </div>
         </div>
 
         {/* Syncing indicator */}
@@ -111,11 +160,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div className="space-y-1.5">
-            <label className="block text-slate-300 font-semibold">Username</label>
+            <label className="block text-slate-300 font-semibold">Username or ID</label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Enter your username"
+                placeholder="Enter username (e.g. pr_intern_1)"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-100 focus:outline-none focus:border-indigo-500 shadow-inner font-mono"
@@ -166,7 +215,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
         {/* Secure Academic Authentication Footer */}
         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-center text-[11px] text-slate-500">
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Secure Academic Authentication
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Secure Academic & PR Authentication
           </span>
         </div>
       </div>

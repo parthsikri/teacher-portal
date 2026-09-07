@@ -83,8 +83,8 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
   const teacherSubjectReferences = useMemo(() => {
     void refreshKey;
-    return StorageService.getReferencesForSubject(teacher.subject, teacher.department);
-  }, [teacher.subject, teacher.department, refreshKey]);
+    return StorageService.getAllReferencesForTeacher(teacher, assignedTopics);
+  }, [teacher, assignedTopics, refreshKey]);
 
   const pptRequests = useMemo(() => {
     void refreshKey;
@@ -1913,6 +1913,77 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           </div>
 
+          {/* COURSE REFERENCE NOTES BANNER FOR ACTIVE SUBJECT */}
+          {(() => {
+            const activeSubjRefs = selectedSubjectSyllabus && selectedSubjectSyllabus !== 'all'
+              ? StorageService.getReferencesForSubject(selectedSubjectSyllabus, teacher.department)
+              : teacherSubjectReferences;
+            if (!activeSubjRefs || activeSubjRefs.length === 0) return null;
+            return (
+              <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900 to-purple-950/40 border border-indigo-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                      <BookOpen className="w-4 h-4 text-emerald-400" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                          📚 Subject Reference Notes & Master Drive
+                        </span>
+                        <span className="px-2 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          {activeSubjRefs.length} {activeSubjRefs.length === 1 ? 'Resource' : 'Resources'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Course syllabus guidelines, textbooks, and master Drive folders for {selectedSubjectSyllabus && selectedSubjectSyllabus !== 'all' ? selectedSubjectSyllabus : (teacher.subject || 'All Subjects')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  {activeSubjRefs.map((ref) => (
+                    <div key={ref.id} className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs space-y-2 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h5 className="font-bold text-slate-200 text-xs">{ref.title}</h5>
+                          <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                            {ref.subjectName}
+                          </span>
+                        </div>
+                        {ref.notes && (
+                          <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
+                            <span className="text-[10px] uppercase font-bold text-indigo-400 block mb-0.5">Notes:</span>
+                            <p className="text-slate-200 italic text-[11px] leading-relaxed whitespace-pre-wrap">
+                              "{ref.notes}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="pt-2 border-t border-slate-900 flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => copyToClipboard(ref.referenceUrl, 'Drive Link')}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[11px] rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <Copy className="w-3 h-3" /> Copy Link
+                        </button>
+                        <a
+                          href={ref.referenceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1 bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Open Drive ↗
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ═══════════════════════════════════════════════════════════════ */}
           {/* STEP 1: CHOOSE SUBJECT (SQUARE CARDS UI)                        */}
           {/* ═══════════════════════════════════════════════════════════════ */}
@@ -2342,6 +2413,19 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                               </div>
                               <p className="text-slate-100 font-medium italic text-[11px] leading-relaxed">
                                 "{topic.adminApprovalComment}"
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Admin Topic Notes & Special Guidelines */}
+                          {topic.notes && (
+                            <div className="p-3 bg-indigo-950/40 rounded-xl border border-indigo-500/30 text-xs space-y-1 shadow-inner">
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                                <FileText className="w-3 h-3 text-indigo-400" />
+                                Admin Topic Notes & Guidelines:
+                              </div>
+                              <p className="text-slate-200 font-medium italic text-[11px] leading-relaxed whitespace-pre-wrap">
+                                "{topic.notes}"
                               </p>
                             </div>
                           )}
@@ -2779,7 +2863,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           {teacherSubjectReferences.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {teacherSubjectReferences.map((ref) => (
-                <div key={ref.id} className="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg hover:border-slate-700 transition-colors">
+                <div key={ref.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg hover:border-slate-700 transition-colors">
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -2791,10 +2875,19 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                       </div>
                     </div>
 
-                    {ref.notes && (
-                      <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800/70 text-slate-300 space-y-1">
-                        <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide">Admin Instructions:</div>
-                        <p className="italic text-[11px] leading-relaxed">{ref.notes}</p>
+                    {ref.notes ? (
+                      <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 text-slate-200 space-y-1.5">
+                        <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                          Course Guidelines & Syllabus Notes:
+                        </div>
+                        <p className="italic text-[12px] leading-relaxed text-slate-100 whitespace-pre-wrap">
+                          "{ref.notes}"
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-slate-950/40 rounded-xl border border-slate-800/60 text-slate-400 text-[11px] italic">
+                        No additional text notes attached. Click "Open Drive" below to view the master folder & PDF notes.
                       </div>
                     )}
                   </div>
@@ -2819,15 +2912,65 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="p-12 text-center bg-slate-900/30 border border-slate-800/60 rounded-2xl text-slate-400 text-xs space-y-2">
-              <div className="text-3xl">📚</div>
-              <div className="font-semibold text-slate-300 text-sm">No Reference Materials Available</div>
-              <p className="text-slate-500 italic">
-                No reference materials have been configured yet for <span className="font-medium text-slate-400">{teacher.subject}</span> ({teacher.department || 'General'}).
-              </p>
-            </div>
-          )}
+          ) : (() => {
+            const allPortalRefs = StorageService.getSubjectReferences();
+            return allPortalRefs.length > 0 ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-indigo-950/20 border border-indigo-500/20 rounded-2xl text-xs text-indigo-300">
+                  <span className="font-bold">Notice:</span> No resources specifically tagged with your exact subject title, but here are all available curriculum materials in the institution library:
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {allPortalRefs.map((ref) => (
+                    <div key={ref.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                              {ref.department || 'General'}
+                            </span>
+                            <h3 className="font-bold text-sm text-slate-100 mt-1.5">{ref.title}</h3>
+                            <span className="text-[11px] text-slate-400 font-mono">{ref.subjectName}</span>
+                          </div>
+                        </div>
+
+                        {ref.notes && (
+                          <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-slate-200 space-y-1">
+                            <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide">Course Notes:</div>
+                            <p className="italic text-[12px] leading-relaxed text-slate-100 whitespace-pre-wrap">"{ref.notes}"</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-3 border-t border-slate-800/60">
+                        <button
+                          onClick={() => copyToClipboard(ref.referenceUrl, 'Drive Link')}
+                          className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg flex items-center gap-1.5"
+                        >
+                          <Copy className="w-3 h-3" /> Copy Link
+                        </button>
+                        <a
+                          href={ref.referenceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Open Drive
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-slate-900/30 border border-slate-800/60 rounded-2xl text-slate-400 text-xs space-y-2">
+                <div className="text-3xl">📚</div>
+                <div className="font-semibold text-slate-300 text-sm">No Reference Materials Available</div>
+                <p className="text-slate-500 italic">
+                  No reference materials or notes have been configured yet in the admin library.
+                </p>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -3018,6 +3161,18 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
               <button onClick={() => setProposingTopic(null)} className="text-slate-400 hover:text-slate-200">✕</button>
             </div>
+
+            {proposingTopic.notes && (
+              <div className="p-3 bg-indigo-950/40 rounded-xl border border-indigo-500/30 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                  Admin Topic Instructions & Notes:
+                </div>
+                <p className="text-slate-200 italic text-[11px] leading-relaxed whitespace-pre-wrap">
+                  "{proposingTopic.notes}"
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmitProposedSubtopics} className="space-y-4 text-xs">
               <div className="space-y-1.5">

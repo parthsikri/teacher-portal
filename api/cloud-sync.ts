@@ -305,24 +305,96 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     }
   }
 
-  // 11. Merge Sent Email Logs
-  const logMap = new Map<string, any>();
+  // 11. Merge Email Logs
+  const emailLogMap = new Map<string, any>();
   if (Array.isArray(current.emailLogs)) {
-    current.emailLogs.forEach((l: any) => {
-      if (l && l.id) logMap.set(l.id, l);
+    current.emailLogs.forEach((log: any) => {
+      if (log && log.id && !deletedIds.has(log.id.toUpperCase())) emailLogMap.set(log.id, log);
     });
   }
   if (Array.isArray(incoming.emailLogs)) {
-    incoming.emailLogs.forEach((l: any) => {
-      if (l && l.id) {
-        const ex = logMap.get(l.id);
-        logMap.set(l.id, ex ? { ...ex, ...l } : l);
+    incoming.emailLogs.forEach((log: any) => {
+      if (log && log.id && !deletedIds.has(log.id.toUpperCase())) {
+        emailLogMap.set(log.id, {
+          ...emailLogMap.get(log.id),
+          ...log,
+        });
       }
     });
   }
-  const mergedEmailLogs = Array.from(logMap.values())
-    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
-    .slice(0, 200);
+  const mergedEmailLogs = Array.from(emailLogMap.values()).slice(-200);
+
+  // 12. Merge PR Tasks
+  const prTaskMap = new Map<string, any>();
+  if (Array.isArray(current.prTasks)) {
+    current.prTasks.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) prTaskMap.set(t.id, t);
+    });
+  }
+  if (Array.isArray(incoming.prTasks)) {
+    incoming.prTasks.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) {
+        prTaskMap.set(t.id, {
+          ...prTaskMap.get(t.id),
+          ...t,
+        });
+      }
+    });
+  }
+
+  // 13. Merge PR Leads
+  const prLeadMap = new Map<string, any>();
+  if (Array.isArray(current.prLeads)) {
+    current.prLeads.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) prLeadMap.set(l.id, l);
+    });
+  }
+  if (Array.isArray(incoming.prLeads)) {
+    incoming.prLeads.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) {
+        prLeadMap.set(l.id, {
+          ...prLeadMap.get(l.id),
+          ...l,
+        });
+      }
+    });
+  }
+
+  // 14. Merge PR MOUs
+  const prMouMap = new Map<string, any>();
+  if (Array.isArray(current.prMous)) {
+    current.prMous.forEach((m: any) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) prMouMap.set(m.id, m);
+    });
+  }
+  if (Array.isArray(incoming.prMous)) {
+    incoming.prMous.forEach((m: any) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) {
+        prMouMap.set(m.id, {
+          ...prMouMap.get(m.id),
+          ...m,
+        });
+      }
+    });
+  }
+
+  // 15. Merge PR Colleges
+  const prCollegeMap = new Map<string, any>();
+  if (Array.isArray(current.prColleges)) {
+    current.prColleges.forEach((c: any) => {
+      if (c && c.id && !deletedIds.has(c.id.toUpperCase())) prCollegeMap.set(c.id, c);
+    });
+  }
+  if (Array.isArray(incoming.prColleges)) {
+    incoming.prColleges.forEach((c: any) => {
+      if (c && c.id && !deletedIds.has(c.id.toUpperCase())) {
+        prCollegeMap.set(c.id, {
+          ...prCollegeMap.get(c.id),
+          ...c,
+        });
+      }
+    });
+  }
 
   return {
     version: 2,
@@ -337,6 +409,10 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     extensions: Array.from(extMap.values()),
     walletTransactions: Array.from(walletMap.values()),
     dayOffGrants: Array.from(dayOffMap.values()),
+    prTasks: Array.from(prTaskMap.values()),
+    prLeads: Array.from(prLeadMap.values()),
+    prMous: Array.from(prMouMap.values()),
+    prColleges: Array.from(prCollegeMap.values()),
     emailConfig: mergedEmailConfig,
     emailLogs: mergedEmailLogs,
   };

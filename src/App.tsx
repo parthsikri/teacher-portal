@@ -5,11 +5,19 @@ import { Sidebar } from './components/Sidebar';
 import { LoginModal } from './components/Auth/LoginModal';
 import { TeacherView } from './components/Teacher/TeacherView';
 import { AdminView } from './components/Admin/AdminView';
+import { PrInternView } from './components/PrIntern/PrInternView';
 import { UploadLectureModal } from './components/Teacher/UploadLectureModal';
 import { DailyCommitmentModal } from './components/Teacher/DailyCommitmentModal';
 
 import { PptGenerator } from './components/Common/PptGenerator';
 import { ThumbnailStudio } from './components/Common/ThumbnailStudio';
+
+const getDefaultPageForUser = (user: User | null): string => {
+  if (!user) return 'dashboard';
+  if (user.role === 'admin') return 'admin_dashboard';
+  if (user.role === 'pr_intern') return 'pr_dashboard';
+  return 'dashboard';
+};
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -44,7 +52,7 @@ export const App: React.FC = () => {
           if (data.success && data.user) {
             StorageService.setCurrentUser(data.user);
             setCurrentUser(data.user);
-            setCurrentPage(data.user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+            setCurrentPage(getDefaultPageForUser(data.user));
             return;
           }
         }
@@ -66,7 +74,7 @@ export const App: React.FC = () => {
       if (user) {
         setCurrentUser((prevUser) => {
           if (prevUser && prevUser.role !== user.role) {
-            setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+            setCurrentPage(getDefaultPageForUser(user));
           }
           return user;
         });
@@ -80,7 +88,7 @@ export const App: React.FC = () => {
     const user = StorageService.getCurrentUser();
     setCurrentUser(user);
     if (user) {
-      setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+      setCurrentPage(getDefaultPageForUser(user));
       // Prompt ONLY if teacher is logging in for the first time without a set cutoff time
       if (user.role === 'teacher') {
         const needsFirstTimeSetup = !user.hasSetInitialCommitment && !user.dailyUploadCutoffTime;
@@ -98,7 +106,7 @@ export const App: React.FC = () => {
   const handleLoginSuccess = (user: User) => {
     StorageService.setCurrentUser(user);
     setCurrentUser(user);
-    setCurrentPage(user.role === 'admin' ? 'admin_dashboard' : 'dashboard');
+    setCurrentPage(getDefaultPageForUser(user));
     
     // Prompt ONLY on first-time login
     if (user.role === 'teacher') {
@@ -184,6 +192,13 @@ export const App: React.FC = () => {
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
                   onRefreshData={handleRefreshData}
+                  refreshTrigger={refreshKey}
+                />
+              ) : currentUser.role === 'pr_intern' ? (
+                <PrInternView
+                  intern={currentUser}
+                  currentPage={currentPage}
+                  onPageChange={handlePageChange}
                   refreshTrigger={refreshKey}
                 />
               ) : (
