@@ -347,8 +347,26 @@ export async function getCloudPortalState(): Promise<any> {
     if (dbRes.ok) {
       const rows = await dbRes.json();
       if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
-        inMemoryStateCache = rows[0].data;
-        return rows[0].data;
+        const cloudState = rows[0].data;
+        if (Array.isArray(cloudState.users)) {
+          let hasAddedUser = false;
+          for (const defaultUser of DEFAULT_STATE.users) {
+            const exists = cloudState.users.some(
+              (u: any) =>
+                (u.teacherId && u.teacherId.toUpperCase() === defaultUser.teacherId.toUpperCase()) ||
+                (u.username && u.username.toLowerCase() === defaultUser.username.toLowerCase())
+            );
+            if (!exists) {
+              cloudState.users.push({ ...defaultUser });
+              hasAddedUser = true;
+            }
+          }
+          if (hasAddedUser) {
+            saveCloudPortalState(cloudState).catch(() => {});
+          }
+        }
+        inMemoryStateCache = cloudState;
+        return cloudState;
       }
     }
   } catch (err) {
