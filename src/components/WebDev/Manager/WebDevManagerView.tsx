@@ -18,6 +18,13 @@ import {
   Gift,
   ShieldCheck,
   X,
+  Trophy,
+  Sliders,
+  Edit2,
+  Trash2,
+  Building2,
+  GraduationCap,
+  Code2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type {
@@ -36,12 +43,33 @@ import { CertificateModal } from '../Common/CertificateModal';
 
 interface WebDevManagerViewProps {
   currentUser: User;
+  currentPage?: string;
+  onPageChange?: (page: string) => void;
 }
 
-export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUser }) => {
-  const [activeTab, setActiveTab] = useState<
-    'review_desk' | 'tasks' | 'projects' | 'bounties' | 'fulfillments' | 'team' | 'audit'
-  >('review_desk');
+export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
+  currentUser,
+  currentPage = 'wdm_review',
+  onPageChange,
+}) => {
+  const activeTab:
+    | 'review_desk'
+    | 'tasks'
+    | 'projects'
+    | 'bounties'
+    | 'awards'
+    | 'team'
+    | 'leaderboard'
+    | 'audit' = (() => {
+    if (currentPage === 'wdm_tasks') return 'tasks';
+    if (currentPage === 'wdm_projects') return 'projects';
+    if (currentPage === 'wdm_bounties') return 'bounties';
+    if (currentPage === 'wdm_awards' || currentPage === 'wdm_fulfillments') return 'awards';
+    if (currentPage === 'wdm_team') return 'team';
+    if (currentPage === 'wdm_leaderboard') return 'leaderboard';
+    if (currentPage === 'wdm_audit') return 'audit';
+    return 'review_desk';
+  })();
 
   // Data collections
   const [tasks, setTasks] = useState<WebDevTask[]>([]);
@@ -101,6 +129,20 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
   const [newProjTech, setNewProjTech] = useState('Next.js, TypeScript, PostgreSQL');
   const [newProjLead, setNewProjLead] = useState('AEW-DEV-01');
   const [newProjTarget, setNewProjTarget] = useState('2026-11-15');
+
+  // Leaderboard State
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'monthly' | 'all_time'>('all_time');
+  const [leaderboardDept, setLeaderboardDept] = useState<'all' | 'engineering' | 'faculty' | 'pr' | 'leadership'>('all');
+
+  // Award Management State
+  const [editingReward, setEditingReward] = useState<WebDevReward | null>(null);
+  const [showCreateAwardModal, setShowCreateAwardModal] = useState(false);
+  const [rewardFormTitle, setRewardFormTitle] = useState('');
+  const [rewardFormCategory, setRewardFormCategory] = useState<'certificate' | 'swag' | 'perk' | 'title'>('certificate');
+  const [rewardFormXp, setRewardFormXp] = useState<number>(500);
+  const [rewardFormDesc, setRewardFormDesc] = useState('');
+  const [rewardFormIcon, setRewardFormIcon] = useState('🏆');
+  const [rewardFormPerk, setRewardFormPerk] = useState('');
 
   const loadData = () => {
     const allTasks = WebDevService.getTasks();
@@ -315,6 +357,67 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
     }
   };
 
+  // Handle Award Configuration
+  const openEditReward = (r: WebDevReward) => {
+    setEditingReward(r);
+    setRewardFormTitle(r.title);
+    setRewardFormCategory((r.category as any) || 'certificate');
+    setRewardFormXp(r.xpThreshold);
+    setRewardFormDesc(r.description);
+    setRewardFormIcon(r.icon || '🏆');
+    setRewardFormPerk(r.perkSummary || '');
+    setShowCreateAwardModal(true);
+  };
+
+  const openCreateReward = () => {
+    setEditingReward(null);
+    setRewardFormTitle('');
+    setRewardFormCategory('certificate');
+    setRewardFormXp(500);
+    setRewardFormDesc('');
+    setRewardFormIcon('🏆');
+    setRewardFormPerk('');
+    setShowCreateAwardModal(true);
+  };
+
+  const handleSaveReward = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rewardFormTitle.trim()) return;
+
+    WebDevService.saveReward(
+      {
+        id: editingReward ? editingReward.id : `REW-CUSTOM-${Date.now().toString().slice(-4)}`,
+        title: rewardFormTitle.trim(),
+        category: rewardFormCategory,
+        xpThreshold: Math.max(50, Number(rewardFormXp) || 100),
+        description: rewardFormDesc.trim(),
+        icon: rewardFormIcon || '🏆',
+        perkSummary: rewardFormPerk.trim(),
+      },
+      { id: currentUser.teacherId, name: currentUser.name }
+    );
+
+    setShowCreateAwardModal(false);
+    setEditingReward(null);
+    loadData();
+  };
+
+  const handleUpdateRewardThreshold = (reward: WebDevReward, newXp: number) => {
+    WebDevService.saveReward(
+      { ...reward, xpThreshold: Math.max(0, newXp) },
+      { id: currentUser.teacherId, name: currentUser.name }
+    );
+    loadData();
+  };
+
+  const handleDeleteReward = (rewardId: string) => {
+    if (!confirm('Are you sure you want to deactivate/delete this reward?')) return;
+    WebDevService.deleteReward(rewardId, { id: currentUser.teacherId, name: currentUser.name });
+    loadData();
+  };
+
+  const leaderboardData = WebDevService.getLeaderboard(leaderboardPeriod, leaderboardDept);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-16">
       {/* ─── MANAGER OPERATIONS HEADER ──────────────────────────────────────── */}
@@ -366,7 +469,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
           {/* Attention Center KPI Tiles */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mt-8">
             <div
-              onClick={() => setActiveTab('review_desk')}
+              onClick={() => onPageChange?.('wdm_review')}
               className={`p-4 rounded-xl border transition-all cursor-pointer ${
                 pendingReviews.length > 0
                   ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10'
@@ -385,7 +488,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
 
             <div
               onClick={() => {
-                setActiveTab('tasks');
+                onPageChange?.('wdm_tasks');
                 setTaskStatusFilter('blocked');
               }}
               className={`p-4 rounded-xl border transition-all cursor-pointer ${
@@ -405,7 +508,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
             </div>
 
             <div
-              onClick={() => setActiveTab('projects')}
+              onClick={() => onPageChange?.('wdm_projects')}
               className="p-4 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700 transition-all"
             >
               <div className="flex items-center justify-between text-xs text-indigo-400 font-semibold">
@@ -419,17 +522,17 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
             </div>
 
             <div
-              onClick={() => setActiveTab('fulfillments')}
+              onClick={() => onPageChange?.('wdm_awards')}
               className="p-4 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700 transition-all"
             >
               <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold">
-                <span>Reward Requests</span>
+                <span>Award Requests</span>
                 <Gift className="w-4 h-4" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-white mt-1">
                 {pendingFulfillments.length}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Certificates & perks</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Thresholds & perks</div>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
@@ -444,43 +547,34 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
             </div>
           </div>
 
-          {/* Navigation Sub-tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pt-6 scrollbar-none">
-            {[
-              { id: 'review_desk', label: 'Review Desk', count: pendingReviews.length, icon: Shield },
-              { id: 'tasks', label: 'All Tasks & Workload', count: tasks.length, icon: CheckSquare },
-              { id: 'projects', label: 'Projects & Milestones', count: projects.length, icon: Layers },
-              { id: 'bounties', label: 'Bounties Desk', count: bounties.length, icon: Target },
-              { id: 'fulfillments', label: 'Rewards Fulfillment', count: pendingFulfillments.length, icon: Gift },
-              { id: 'team', label: 'Engineering Team', count: developers.length, icon: Users },
-              { id: 'audit', label: 'Audit Trail', icon: FileText },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    isActive
-                      ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20'
-                      : 'bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        isActive ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/* Executive Sub-Header / Current Workspace Context */}
+          <div className="pt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/60 mt-6">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400 font-medium">Operations Center</span>
+              <span className="text-slate-600">/</span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-amber-300 font-semibold flex items-center gap-1.5">
+                {activeTab === 'review_desk' && <Shield className="w-3.5 h-3.5 text-amber-400" />}
+                {activeTab === 'tasks' && <CheckSquare className="w-3.5 h-3.5 text-blue-400" />}
+                {activeTab === 'projects' && <Layers className="w-3.5 h-3.5 text-indigo-400" />}
+                {activeTab === 'bounties' && <Target className="w-3.5 h-3.5 text-emerald-400" />}
+                {activeTab === 'awards' && <Gift className="w-3.5 h-3.5 text-pink-400" />}
+                {activeTab === 'team' && <Users className="w-3.5 h-3.5 text-purple-400" />}
+                {activeTab === 'leaderboard' && <Trophy className="w-3.5 h-3.5 text-yellow-400" />}
+                {activeTab === 'audit' && <FileText className="w-3.5 h-3.5 text-slate-400" />}
+                {activeTab === 'review_desk' && 'Review Desk & PR Approvals'}
+                {activeTab === 'tasks' && 'All Tasks & Workload Command Center'}
+                {activeTab === 'projects' && 'Projects & Roadmap Milestones'}
+                {activeTab === 'bounties' && 'Bounties Desk'}
+                {activeTab === 'awards' && 'Awards & XP Thresholds'}
+                {activeTab === 'team' && 'Engineering Team & Squad Velocity'}
+                {activeTab === 'leaderboard' && 'All-Hands Organization Leaderboard'}
+                {activeTab === 'audit' && 'System Audit Trail'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs text-slate-400">
+              <span className="hidden sm:inline">Use the <strong>left sidebar</strong> to switch between management desks</span>
+            </div>
           </div>
         </div>
       </div>
@@ -866,76 +960,197 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
           </div>
         )}
 
-        {/* ─── TAB 5: REWARDS FULFILLMENT ───────────────────────────────────── */}
-        {activeTab === 'fulfillments' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        {/* ─── TAB 5: AWARDS & XP THRESHOLD CONFIGURATION DESK ───────────────── */}
+        {activeTab === 'awards' && (
+          <div className="space-y-8">
+            {/* Header & Actions */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Gift className="w-5 h-5 text-amber-400" />
-                  Engineering Recognition & Certificate Issuance
+                  Award & XP Threshold Configuration Desk
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Fulfill digital verified certificates with unique credential IDs and dispatch swag kits
+                  Configure which official awards, certificates, and perks developers unlock at what XP threshold. Manage fulfillment approvals.
                 </p>
               </div>
+
+              <button
+                onClick={openCreateReward}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+              >
+                <Plus className="w-4 h-4" />
+                Add Custom Award
+              </button>
             </div>
 
-            <div className="space-y-4">
-              {fulfillments.map((f) => {
-                const r = rewards.find((rew) => rew.id === f.rewardId);
-                const isPending = f.status === 'pending';
-
-                return (
-                  <div
-                    key={f.id}
-                    className={`bg-slate-900 border rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                      isPending ? 'border-amber-500/50' : 'border-slate-800'
-                    }`}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{r?.icon || '📜'}</span>
-                        <h3 className="text-base font-bold text-white">{r?.title || 'Reward'}</h3>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          isPending ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
-                        }`}>
-                          {f.status}
+            {/* Awards & XP Thresholds Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {rewards.map((reward) => (
+                <div
+                  key={reward.id}
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-4 transition-all"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-3xl p-2 bg-slate-950 rounded-xl border border-slate-800">
+                          {reward.icon || '🏆'}
                         </span>
-                      </div>
-                      <p className="text-xs text-slate-400">
-                        Recipient: <strong className="text-white">{f.userName}</strong> ({f.userTitle}) • Requested: {f.requestedAt ? new Date(f.requestedAt).toLocaleDateString() : 'Recent'}
-                      </p>
-                      {f.verificationCode && (
-                        <div className="text-xs text-amber-400 font-mono flex items-center gap-1.5 mt-1">
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          Credential ID: {f.verificationCode}
+                        <div>
+                          <h3 className="text-sm font-bold text-white">{reward.title}</h3>
+                          <span className="capitalize text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-medium">
+                            {reward.category || 'Certificate'}
+                          </span>
                         </div>
-                      )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEditReward(reward)}
+                          title="Edit Award & Threshold"
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        {reward.id.startsWith('REW-CUSTOM') && (
+                          <button
+                            onClick={() => handleDeleteReward(reward.id)}
+                            title="Delete Award"
+                            className="p-1.5 rounded-lg bg-red-950/50 hover:bg-red-900 text-red-400 hover:text-white transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-400 leading-relaxed">{reward.description}</p>
+                    {reward.perkSummary && (
+                      <div className="p-2 bg-indigo-950/30 border border-indigo-500/20 rounded-lg text-[11px] text-indigo-300">
+                        🎁 <strong>Perk:</strong> {reward.perkSummary}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* XP Threshold Configuration Bar */}
+                  <div className="pt-3 border-t border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 flex items-center gap-1 font-medium">
+                        <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                        Required XP Threshold:
+                      </span>
+                      <span className="font-mono font-bold text-amber-300 text-sm">
+                        {reward.xpThreshold.toLocaleString()} XP
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {isPending ? (
-                        <button
-                          onClick={() => handleFulfillReward(f.id)}
-                          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950 flex items-center gap-1.5"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          Issue Verified Certificate
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setSelectedCertificate({ fulfillment: f, reward: r })}
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"
-                        >
-                          <FileText className="w-4 h-4 text-amber-400" />
-                          Inspect Certificate
-                        </button>
-                      )}
+                      <input
+                        type="range"
+                        min="100"
+                        max="10000"
+                        step="50"
+                        value={reward.xpThreshold}
+                        onChange={(e) => handleUpdateRewardThreshold(reward, Number(e.target.value))}
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                      <button
+                        onClick={() => {
+                          const val = prompt(`Set XP threshold for "${reward.title}":`, String(reward.xpThreshold));
+                          if (val && !isNaN(Number(val))) {
+                            handleUpdateRewardThreshold(reward, Number(val));
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-mono border border-slate-700 whitespace-nowrap"
+                      >
+                        Set Exact
+                      </button>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
+            </div>
+
+            {/* Pending Fulfillment Requests Queue */}
+            <div className="pt-6 border-t border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    Pending Reward & Certificate Fulfillment Requests
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Verify developer eligibility, generate tamper-proof digital certificates, and approve swag shipments.
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  {pendingFulfillments.length} Pending
+                </span>
+              </div>
+
+              {fulfillments.length === 0 ? (
+                <div className="p-8 text-center bg-slate-900/40 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                  No reward requests found. Developers can request certificates once they achieve the required XP threshold.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {fulfillments.map((f) => {
+                    const r = rewards.find((rew) => rew.id === f.rewardId);
+                    const isPending = f.status === 'pending';
+
+                    return (
+                      <div
+                        key={f.id}
+                        className={`bg-slate-900 border rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                          isPending ? 'border-amber-500/50 ring-1 ring-amber-500/20' : 'border-slate-800'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{r?.icon || '📜'}</span>
+                            <h4 className="text-sm font-bold text-white">{r?.title || 'Reward'}</h4>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              isPending ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                            }`}>
+                              {f.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            Recipient: <strong className="text-white">{f.userName}</strong> ({f.userTitle}) • Requested: {f.requestedAt ? new Date(f.requestedAt).toLocaleDateString() : 'Recent'}
+                          </p>
+                          {f.verificationCode && (
+                            <div className="text-xs text-amber-400 font-mono flex items-center gap-1.5 mt-1">
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              Credential ID: {f.verificationCode}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isPending ? (
+                            <button
+                              onClick={() => handleFulfillReward(f.id)}
+                              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950 flex items-center gap-1.5"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Issue Verified Certificate
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setSelectedCertificate({ fulfillment: f, reward: r })}
+                              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"
+                            >
+                              <FileText className="w-4 h-4 text-amber-400" />
+                              Inspect Certificate
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -998,7 +1213,172 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
           </div>
         )}
 
-        {/* ─── TAB 7: AUDIT TRAIL ───────────────────────────────────────────── */}
+        {/* ─── TAB 7: ALL-HANDS LEADERBOARD ───────────────────────────────── */}
+        {activeTab === 'leaderboard' && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-400" />
+                  All-Hands Organization Leaderboard
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Cross-departmental performance benchmarking across Academic Faculty, Engineering, PR & Growth, and Leadership
+                </p>
+              </div>
+
+              {/* Period Selector */}
+              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs self-start md:self-auto">
+                {(['weekly', 'monthly', 'all_time'] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setLeaderboardPeriod(p)}
+                    className={`px-3 py-1.5 rounded-lg font-semibold capitalize transition-colors ${
+                      leaderboardPeriod === p
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {p.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Department Filter Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { id: 'all', label: 'All Departments', icon: Sparkles },
+                { id: 'engineering', label: 'Engineering & Dev', icon: Code2 },
+                { id: 'faculty', label: 'Academic Faculty', icon: GraduationCap },
+                { id: 'pr', label: 'Growth & PR', icon: Target },
+                { id: 'leadership', label: 'Leadership & Ops', icon: Building2 },
+              ].map((dept) => {
+                const Icon = dept.icon;
+                const isSelected = leaderboardDept === dept.id;
+                return (
+                  <button
+                    key={dept.id}
+                    onClick={() => setLeaderboardDept(dept.id as any)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 ring-1 ring-indigo-400'
+                        : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/90 border border-slate-800'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{dept.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Top 3 Podium */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              {leaderboardData.slice(0, 3).map((item, idx) => {
+                const medalColors = [
+                  'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-amber-500/20 ring-1 ring-amber-300',
+                  'bg-gradient-to-r from-slate-200 to-slate-400 text-slate-950 font-black shadow-slate-400/20 ring-1 ring-slate-200',
+                  'bg-gradient-to-r from-amber-700 to-amber-900 text-amber-100 font-bold shadow-amber-900/20 ring-1 ring-amber-600',
+                ];
+                const rankBadge = ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place'];
+
+                return (
+                  <div
+                    key={item.userId}
+                    className="relative bg-slate-900/90 border border-slate-800 rounded-2xl p-5 text-center shadow-xl space-y-3"
+                  >
+                    <div className={`inline-block px-3 py-1 rounded-full text-[10px] uppercase tracking-wider ${medalColors[idx]}`}>
+                      {rankBadge[idx]}
+                    </div>
+
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-500 p-0.5 shadow-lg">
+                      <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center font-black text-xl text-amber-300 overflow-hidden">
+                        {item.avatarUrl ? (
+                          <img src={item.avatarUrl} alt={item.userName} className="w-full h-full object-cover" />
+                        ) : (
+                          item.userName.charAt(0)
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-bold text-white text-base">{item.userName}</h4>
+                      <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 mt-1">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
+                          {item.department}
+                        </span>
+                        <span className="text-[11px] text-slate-400">Lvl {item.userLevel}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <div className="text-xl font-black text-amber-400">{item.totalXp.toLocaleString()} Points</div>
+                      <div className="text-[11px] text-slate-400 mt-1 truncate px-2" title={item.highlights}>
+                        {item.highlights || `${item.userTitle}`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Complete Organization Roster Table */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950/70 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3.5 px-4 text-center w-14">Rank</th>
+                    <th className="py-3.5 px-4">Employee</th>
+                    <th className="py-3.5 px-4">Department & Role</th>
+                    <th className="py-3.5 px-4">Key Contribution Highlights</th>
+                    <th className="py-3.5 px-4 text-center">Level</th>
+                    <th className="py-3.5 px-4 text-right">Total Score / XP</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {leaderboardData.map((row) => (
+                    <tr key={row.userId} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-300 text-center">
+                        #{row.rank}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-white">{row.userName}</div>
+                        <div className="text-[11px] text-slate-400">{row.userTitle}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          row.department === 'Engineering'
+                            ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                            : row.department === 'Academic Faculty'
+                            ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
+                            : row.department === 'Growth & PR'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                            : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                        }`}>
+                          {row.department}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-300 font-medium">
+                        {row.highlights || 'Active Contributor'}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-bold">
+                          Lvl {row.userLevel}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-bold text-amber-400">
+                        {row.totalXp.toLocaleString()} pts
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 8: AUDIT TRAIL ───────────────────────────────────────────── */}
         {activeTab === 'audit' && (
           <div className="space-y-6">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
@@ -1536,6 +1916,126 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({ currentUse
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs"
                 >
                   Create Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: CREATE / EDIT AWARD & XP THRESHOLD ───────────────────────── */}
+      {showCreateAwardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Gift className="w-5 h-5 text-amber-400" />
+                {editingReward ? 'Configure Award & XP Threshold' : 'Create Custom Engineering Award'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCreateAwardModal(false);
+                  setEditingReward(null);
+                }}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveReward} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Award Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={rewardFormTitle}
+                  onChange={(e) => setRewardFormTitle(e.target.value)}
+                  placeholder="e.g. Master Architect Certificate, Platinum Code Swag"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Category</label>
+                  <select
+                    value={rewardFormCategory}
+                    onChange={(e) => setRewardFormCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="certificate">Digital Certificate</option>
+                    <option value="swag">Physical Swag Kit</option>
+                    <option value="perk">Engineering Perk</option>
+                    <option value="title">Honorary Title</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Required XP Threshold *</label>
+                  <input
+                    type="number"
+                    min="50"
+                    step="50"
+                    required
+                    value={rewardFormXp}
+                    onChange={(e) => setRewardFormXp(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Display Icon</label>
+                  <input
+                    type="text"
+                    value={rewardFormIcon}
+                    onChange={(e) => setRewardFormIcon(e.target.value)}
+                    placeholder="🏆 or 📜"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-center text-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-300 mb-1">Special Perk / Benefit</label>
+                  <input
+                    type="text"
+                    value={rewardFormPerk}
+                    onChange={(e) => setRewardFormPerk(e.target.value)}
+                    placeholder="e.g. AEW Tech Hoodie, Direct CEO 1-on-1"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Description & Criteria</label>
+                <textarea
+                  rows={3}
+                  value={rewardFormDesc}
+                  onChange={(e) => setRewardFormDesc(e.target.value)}
+                  placeholder="Official recognition criteria, skills verified, and honors conferred..."
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateAwardModal(false);
+                    setEditingReward(null);
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-md shadow-amber-500/20"
+                >
+                  {editingReward ? 'Update Award Threshold' : 'Create Award'}
                 </button>
               </div>
             </form>

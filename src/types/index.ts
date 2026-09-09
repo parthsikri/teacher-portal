@@ -721,7 +721,11 @@ export interface WebDevReward {
   approvalRequired?: boolean;
   isActive?: boolean;
   status?: 'active' | 'inactive' | string;
+  category?: 'certificate' | 'swag' | 'perk' | 'cash_bonus' | 'title' | string;
+  iconName?: string;
+  perkSummary?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface WebDevRewardFulfillment {
@@ -827,7 +831,19 @@ export interface WebDevNotification {
   createdAt: string;
 }
 
-
-
-
+export interface WebDevLeaderboardEntry {
+  userId: string;
+  userName: string;
+  userTitle: string;
+  userLevel: number;
+  avatarUrl?: string;
+  role: UserRole | string;
+  department: string;
+  departmentRank?: number;
+  totalXp: number;
+  tasksCompleted?: number;
+  bountiesCompleted?: number;
+  highlights?: string;
+  rank: number;
+}
 

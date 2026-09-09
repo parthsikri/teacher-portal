@@ -18,8 +18,8 @@ const getDefaultPageForUser = (user: User | null): string => {
   if (!user) return 'dashboard';
   if (user.role === 'admin') return 'admin_dashboard';
   if (user.role === 'pr_intern') return 'pr_dashboard';
-  if (user.role === 'web_dev_manager') return 'wdm_dashboard';
-  if (user.role === 'web_developer') return 'dev_dashboard';
+  if (user.role === 'web_dev_manager') return 'wdm_review';
+  if (user.role === 'web_developer') return 'dev_tasks';
   return 'dashboard';
 };
 
@@ -209,10 +209,14 @@ export const App: React.FC = () => {
               ) : currentUser.role === 'web_dev_manager' ? (
                 <WebDevManagerView
                   currentUser={currentUser}
+                  currentPage={currentPage}
+                  onPageChange={handlePageChange}
                 />
               ) : currentUser.role === 'web_developer' ? (
                 <WebDeveloperView
                   currentUser={currentUser}
+                  currentPage={currentPage}
+                  onPageChange={handlePageChange}
                   onRefreshUser={handleRefreshData}
                 />
               ) : (

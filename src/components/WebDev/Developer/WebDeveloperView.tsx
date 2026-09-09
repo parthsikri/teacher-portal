@@ -19,6 +19,9 @@ import {
   Target,
   FileText,
   Heart,
+  Building2,
+  GraduationCap,
+  Sparkles,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type {
@@ -39,17 +42,28 @@ import { CertificateVerificationModal } from '../Common/CertificateVerificationM
 
 interface WebDeveloperViewProps {
   currentUser: User;
+  currentPage?: string;
+  onPageChange?: (page: string) => void;
   onRefreshUser?: () => void;
 }
 
 export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
   currentUser,
+  currentPage = 'dev_tasks',
+  onPageChange,
   onRefreshUser,
 }) => {
-  // Navigation tabs
-  const [activeTab, setActiveTab] = useState<
-    'tasks' | 'projects' | 'bounties' | 'leaderboard' | 'achievements' | 'rewards' | 'ledger' | 'team'
-  >('tasks');
+  // Navigation section synced directly with left panel
+  const activeTab: 'tasks' | 'projects' | 'bounties' | 'leaderboard' | 'achievements' | 'rewards' | 'ledger' | 'team' = (() => {
+    if (currentPage === 'dev_projects') return 'projects';
+    if (currentPage === 'dev_bounties') return 'bounties';
+    if (currentPage === 'dev_leaderboard') return 'leaderboard';
+    if (currentPage === 'dev_achievements') return 'achievements';
+    if (currentPage === 'dev_rewards') return 'rewards';
+    if (currentPage === 'dev_ledger') return 'ledger';
+    if (currentPage === 'dev_team') return 'team';
+    return 'tasks';
+  })();
 
   // Data state
   const [tasks, setTasks] = useState<WebDevTask[]>([]);
@@ -61,6 +75,7 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
   const [kudosList, setKudosList] = useState<WebDevKudos[]>([]);
   const [xpLedger, setXpLedger] = useState<WebDevXPTransaction[]>([]);
   const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'monthly' | 'all_time'>('all_time');
+  const [deptFilter, setDeptFilter] = useState<'all' | 'engineering' | 'faculty' | 'pr' | 'leadership'>('all');
 
   // Filter states
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
@@ -204,7 +219,7 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
     }
   };
 
-  const leaderboardData = WebDevService.getLeaderboard(leaderboardPeriod);
+  const leaderboardData = WebDevService.getLeaderboard(leaderboardPeriod, deptFilter);
   const myAchievements = WebDevService.getUserAchievements(currentUser.teacherId);
   const allAchievements = WebDevService.getAchievements();
 
@@ -312,7 +327,7 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
               </div>
               <button
                 onClick={() => {
-                  setActiveTab('tasks');
+                  onPageChange?.('dev_tasks');
                   setTaskStatusFilter('blocked');
                 }}
                 className="px-3 py-1 bg-red-800 hover:bg-red-700 text-white rounded-lg font-semibold flex-shrink-0 transition-colors"
@@ -322,44 +337,34 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
             </div>
           )}
 
-          {/* Quick Header Navigation Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pt-6 scrollbar-none">
-            {[
-              { id: 'tasks', label: 'My Tasks', count: tasks.length, icon: CheckSquare },
-              { id: 'projects', label: 'Projects & Milestones', count: projects.length, icon: Layers },
-              { id: 'bounties', label: 'Open Bounties', count: bounties.filter(b => b.status === 'open').length, icon: Target },
-              { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
-              { id: 'achievements', label: 'Achievements', count: myAchievements.length, icon: Award },
-              { id: 'rewards', label: 'Certificates & Swag', count: fulfillments.length, icon: Gift },
-              { id: 'ledger', label: 'XP Ledger', icon: FileText },
-              { id: 'team', label: 'Challenges & Kudos', icon: Heart },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    isActive
-                      ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20'
-                      : 'bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                  {tab.count !== undefined && (
-                    <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        isActive ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/* Executive Sub-Header / Current Workspace Context */}
+          <div className="pt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/60 mt-6">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400 font-medium">Developer Workspace</span>
+              <span className="text-slate-600">/</span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-amber-300 font-semibold flex items-center gap-1.5">
+                {activeTab === 'tasks' && <CheckSquare className="w-3.5 h-3.5 text-amber-400" />}
+                {activeTab === 'projects' && <Layers className="w-3.5 h-3.5 text-blue-400" />}
+                {activeTab === 'bounties' && <Target className="w-3.5 h-3.5 text-emerald-400" />}
+                {activeTab === 'leaderboard' && <Trophy className="w-3.5 h-3.5 text-amber-400" />}
+                {activeTab === 'achievements' && <Award className="w-3.5 h-3.5 text-purple-400" />}
+                {activeTab === 'rewards' && <Gift className="w-3.5 h-3.5 text-pink-400" />}
+                {activeTab === 'ledger' && <FileText className="w-3.5 h-3.5 text-indigo-400" />}
+                {activeTab === 'team' && <Heart className="w-3.5 h-3.5 text-red-400" />}
+                {activeTab === 'tasks' && 'My Active Work & Backlog'}
+                {activeTab === 'projects' && 'Projects & Milestones'}
+                {activeTab === 'bounties' && 'Open Engineering Bounties'}
+                {activeTab === 'leaderboard' && 'Organization Leaderboard'}
+                {activeTab === 'achievements' && 'Milestones & Badges'}
+                {activeTab === 'rewards' && 'Certificates & Swag'}
+                {activeTab === 'ledger' && 'XP Ledger & Audit Log'}
+                {activeTab === 'team' && 'Challenges & Kudos'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs text-slate-400">
+              <span className="hidden sm:inline">Use the <strong>left sidebar</strong> to switch between work modules</span>
+            </div>
           </div>
         </div>
       </div>
@@ -701,16 +706,19 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
         {/* ─── TAB 4: LEADERBOARD ───────────────────────────────────────────── */}
         {activeTab === 'leaderboard' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-amber-400" />
-                  Engineering Leaderboard
+                  Organization-Wide All-Hands Leaderboard
                 </h2>
-                <p className="text-xs text-slate-400">Recognizing engineering contributions and code shipping cadence</p>
+                <p className="text-xs text-slate-400">
+                  Cross-functional competition uniting Academic Faculty, Engineering, PR & Growth, and Leadership
+                </p>
               </div>
 
-              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+              {/* Period Selector */}
+              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs self-start md:self-auto">
                 {(['weekly', 'monthly', 'all_time'] as const).map((p) => (
                   <button
                     key={p}
@@ -727,42 +735,86 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
               </div>
             </div>
 
+            {/* Department Filter Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { id: 'all', label: 'All Departments', icon: Sparkles },
+                { id: 'engineering', label: 'Engineering & Dev', icon: Code2 },
+                { id: 'faculty', label: 'Academic Faculty', icon: GraduationCap },
+                { id: 'pr', label: 'Growth & PR', icon: Target },
+                { id: 'leadership', label: 'Leadership & Ops', icon: Building2 },
+              ].map((dept) => {
+                const Icon = dept.icon;
+                const isSelected = deptFilter === dept.id;
+                return (
+                  <button
+                    key={dept.id}
+                    onClick={() => setDeptFilter(dept.id as any)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 ring-1 ring-indigo-400'
+                        : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/90 border border-slate-800'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{dept.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Podium for Top 3 */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
               {leaderboardData.slice(0, 3).map((item, idx) => {
                 const medalColors = [
-                  'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-amber-500/20',
-                  'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-950 font-black shadow-slate-400/10',
-                  'bg-gradient-to-r from-amber-700 to-amber-800 text-white font-bold shadow-amber-700/10',
+                  'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-amber-500/20 ring-1 ring-amber-300',
+                  'bg-gradient-to-r from-slate-200 to-slate-400 text-slate-950 font-black shadow-slate-400/20 ring-1 ring-slate-200',
+                  'bg-gradient-to-r from-amber-700 to-amber-900 text-amber-100 font-bold shadow-amber-900/20 ring-1 ring-amber-600',
                 ];
                 const rankBadge = ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place'];
 
                 return (
                   <div
                     key={item.userId}
-                    className={`relative bg-slate-900 border rounded-2xl p-5 text-center shadow-xl space-y-3 ${
+                    className={`relative bg-slate-900/90 border rounded-2xl p-5 text-center shadow-xl space-y-3 ${
                       item.userId === currentUser.teacherId ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-slate-800'
                     }`}
                   >
-                    <div className={`inline-block px-3 py-1 rounded-full text-[10px] uppercase tracking-wider ${medalColors[idx] || 'bg-slate-800 text-slate-300'}`}>
+                    <div className={`inline-block px-3 py-1 rounded-full text-[10px] uppercase tracking-wider ${medalColors[idx]}`}>
                       {rankBadge[idx]}
                     </div>
 
                     <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-500 p-0.5 shadow-lg">
-                      <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center font-black text-xl text-amber-300">
-                        {item.userName.charAt(0)}
+                      <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center font-black text-xl text-amber-300 overflow-hidden">
+                        {item.avatarUrl ? (
+                          <img src={item.avatarUrl} alt={item.userName} className="w-full h-full object-cover" />
+                        ) : (
+                          item.userName.charAt(0)
+                        )}
                       </div>
                     </div>
 
                     <div>
-                      <h4 className="font-bold text-white text-base">{item.userName}</h4>
-                      <p className="text-xs text-slate-400">{item.userTitle}</p>
+                      <h4 className="font-bold text-white text-base flex items-center justify-center gap-1.5">
+                        <span>{item.userName}</span>
+                        {item.userId === currentUser.teacherId && (
+                          <span className="px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 text-[9px] font-bold">
+                            YOU
+                          </span>
+                        )}
+                      </h4>
+                      <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 mt-1">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-300">
+                          {item.department}
+                        </span>
+                        <span className="text-[11px] text-slate-400">Lvl {item.userLevel}</span>
+                      </div>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800">
-                      <div className="text-xl font-black text-amber-400">{item.totalXp.toLocaleString()} XP</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        {item.tasksCompleted} Tasks • {item.bountiesCompleted} Bounties
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <div className="text-xl font-black text-amber-400">{item.totalXp.toLocaleString()} Points</div>
+                      <div className="text-[11px] text-slate-400 mt-1 truncate px-2" title={item.highlights}>
+                        {item.highlights || `${item.userTitle}`}
                       </div>
                     </div>
                   </div>
@@ -775,12 +827,12 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950/70 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="py-3.5 px-4">Rank</th>
-                    <th className="py-3.5 px-4">Developer</th>
-                    <th className="py-3.5 px-4">Title & Level</th>
-                    <th className="py-3.5 px-4 text-center">Tasks Done</th>
-                    <th className="py-3.5 px-4 text-center">Bounties</th>
-                    <th className="py-3.5 px-4 text-right">Earned XP</th>
+                    <th className="py-3.5 px-4 text-center w-14">Rank</th>
+                    <th className="py-3.5 px-4">Employee</th>
+                    <th className="py-3.5 px-4">Department & Role</th>
+                    <th className="py-3.5 px-4">Key Contribution Highlights</th>
+                    <th className="py-3.5 px-4 text-center">Level</th>
+                    <th className="py-3.5 px-4 text-right">Total Score / XP</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
@@ -791,30 +843,43 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
                         key={row.userId}
                         className={`transition-colors ${isMe ? 'bg-amber-500/10' : 'hover:bg-slate-800/40'}`}
                       >
-                        <td className="py-3.5 px-4 font-mono font-bold text-slate-300">
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-300 text-center">
                           #{row.rank}
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="font-semibold text-white flex items-center gap-2">
-                            {row.userName}
+                            <span>{row.userName}</span>
                             {isMe && (
                               <span className="px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 text-[9px] font-bold">
                                 YOU
                               </span>
                             )}
                           </div>
+                          <div className="text-[11px] text-slate-400">{row.userTitle}</div>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-400">
-                          {row.userTitle} (Lvl {row.userLevel})
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            row.department === 'Engineering'
+                              ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                              : row.department === 'Academic Faculty'
+                              ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
+                              : row.department === 'Growth & PR'
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                          }`}>
+                            {row.department}
+                          </span>
                         </td>
-                        <td className="py-3.5 px-4 text-center text-slate-300 font-semibold">
-                          {row.tasksCompleted}
+                        <td className="py-3.5 px-4 text-slate-300 font-medium">
+                          {row.highlights || 'Active Contributor'}
                         </td>
-                        <td className="py-3.5 px-4 text-center text-slate-300 font-semibold">
-                          {row.bountiesCompleted}
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-bold">
+                            Lvl {row.userLevel}
+                          </span>
                         </td>
                         <td className="py-3.5 px-4 text-right font-bold text-amber-400">
-                          {row.totalXp.toLocaleString()} XP
+                          {row.totalXp.toLocaleString()} pts
                         </td>
                       </tr>
                     );

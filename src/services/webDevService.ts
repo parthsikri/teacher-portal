@@ -15,6 +15,7 @@ import type {
   WebDevKudos,
   WebDevAuditLog,
   WebDevNotification,
+  WebDevLeaderboardEntry,
   User,
 } from '../types';
 import { StorageService } from './storage';
@@ -1586,107 +1587,156 @@ export const WebDevService = {
   },
 
   // ─── LEADERBOARDS ──────────────────────────────────────────────────────────
-  getLeaderboard(period: 'weekly' | 'monthly' | 'all_time' = 'all_time'): {
-    rank: number;
-    userId: string;
-    userName: string;
-    userTitle: string;
-    userLevel: number;
-    avatarUrl?: string;
-    totalXp: number;
-    tasksCompleted: number;
-    bountiesCompleted: number;
-  }[] {
+  getLeaderboard(
+    period: 'weekly' | 'monthly' | 'all_time' = 'all_time',
+    deptFilter: 'all' | 'engineering' | 'faculty' | 'pr' | 'leadership' = 'all'
+  ): WebDevLeaderboardEntry[] {
     const now = new Date();
     const nowMs = now.getTime();
     const dayMs = 24 * 60 * 60 * 1000;
     let cutoffMs = 0;
 
     if (period === 'weekly') {
-      cutoffMs = nowMs - (7 * dayMs);
+      cutoffMs = nowMs - 7 * dayMs;
     } else if (period === 'monthly') {
-      cutoffMs = nowMs - (30 * dayMs);
+      cutoffMs = nowMs - 30 * dayMs;
     }
 
     const txs = this.getXPLedger();
     const relevantTxs = cutoffMs > 0 ? txs.filter((t) => new Date(t.createdAt || 0).getTime() >= cutoffMs) : txs;
 
-    // Collect all developers
-    const users = StorageService.getUsers().filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager');
+    const allUsers = StorageService.getUsers();
     const allTasks = this.getTasks();
     const allBounties = this.getBounties();
+    const allLectures = StorageService.getLectures();
+    const allAssignedTopics = StorageService.getAssignedTopics();
 
-    const devStatsMap = new Map<string, {
-      userId: string;
-      userName: string;
-      userTitle: string;
-      userLevel: number;
-      avatarUrl?: string;
-      totalXp: number;
-      tasksCompleted: number;
-      bountiesCompleted: number;
-    }>();
+    const entriesMap = new Map<string, WebDevLeaderboardEntry>();
 
-    users.forEach((u) => {
-      const uXp = period === 'all_time' ? (u.webDevXp || 0) : 0;
-      const lvl = calculateLevelFromXp(u.webDevXp || 0);
-      devStatsMap.set(u.teacherId.toUpperCase(), {
+    allUsers.forEach((u) => {
+      const cleanId = u.teacherId.toUpperCase();
+      const role = u.role;
+      let department = 'General';
+      let userTitle = u.webDevTitle || 'Team Member';
+      let userLevel = 1;
+      let totalPoints = 0;
+      let highlights = '';
+
+      if (role === 'web_developer' || role === 'web_dev_manager') {
+        department = 'Engineering';
+        const lvl = calculateLevelFromXp(u.webDevXp || 0);
+        userLevel = u.webDevLevel || lvl.level;
+        userTitle = u.webDevTitle || (role === 'web_dev_manager' ? 'Engineering Lead' : lvl.title);
+        totalPoints = period === 'all_time' ? u.webDevXp || 0 : 0;
+      } else if (role === 'teacher') {
+        department = 'Academic Faculty';
+        const teacherLectures = allLectures.filter((l) => (l.teacherId || '').toUpperCase() === cleanId);
+        const mins = teacherLectures.reduce((acc, l) => acc + (l.durationMinutes || 0), 0);
+        const doneTopics = allAssignedTopics.filter(
+          (t) => (t.teacherId || '').toUpperCase() === cleanId && t.status === 'completed'
+        ).length;
+        userTitle = u.department || u.subject || 'Faculty Professor';
+        const baseFactor = period === 'all_time' ? 450 : period === 'monthly' ? 200 : 80;
+        totalPoints = mins + doneTopics * 120 + baseFactor;
+        userLevel = Math.max(1, Math.min(10, Math.floor(totalPoints / 400) + 1));
+        highlights = `${mins} mins recorded • ${doneTopics} topics completed`;
+      } else if (role === 'pr_intern') {
+        department = 'Growth & PR';
+        userTitle = 'PR & Outreach Intern';
+        const starPoints = (u.prStars || 0) * 150;
+        const commPoints = Math.round((u.totalSponsorshipRevenue || 0) / 100);
+        const basePr = period === 'all_time' ? u.prPoints || 0 : period === 'monthly' ? 50 : 20;
+        totalPoints = starPoints + commPoints + basePr;
+        userLevel = u.prTier === 'Premium' ? 4 : u.prTier === 'Gold' ? 3 : 2;
+        highlights = `Tier: ${u.prTier || 'Silver'} • ₹${(u.totalSponsorshipRevenue || 0).toLocaleString()} Sponsorship`;
+      } else if (role === 'admin') {
+        department = 'Leadership';
+        userTitle = 'Academic & Ops Director';
+        totalPoints = period === 'all_time' ? 2900 : period === 'monthly' ? 850 : 300;
+        userLevel = 5;
+        highlights = 'War Room Overseer & Organization Leadership';
+      }
+
+      entriesMap.set(cleanId, {
         userId: u.teacherId,
         userName: u.name,
-        userTitle: u.webDevTitle || lvl.title,
-        userLevel: u.webDevLevel || lvl.level,
+        userTitle,
+        userLevel,
         avatarUrl: u.avatarUrl,
-        totalXp: uXp,
+        role: u.role,
+        department,
+        totalXp: totalPoints,
         tasksCompleted: 0,
         bountiesCompleted: 0,
+        highlights,
+        rank: 0,
       });
     });
 
-    // Sum period XP
+    // Sum period XP for devs from ledger
     relevantTxs.forEach((tx) => {
       const cleanId = (tx.userId || '').toUpperCase();
       if (!cleanId) return;
-      let stat = devStatsMap.get(cleanId);
-      if (!stat) {
-        stat = {
-          userId: tx.userId || cleanId,
-          userName: tx.userName || cleanId,
-          userTitle: 'Developer',
-          userLevel: 1,
-          totalXp: 0,
-          tasksCompleted: 0,
-          bountiesCompleted: 0,
-        };
-        devStatsMap.set(cleanId, stat);
-      }
-      if (period !== 'all_time') {
-        stat.totalXp += tx.amount || 0;
+      const stat = entriesMap.get(cleanId);
+      if (stat && (stat.role === 'web_developer' || stat.role === 'web_dev_manager')) {
+        if (period !== 'all_time') {
+          stat.totalXp += tx.amount || 0;
+        }
       }
     });
 
-    // Count completed tasks and bounties
+    // Count completed tasks and bounties for devs
     allTasks.forEach((t) => {
       if (t.status === 'completed' && t.assigneeId) {
-        const stat = devStatsMap.get(t.assigneeId.toUpperCase());
-        if (stat) stat.tasksCompleted += 1;
+        const stat = entriesMap.get(t.assigneeId.toUpperCase());
+        if (stat) {
+          stat.tasksCompleted = (stat.tasksCompleted || 0) + 1;
+        }
       }
     });
 
     allBounties.forEach((b) => {
       if (b.status === 'completed' && b.claimedById) {
-        const stat = devStatsMap.get(b.claimedById.toUpperCase());
-        if (stat) stat.bountiesCompleted += 1;
+        const stat = entriesMap.get(b.claimedById.toUpperCase());
+        if (stat) {
+          stat.bountiesCompleted = (stat.bountiesCompleted || 0) + 1;
+        }
       }
     });
 
-    const sorted = Array.from(devStatsMap.values())
-      .filter((s) => s.totalXp > 0 || s.tasksCompleted > 0)
-      .sort((a, b) => b.totalXp - a.totalXp);
+    // Populate dev highlights
+    entriesMap.forEach((entry) => {
+      if (entry.role === 'web_developer' || entry.role === 'web_dev_manager') {
+        entry.highlights = `${entry.tasksCompleted || 0} Tasks • ${entry.bountiesCompleted || 0} Bounties Solved`;
+      }
+    });
 
-    return sorted.map((item, index) => ({
-      ...item,
-      rank: index + 1,
-    }));
+    // Filter by department
+    let entries = Array.from(entriesMap.values());
+    if (deptFilter === 'engineering') {
+      entries = entries.filter((e) => e.department === 'Engineering');
+    } else if (deptFilter === 'faculty') {
+      entries = entries.filter((e) => e.department === 'Academic Faculty');
+    } else if (deptFilter === 'pr') {
+      entries = entries.filter((e) => e.department === 'Growth & PR');
+    } else if (deptFilter === 'leadership') {
+      entries = entries.filter((e) => e.department === 'Leadership');
+    }
+
+    // Sort descending by total points/XP
+    entries.sort((a, b) => b.totalXp - a.totalXp);
+
+    // Assign overall rank and departmentRank
+    const deptRankCounters: Record<string, number> = {};
+    return entries.map((item, index) => {
+      const currentDeptRank = (deptRankCounters[item.department] || 0) + 1;
+      deptRankCounters[item.department] = currentDeptRank;
+      return {
+        ...item,
+        rank: index + 1,
+        departmentRank: currentDeptRank,
+      };
+    });
   },
 
   // ─── ACHIEVEMENTS ──────────────────────────────────────────────────────────
@@ -1783,6 +1833,82 @@ export const WebDevService = {
   // ─── REWARDS & CERTIFICATES ────────────────────────────────────────────────
   getRewards(): WebDevReward[] {
     return this._load<WebDevReward>(REWARDS_KEY, SEED_REWARDS);
+  },
+
+  saveReward(
+    rewardData: Partial<WebDevReward> & { title: string; xpThreshold: number },
+    manager: { id: string; name: string }
+  ): WebDevReward {
+    const list = this.getRewards();
+    const now = new Date().toISOString();
+    const existingIndex = rewardData.id ? list.findIndex((r) => r.id === rewardData.id) : -1;
+
+    let savedReward: WebDevReward;
+    if (existingIndex >= 0) {
+      const existing = list[existingIndex];
+      savedReward = {
+        ...existing,
+        ...rewardData,
+        updatedAt: now,
+      };
+      list[existingIndex] = savedReward;
+      this.logAudit({
+        action: 'REWARD_UPDATED',
+        entityType: 'reward',
+        entityId: savedReward.id,
+        performedByUserId: manager.id,
+        performedByUserName: manager.name,
+        details: `Updated award "${savedReward.title}" threshold to ${savedReward.xpThreshold} XP (${savedReward.category || 'certificate'}).`,
+      });
+    } else {
+      savedReward = {
+        id: rewardData.id || `REW-${Date.now().toString().slice(-4)}`,
+        title: rewardData.title,
+        description: rewardData.description || '',
+        type: rewardData.type || 'certificate',
+        category: rewardData.category || 'certificate',
+        xpThreshold: Number(rewardData.xpThreshold) || 500,
+        icon: rewardData.icon || 'Award',
+        iconName: rewardData.iconName || 'Award',
+        isActive: rewardData.isActive !== false,
+        status: 'active',
+        approvalRequired: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      list.push(savedReward);
+      this.logAudit({
+        action: 'REWARD_CREATED',
+        entityType: 'reward',
+        entityId: savedReward.id,
+        performedByUserId: manager.id,
+        performedByUserName: manager.name,
+        details: `Created new award "${savedReward.title}" requiring ${savedReward.xpThreshold} XP.`,
+      });
+    }
+
+    this._save(REWARDS_KEY, list);
+    return savedReward;
+  },
+
+  deleteReward(rewardId: string, manager: { id: string; name: string }): boolean {
+    let list = this.getRewards();
+    const target = list.find((r) => r.id === rewardId);
+    if (!target) return false;
+
+    list = list.filter((r) => r.id !== rewardId);
+    this._save(REWARDS_KEY, list);
+
+    this.logAudit({
+      action: 'REWARD_DELETED',
+      entityType: 'reward',
+      entityId: rewardId,
+      performedByUserId: manager.id,
+      performedByUserName: manager.name,
+      details: `Deleted award "${target.title}" (was ${target.xpThreshold} XP).`,
+    });
+
+    return true;
   },
 
   getRewardFulfillments(filter?: { userId?: string; status?: string }): WebDevRewardFulfillment[] {

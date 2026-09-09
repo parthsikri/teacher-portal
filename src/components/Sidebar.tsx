@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
+import { WebDevService } from '../services/webDevService';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
   Award, CheckCircle2, DollarSign, Star, TrendingUp, Building2, FileText,
-  Code2, Trophy
+  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -225,14 +226,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
     badgeColor?: string;
   }
 
+  // Web Dev counts & badges
+  const wdmPendingReviews = currentUser.role === 'web_dev_manager'
+    ? WebDevService.getTasks({ status: 'review_requested' }).length
+    : 0;
+  const wdmOpenBounties = (currentUser.role === 'web_dev_manager' || currentUser.role === 'web_developer')
+    ? WebDevService.getBounties().filter((b) => b.status === 'open').length
+    : 0;
+  const devActiveTasks = currentUser.role === 'web_developer'
+    ? WebDevService.getTasks({ assigneeId: currentUser.teacherId }).filter((t) => t.status !== 'completed').length
+    : 0;
+
   // Web Dev Manager Navigation Links
   const wdmNavItems: NavItem[] = [
-    { id: 'wdm_dashboard', label: 'Engineering Hub', icon: Code2 },
+    { 
+      id: 'wdm_review', 
+      label: 'Review Desk', 
+      icon: Shield,
+      badge: wdmPendingReviews > 0 ? `${wdmPendingReviews} Pending` : undefined,
+      badgeColor: 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30',
+    },
+    { id: 'wdm_tasks', label: 'All Tasks', icon: ListTodo },
+    { id: 'wdm_projects', label: 'Projects & Roadmap', icon: Briefcase },
+    { 
+      id: 'wdm_bounties', 
+      label: 'Bounties Desk', 
+      icon: Target,
+      badge: wdmOpenBounties > 0 ? `${wdmOpenBounties} Open` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
+    },
+    { id: 'wdm_awards', label: 'Award & XP Thresholds', icon: Gift },
+    { id: 'wdm_team', label: 'Engineering Roster', icon: Users },
+    { id: 'wdm_leaderboard', label: 'Company Leaderboard', icon: Trophy },
+    { id: 'wdm_audit', label: 'Audit Trail', icon: FileText },
   ];
 
   // Web Developer Navigation Links
   const devNavItems: NavItem[] = [
-    { id: 'dev_dashboard', label: 'Developer Workspace', icon: Code2 },
+    { 
+      id: 'dev_tasks', 
+      label: 'My Tasks', 
+      icon: ListTodo,
+      badge: devActiveTasks > 0 ? `${devActiveTasks} Active` : undefined,
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30',
+    },
+    { id: 'dev_projects', label: 'Projects Roadmap', icon: Briefcase },
+    { 
+      id: 'dev_bounties', 
+      label: 'Open Bounties', 
+      icon: Target,
+      badge: wdmOpenBounties > 0 ? `${wdmOpenBounties} New` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
+    },
+    { id: 'dev_leaderboard', label: 'Company Leaderboard', icon: Trophy },
+    { id: 'dev_achievements', label: 'Achievements & Badges', icon: Sparkles },
+    { id: 'dev_rewards', label: 'Awards & Certificates', icon: Award },
+    { id: 'dev_ledger', label: 'XP Ledger', icon: Clock },
+    { id: 'dev_team', label: 'Team & Kudos', icon: Users },
   ];
 
   const navItems: NavItem[] = currentUser.role === 'admin' 
