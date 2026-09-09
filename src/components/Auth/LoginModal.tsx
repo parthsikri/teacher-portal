@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, RefreshCw, Sparkles, GraduationCap, ShieldAlert, Award } from 'lucide-react';
+import { Eye, EyeOff, Lock, User as UserIcon, ShieldCheck, RefreshCw, Sparkles, GraduationCap, ShieldAlert, Award, Code2 } from 'lucide-react';
 
 interface LoginModalProps {
   onLoginSuccess: (user: User) => void;
@@ -23,7 +23,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
       .finally(() => setIsSyncing(false));
   }, []);
 
-  const handleQuickFill = (userType: 'teacher' | 'admin' | 'pr_intern') => {
+  const handleQuickFill = (userType: 'teacher' | 'admin' | 'pr_intern' | 'web_dev_manager' | 'web_developer') => {
     setErrorMsg('');
     if (userType === 'teacher') {
       setIdentifier('teacher_101');
@@ -34,6 +34,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     } else if (userType === 'pr_intern') {
       setIdentifier('pr_intern_1');
       setPassword('intern123');
+    } else if (userType === 'web_dev_manager') {
+      setIdentifier('webdev_manager');
+      setPassword('dev123');
+    } else if (userType === 'web_developer') {
+      setIdentifier('developer_aarav');
+      setPassword('dev123');
     }
   };
 
@@ -116,11 +122,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               <Sparkles className="w-3 h-3 text-amber-400" /> Quick Demo Switcher:
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px]">
             <button
               type="button"
               onClick={() => handleQuickFill('teacher')}
-              className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/50 text-slate-200 font-semibold transition-all flex flex-col items-center gap-0.5 cursor-pointer"
+              className="py-1.5 px-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/50 text-slate-200 font-semibold transition-all flex flex-col items-center gap-0.5 cursor-pointer"
             >
               <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
               <span>Teacher</span>
@@ -128,7 +134,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             <button
               type="button"
               onClick={() => handleQuickFill('admin')}
-              className="py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 hover:border-purple-500/50 text-slate-200 font-semibold transition-all flex flex-col items-center gap-0.5 cursor-pointer"
+              className="py-1.5 px-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 hover:border-purple-500/50 text-slate-200 font-semibold transition-all flex flex-col items-center gap-0.5 cursor-pointer"
             >
               <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
               <span>Admin</span>
@@ -136,10 +142,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             <button
               type="button"
               onClick={() => handleQuickFill('pr_intern')}
-              className="py-1.5 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 text-amber-300 font-bold transition-all flex flex-col items-center gap-0.5 shadow-sm cursor-pointer"
+              className="py-1.5 px-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 text-amber-300 font-bold transition-all flex flex-col items-center gap-0.5 shadow-sm cursor-pointer"
             >
               <Award className="w-3.5 h-3.5 text-amber-400" />
               <span>PR Intern</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('web_dev_manager')}
+              className="py-1.5 px-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 hover:border-indigo-400 text-indigo-300 font-bold transition-all flex flex-col items-center gap-0.5 shadow-sm cursor-pointer"
+            >
+              <Code2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Dev Lead</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickFill('web_developer')}
+              className="py-1.5 px-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-400 text-emerald-300 font-bold transition-all flex flex-col items-center gap-0.5 shadow-sm cursor-pointer"
+            >
+              <Code2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Developer</span>
             </button>
           </div>
         </div>

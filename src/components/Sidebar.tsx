@@ -4,7 +4,8 @@ import { StorageService } from '../services/storage';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
-  Award, CheckCircle2, DollarSign, Star, TrendingUp, Building2, FileText
+  Award, CheckCircle2, DollarSign, Star, TrendingUp, Building2, FileText,
+  Code2, Trophy
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -207,12 +208,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
       badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold',
     },
+    { 
+      id: 'admin_web_dev', 
+      label: 'Web Dev War Room', 
+      icon: Code2,
+      badge: 'All Work',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+    },
   ];
 
-  const navItems = currentUser.role === 'admin' 
+  interface NavItem {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: string;
+    badgeColor?: string;
+  }
+
+  // Web Dev Manager Navigation Links
+  const wdmNavItems: NavItem[] = [
+    { id: 'wdm_dashboard', label: 'Engineering Hub', icon: Code2 },
+  ];
+
+  // Web Developer Navigation Links
+  const devNavItems: NavItem[] = [
+    { id: 'dev_dashboard', label: 'Developer Workspace', icon: Code2 },
+  ];
+
+  const navItems: NavItem[] = currentUser.role === 'admin' 
     ? adminNavItems 
     : currentUser.role === 'pr_intern'
     ? prNavItems
+    : currentUser.role === 'web_dev_manager'
+    ? wdmNavItems
+    : currentUser.role === 'web_developer'
+    ? devNavItems
     : teacherNavItems;
 
   const handleNavClick = (id: string) => {
@@ -326,6 +356,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                   <span className="text-indigo-300 font-bold">
                     🎖️ {currentUser.prPoints || 0} Pts
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(currentUser.role === 'web_developer' || currentUser.role === 'web_dev_manager') && (
+            <div className="space-y-2">
+              <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">Level & Rank:</span>
+                  <span className="font-extrabold text-amber-300 flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                    Level {currentUser.webDevLevel || 1}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300 font-semibold truncate">
+                  {currentUser.webDevTitle || (currentUser.role === 'web_dev_manager' ? 'Engineering Lead' : 'Full Stack Developer')}
+                </div>
+                <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono">
+                  <span className="text-amber-400 font-bold flex items-center gap-1">
+                    +{currentUser.webDevXp || 0} XP
+                  </span>
+                  <span className="text-emerald-400 font-bold">
+                    ✓ Verified
                   </span>
                 </div>
               </div>

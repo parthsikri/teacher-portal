@@ -63,6 +63,60 @@ export const DEFAULT_STATE: any = {
       totalSponsorshipRevenue: 25000,
       totalCommissionEarned: 825,
     },
+    {
+      id: 'u-wdm01',
+      teacherId: 'AEW-WDM-01',
+      username: 'webdev_manager',
+      password: 'dev123',
+      name: 'Vikramaditya Sen',
+      email: 'vikram.sen@aew.com',
+      role: 'web_dev_manager',
+      department: 'Engineering & Product',
+      subject: 'Full Stack & Cloud Architecture',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      webDevTitle: 'Engineering Lead & Product Architect',
+      webDevLevel: 6,
+      webDevXp: 8500,
+      skills: ['System Design', 'React', 'Node.js', 'PostgreSQL', 'Cloud Infrastructure'],
+      githubUsername: 'vikram-sen-aew',
+    },
+    {
+      id: 'u-dev01',
+      teacherId: 'AEW-DEV-01',
+      username: 'developer_aarav',
+      password: 'dev123',
+      name: 'Aarav Sharma',
+      email: 'aarav.dev@aew.com',
+      role: 'web_developer',
+      department: 'Web Engineering',
+      subject: 'Frontend & React Core',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      webDevTitle: 'Full Stack Developer',
+      webDevLevel: 3,
+      webDevXp: 1850,
+      skills: ['React', 'TypeScript', 'TailwindCSS', 'REST APIs', 'UI/UX'],
+      githubUsername: 'aarav-sharma-dev',
+    },
+    {
+      id: 'u-dev02',
+      teacherId: 'AEW-DEV-02',
+      username: 'developer_neha',
+      password: 'dev123',
+      name: 'Neha Verma',
+      email: 'neha.dev@aew.com',
+      role: 'web_developer',
+      department: 'Web Engineering',
+      subject: 'Backend & API Infrastructure',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      webDevTitle: 'Backend & Cloud Engineer',
+      webDevLevel: 2,
+      webDevXp: 680,
+      skills: ['Node.js', 'Express', 'PostgreSQL', 'Redis', 'Docker'],
+      githubUsername: 'neha-verma-cloud',
+    },
   ],
   assignedTopics: [],
   lectures: [],
@@ -221,9 +275,9 @@ function base64UrlDecode(str: string): string {
 
 export interface SessionPayload {
   sub: string;           // User ID
-  teacherId: string;     // Teacher ID or ADMIN-01 or AEW-PR-01
+  teacherId: string;     // Teacher ID or ADMIN-01 or AEW-PR-01 or AEW-DEV-01
   username?: string;
-  role: 'admin' | 'teacher' | 'pr_intern';
+  role: 'admin' | 'teacher' | 'pr_intern' | 'web_dev_manager' | 'web_developer';
   name?: string;
   iat: number;
   exp: number;
@@ -236,7 +290,7 @@ export function createSessionToken(user: { id: string; teacherId: string; userna
     sub: user.id,
     teacherId: user.teacherId,
     username: user.username,
-    role: user.role as 'admin' | 'teacher' | 'pr_intern',
+    role: user.role as 'admin' | 'teacher' | 'pr_intern' | 'web_dev_manager' | 'web_developer',
     name: user.name,
     iat: now,
     exp: now + 14 * 24 * 3600, // 14 days expiration

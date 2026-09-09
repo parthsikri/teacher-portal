@@ -1,4 +1,4 @@
-export type UserRole = 'teacher' | 'admin' | 'pr_intern';
+export type UserRole = 'teacher' | 'admin' | 'pr_intern' | 'web_dev_manager' | 'web_developer';
 
 export type PrTier = 'Silver' | 'Gold' | 'Premium';
 
@@ -27,6 +27,13 @@ export interface User {
   prStars?: number;
   totalSponsorshipRevenue?: number;
   totalCommissionEarned?: number;
+  // Web Development specific fields
+  webDevTitle?: string;
+  webDevLevel?: number;
+  webDevXp?: number;
+  skills?: string[];
+  githubUsername?: string;
+  avatarUrl?: string;
 }
 
 export interface DailyCommitment {
@@ -391,6 +398,435 @@ export interface PrDailyWorklog {
   createdAt: string;
   reviewedByAdmin?: boolean;
 }
+
+// ─── WEB DEVELOPMENT MANAGEMENT & RECOGNITION MODULE ─────────────────────────
+
+export type WebDevProjectStatus = 'planning' | 'active' | 'in_progress' | 'at_risk' | 'paused' | 'completed' | 'archived';
+export type WebDevProjectHealth = 'healthy' | 'at_risk' | 'critical' | 'completed';
+
+export interface WebDevProject {
+  id: string;
+  key?: string;
+  name?: string;
+  title?: string;
+  description: string;
+  repositoryUrl?: string;
+  liveUrl?: string;
+  liveDeploymentUrl?: string;
+  techStack: string[];
+  status: WebDevProjectStatus | string;
+  health?: WebDevProjectHealth;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  managerId: string;
+  managerName: string;
+  leadDeveloperId?: string;
+  leadDeveloperName?: string;
+  developerIds?: string[];
+  progressPercentage?: number;
+  progress?: number; // 0 - 100%
+  startDate: string;
+  targetDate?: string;
+  deadline?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WebDevMilestoneStatus = 'pending' | 'in_progress' | 'completed';
+
+export interface WebDevMilestone {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  targetDate?: string;
+  deadline?: string;
+  order?: number;
+  orderIndex?: number;
+  status: WebDevMilestoneStatus | string;
+  progress?: number;
+  progressPercentage?: number;
+  createdAt: string;
+}
+
+export type WebDevTaskType = 
+  | 'development'
+  | 'feature'
+  | 'bugfix'
+  | 'bug_fix'
+  | 'ui_ux'
+  | 'optimization'
+  | 'maintenance'
+  | 'refactoring'
+  | 'refactor'
+  | 'performance'
+  | 'devops'
+  | 'testing'
+  | 'documentation'
+  | 'critical_production_issue';
+
+export type WebDevTaskPriority = 'low' | 'medium' | 'high' | 'critical';
+
+export type WebDevTaskStatus = 
+  | 'todo'
+  | 'not_started'
+  | 'in_progress'
+  | 'submitted'
+  | 'under_review'
+  | 'review_requested'
+  | 'changes_requested'
+  | 'completed'
+  | 'blocked'
+  | 'approved';
+
+export type WebDevDeadlineCategory = 'on_track' | 'due_soon' | 'at_risk' | 'overdue';
+
+export type WebDevBlockerReason = 
+  | 'waiting_for_design'
+  | 'waiting_for_api'
+  | 'waiting_for_approval'
+  | 'technical_issue'
+  | 'external_dependency'
+  | 'other'
+  | string;
+
+export interface WebDevSubtask {
+  id: string;
+  taskId: string;
+  title: string;
+  completed?: boolean;
+  isCompleted?: boolean;
+  completedAt?: string;
+  completedBy?: string;
+}
+
+export interface WebDevSubmission {
+  id: string;
+  taskId: string;
+  developerId: string;
+  developerName: string;
+  summary?: string;
+  notes?: string;
+  githubPrUrl?: string;
+  pullRequestUrl?: string;
+  liveUrl?: string;
+  liveDeploymentUrl?: string;
+  repositoryUrl?: string;
+  screenshots?: string[];
+  submittedAt: string;
+  status?: 'pending' | 'approved' | 'changes_requested' | 'rejected' | string;
+  reviewStatus?: 'pending' | 'approved' | 'changes_requested' | 'rejected' | string;
+  managerFeedback?: string;
+  reviewNotes?: string;
+  bonusXpAwarded?: number;
+  reviewedBy?: string;
+  reviewedByManagerId?: string;
+  reviewedByManagerName?: string;
+  reviewedAt?: string;
+  reviewCycle?: number;
+}
+
+export interface WebDevTask {
+  id: string;
+  title: string;
+  description: string;
+  projectId: string;
+  projectName?: string;
+  milestoneId?: string;
+  milestoneTitle?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  assignedDeveloperId?: string;
+  assignedDeveloperName?: string;
+  assignedDeveloperAvatar?: string;
+  reviewerId?: string;
+  reviewerName?: string;
+  createdByManagerId?: string;
+  createdByManagerName?: string;
+  type?: WebDevTaskType | string;
+  taskType?: WebDevTaskType | string;
+  priority: WebDevTaskPriority;
+  status: WebDevTaskStatus | string;
+  progress?: number;
+  estimatedHours?: number;
+  actualHours?: number;
+  estimatedEffort?: string;
+  xpReward?: number;
+  points?: number;
+  bountyPoints?: number;
+  isBlocked: boolean;
+  blockerReason?: WebDevBlockerReason;
+  blockerNote?: string;
+  tags?: string[];
+  subtasks?: WebDevSubtask[];
+  githubBranch?: string;
+  githubPrUrl?: string;
+  liveDemoUrl?: string;
+  dueDate?: string;
+  deadline?: string;
+  completedAt?: string;
+  submission?: WebDevSubmission;
+  currentSubmission?: WebDevSubmission;
+  comments?: WebDevComment[];
+  attachments?: { name: string; url: string; size?: string }[];
+  links?: { title: string; url: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebDevComment {
+  id: string;
+  taskId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: UserRole;
+  authorAvatar?: string;
+  content: string;
+  createdAt: string;
+}
+
+export type WebDevBountyType = 'assigned' | 'open';
+export type WebDevBountyStatus = 'open' | 'assigned' | 'claimed' | 'submitted' | 'under_review' | 'approved' | 'completed' | 'cancelled';
+
+export interface WebDevBounty {
+  id: string;
+  title: string;
+  description: string;
+  type?: WebDevBountyType;
+  projectId?: string;
+  projectName?: string;
+  assignedDeveloperId?: string;
+  assignedDeveloperName?: string;
+  xpReward?: number;
+  rewardXp?: number;
+  difficulty?: 'easy' | 'medium' | 'hard' | string;
+  status: WebDevBountyStatus | string;
+  category?: 'feature' | 'bugfix' | 'optimization' | 'security' | 'testing' | string;
+  claimedById?: string;
+  claimedByName?: string;
+  claimedByDeveloperId?: string;
+  claimedByDeveloperName?: string;
+  claimedAt?: string;
+  submissionUrl?: string;
+  submittedAt?: string;
+  submission?: WebDevSubmission;
+  reviewedById?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  feedback?: string;
+  expiresAt?: string;
+  deadline?: string;
+  requirements?: string[];
+  eligibilityLevel?: number;
+  createdByManagerName?: string;
+  createdAt: string;
+}
+
+export type WebDevXPSource = 
+  | 'task_approved'
+  | 'bounty_approved'
+  | 'achievement_unlocked'
+  | 'manager_bonus'
+  | 'kudos_received'
+  | 'team_challenge'
+  | 'challenge_completed'
+  | 'admin_adjustment'
+  | string;
+
+export interface WebDevXPTransaction {
+  id: string;
+  userId?: string;
+  userName?: string;
+  developerId?: string;
+  developerName?: string;
+  amount?: number;
+  points?: number;
+  type?: WebDevXPSource;
+  source?: WebDevXPSource;
+  sourceId?: string;
+  referenceId?: string;
+  referenceTitle?: string;
+  description?: string;
+  reason?: string;
+  awardedById?: string;
+  awardedByName?: string;
+  awardedBy?: string;
+  createdAt?: string;
+  timestamp?: string;
+}
+
+export interface WebDevAchievement {
+  id: string;
+  key?: string;
+  code?: string;
+  title?: string;
+  name?: string;
+  description: string;
+  icon: string;
+  badgeColor: string;
+  xpBonus?: number;
+  rewardXpBonus?: number;
+  criteriaDescription?: string;
+  criteriaType?: 'tasks_count' | 'speed_ahead_of_deadline' | 'consecutive_days' | 'bugs_fixed' | 'bounties_won' | 'perfect_week' | 'top_rank' | string;
+  criteriaThreshold?: number;
+  isCustom?: boolean;
+}
+
+export interface WebDevUserAchievement {
+  id: string;
+  userId?: string;
+  developerId?: string;
+  achievementId: string;
+  achievementName?: string;
+  achievementCode?: string;
+  unlockedAt: string;
+  progress?: number;
+  isCompleted?: boolean;
+}
+
+export type WebDevRewardType = 
+  | 'certificate'
+  | 'digital_badge'
+  | 'linkedin_mention'
+  | 'linkedin_shoutout'
+  | 'merchandise'
+  | 'mentorship'
+  | 'developer_of_month'
+  | 'developer_of_quarter'
+  | 'special_recognition'
+  | 'internal_award'
+  | 'team_recognition'
+  | string;
+
+export type WebDevFulfillmentStatus = 
+  | 'locked'
+  | 'eligible'
+  | 'pending'
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
+  | 'fulfillment_pending'
+  | 'fulfilled'
+  | string;
+
+export interface WebDevReward {
+  id: string;
+  title: string;
+  description: string;
+  type?: WebDevRewardType;
+  rewardType?: WebDevRewardType;
+  xpThreshold: number;
+  icon?: string;
+  badgeIcon?: string;
+  certificateTemplateId?: string;
+  approvalRequired?: boolean;
+  isActive?: boolean;
+  status?: 'active' | 'inactive' | string;
+  createdAt?: string;
+}
+
+export interface WebDevRewardFulfillment {
+  id: string;
+  rewardId: string;
+  rewardTitle?: string;
+  rewardType?: WebDevRewardType;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  userTitle?: string;
+  developerId?: string;
+  developerName?: string;
+  developerEmail?: string;
+  xpAtUnlock?: number;
+  status: WebDevFulfillmentStatus;
+  requestedAt?: string;
+  unlockedAt?: string;
+  fulfilledAt?: string;
+  fulfilledBy?: string;
+  approvedByManagerId?: string;
+  approvedByManagerName?: string;
+  approvedAt?: string;
+  certificateId?: string;
+  verificationCode?: string;
+  issueDate?: string;
+  publicUrl?: string;
+  linkedInPostUrl?: string;
+  fulfillmentNotes?: string;
+}
+
+export interface WebDevTeamChallenge {
+  id: string;
+  title: string;
+  description: string;
+  goalXp?: number;
+  currentXp?: number;
+  targetCount?: number;
+  currentCount?: number;
+  bonusXp?: number;
+  startDate: string;
+  endDate: string;
+  status: 'active' | 'completed' | 'expired';
+  rewardDescription?: string;
+  contributors?: { developerId: string; developerName: string; count: number }[];
+}
+
+export interface WebDevKudos {
+  id: string;
+  fromUserId?: string;
+  fromUserName?: string;
+  toUserId?: string;
+  toUserName?: string;
+  developerId?: string;
+  developerName?: string;
+  fromManagerId?: string;
+  fromManagerName?: string;
+  message: string;
+  xpAmount?: number;
+  badge?: string;
+  createdAt: string;
+}
+
+export interface WebDevAuditLog {
+  id: string;
+  action: string;
+  details: string;
+  actorId?: string;
+  actorName?: string;
+  actorRole?: UserRole;
+  performedByUserId?: string;
+  performedByUserName?: string;
+  entityType: 'task' | 'project' | 'bounty' | 'reward' | 'user' | 'xp' | string;
+  entityId?: string;
+  timestamp: string;
+}
+
+export interface WebDevNotification {
+  id: string;
+  userId?: string;
+  recipientId?: string;
+  title: string;
+  message: string;
+  type: 
+    | 'task_assigned'
+    | 'task_submitted'
+    | 'task_approved'
+    | 'changes_requested'
+    | 'bounty_available'
+    | 'xp_awarded'
+    | 'reward_unlocked'
+    | 'achievement_unlocked'
+    | 'blocker_alert'
+    | 'info'
+    | 'success'
+    | 'warning'
+    | 'error'
+    | string;
+  read?: boolean;
+  isRead?: boolean;
+  link?: string;
+  actionUrl?: string;
+  createdAt: string;
+}
+
 
 
 

@@ -115,6 +115,56 @@ const INITIAL_USERS: User[] = [
     totalSponsorshipRevenue: 25000,
     totalCommissionEarned: 825,
   },
+  {
+    id: 'u-wdm01',
+    teacherId: 'AEW-WDM-01',
+    username: 'webdev_manager',
+    name: 'Vikramaditya Sen',
+    email: 'vikram.tech@aew.com',
+    role: 'web_dev_manager',
+    department: 'Engineering & Product',
+    subject: 'Web Development & Architecture',
+    dailyTargetMinutes: 0,
+    dailyLimit: 0,
+    webDevTitle: 'Engineering Lead & Architect',
+    webDevLevel: 4,
+    webDevXp: 3200,
+    skills: ['System Architecture', 'React', 'Node.js', 'PostgreSQL', 'Cloud Infrastructure'],
+  },
+  {
+    id: 'u-dev01',
+    teacherId: 'AEW-DEV-01',
+    username: 'developer_aarav',
+    name: 'Aarav Sharma',
+    email: 'aarav.dev@aew.com',
+    role: 'web_developer',
+    department: 'Web Development',
+    subject: 'Full Stack Web Development',
+    dailyTargetMinutes: 0,
+    dailyLimit: 0,
+    webDevTitle: 'Full Stack Developer',
+    webDevLevel: 3,
+    webDevXp: 1850,
+    skills: ['React', 'Next.js', 'TypeScript', 'PostgreSQL', 'Tailwind CSS'],
+    githubUsername: 'aarav-sharma-dev',
+  },
+  {
+    id: 'u-dev02',
+    teacherId: 'AEW-DEV-02',
+    username: 'developer_neha',
+    name: 'Neha Verma',
+    email: 'neha.dev@aew.com',
+    role: 'web_developer',
+    department: 'Web Development',
+    subject: 'Backend & Cloud Infrastructure',
+    dailyTargetMinutes: 0,
+    dailyLimit: 0,
+    webDevTitle: 'Backend Developer',
+    webDevLevel: 2,
+    webDevXp: 680,
+    skills: ['Node.js', 'Express', 'PostgreSQL', 'Docker', 'Redis'],
+    githubUsername: 'neha-verma-tech',
+  },
 ];
 
 let syncDebounceTimer: any = null;
@@ -157,19 +207,19 @@ export const StorageService = {
                 username: (u.username || existing.username || cleanId.toLowerCase()).trim().toLowerCase().replace(/\s+/g, '_'),
                 password: (u.password || existing.password || '').trim() || undefined,
                 name: (u.name || existing.name || cleanId).trim(),
-                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : cleanId.startsWith('AEW-PR') ? 'pr_intern' : 'teacher'),
+                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : cleanId.startsWith('AEW-PR') ? 'pr_intern' : cleanId.startsWith('AEW-WDM') ? 'web_dev_manager' : cleanId.startsWith('AEW-DEV') ? 'web_developer' : 'teacher'),
                 email: (u.email && !String(u.email).endsWith('@aew.com')
                   ? u.email
                   : (existing.email && !String(existing.email).endsWith('@aew.com')
                     ? existing.email
                     : (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`))).trim(),
-                department: u.department || existing.department || (cleanId.startsWith('AEW-PR') ? 'Public Relations & Sponsorship' : 'Engineering'),
-                subject: u.subject || existing.subject || (cleanId.startsWith('AEW-PR') ? 'College Sponsorship & Outreach' : 'Engineering'),
-                dailyTargetMinutes: u.dailyTargetMinutes !== undefined ? u.dailyTargetMinutes : (existing.dailyTargetMinutes || (cleanId.startsWith('AEW-PR') ? 0 : 120)),
+                department: u.department || existing.department || (cleanId.startsWith('AEW-PR') ? 'Public Relations & Sponsorship' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
+                subject: u.subject || existing.subject || (cleanId.startsWith('AEW-PR') ? 'College Sponsorship & Outreach' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
+                dailyTargetMinutes: u.dailyTargetMinutes !== undefined ? u.dailyTargetMinutes : (existing.dailyTargetMinutes || 0),
                 dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
                 hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
-                dailyLimit: u.dailyLimit !== undefined ? u.dailyLimit : (existing.dailyLimit || (cleanId.startsWith('AEW-PR') ? 0 : 4)),
-                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') || cleanId.startsWith('AEW-PR') ? undefined : '2026-08-25'),
+                dailyLimit: u.dailyLimit !== undefined ? u.dailyLimit : (existing.dailyLimit || 0),
+                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') || cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-WDM') || cleanId.startsWith('AEW-DEV') ? undefined : '2026-08-25'),
                 firstLoginDate: u.firstLoginDate || existing.firstLoginDate,
                 createdAt: u.createdAt || existing.createdAt || new Date().toISOString(),
                 prTier: u.prTier || existing.prTier || (cleanId.startsWith('AEW-PR') ? 'Silver' : undefined),
@@ -177,6 +227,12 @@ export const StorageService = {
                 prStars: u.prStars !== undefined ? u.prStars : (existing.prStars !== undefined ? existing.prStars : (cleanId.startsWith('AEW-PR') ? 0 : undefined)),
                 totalSponsorshipRevenue: u.totalSponsorshipRevenue !== undefined ? u.totalSponsorshipRevenue : (existing.totalSponsorshipRevenue || 0),
                 totalCommissionEarned: u.totalCommissionEarned !== undefined ? u.totalCommissionEarned : (existing.totalCommissionEarned || 0),
+                webDevTitle: u.webDevTitle || existing.webDevTitle,
+                webDevLevel: u.webDevLevel !== undefined ? u.webDevLevel : existing.webDevLevel,
+                webDevXp: u.webDevXp !== undefined ? u.webDevXp : existing.webDevXp,
+                skills: u.skills || existing.skills,
+                githubUsername: u.githubUsername || existing.githubUsername,
+                avatarUrl: u.avatarUrl || existing.avatarUrl,
               });
             }
           });
@@ -3401,11 +3457,44 @@ export const StorageService = {
       prColleges: this.getPrColleges(),
       emailConfig: this.getEmailConfig(),
       emailLogs: this.getEmailLogs(),
+      webDevProjects: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_projects_v1') || '[]') : [],
+      webDevMilestones: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_milestones_v1') || '[]') : [],
+      webDevTasks: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_tasks_v1') || '[]') : [],
+      webDevBounties: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_bounties_v1') || '[]') : [],
+      webDevXpLedger: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_xp_ledger_v1') || '[]') : [],
+      webDevFulfillments: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_fulfillments_v1') || '[]') : [],
+      webDevKudos: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_kudos_v1') || '[]') : [],
+      webDevAuditLogs: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_audit_logs_v1') || '[]') : [],
     };
   },
 
   importMasterState(state: any): void {
     if (!state || typeof state !== 'object') return;
+
+    if (Array.isArray(state.webDevProjects) && state.webDevProjects.length > 0) {
+      localStorage.setItem('aew_webdev_projects_v1', JSON.stringify(state.webDevProjects));
+    }
+    if (Array.isArray(state.webDevMilestones) && state.webDevMilestones.length > 0) {
+      localStorage.setItem('aew_webdev_milestones_v1', JSON.stringify(state.webDevMilestones));
+    }
+    if (Array.isArray(state.webDevTasks) && state.webDevTasks.length > 0) {
+      localStorage.setItem('aew_webdev_tasks_v1', JSON.stringify(state.webDevTasks));
+    }
+    if (Array.isArray(state.webDevBounties) && state.webDevBounties.length > 0) {
+      localStorage.setItem('aew_webdev_bounties_v1', JSON.stringify(state.webDevBounties));
+    }
+    if (Array.isArray(state.webDevXpLedger) && state.webDevXpLedger.length > 0) {
+      localStorage.setItem('aew_webdev_xp_ledger_v1', JSON.stringify(state.webDevXpLedger));
+    }
+    if (Array.isArray(state.webDevFulfillments) && state.webDevFulfillments.length > 0) {
+      localStorage.setItem('aew_webdev_fulfillments_v1', JSON.stringify(state.webDevFulfillments));
+    }
+    if (Array.isArray(state.webDevKudos) && state.webDevKudos.length > 0) {
+      localStorage.setItem('aew_webdev_kudos_v1', JSON.stringify(state.webDevKudos));
+    }
+    if (Array.isArray(state.webDevAuditLogs) && state.webDevAuditLogs.length > 0) {
+      localStorage.setItem('aew_webdev_audit_logs_v1', JSON.stringify(state.webDevAuditLogs));
+    }
 
     const deletedIds = new Set<string>([
       ...this.getDeletedIds(),

@@ -6,6 +6,8 @@ import { LoginModal } from './components/Auth/LoginModal';
 import { TeacherView } from './components/Teacher/TeacherView';
 import { AdminView } from './components/Admin/AdminView';
 import { PrInternView } from './components/PrIntern/PrInternView';
+import { WebDeveloperView } from './components/WebDev/Developer/WebDeveloperView';
+import { WebDevManagerView } from './components/WebDev/Manager/WebDevManagerView';
 import { UploadLectureModal } from './components/Teacher/UploadLectureModal';
 import { DailyCommitmentModal } from './components/Teacher/DailyCommitmentModal';
 
@@ -16,6 +18,8 @@ const getDefaultPageForUser = (user: User | null): string => {
   if (!user) return 'dashboard';
   if (user.role === 'admin') return 'admin_dashboard';
   if (user.role === 'pr_intern') return 'pr_dashboard';
+  if (user.role === 'web_dev_manager') return 'wdm_dashboard';
+  if (user.role === 'web_developer') return 'dev_dashboard';
   return 'dashboard';
 };
 
@@ -193,6 +197,7 @@ export const App: React.FC = () => {
                   onPageChange={handlePageChange}
                   onRefreshData={handleRefreshData}
                   refreshTrigger={refreshKey}
+                  currentUser={currentUser}
                 />
               ) : currentUser.role === 'pr_intern' ? (
                 <PrInternView
@@ -200,6 +205,15 @@ export const App: React.FC = () => {
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
                   refreshTrigger={refreshKey}
+                />
+              ) : currentUser.role === 'web_dev_manager' ? (
+                <WebDevManagerView
+                  currentUser={currentUser}
+                />
+              ) : currentUser.role === 'web_developer' ? (
+                <WebDeveloperView
+                  currentUser={currentUser}
+                  onRefreshUser={handleRefreshData}
                 />
               ) : (
                 <TeacherView

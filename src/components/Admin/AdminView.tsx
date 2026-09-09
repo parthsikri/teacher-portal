@@ -6,6 +6,7 @@ import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { EmailSettingsModal } from '../Common/EmailSettingsModal';
 import { DailyBacklogLogsView } from '../Teacher/DailyBacklogLogsView';
 import { PrManagementSection } from './PrManagementSection';
+import { AdminWebDevSection } from '../WebDev/Admin/AdminWebDevSection';
 import { 
   Calendar, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
@@ -21,6 +22,7 @@ interface AdminViewProps {
   onPageChange: (page: string) => void;
   onRefreshData?: () => void;
   refreshTrigger?: number;
+  currentUser?: User;
 }
 
 const getNextTeacherId = (currentTeachers: User[]): string => {
@@ -39,8 +41,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
   currentPage, 
   onPageChange, 
   onRefreshData,
-  refreshTrigger
+  refreshTrigger,
+  currentUser
 }) => {
+  const activeAdminUser = currentUser || StorageService.getCurrentUser() || ({
+    id: 'u-admin',
+    teacherId: 'ADMIN-01',
+    username: 'admin',
+    name: 'Academic Operations Admin',
+    role: 'admin',
+  } as User);
   const [teachers, setTeachers] = useState<User[]>(StorageService.getTeachers());
   const [lectures, setLectures] = useState<Lecture[]>(StorageService.getLectures());
   const [assignedTopics, setAssignedTopics] = useState<AssignedTopic[]>(StorageService.getAssignedTopics());
@@ -2944,6 +2954,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <PrManagementSection
           onRefreshData={onRefreshData}
           refreshTrigger={refreshTrigger}
+        />
+      )}
+
+      {/* PAGE: 💻 WEB DEVELOPMENT MANAGEMENT & ALL-WORK MASTER */}
+      {currentPage === 'admin_web_dev' && (
+        <AdminWebDevSection
+          currentUser={activeAdminUser}
         />
       )}
 
