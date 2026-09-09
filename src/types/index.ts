@@ -427,6 +427,7 @@ export interface WebDevProject {
   startDate: string;
   targetDate?: string;
   deadline?: string;
+  milestones?: WebDevMilestone[];
   createdAt: string;
   updatedAt: string;
 }
@@ -437,7 +438,7 @@ export interface WebDevMilestone {
   id: string;
   projectId: string;
   title: string;
-  description: string;
+  description?: string;
   targetDate?: string;
   deadline?: string;
   order?: number;

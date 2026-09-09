@@ -25,6 +25,9 @@ import {
   Building2,
   GraduationCap,
   Code2,
+  UserPlus,
+  UserMinus,
+  Calendar,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type {
@@ -112,6 +115,14 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newTaskDue, setNewTaskDue] = useState('');
   const [newTaskTags, setNewTaskTags] = useState('Frontend, React');
 
+  // Manual Subtasks for Task Creation Modal
+  const [newTaskSubtasks, setNewTaskSubtasks] = useState<string[]>([
+    'Initial technical research & setup',
+    'Core code implementation & unit tests',
+    'Verify PR diff & demo link',
+  ]);
+  const [newSubtaskInput, setNewSubtaskInput] = useState('');
+
   // Create Bounty Modal State
   const [showCreateBountyModal, setShowCreateBountyModal] = useState(false);
   const [newBountyTitle, setNewBountyTitle] = useState('');
@@ -120,7 +131,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newBountyDiff, setNewBountyDiff] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [newBountyCat, setNewBountyCat] = useState<'feature' | 'bugfix' | 'optimization' | 'security' | 'testing'>('optimization');
 
-  // Create Project Modal State
+  // Create Project Modal State with Milestones
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [newProjKey, setNewProjKey] = useState('');
   const [newProjTitle, setNewProjTitle] = useState('');
@@ -129,6 +140,26 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newProjTech, setNewProjTech] = useState('Next.js, TypeScript, PostgreSQL');
   const [newProjLead, setNewProjLead] = useState('AEW-DEV-01');
   const [newProjTarget, setNewProjTarget] = useState('2026-11-15');
+
+  // Milestones for Project Creation Modal
+  const [newProjMilestones, setNewProjMilestones] = useState<
+    Array<{ id: string; title: string; deadline: string; description?: string }>
+  >([
+    { id: 'm-1', title: 'Architecture & Schema Review', deadline: '2026-10-15', description: 'DB schemas & API contracts finalized' },
+    { id: 'm-2', title: 'Core MVP Feature Release', deadline: '2026-11-01', description: 'Functional release on staging' },
+  ]);
+  const [newMilestoneTitle, setNewMilestoneTitle] = useState('');
+  const [newMilestoneDeadline, setNewMilestoneDeadline] = useState('');
+  const [newMilestoneDesc, setNewMilestoneDesc] = useState('');
+
+  // Add Developer Modal State
+  const [showAddDevModal, setShowAddDevModal] = useState(false);
+  const [newDevName, setNewDevName] = useState('');
+  const [newDevEmail, setNewDevEmail] = useState('');
+  const [newDevUsername, setNewDevUsername] = useState('');
+  const [newDevPassword, setNewDevPassword] = useState('code123');
+  const [newDevTitle, setNewDevTitle] = useState('Frontend Developer');
+  const [newDevSkills, setNewDevSkills] = useState('React, TypeScript, CSS');
 
   // Leaderboard State
   const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'monthly' | 'all_time'>('all_time');
@@ -243,9 +274,17 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const taskId = newTaskId.trim() || `DEV-TASK-${Date.now().toString().slice(-4)}`;
+    const subtasksList = newTaskSubtasks.map((st, idx) => ({
+      id: `sub-${Date.now()}-${idx + 1}`,
+      taskId: taskId,
+      title: st,
+      completed: false,
+    }));
+
     WebDevService.saveTask(
       {
-        id: newTaskId.trim() || `TASK-${Date.now().toString().slice(-4)}`,
+        id: taskId,
         projectId: newTaskProject,
         title: newTaskTitle.trim(),
         description: newTaskDesc.trim(),
@@ -259,11 +298,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
         reviewerName: currentUser.name,
         dueDate: newTaskDue || undefined,
         tags: tagsArr,
-        subtasks: [
-          { id: `sub-${Date.now()}-1`, taskId: '', title: 'Initial technical research & setup', completed: false },
-          { id: `sub-${Date.now()}-2`, taskId: '', title: 'Core code implementation & unit tests', completed: false },
-          { id: `sub-${Date.now()}-3`, taskId: '', title: 'Verify PR diff & demo link', completed: false },
-        ],
+        subtasks: subtasksList,
         isBlocked: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -275,6 +310,12 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     setNewTaskTitle('');
     setNewTaskDesc('');
     setNewTaskId('');
+    setNewTaskSubtasks([
+      'Initial technical research & setup',
+      'Core code implementation & unit tests',
+      'Verify PR diff & demo link',
+    ]);
+    setNewSubtaskInput('');
     loadData();
   };
 
@@ -310,10 +351,25 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
 
     const leadDev = developers.find((d) => d.teacherId === newProjLead);
     const techArr = newProjTech.split(',').map((s) => s.trim()).filter(Boolean);
+    const projId = `PROJ-${Date.now().toString().slice(-4)}`;
+
+    const milestonesToSave = newProjMilestones.map((m, idx) => ({
+      id: m.id || `ms-${Date.now()}-${idx + 1}`,
+      projectId: projId,
+      title: m.title,
+      description: m.description,
+      deadline: m.deadline,
+      targetDate: m.deadline,
+      status: 'pending' as const,
+      order: idx + 1,
+      orderIndex: idx + 1,
+      progressPercentage: 0,
+      createdAt: new Date().toISOString(),
+    }));
 
     WebDevService.saveProject(
       {
-        id: `PROJ-${Date.now().toString().slice(-4)}`,
+        id: projId,
         key: newProjKey.trim().toUpperCase() || 'PROJ',
         title: newProjTitle.trim(),
         description: newProjDesc.trim(),
@@ -328,6 +384,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
         progressPercentage: 10,
         startDate: new Date().toISOString().split('T')[0],
         targetDate: newProjTarget || '2026-12-01',
+        milestones: milestonesToSave,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -338,7 +395,85 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     setNewProjKey('');
     setNewProjTitle('');
     setNewProjDesc('');
+    setNewProjMilestones([
+      { id: 'm-1', title: 'Architecture & Schema Review', deadline: '2026-10-15', description: 'DB schemas & API contracts finalized' },
+      { id: 'm-2', title: 'Core MVP Feature Release', deadline: '2026-11-01', description: 'Functional release on staging' },
+    ]);
+    setNewMilestoneTitle('');
+    setNewMilestoneDeadline('');
+    setNewMilestoneDesc('');
     loadData();
+  };
+
+  // Handle Add Developer to Team
+  const handleAddDeveloperSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDevName.trim() || !newDevUsername.trim() || !newDevEmail.trim()) {
+      alert('Please fill in Developer Name, Email, and Username.');
+      return;
+    }
+
+    const skillsArr = newDevSkills
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    try {
+      WebDevService.addDeveloperToTeam(
+        {
+          name: newDevName.trim(),
+          email: newDevEmail.trim(),
+          username: newDevUsername.trim(),
+          password: newDevPassword.trim() || 'code123',
+          webDevTitle: newDevTitle.trim() || 'Frontend Developer',
+          skills: skillsArr,
+        },
+        { id: currentUser.teacherId, name: currentUser.name }
+      );
+
+      try {
+        confetti({ particleCount: 60, spread: 70 });
+      } catch {
+        // ignore
+      }
+
+      setShowAddDevModal(false);
+      setNewDevName('');
+      setNewDevEmail('');
+      setNewDevUsername('');
+      setNewDevPassword('code123');
+      setNewDevTitle('Frontend Developer');
+      setNewDevSkills('React, TypeScript, CSS');
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to add developer.');
+    }
+  };
+
+  // Handle Remove Developer from Team
+  const handleRemoveDeveloper = (devId: string, devName: string) => {
+    if (devId === currentUser.teacherId) {
+      alert('You cannot remove yourself from the engineering squad.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to remove ${devName} (${devId}) from the engineering squad?\n\nTheir active tasks will be unassigned to maintain delivery continuity.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = WebDevService.removeDeveloperFromTeam(devId, {
+        id: currentUser.teacherId,
+        name: currentUser.name,
+      });
+      if (res.success) {
+        loadData();
+      } else {
+        alert(res.error || 'Failed to remove developer.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove developer.');
+    }
   };
 
   // Handle Fulfill Reward
@@ -1158,6 +1293,26 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
         {/* ─── TAB 6: ENGINEERING TEAM ─────────────────────────────────────── */}
         {activeTab === 'team' && (
           <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-400" />
+                  Engineering Squad ({developers.length})
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Manage team capacity, developer specializations, and squad membership
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddDevModal(true)}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-purple-950 self-start sm:self-auto"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Developer to Squad
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {developers.map((dev) => {
                 const devTasks = tasks.filter((t) => t.assigneeId === dev.teacherId);
@@ -1165,47 +1320,71 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 const devBlocked = devTasks.filter((t) => t.isBlocked);
                 const devXp = WebDevService.getUserTotalXP(dev.teacherId);
                 const lvl = calculateLevelFromXp(devXp);
+                const isSelf = dev.teacherId === currentUser.teacherId;
 
                 return (
-                  <div key={dev.teacherId} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 p-0.5 shadow-md">
-                        <div className="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center font-black text-amber-300">
-                          {dev.name.charAt(0)}
+                  <div key={dev.teacherId} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 relative flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 p-0.5 shadow-md shrink-0">
+                            <div className="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center font-black text-amber-300 text-base">
+                              {dev.name.charAt(0)}
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                              {dev.name}
+                              {isSelf && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 text-[10px] font-semibold">
+                                  You
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-xs text-slate-400">{dev.webDevTitle || lvl.title}</p>
+                            <p className="text-[11px] text-slate-500 font-mono mt-0.5">{dev.teacherId}</p>
+                          </div>
+                        </div>
+
+                        {!isSelf && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDeveloper(dev.teacherId, dev.name)}
+                            className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title={`Remove ${dev.name} from Squad`}
+                          >
+                            <UserMinus className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800 text-center text-xs">
+                        <div>
+                          <div className="text-[10px] text-slate-500 uppercase">XP</div>
+                          <div className="font-bold text-amber-400 mt-0.5">{devXp}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 uppercase">Active</div>
+                          <div className="font-bold text-slate-200 mt-0.5">{devActiveTasks.length}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 uppercase">Blocked</div>
+                          <div className={`font-bold mt-0.5 ${devBlocked.length > 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                            {devBlocked.length}
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-white text-base">{dev.name}</h4>
-                        <p className="text-xs text-slate-400">{dev.webDevTitle || lvl.title}</p>
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-3 gap-2 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800 text-center text-xs">
-                      <div>
-                        <div className="text-[10px] text-slate-500 uppercase">XP</div>
-                        <div className="font-bold text-amber-400 mt-0.5">{devXp}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-500 uppercase">Active</div>
-                        <div className="font-bold text-slate-200 mt-0.5">{devActiveTasks.length}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-500 uppercase">Blocked</div>
-                        <div className={`font-bold mt-0.5 ${devBlocked.length > 0 ? 'text-red-400' : 'text-slate-400'}`}>
-                          {devBlocked.length}
+                      {dev.skills && dev.skills.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {dev.skills.map((s) => (
+                            <span key={s} className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400">
+                              {s}
+                            </span>
+                          ))}
                         </div>
-                      </div>
+                      )}
                     </div>
-
-                    {dev.skills && (
-                      <div className="flex flex-wrap gap-1">
-                        {dev.skills.map((s) => (
-                          <span key={s} className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -1683,6 +1862,77 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 </div>
               </div>
 
+              {/* Manual Subtasks Checklist Builder */}
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <CheckSquare className="w-3.5 h-3.5 text-amber-400" />
+                    Subtasks Checklist ({newTaskSubtasks.length})
+                  </label>
+                  <span className="text-[10px] text-slate-400">Custom breakdown of requirements</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newSubtaskInput}
+                    onChange={(e) => setNewSubtaskInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newSubtaskInput.trim()) {
+                          setNewTaskSubtasks([...newTaskSubtasks, newSubtaskInput.trim()]);
+                          setNewSubtaskInput('');
+                        }
+                      }
+                    }}
+                    placeholder="Type subtask and press Add or Enter..."
+                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 placeholder:text-slate-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newSubtaskInput.trim()) {
+                        setNewTaskSubtasks([...newTaskSubtasks, newSubtaskInput.trim()]);
+                        setNewSubtaskInput('');
+                      }
+                    }}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-semibold text-xs rounded-xl border border-slate-700 hover:border-amber-500/50 flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add
+                  </button>
+                </div>
+
+                {newTaskSubtasks.length > 0 && (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {newTaskSubtasks.map((st, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-950/70 border border-slate-800 rounded-lg group"
+                      >
+                        <div className="flex items-center gap-2 text-xs text-slate-200 min-w-0">
+                          <span className="w-4 h-4 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-400 flex items-center justify-center font-bold shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="truncate">{st}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewTaskSubtasks(newTaskSubtasks.filter((_, i) => i !== idx));
+                          }}
+                          className="text-slate-500 hover:text-red-400 p-1 opacity-80 group-hover:opacity-100 transition-opacity shrink-0"
+                          title="Remove Subtask"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -1804,8 +2054,8 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
 
       {/* ─── MODAL: CREATE PROJECT ───────────────────────────────────────────── */}
       {showCreateProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl my-8">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-indigo-400" />
@@ -1903,6 +2153,119 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 />
               </div>
 
+              {/* Project Milestones & Deadlines Builder */}
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5 text-indigo-400" />
+                    Project Milestones & Deadlines ({newProjMilestones.length})
+                  </label>
+                  <span className="text-[10px] text-slate-400">Set clear delivery gates & deadlines</span>
+                </div>
+
+                {/* Milestone Builder Input Box */}
+                <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 mb-1">Milestone Title *</label>
+                      <input
+                        type="text"
+                        value={newMilestoneTitle}
+                        onChange={(e) => setNewMilestoneTitle(e.target.value)}
+                        placeholder="e.g. Beta Staging Deployment"
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 mb-1">Milestone Deadline *</label>
+                      <input
+                        type="date"
+                        value={newMilestoneDeadline}
+                        onChange={(e) => setNewMilestoneDeadline(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Milestone Scope / Description (Optional)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newMilestoneDesc}
+                        onChange={(e) => setNewMilestoneDesc(e.target.value)}
+                        placeholder="Acceptance criteria or scope..."
+                        className="flex-1 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newMilestoneTitle.trim() || !newMilestoneDeadline) {
+                            alert('Please provide milestone title and deadline.');
+                            return;
+                          }
+                          setNewProjMilestones([
+                            ...newProjMilestones,
+                            {
+                              id: `ms-${Date.now()}`,
+                              title: newMilestoneTitle.trim(),
+                              deadline: newMilestoneDeadline,
+                              description: newMilestoneDesc.trim() || undefined,
+                            },
+                          ]);
+                          setNewMilestoneTitle('');
+                          setNewMilestoneDeadline('');
+                          setNewMilestoneDesc('');
+                        }}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg flex items-center gap-1 shrink-0 shadow-md shadow-indigo-600/20"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Milestone
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Milestone List */}
+                {newProjMilestones.length > 0 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {newProjMilestones.map((ms, idx) => (
+                      <div
+                        key={ms.id}
+                        className="flex items-start justify-between gap-3 p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl group"
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                            {idx + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-white truncate">{ms.title}</div>
+                            {ms.description && <div className="text-[11px] text-slate-400 truncate">{ms.description}</div>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-medium text-amber-300">
+                            <Calendar className="w-3 h-3 text-amber-400" />
+                            {ms.deadline}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewProjMilestones(newProjMilestones.filter((m) => m.id !== ms.id));
+                            }}
+                            className="text-slate-500 hover:text-red-400 p-1 opacity-80 group-hover:opacity-100 transition-opacity"
+                            title="Remove Milestone"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -1913,7 +2276,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/20"
                 >
                   Create Project
                 </button>
@@ -2036,6 +2399,128 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                   className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-md shadow-amber-500/20"
                 >
                   {editingReward ? 'Update Award Threshold' : 'Create Award'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: ADD DEVELOPER TO SQUAD ──────────────────────────────────── */}
+      {showAddDevModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl my-8">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-purple-400" />
+                Add Developer to Engineering Squad
+              </h3>
+              <button
+                onClick={() => setShowAddDevModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDeveloperSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newDevName}
+                    onChange={(e) => setNewDevName(e.target.value)}
+                    placeholder="e.g. Arjun Mehta"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Work Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={newDevEmail}
+                    onChange={(e) => setNewDevEmail(e.target.value)}
+                    placeholder="arjun@aew.edu"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Username *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newDevUsername}
+                    onChange={(e) => setNewDevUsername(e.target.value)}
+                    placeholder="arjun.m"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Temporary Password *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newDevPassword}
+                    onChange={(e) => setNewDevPassword(e.target.value)}
+                    placeholder="code123"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Engineering Specialization / Title</label>
+                <input
+                  type="text"
+                  value={newDevTitle}
+                  onChange={(e) => setNewDevTitle(e.target.value)}
+                  placeholder="e.g. Frontend Specialist, Full-Stack Engineer, DevOps"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Tech Stack Skills (comma-separated)</label>
+                <input
+                  type="text"
+                  value={newDevSkills}
+                  onChange={(e) => setNewDevSkills(e.target.value)}
+                  placeholder="React, TypeScript, GraphQL, Tailwind"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-400 space-y-1">
+                <div className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-purple-400" />
+                  Squad Onboarding Details
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  New developers will be automatically granted the <span className="text-purple-300 font-mono">web_developer</span> role, Level 1 apprentice rank, and can log in immediately using the credentials provided.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDevModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-950"
+                >
+                  Onboard Developer
                 </button>
               </div>
             </form>

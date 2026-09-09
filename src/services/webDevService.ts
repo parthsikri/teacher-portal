@@ -931,6 +931,18 @@ export const WebDevService = {
     }
 
     this._save(PROJECTS_KEY, list);
+
+    if (project.milestones && Array.isArray(project.milestones) && project.milestones.length > 0) {
+      project.milestones.forEach((m, idx) => {
+        this.saveMilestone({
+          ...m,
+          projectId: updated.id,
+          orderIndex: m.orderIndex || idx + 1,
+          status: m.status || 'pending',
+        });
+      });
+    }
+
     return updated;
   },
 
@@ -2166,5 +2178,102 @@ export const WebDevService = {
       }
     });
     this._save(NOTIFICATIONS_KEY, list);
+  },
+
+  // ─── TEAM MANAGEMENT (ADD & REMOVE DEVELOPERS) ───────────────────────────
+  addDeveloperToTeam(
+    devData: {
+      name: string;
+      email: string;
+      username?: string;
+      password?: string;
+      webDevTitle?: string;
+      skills?: string[];
+      role?: 'web_developer' | 'web_dev_manager';
+    },
+    manager: { id: string; name: string }
+  ): User {
+    const allUsers = StorageService.getUsers();
+    const cleanId = `AEW-DEV-${Date.now().toString().slice(-4)}`;
+    const cleanUsername = (devData.username || devData.email.split('@')[0] || `dev_${Date.now().toString().slice(-4)}`).toLowerCase().replace(/\s+/g, '_');
+    
+    const newDev: User = {
+      id: `u-${cleanId.toLowerCase()}`,
+      teacherId: cleanId,
+      name: devData.name.trim(),
+      email: devData.email.trim(),
+      username: cleanUsername,
+      password: devData.password || 'code123',
+      role: devData.role || 'web_developer',
+      department: 'Web Development',
+      subject: devData.webDevTitle?.trim() || 'Frontend Web Development',
+      dailyTargetMinutes: 0,
+      dailyLimit: 0,
+      webDevTitle: devData.webDevTitle?.trim() || 'Frontend Developer',
+      webDevXp: 0,
+      webDevLevel: 1,
+      skills: devData.skills && devData.skills.length > 0 ? devData.skills : ['React', 'TypeScript', 'Frontend'],
+      createdAt: new Date().toISOString(),
+    };
+
+    allUsers.push(newDev);
+    StorageService.saveUsers(allUsers);
+
+    this.logAudit({
+      action: 'DEVELOPER_ADDED',
+      entityType: 'user',
+      entityId: cleanId,
+      performedByUserId: manager.id,
+      performedByUserName: manager.name,
+      details: `Added new developer ${devData.name} (${cleanUsername}) with title "${newDev.webDevTitle}" to the team`,
+    });
+
+    return newDev;
+  },
+
+  removeDeveloperFromTeam(
+    developerId: string,
+    manager: { id: string; name: string }
+  ): { success: boolean; error?: string } {
+    if (developerId === manager.id) {
+      return { success: false, error: 'You cannot remove yourself from the engineering squad.' };
+    }
+
+    const allUsers = StorageService.getUsers();
+    const targetDev = allUsers.find((u) => u.teacherId === developerId);
+    if (!targetDev) {
+      return { success: false, error: 'Developer not found.' };
+    }
+
+    const updatedUsers = allUsers.filter((u) => u.teacherId !== developerId);
+    StorageService.saveUsers(updatedUsers);
+
+    // Unassign tasks assigned to this developer so tasks aren't orphaned
+    const allTasks = this.getTasks();
+    let unassignedCount = 0;
+    allTasks.forEach((t) => {
+      if (t.assigneeId === developerId) {
+        t.assigneeId = undefined;
+        t.assigneeName = undefined;
+        if (t.status === 'in_progress') {
+          t.status = 'todo';
+        }
+        unassignedCount++;
+      }
+    });
+    if (unassignedCount > 0) {
+      this._save(TASKS_KEY, allTasks);
+    }
+
+    this.logAudit({
+      action: 'DEVELOPER_REMOVED',
+      entityType: 'user',
+      entityId: developerId,
+      performedByUserId: manager.id,
+      performedByUserName: manager.name,
+      details: `Removed developer ${targetDev.name} (${targetDev.email}) from squad. ${unassignedCount} active tasks unassigned.`,
+    });
+
+    return { success: true };
   },
 };

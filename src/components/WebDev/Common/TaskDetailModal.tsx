@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   CheckSquare,
@@ -38,6 +38,42 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [currentTask, setCurrentTask] = useState<WebDevTask>(task);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [commentContent, setCommentContent] = useState('');
+
+  // Real-time Deadline Countdown calculation (live updates every second)
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const calculateDeadlineRemaining = (dueDate?: string) => {
+    if (!dueDate) return null;
+    const targetMs = new Date(dueDate.includes('T') ? dueDate : `${dueDate}T23:59:59`).getTime();
+    if (isNaN(targetMs)) return null;
+
+    const diff = targetMs - now;
+    const isOverdue = diff < 0;
+    const absDiff = Math.abs(diff);
+
+    const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((absDiff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((absDiff % (1000 * 60)) / 1000);
+
+    return {
+      isOverdue,
+      days,
+      hours,
+      minutes,
+      seconds,
+      totalMs: diff,
+    };
+  };
+
+  const deadlineInfo = calculateDeadlineRemaining(currentTask.dueDate);
 
   // Blocker reporting state
   const [showBlockerInput, setShowBlockerInput] = useState(false);
@@ -315,6 +351,105 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Real-time Deadline Countdown Timer */}
+          {deadlineInfo && (
+            <div
+              className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all ${
+                currentTask.status === 'completed'
+                  ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200'
+                  : deadlineInfo.isOverdue
+                  ? 'bg-red-950/40 border-red-500/50 text-red-200 shadow-lg shadow-red-950/40'
+                  : deadlineInfo.days === 0
+                  ? 'bg-amber-950/40 border-amber-500/50 text-amber-200 shadow-lg shadow-amber-950/40'
+                  : 'bg-slate-800/60 border-slate-700/80 text-slate-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`p-2.5 rounded-xl flex-shrink-0 ${
+                    currentTask.status === 'completed'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : deadlineInfo.isOverdue
+                      ? 'bg-red-500/20 text-red-400 animate-pulse'
+                      : deadlineInfo.days === 0
+                      ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                      : 'bg-indigo-500/20 text-indigo-400'
+                  }`}
+                >
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      {currentTask.status === 'completed'
+                        ? 'Task Delivered'
+                        : deadlineInfo.isOverdue
+                        ? 'Deadline Overdue'
+                        : 'Sprint Deadline Timer'}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        currentTask.status === 'completed'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : deadlineInfo.isOverdue
+                          ? 'bg-red-500/30 text-red-300 ring-1 ring-red-500/50'
+                          : deadlineInfo.days === 0
+                          ? 'bg-amber-500/30 text-amber-300 ring-1 ring-amber-500/50'
+                          : 'bg-indigo-500/20 text-indigo-300'
+                      }`}
+                    >
+                      {currentTask.status === 'completed'
+                        ? 'Completed'
+                        : deadlineInfo.isOverdue
+                        ? 'Action Required'
+                        : deadlineInfo.days < 2
+                        ? 'Due Soon'
+                        : 'On Track'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Target Due Date: <strong className="text-white">{currentTask.dueDate} (End of Day)</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Digital Countdown Display */}
+              {currentTask.status !== 'completed' && (
+                <div className="flex items-center gap-1.5 font-mono text-center self-stretch sm:self-auto justify-center bg-slate-950/70 p-2 rounded-xl border border-slate-800">
+                  <div className="px-2 py-1 bg-slate-900 rounded-lg min-w-[42px]">
+                    <div className="text-base font-black text-white">{deadlineInfo.days}</div>
+                    <div className="text-[8px] uppercase tracking-wider text-slate-500">Days</div>
+                  </div>
+                  <span className="text-slate-600 font-bold">:</span>
+                  <div className="px-2 py-1 bg-slate-900 rounded-lg min-w-[42px]">
+                    <div className="text-base font-black text-white">
+                      {String(deadlineInfo.hours).padStart(2, '0')}
+                    </div>
+                    <div className="text-[8px] uppercase tracking-wider text-slate-500">Hours</div>
+                  </div>
+                  <span className="text-slate-600 font-bold">:</span>
+                  <div className="px-2 py-1 bg-slate-900 rounded-lg min-w-[42px]">
+                    <div className="text-base font-black text-white">
+                      {String(deadlineInfo.minutes).padStart(2, '0')}
+                    </div>
+                    <div className="text-[8px] uppercase tracking-wider text-slate-500">Mins</div>
+                  </div>
+                  <span className="text-slate-600 font-bold">:</span>
+                  <div className="px-2 py-1 bg-slate-900 rounded-lg min-w-[42px]">
+                    <div
+                      className={`text-base font-black ${
+                        deadlineInfo.isOverdue ? 'text-red-400' : 'text-amber-400'
+                      }`}
+                    >
+                      {String(deadlineInfo.seconds).padStart(2, '0')}
+                    </div>
+                    <div className="text-[8px] uppercase tracking-wider text-slate-500">Secs</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Description */}
           <div>
