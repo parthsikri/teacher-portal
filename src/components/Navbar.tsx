@@ -84,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
     { id: 'ppt_requests', label: 'PYQ Slide Decks', icon: BookMarked },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
-    { id: 'resources', label: 'Subject Resources', icon: BookMarked },
+    { id: 'resources', label: 'Study Resources', icon: BookMarked },
     { 
       id: 'directives', 
       label: 'Admin Directives', 

@@ -84,6 +84,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isTargetReached = currentUser.role === 'teacher' ? minutesRecordedToday >= targetMinutes : false;
   const teacherActiveExtensions = currentUser.role === 'teacher' ? StorageService.getActiveExtensions(currentUser.teacherId).length : 0;
   const adminActiveExtensions = currentUser.role === 'admin' ? StorageService.getActiveExtensions().length : 0;
+  const teacherResourcesCount = currentUser.role === 'teacher'
+    ? StorageService.getAllReferencesForTeacher(
+        currentUser,
+        StorageService.getAssignedTopics().filter((t) => t.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase())
+      ).length
+    : 0;
 
   // PR Intern Navigation Links
   const prNavItems = [
@@ -142,7 +148,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: teacherPptReadyCount > 0 ? `${teacherPptReadyCount} Ready` : undefined,
     },
     { id: 'lectures', label: 'Delivered Lectures', icon: Video },
-    { id: 'resources', label: 'Subject Library', icon: BookMarked },
+    { 
+      id: 'resources', 
+      label: 'Study Resources', 
+      icon: BookMarked,
+      badge: teacherResourcesCount > 0 ? `${teacherResourcesCount} Res` : undefined,
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold',
+    },
     { 
       id: 'directives', 
       label: 'Admin Directives', 

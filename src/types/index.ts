@@ -83,6 +83,9 @@ export interface SubjectReference {
   notes?: string;             // Course guidelines, textbook recommendations
   updatedAt: string;
   isNewFromAdmin?: boolean;   // Notification flag
+  scope?: 'primary_subject' | 'assigned_topic' | 'departmental' | 'institutional';
+  assignedTopicTitle?: string;
+  resourceType?: 'syllabus' | 'textbook' | 'drive_folder' | 'question_bank' | 'lab_manual' | 'notes';
 }
 
 export interface AssignedTopic {

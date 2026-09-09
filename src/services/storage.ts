@@ -25,6 +25,163 @@ const PR_COLLEGES_KEY = 'aew_pr_colleges_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 const SESSION_TOKEN_KEY = 'aew_portal_session_token_v2';
 
+export const SEED_SUBJECT_REFERENCES: SubjectReference[] = [
+  {
+    id: 'sref-dsa-01',
+    subjectName: 'Data Structures & Algorithms',
+    department: 'Computer Science',
+    title: 'Master Course Syllabus & CLRS 4th Edition Standard Textbook',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-dsa-master-syllabus',
+    notes: 'Follow Cormen CLRS 4th Edition Chapters 1-15 as official curriculum standard. Includes syllabus breakdown, weekly lecture milestones, and recommended readings.',
+    resourceType: 'textbook',
+    scope: 'primary_subject',
+    updatedAt: '2026-09-01T10:00:00Z',
+  },
+  {
+    id: 'sref-dsa-02',
+    subjectName: 'Data Structures & Algorithms',
+    department: 'Computer Science',
+    title: 'Visual Algorithms & Data Structures Interactive Slide Repository',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-dsa-visualizer-slides',
+    notes: 'Comprehensive slide decks with memory visualizers for Linked Lists, Binary Trees, AVL Rotations, Graph Traversals (BFS/DFS), and Dynamic Programming grids.',
+    resourceType: 'drive_folder',
+    scope: 'primary_subject',
+    updatedAt: '2026-09-02T10:00:00Z',
+  },
+  {
+    id: 'sref-dsa-03',
+    subjectName: 'Data Structures & Algorithms',
+    department: 'Computer Science',
+    title: 'Standard Problem Sets, Coding Quizzes & LeetCode/GFG Question Bank',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-dsa-question-bank',
+    notes: 'Curated 150 top interview and university examination problems with test cases, complexity benchmarks, and boilerplate solution templates.',
+    resourceType: 'question_bank',
+    scope: 'primary_subject',
+    updatedAt: '2026-09-03T10:00:00Z',
+  },
+  {
+    id: 'sref-os-01',
+    subjectName: 'Operating Systems',
+    department: 'Computer Science',
+    title: 'Operating System Concepts (Galvin 10th Ed) & System Architecture Guide',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-os-textbook-galvin',
+    notes: 'Silberschatz & Galvin 10th edition companion slides covering CPU Scheduling, Virtual Memory Paging, Deadlock Avoidance, and IPC.',
+    resourceType: 'textbook',
+    scope: 'assigned_topic',
+    updatedAt: '2026-09-04T10:00:00Z',
+  },
+  {
+    id: 'sref-os-02',
+    subjectName: 'Operating Systems',
+    department: 'Computer Science',
+    title: 'Linux Kernel Architecture, POSIX Threads & Semaphore Code Laboratory',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-os-kernel-lab',
+    notes: 'C implementations of process fork/exec, thread pools, mutex locks, and custom memory allocator assignments.',
+    resourceType: 'lab_manual',
+    scope: 'assigned_topic',
+    updatedAt: '2026-09-04T12:00:00Z',
+  },
+  {
+    id: 'sref-dbms-01',
+    subjectName: 'Database Management Systems',
+    department: 'Computer Science',
+    title: 'Database System Concepts (Silberschatz) & SQL Query Cheatsheets',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-dbms-concepts',
+    notes: 'Relational algebra fundamentals, ER modeling, B+ Tree indexing, and ACID transaction concurrency isolation levels.',
+    resourceType: 'textbook',
+    scope: 'assigned_topic',
+    updatedAt: '2026-09-05T10:00:00Z',
+  },
+  {
+    id: 'sref-cn-01',
+    subjectName: 'Computer Networks',
+    department: 'Computer Science',
+    title: 'Computer Networking: A Top-Down Approach (Kurose & Ross) & Wireshark Labs',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-cn-top-down',
+    notes: 'Application to physical layer walkthroughs, TCP congestion control, sliding window protocols, and packet capture traces.',
+    resourceType: 'syllabus',
+    scope: 'assigned_topic',
+    updatedAt: '2026-09-05T14:00:00Z',
+  },
+  {
+    id: 'sref-thermo-01',
+    subjectName: 'Thermodynamics',
+    department: 'Mechanical Engineering',
+    title: 'Thermodynamics: An Engineering Approach (Cengel & Boles) & Steam Tables',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-thermo-cengel-tables',
+    notes: 'Standard textbook chapters 1-9 covering 1st and 2nd Laws, Rankine & Brayton Cycles, Refrigeration, and steam enthalpy-entropy charts.',
+    resourceType: 'textbook',
+    scope: 'primary_subject',
+    updatedAt: '2026-09-01T11:00:00Z',
+  },
+  {
+    id: 'sref-thermo-02',
+    subjectName: 'Thermodynamics',
+    department: 'Mechanical Engineering',
+    title: 'Applied Heat Transfer & Engine Thermodynamic Cycle Calculation Worksheets',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-thermo-cycle-worksheets',
+    notes: 'Solved numerical problem sets covering Otto, Diesel, Dual cycles, and heat exchanger LMTD/NTU methods.',
+    resourceType: 'notes',
+    scope: 'primary_subject',
+    updatedAt: '2026-09-02T11:00:00Z',
+  },
+  {
+    id: 'sref-fluid-01',
+    subjectName: 'Fluid Mechanics',
+    department: 'Mechanical Engineering',
+    title: 'Fluid Mechanics (Frank M. White 8th Ed) & Hydraulic Machinery Lab Manual',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-fluid-mechanics-white',
+    notes: 'Navier-Stokes simplifications, Bernoulli equation applications, pipe friction Darcy-Weisbach loss calculations, and centrifugal pump curves.',
+    resourceType: 'lab_manual',
+    scope: 'assigned_topic',
+    updatedAt: '2026-09-03T11:00:00Z',
+  },
+  {
+    id: 'sref-signals-01',
+    subjectName: 'Signals & Systems',
+    department: 'Electronics & Communication',
+    title: 'Signals and Systems (Oppenheim & Willsky) & Transform Formula Handouts',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-signals-oppenheim',
+    notes: 'Comprehensive study sheets for Continuous & Discrete-Time Fourier Series, Fourier Transforms, Laplace Transforms, and Z-Transforms with ROC properties.',
+    resourceType: 'textbook',
+    scope: 'primary_subject',
+    updatedAt: '2026-09-01T12:00:00Z',
+  },
+  {
+    id: 'sref-signals-02',
+    subjectName: 'Signals & Systems',
+    department: 'Electronics & Communication',
+    title: 'MATLAB Audio Signal Processing Scripts & Digital Filter Design Worksheets',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-signals-matlab-lab',
+    notes: 'Hands-on MATLAB live scripts for FIR/IIR Butterworth filter synthesis, spectrogram generation, and sampling theorem demonstrations.',
+    resourceType: 'lab_manual',
+    scope: 'primary_subject',
+    updatedAt: '2026-09-02T12:00:00Z',
+  },
+  {
+    id: 'sref-math-01',
+    subjectName: 'Engineering Mathematics',
+    department: 'Academic Operations',
+    title: 'Advanced Engineering Mathematics (Erwin Kreyszig) & Formula Reference Library',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-engg-mathematics',
+    notes: 'Standard mathematical methods for engineering faculty: Linear Algebra eigenvalues, Differential Equations, Laplace Transforms, and Complex Analysis.',
+    resourceType: 'textbook',
+    scope: 'institutional',
+    updatedAt: '2026-09-01T09:00:00Z',
+  },
+  {
+    id: 'sref-guide-01',
+    subjectName: 'Pedagogy & Delivery Standards',
+    department: 'Academic Operations',
+    title: 'AEW Academic Faculty Lecture Delivery Framework, Video/Audio Standards & Pedagogical Handouts',
+    referenceUrl: 'https://drive.google.com/drive/folders/aew-faculty-pedagogy-standards',
+    notes: 'Official Apna Engg Wallah guidelines: 1080p60 recording settings, microphone setup, blackboard annotation styles, and student engagement practices.',
+    resourceType: 'syllabus',
+    scope: 'institutional',
+    updatedAt: '2026-09-01T08:00:00Z',
+  },
+];
+
 // Initial Registered Administrator (Credentials verified server-side only; passwords never stored in frontend bundle)
 const INITIAL_USERS: User[] = [
   {
@@ -507,14 +664,30 @@ export const StorageService = {
   },
 
   // ─── SUBJECT REFERENCE MATERIALS (WHOLE SUBJECT) ────────────────────────────
+
   getSubjectReferences(): SubjectReference[] {
     const data = localStorage.getItem(SUBJECT_REFERENCES_KEY);
-    if (!data) return [];
+    if (!data) {
+      try {
+        localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(SEED_SUBJECT_REFERENCES));
+      } catch {
+        // ignore
+      }
+      return [...SEED_SUBJECT_REFERENCES];
+    }
     try {
       const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+      try {
+        localStorage.setItem(SUBJECT_REFERENCES_KEY, JSON.stringify(SEED_SUBJECT_REFERENCES));
+      } catch {
+        // ignore
+      }
+      return [...SEED_SUBJECT_REFERENCES];
     } catch {
-      return [];
+      return [...SEED_SUBJECT_REFERENCES];
     }
   },
 
@@ -644,52 +817,95 @@ export const StorageService = {
 
   /**
    * Retrieves all relevant references for a teacher across all subjects they teach
-   * (primary subject + any subjects in assigned topics) and their department.
+   * (primary subject + any subjects in assigned topics), department, and institutional materials.
+   * Tags each reference with scope ('primary_subject', 'assigned_topic', 'departmental', 'institutional')
+   * and linked assigned topics.
    */
   getAllReferencesForTeacher(
     teacher: { subject?: string; department?: string },
-    assignedTopics?: Array<{ subject?: string }>
+    assignedTopics?: Array<{ subject?: string; topicTitle?: string }>
   ): SubjectReference[] {
     const seenIds = new Set<string>();
     const result: SubjectReference[] = [];
 
-    const subjects = new Set<string>();
-    if (teacher?.subject?.trim()) subjects.add(teacher.subject.trim());
-    (assignedTopics || []).forEach((t) => {
-      if (t.subject?.trim()) subjects.add(t.subject.trim());
-    });
+    const primarySubj = (teacher?.subject || '').trim();
+    const normTeacherDept = (teacher?.department || '').trim().toLowerCase();
 
-    for (const subj of subjects) {
-      const matched = this.getReferencesForSubject(subj, teacher?.department);
-      for (const m of matched) {
+    // 1. Primary Subject References
+    if (primarySubj) {
+      const primaryMatches = this.getReferencesForSubject(primarySubj, teacher?.department);
+      for (const m of primaryMatches) {
         if (!seenIds.has(m.id)) {
           seenIds.add(m.id);
-          result.push(m);
+          result.push({
+            ...m,
+            scope: 'primary_subject',
+          });
         }
       }
     }
 
-    // If still no references found, check if there are any departmental or institutional references
-    if (result.length === 0 && teacher?.department) {
-      const allRefs = this.getSubjectReferences();
-      const normTeacherDept = (teacher.department || '').trim().toLowerCase();
-      for (const r of allRefs) {
-        const normRefDept = (r.department || '').trim().toLowerCase();
-        if (
-          !seenIds.has(r.id) &&
-          (!normRefDept ||
-            normRefDept === 'general' ||
-            normRefDept === 'all' ||
-            normRefDept.includes(normTeacherDept) ||
-            normTeacherDept.includes(normRefDept))
-        ) {
+    // 2. Assigned Topics / Other Subjects
+    if (assignedTopics && assignedTopics.length > 0) {
+      for (const topic of assignedTopics) {
+        const tSubj = (topic.subject || '').trim();
+        if (tSubj) {
+          const topicMatches = this.getReferencesForSubject(tSubj, teacher?.department);
+          for (const m of topicMatches) {
+            if (!seenIds.has(m.id)) {
+              seenIds.add(m.id);
+              result.push({
+                ...m,
+                scope: m.subjectName.toLowerCase() === primarySubj.toLowerCase() ? 'primary_subject' : 'assigned_topic',
+                assignedTopicTitle: topic.topicTitle,
+              });
+            } else {
+              const existing = result.find((r) => r.id === m.id);
+              if (existing && topic.topicTitle) {
+                if (!existing.assignedTopicTitle) {
+                  existing.assignedTopicTitle = topic.topicTitle;
+                } else if (!existing.assignedTopicTitle.includes(topic.topicTitle)) {
+                  existing.assignedTopicTitle = `${existing.assignedTopicTitle}, ${topic.topicTitle}`;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Departmental & Institutional References
+    const allRefs = this.getSubjectReferences();
+    for (const r of allRefs) {
+      const normRefDept = (r.department || '').trim().toLowerCase();
+      const isDeptMatch = normTeacherDept && (normRefDept.includes(normTeacherDept) || normTeacherDept.includes(normRefDept));
+      const isInstitutional = !normRefDept || normRefDept === 'general' || normRefDept === 'all' || normRefDept === 'academic operations';
+
+      if (!seenIds.has(r.id)) {
+        if (isDeptMatch) {
           seenIds.add(r.id);
-          result.push(r);
+          result.push({
+            ...r,
+            scope: 'departmental',
+          });
+        } else if (isInstitutional) {
+          seenIds.add(r.id);
+          result.push({
+            ...r,
+            scope: 'institutional',
+          });
         }
       }
     }
 
     return result;
+  },
+
+  /**
+   * Retrieves all subject reference materials in the portal.
+   */
+  getAllPortalSubjectReferences(): SubjectReference[] {
+    return this.getSubjectReferences();
   },
 
   /**

@@ -13,7 +13,7 @@ import {
   FileSpreadsheet, Award, Folder,
   CheckCircle2, MessageCircle, Video,
   ArrowUp, ArrowDown, Trash2,
-  BookOpen, ArrowLeft, Layers, Grid, Sparkles, Wallet, Calendar, RefreshCw
+  BookOpen, BookMarked, Filter, ArrowLeft, Layers, Grid, Sparkles, Wallet, Calendar, RefreshCw
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -41,6 +41,12 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [selectedUnitSyllabus, setSelectedUnitSyllabus] = useState<string | null>(null);
   const [syllabusViewMode, setSyllabusViewMode] = useState<'cards' | 'flat'>('cards');
   const subjectReferences = useMemo(() => StorageService.getSubjectReferences(), [refreshKey]);
+
+  // Study Resources Hub State
+  const [resourceScopeFilter, setResourceScopeFilter] = useState<'all_assigned' | 'primary' | 'topics' | 'institutional'>('all_assigned');
+  const [resourceSearchQuery, setResourceSearchQuery] = useState('');
+  const [resourceSubjectFilter, setResourceSubjectFilter] = useState<string>('all');
+  const [resourceTypeFilter, setResourceTypeFilter] = useState<string>('all');
 
   useEffect(() => {
     setRefreshKey((prev) => prev + 1);
@@ -85,6 +91,67 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     void refreshKey;
     return StorageService.getAllReferencesForTeacher(teacher, assignedTopics);
   }, [teacher, assignedTopics, refreshKey]);
+
+  const allPortalSubjectReferences = useMemo(() => {
+    void refreshKey;
+    return StorageService.getAllPortalSubjectReferences();
+  }, [refreshKey]);
+
+  // List of all assigned subjects across primary subject & assigned topics
+  const teacherAssignedSubjects = useMemo(() => {
+    const set = new Set<string>();
+    if (teacher.subject?.trim()) set.add(teacher.subject.trim());
+    assignedTopics.forEach((t) => {
+      if (t.subject?.trim()) set.add(t.subject.trim());
+    });
+    return Array.from(set);
+  }, [teacher.subject, assignedTopics]);
+
+  // Filtered Study Resources
+  const filteredStudyResources = useMemo(() => {
+    let list = resourceScopeFilter === 'institutional'
+      ? allPortalSubjectReferences
+      : teacherSubjectReferences;
+
+    // Scope filter
+    if (resourceScopeFilter === 'primary') {
+      list = list.filter((r) => r.scope === 'primary_subject' || r.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase());
+    } else if (resourceScopeFilter === 'topics') {
+      list = list.filter((r) => r.scope === 'assigned_topic' || (r.assignedTopicTitle && r.assignedTopicTitle.length > 0));
+    }
+
+    // Subject dropdown filter
+    if (resourceSubjectFilter !== 'all') {
+      list = list.filter((r) => r.subjectName.toLowerCase() === resourceSubjectFilter.toLowerCase());
+    }
+
+    // Resource type filter
+    if (resourceTypeFilter !== 'all') {
+      list = list.filter((r) => r.resourceType === resourceTypeFilter);
+    }
+
+    // Search query filter
+    if (resourceSearchQuery.trim()) {
+      const q = resourceSearchQuery.trim().toLowerCase();
+      list = list.filter((r) =>
+        r.title.toLowerCase().includes(q) ||
+        r.subjectName.toLowerCase().includes(q) ||
+        (r.department && r.department.toLowerCase().includes(q)) ||
+        (r.notes && r.notes.toLowerCase().includes(q)) ||
+        (r.assignedTopicTitle && r.assignedTopicTitle.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [
+    resourceScopeFilter,
+    resourceSubjectFilter,
+    resourceTypeFilter,
+    resourceSearchQuery,
+    teacherSubjectReferences,
+    allPortalSubjectReferences,
+    teacher.subject,
+  ]);
 
   const pptRequests = useMemo(() => {
     void refreshKey;
@@ -683,6 +750,88 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <div className="text-[10px] uppercase tracking-wider font-bold text-indigo-300">Recording status</div>
               <div className="mt-1 text-xs font-semibold text-slate-100">Time, capacity & extensions →</div>
             </button>
+          </div>
+
+          {/* ASSIGNED STUDY RESOURCES AT A GLANCE */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                    <BookMarked className="w-4 h-4 text-indigo-400" />
+                  </span>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Assigned Study Resources ({teacherSubjectReferences.length})
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Ready for Lecture Prep
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Master Google Drive folders, textbook notes, and syllabus materials assigned across all your courses
+                </p>
+              </div>
+
+              <button
+                onClick={() => onPageChange('resources')}
+                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 hover:border-indigo-500/50 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all self-start sm:self-auto shrink-0"
+              >
+                View All Assigned Resources ({teacherSubjectReferences.length}) →
+              </button>
+            </div>
+
+            {teacherSubjectReferences.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {teacherSubjectReferences.slice(0, 3).map((ref) => {
+                  const isPrimary = ref.scope === 'primary_subject' || ref.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase();
+                  return (
+                    <div key={ref.id} className="p-3.5 bg-slate-950/80 border border-slate-800/80 rounded-xl flex flex-col justify-between space-y-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            isPrimary ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-purple-500/10 text-purple-300 border border-purple-500/20'
+                          }`}>
+                            {isPrimary ? 'Primary Subject' : 'Assigned Topic'}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">{ref.subjectName}</span>
+                        </div>
+                        <h4 className="font-bold text-xs text-slate-100 line-clamp-1">{ref.title}</h4>
+                        {ref.notes && (
+                          <p className="text-[11px] text-slate-400 line-clamp-2 italic">"{ref.notes}"</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
+                        <button
+                          onClick={() => copyToClipboard(ref.referenceUrl, 'Drive Link')}
+                          className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
+                          title="Copy Link"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        <a
+                          href={ref.referenceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 px-3 py-1.5 bg-indigo-600/90 hover:bg-indigo-600 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Open Drive
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-950/50 rounded-xl border border-slate-800/80 text-xs text-slate-400 flex items-center justify-between">
+                <span>No resources currently configured for your profile.</span>
+                <button
+                  onClick={() => onPageChange('resources')}
+                  className="text-indigo-400 hover:underline font-semibold"
+                >
+                  Browse Institutional Library →
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 0. APPROVED DAY OFF / LEAVE BANNER */}
@@ -2845,132 +2994,384 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
         </div>
       )}
 
-      {/* ─── SUBJECT REFERENCE LIBRARY ─── */}
+      {/* ─── ASSIGNED STUDY RESOURCES HUB ─── */}
       {currentPage === 'resources' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900/90 via-indigo-950/20 to-slate-900/90 border border-slate-800/80 rounded-2xl p-5 shadow-xl">
             <div>
-              <h2 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-indigo-400" />
-                Subject Library ({teacherSubjectReferences.length})
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  Faculty Academic Repository
+                </span>
+                <span className="text-xs text-slate-500 font-mono">• All Assigned Materials</span>
+              </div>
+              <h2 className="text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2.5 mt-1.5">
+                <BookOpen className="w-6 h-6 text-indigo-400" />
+                Assigned Study Resources Hub
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
-                Curriculum reference materials and master Drive folders for <span className="text-slate-200 font-semibold">{teacher.subject}</span> {teacher.department && `• ${teacher.department}`}
+              <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                Access all textbook references, syllabi, question banks, lab manuals, and master Drive repositories assigned across your primary subject (<span className="text-slate-200 font-semibold">{teacher.subject}</span>) and cross-assigned modules at once.
               </p>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-center">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Assigned To You</div>
+                <div className="text-lg font-black text-indigo-400">{teacherSubjectReferences.length} Materials</div>
+              </div>
+              <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-center">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total In Catalog</div>
+                <div className="text-lg font-black text-slate-300">{allPortalSubjectReferences.length} Total</div>
+              </div>
             </div>
           </div>
 
-          {teacherSubjectReferences.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {teacherSubjectReferences.map((ref) => (
-                <div key={ref.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg hover:border-slate-700 transition-colors">
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                          {ref.department || teacher.department || 'General'}
-                        </span>
-                        <h3 className="font-bold text-sm text-slate-100 mt-1.5 leading-snug">{ref.title}</h3>
-                        <span className="text-[11px] text-slate-400 font-mono">{ref.subjectName}</span>
-                      </div>
-                    </div>
+          {/* Quick Scope Breakdown Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <button
+              onClick={() => {
+                setResourceScopeFilter('all_assigned');
+                setResourceSubjectFilter('all');
+                setResourceTypeFilter('all');
+              }}
+              className={`p-4 rounded-xl border text-left transition-all ${
+                resourceScopeFilter === 'all_assigned'
+                  ? 'bg-indigo-600/15 border-indigo-500 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500/30'
+                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">🌟 All Assigned</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300">
+                  {teacherSubjectReferences.length}
+                </span>
+              </div>
+              <div className="text-sm font-bold text-slate-200 mt-2">All Assigned (At Once)</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Primary + cross-assigned topics</div>
+            </button>
 
-                    {ref.notes ? (
-                      <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 text-slate-200 space-y-1.5">
-                        <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide flex items-center gap-1.5">
-                          <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                          Course Guidelines & Syllabus Notes:
-                        </div>
-                        <p className="italic text-[12px] leading-relaxed text-slate-100 whitespace-pre-wrap">
-                          "{ref.notes}"
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="p-2.5 bg-slate-950/40 rounded-xl border border-slate-800/60 text-slate-400 text-[11px] italic">
-                        No additional text notes attached. Click "Open Drive" below to view the master folder & PDF notes.
-                      </div>
-                    )}
-                  </div>
+            <button
+              onClick={() => {
+                setResourceScopeFilter('primary');
+                setResourceSubjectFilter('all');
+                setResourceTypeFilter('all');
+              }}
+              className={`p-4 rounded-xl border text-left transition-all ${
+                resourceScopeFilter === 'primary'
+                  ? 'bg-emerald-600/15 border-emerald-500 shadow-md shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">🎯 Primary Subject</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300">
+                  {teacherSubjectReferences.filter(r => r.scope === 'primary_subject' || r.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase()).length}
+                </span>
+              </div>
+              <div className="text-sm font-bold text-slate-200 mt-2 truncate" title={teacher.subject}>{teacher.subject}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Core discipline materials</div>
+            </button>
 
-                  <div className="flex items-center gap-2 pt-3 border-t border-slate-800/60">
-                    <button
-                      onClick={() => copyToClipboard(ref.referenceUrl, 'Drive Link')}
-                      className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg flex items-center gap-1.5 transition-colors"
-                      title="Copy resource URL"
-                    >
-                      <Copy className="w-3 h-3" /> Copy Link
-                    </button>
-                    <a
-                      href={ref.referenceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm"
-                    >
-                      <ExternalLink className="w-3 h-3" /> Open Drive
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (() => {
-            const allPortalRefs = StorageService.getSubjectReferences();
-            return allPortalRefs.length > 0 ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-indigo-950/20 border border-indigo-500/20 rounded-2xl text-xs text-indigo-300">
-                  <span className="font-bold">Notice:</span> No resources specifically tagged with your exact subject title, but here are all available curriculum materials in the institution library:
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {allPortalRefs.map((ref) => (
-                    <div key={ref.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                              {ref.department || 'General'}
-                            </span>
-                            <h3 className="font-bold text-sm text-slate-100 mt-1.5">{ref.title}</h3>
-                            <span className="text-[11px] text-slate-400 font-mono">{ref.subjectName}</span>
-                          </div>
-                        </div>
+            <button
+              onClick={() => {
+                setResourceScopeFilter('topics');
+                setResourceSubjectFilter('all');
+                setResourceTypeFilter('all');
+              }}
+              className={`p-4 rounded-xl border text-left transition-all ${
+                resourceScopeFilter === 'topics'
+                  ? 'bg-amber-600/15 border-amber-500 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/30'
+                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">📚 Assigned Topics</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300">
+                  {teacherSubjectReferences.filter(r => r.scope === 'assigned_topic' || (r.assignedTopicTitle && r.assignedTopicTitle.length > 0)).length}
+                </span>
+              </div>
+              <div className="text-sm font-bold text-slate-200 mt-2">Topic Specific</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Resources mapped to syllabus</div>
+            </button>
 
-                        {ref.notes && (
-                          <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-slate-200 space-y-1">
-                            <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide">Course Notes:</div>
-                            <p className="italic text-[12px] leading-relaxed text-slate-100 whitespace-pre-wrap">"{ref.notes}"</p>
-                          </div>
-                        )}
-                      </div>
+            <button
+              onClick={() => {
+                setResourceScopeFilter('institutional');
+                setResourceSubjectFilter('all');
+                setResourceTypeFilter('all');
+              }}
+              className={`p-4 rounded-xl border text-left transition-all ${
+                resourceScopeFilter === 'institutional'
+                  ? 'bg-purple-600/15 border-purple-500 shadow-md shadow-purple-500/10 ring-1 ring-purple-500/30'
+                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">🏛️ All Catalog</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300">
+                  {allPortalSubjectReferences.length}
+                </span>
+              </div>
+              <div className="text-sm font-bold text-slate-200 mt-2">Institutional Library</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Explore all departmental notes</div>
+            </button>
+          </div>
 
-                      <div className="flex items-center gap-2 pt-3 border-t border-slate-800/60">
-                        <button
-                          onClick={() => copyToClipboard(ref.referenceUrl, 'Drive Link')}
-                          className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-lg flex items-center gap-1.5"
-                        >
-                          <Copy className="w-3 h-3" /> Copy Link
-                        </button>
-                        <a
-                          href={ref.referenceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center justify-center gap-1.5 shadow-sm"
-                        >
-                          <ExternalLink className="w-3 h-3" /> Open Drive
-                        </a>
-                      </div>
-                    </div>
+          {/* Search, Filter & Controls Bar */}
+          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-md">
+            <div className="flex flex-col md:flex-row gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={resourceSearchQuery}
+                  onChange={(e) => setResourceSearchQuery(e.target.value)}
+                  placeholder="Search resources by title, textbook name, author, topic, or notes..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-9 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+                {resourceSearchQuery && (
+                  <button
+                    onClick={() => setResourceSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Subject Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={resourceSubjectFilter}
+                  onChange={(e) => setResourceSubjectFilter(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Filter: All Subjects</option>
+                  {(resourceScopeFilter === 'institutional' 
+                    ? Array.from(new Set(allPortalSubjectReferences.map(r => r.subjectName)))
+                    : teacherAssignedSubjects
+                  ).map((subj) => (
+                    <option key={subj} value={subj}>
+                      {subj}
+                    </option>
                   ))}
-                </div>
+                </select>
+
+                {/* Resource Type Dropdown */}
+                <select
+                  value={resourceTypeFilter}
+                  onChange={(e) => setResourceTypeFilter(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">All Resource Types</option>
+                  <option value="drive_folder">📁 Master Drive Folders</option>
+                  <option value="textbook">📖 Textbooks</option>
+                  <option value="question_bank">📝 Question Banks</option>
+                  <option value="lab_manual">🔬 Lab Manuals</option>
+                  <option value="syllabus">📋 Syllabi & Guidelines</option>
+                  <option value="notes">📄 Lecture Notes</option>
+                </select>
+
+                {(resourceScopeFilter !== 'all_assigned' || resourceSubjectFilter !== 'all' || resourceTypeFilter !== 'all' || resourceSearchQuery) && (
+                  <button
+                    onClick={() => {
+                      setResourceScopeFilter('all_assigned');
+                      setResourceSubjectFilter('all');
+                      setResourceTypeFilter('all');
+                      setResourceSearchQuery('');
+                    }}
+                    className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Reset
+                  </button>
+                )}
               </div>
-            ) : (
-              <div className="p-12 text-center bg-slate-900/30 border border-slate-800/60 rounded-2xl text-slate-400 text-xs space-y-2">
-                <div className="text-3xl">📚</div>
-                <div className="font-semibold text-slate-300 text-sm">No Reference Materials Available</div>
-                <p className="text-slate-500 italic">
-                  No reference materials or notes have been configured yet in the admin library.
-                </p>
+            </div>
+
+            {/* Scope Filter Badges Row */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/60 text-xs">
+              <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                <Filter className="w-3 h-3 text-slate-400" /> Active View:
+              </span>
+              <button
+                onClick={() => setResourceScopeFilter('all_assigned')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  resourceScopeFilter === 'all_assigned'
+                    ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                🌟 All Assigned ({teacherSubjectReferences.length})
+              </button>
+              <button
+                onClick={() => setResourceScopeFilter('primary')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  resourceScopeFilter === 'primary'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-sm'
+                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                🎯 Primary: {teacher.subject}
+              </button>
+              <button
+                onClick={() => setResourceScopeFilter('topics')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  resourceScopeFilter === 'topics'
+                    ? 'bg-amber-600 text-white font-semibold shadow-sm'
+                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                📚 Topic Specific ({teacherSubjectReferences.filter(r => r.scope === 'assigned_topic' || r.assignedTopicTitle).length})
+              </button>
+              <button
+                onClick={() => setResourceScopeFilter('institutional')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  resourceScopeFilter === 'institutional'
+                    ? 'bg-purple-600 text-white font-semibold shadow-sm'
+                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                🏛️ Institutional Catalog ({allPortalSubjectReferences.length})
+              </button>
+              <div className="ml-auto text-[11px] text-slate-400">
+                Showing <span className="text-slate-200 font-bold">{filteredStudyResources.length}</span> matching materials
               </div>
-            );
-          })()}
+            </div>
+          </div>
+
+          {/* Resources Cards Grid */}
+          {filteredStudyResources.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4.5">
+              {filteredStudyResources.map((ref) => {
+                const isPrimary = ref.scope === 'primary_subject' || ref.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase();
+                const isTopicAssigned = ref.scope === 'assigned_topic' || Boolean(ref.assignedTopicTitle);
+                const isInstitutional = ref.scope === 'institutional';
+
+                return (
+                  <div
+                    key={ref.id}
+                    className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg transition-all hover:shadow-indigo-500/5 group"
+                  >
+                    <div className="space-y-3">
+                      {/* Top Badges */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {isPrimary && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                              <span>🎯</span> Primary Subject
+                            </span>
+                          )}
+                          {isTopicAssigned && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                              <span>📚</span> Assigned Topic
+                            </span>
+                          )}
+                          {isInstitutional && !isPrimary && !isTopicAssigned && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                              <span>🏛️</span> Institutional
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/60">
+                            {ref.department || teacher.department || 'General'}
+                          </span>
+                        </div>
+
+                        {/* Type Icon Badge */}
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-800/40">
+                          {ref.resourceType === 'textbook' && '📖 Book'}
+                          {ref.resourceType === 'drive_folder' && '📁 Drive'}
+                          {ref.resourceType === 'question_bank' && '📝 PYQ Bank'}
+                          {ref.resourceType === 'lab_manual' && '🔬 Lab Manual'}
+                          {ref.resourceType === 'syllabus' && '📋 Syllabus'}
+                          {ref.resourceType === 'notes' && '📄 Notes'}
+                          {(!ref.resourceType || ref.resourceType === 'syllabus') && ''}
+                        </span>
+                      </div>
+
+                      {/* Title & Subject */}
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-100 group-hover:text-indigo-300 transition-colors leading-snug">
+                          {ref.title}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 font-mono">
+                          <span className="text-indigo-400 font-semibold">{ref.subjectName}</span>
+                          {ref.assignedTopicTitle && (
+                            <>
+                              <span>•</span>
+                              <span className="text-amber-400 truncate max-w-[180px]" title={ref.assignedTopicTitle}>
+                                For: {ref.assignedTopicTitle}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Notes Box */}
+                      {ref.notes ? (
+                        <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800/90 text-slate-200 space-y-1.5">
+                          <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide flex items-center gap-1.5">
+                            <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                            Guidelines & Curriculum Notes:
+                          </div>
+                          <p className="italic text-[12px] leading-relaxed text-slate-100 whitespace-pre-wrap">
+                            "{ref.notes}"
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-slate-950/40 rounded-xl border border-slate-800/60 text-slate-400 text-[11px] italic">
+                          No additional text notes attached. Master reference documents available in the linked cloud Drive.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-slate-800/60">
+                      <button
+                        onClick={() => copyToClipboard(ref.referenceUrl, 'Study Resource Link')}
+                        className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-medium rounded-lg flex items-center gap-1.5 transition-colors"
+                        title="Copy direct URL"
+                      >
+                        <Copy className="w-3 h-3" /> Copy Link
+                      </button>
+                      <a
+                        href={ref.referenceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Open Drive
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-12 text-center bg-slate-900/40 border border-slate-800/60 rounded-2xl text-slate-400 text-xs space-y-3">
+              <div className="w-12 h-12 rounded-full bg-slate-800/80 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                📚
+              </div>
+              <div className="font-bold text-slate-200 text-base">No Study Resources Found</div>
+              <p className="text-slate-400 max-w-md mx-auto">
+                No resources match your active scope ({resourceScopeFilter}), subject filter, or search query: "{resourceSearchQuery}".
+              </p>
+              <button
+                onClick={() => {
+                  setResourceScopeFilter('all_assigned');
+                  setResourceSubjectFilter('all');
+                  setResourceTypeFilter('all');
+                  setResourceSearchQuery('');
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-xs transition-colors inline-flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Reset Filters & View All Assigned
+              </button>
+            </div>
+          )}
         </div>
       )}
 
