@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Lecture, AssignedTopic } from '../../types';
-import { StorageService } from '../../services/storage';
+import type { User, Lecture, AssignedTopic, SubjectReference } from '../../types';
+import { StorageService, toCanonicalSubject } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
 import { PptRequestPortal } from './PptRequestPortal';
 import { DailyBacklogLogsView } from './DailyBacklogLogsView';
@@ -23,6 +23,89 @@ interface TeacherViewProps {
   onOpenUpload: (prefillTopic?: AssignedTopic) => void;
   refreshTrigger?: number;
 }
+
+export const getSubjectTheme = (subjectName: string) => {
+  const norm = (subjectName || '').toLowerCase();
+  if (norm.includes('data structure') || norm.includes('dsa') || norm.includes('algorithm')) {
+    return {
+      icon: '📘',
+      badgeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+      headerBg: 'from-indigo-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-indigo-500/30',
+      dotColor: 'bg-indigo-400',
+    };
+  }
+  if (norm.includes('operating system') || norm.includes('os')) {
+    return {
+      icon: '📗',
+      badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+      headerBg: 'from-emerald-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-emerald-500/30',
+      dotColor: 'bg-emerald-400',
+    };
+  }
+  if (norm.includes('database') || norm.includes('dbms')) {
+    return {
+      icon: '📙',
+      badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+      headerBg: 'from-amber-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-amber-500/30',
+      dotColor: 'bg-amber-400',
+    };
+  }
+  if (norm.includes('network')) {
+    return {
+      icon: '🌐',
+      badgeClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+      headerBg: 'from-cyan-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-cyan-500/30',
+      dotColor: 'bg-cyan-400',
+    };
+  }
+  if (norm.includes('thermo')) {
+    return {
+      icon: '⚙️',
+      badgeClass: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+      headerBg: 'from-rose-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-rose-500/30',
+      dotColor: 'bg-rose-400',
+    };
+  }
+  if (norm.includes('fluid')) {
+    return {
+      icon: '💧',
+      badgeClass: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+      headerBg: 'from-sky-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-sky-500/30',
+      dotColor: 'bg-sky-400',
+    };
+  }
+  if (norm.includes('signal')) {
+    return {
+      icon: '⚡',
+      badgeClass: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+      headerBg: 'from-violet-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-violet-500/30',
+      dotColor: 'bg-violet-400',
+    };
+  }
+  if (norm.includes('math')) {
+    return {
+      icon: '📐',
+      badgeClass: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
+      headerBg: 'from-fuchsia-950/40 via-slate-900 to-slate-900',
+      borderClass: 'border-fuchsia-500/30',
+      dotColor: 'bg-fuchsia-400',
+    };
+  }
+  return {
+    icon: '📚',
+    badgeClass: 'bg-slate-800 text-slate-300 border-slate-700',
+    headerBg: 'from-slate-900 via-slate-900 to-slate-900',
+    borderClass: 'border-slate-800',
+    dotColor: 'bg-slate-400',
+  };
+};
 
 export const TeacherView: React.FC<TeacherViewProps> = ({ 
   teacher, 
@@ -97,15 +180,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     return StorageService.getAllPortalSubjectReferences();
   }, [refreshKey]);
 
-  // List of all assigned subjects across primary subject & assigned topics
+  // List of all assigned subjects across primary subject & assigned topics (canonical names)
   const teacherAssignedSubjects = useMemo(() => {
-    const set = new Set<string>();
-    if (teacher.subject?.trim()) set.add(teacher.subject.trim());
-    assignedTopics.forEach((t) => {
-      if (t.subject?.trim()) set.add(t.subject.trim());
-    });
-    return Array.from(set);
-  }, [teacher.subject, assignedTopics]);
+    return StorageService.getTeacherAssignedSubjects(teacher, assignedTopics);
+  }, [teacher, assignedTopics]);
 
   // Filtered Study Resources
   const filteredStudyResources = useMemo(() => {
@@ -115,14 +193,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
     // Scope filter
     if (resourceScopeFilter === 'primary') {
-      list = list.filter((r) => r.scope === 'primary_subject' || r.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase());
+      const primaryCanonical = teacher.subject ? toCanonicalSubject(teacher.subject).toLowerCase() : '';
+      list = list.filter((r) => r.scope === 'primary_subject' || toCanonicalSubject(r.subjectName).toLowerCase() === primaryCanonical);
     } else if (resourceScopeFilter === 'topics') {
       list = list.filter((r) => r.scope === 'assigned_topic' || (r.assignedTopicTitle && r.assignedTopicTitle.length > 0));
     }
 
-    // Subject dropdown filter
+    // Subject dropdown filter (canonical comparison)
     if (resourceSubjectFilter !== 'all') {
-      list = list.filter((r) => r.subjectName.toLowerCase() === resourceSubjectFilter.toLowerCase());
+      const targetSubj = toCanonicalSubject(resourceSubjectFilter).toLowerCase();
+      list = list.filter((r) => toCanonicalSubject(r.subjectName).toLowerCase() === targetSubj);
     }
 
     // Resource type filter
@@ -152,6 +232,44 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
     allPortalSubjectReferences,
     teacher.subject,
   ]);
+
+  // Group resources by subject for clean "Subject-Wise" display
+  const subjectWiseResources = useMemo(() => {
+    const map = new Map<string, SubjectReference[]>();
+    filteredStudyResources.forEach((res) => {
+      const s = toCanonicalSubject(res.subjectName || 'General');
+      if (!map.has(s)) {
+        map.set(s, []);
+      }
+      map.get(s)!.push(res);
+    });
+
+    const groups: { subject: string; isPrimary: boolean; items: SubjectReference[] }[] = [];
+    const primaryCanonicalSet = new Set<string>();
+    if (teacher.subject) {
+      teacher.subject.split(/[,/|;]/).forEach((p) => {
+        const c = toCanonicalSubject(p.trim());
+        if (c) primaryCanonicalSet.add(c.toLowerCase());
+      });
+    }
+    if (Array.isArray(teacher.subjects)) {
+      teacher.subjects.forEach((s) => {
+        const c = toCanonicalSubject(s.trim());
+        if (c) primaryCanonicalSet.add(c.toLowerCase());
+      });
+    }
+
+    map.forEach((items, subj) => {
+      const isPrimary = primaryCanonicalSet.has(toCanonicalSubject(subj).toLowerCase());
+      groups.push({ subject: subj, isPrimary, items });
+    });
+
+    return groups.sort((a, b) => {
+      if (a.isPrimary && !b.isPrimary) return -1;
+      if (!a.isPrimary && b.isPrimary) return 1;
+      return a.subject.localeCompare(b.subject);
+    });
+  }, [filteredStudyResources, teacher.subject, teacher.subjects]);
 
   const pptRequests = useMemo(() => {
     void refreshKey;
@@ -761,29 +879,59 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                     <BookMarked className="w-4 h-4 text-indigo-400" />
                   </span>
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                    Assigned Study Resources ({teacherSubjectReferences.length})
+                    {teacherAssignedSubjects.length <= 1
+                      ? `Assigned Study Resources • ${teacherAssignedSubjects[0] || teacher.subject || 'All Courses'} (${teacherSubjectReferences.length})`
+                      : `Assigned Study Resources • ${teacherAssignedSubjects.length} Assigned Subjects (${teacherSubjectReferences.length})`}
                   </h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     Ready for Lecture Prep
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  Master Google Drive folders, textbook notes, and syllabus materials assigned across all your courses
+                  {teacherAssignedSubjects.length <= 1
+                    ? `Curriculum textbooks, slide decks, and question banks for ${teacherAssignedSubjects[0] || teacher.subject}`
+                    : `Showing curriculum materials across your assigned subjects: ${teacherAssignedSubjects.join(' • ')}`}
                 </p>
+                {teacherAssignedSubjects.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                    {teacherAssignedSubjects.map((subj) => {
+                      const count = teacherSubjectReferences.filter((r) => toCanonicalSubject(r.subjectName).toLowerCase() === toCanonicalSubject(subj).toLowerCase()).length;
+                      return (
+                        <button
+                          key={subj}
+                          onClick={() => {
+                            setResourceScopeFilter('all_assigned');
+                            setResourceSubjectFilter(subj);
+                            onPageChange('resources');
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/40 text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                          <span>{subj}:</span>
+                          <strong className="text-indigo-300">{count} Res</strong>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <button
-                onClick={() => onPageChange('resources')}
+                onClick={() => {
+                  setResourceScopeFilter('all_assigned');
+                  setResourceSubjectFilter('all');
+                  onPageChange('resources');
+                }}
                 className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 hover:border-indigo-500/50 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all self-start sm:self-auto shrink-0"
               >
-                View All Assigned Resources ({teacherSubjectReferences.length}) →
+                View All Subject-Wise ({teacherSubjectReferences.length}) →
               </button>
             </div>
 
             {teacherSubjectReferences.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {teacherSubjectReferences.slice(0, 3).map((ref) => {
-                  const isPrimary = ref.scope === 'primary_subject' || ref.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase();
+                {teacherSubjectReferences.slice(0, 6).map((ref) => {
+                  const isPrimary = ref.scope === 'primary_subject' || toCanonicalSubject(ref.subjectName).toLowerCase() === toCanonicalSubject(teacher.subject || '').toLowerCase();
                   return (
                     <div key={ref.id} className="p-3.5 bg-slate-950/80 border border-slate-800/80 rounded-xl flex flex-col justify-between space-y-3">
                       <div className="space-y-1.5">
@@ -793,7 +941,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           }`}>
                             {isPrimary ? 'Primary Subject' : 'Assigned Topic'}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400">{ref.subjectName}</span>
+                          <span className="text-[10px] font-mono text-indigo-400 font-semibold">{ref.subjectName}</span>
                         </div>
                         <h4 className="font-bold text-xs text-slate-100 line-clamp-1">{ref.title}</h4>
                         {ref.notes && (
@@ -3004,117 +3152,186 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   Faculty Academic Repository
                 </span>
-                <span className="text-xs text-slate-500 font-mono">• All Assigned Materials</span>
+                <span className="text-xs text-slate-500 font-mono">
+                  • {teacherAssignedSubjects.length > 1 ? 'Multi-Subject Portfolio' : 'Assigned Materials'}
+                </span>
               </div>
               <h2 className="text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2.5 mt-1.5">
                 <BookOpen className="w-6 h-6 text-indigo-400" />
                 Assigned Study Resources Hub
               </h2>
               <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-                Access all textbook references, syllabi, question banks, lab manuals, and master Drive repositories assigned across your primary subject (<span className="text-slate-200 font-semibold">{teacher.subject}</span>) and cross-assigned modules at once.
+                {teacherAssignedSubjects.length <= 1 ? (
+                  <>
+                    Access all textbook references, syllabi, question banks, and master Drive repositories assigned for your subject (<span className="text-slate-200 font-semibold">{teacherAssignedSubjects[0] || teacher.subject}</span>).
+                  </>
+                ) : (
+                  <>
+                    Access curriculum study materials across all <span className="text-slate-200 font-semibold">{teacherAssignedSubjects.length} assigned subjects</span> ({teacherAssignedSubjects.join(', ')}), organized strictly subject-wise.
+                  </>
+                )}
               </p>
             </div>
 
             <div className="flex items-center gap-2.5">
               <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-center">
-                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Assigned To You</div>
-                <div className="text-lg font-black text-indigo-400">{teacherSubjectReferences.length} Materials</div>
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Assigned Subjects</div>
+                <div className="text-lg font-black text-emerald-400">{teacherAssignedSubjects.length}</div>
               </div>
               <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-center">
-                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total In Catalog</div>
-                <div className="text-lg font-black text-slate-300">{allPortalSubjectReferences.length} Total</div>
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Assigned Materials</div>
+                <div className="text-lg font-black text-indigo-400">{teacherSubjectReferences.length}</div>
+              </div>
+              <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-center">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Portal Catalog</div>
+                <div className="text-lg font-black text-slate-300">{allPortalSubjectReferences.length}</div>
               </div>
             </div>
           </div>
 
-          {/* Quick Scope Breakdown Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Multi-Subject Banner if assigned more than 1 subject */}
+          {teacherAssignedSubjects.length > 1 && (
+            <div className="p-4 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900/60 border border-indigo-500/30 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+              <div className="flex items-center gap-3">
+                <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-lg">
+                  📚
+                </span>
+                <div>
+                  <div className="text-xs font-bold text-slate-100 flex items-center gap-2">
+                    Multi-Subject Assignment Active ({teacherAssignedSubjects.length} Subjects)
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      Subject-Wise Mode
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    You are assigned to {teacherAssignedSubjects.join(' and ')}. All materials for both subjects are grouped into dedicated subject sections below.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setResourceScopeFilter('all_assigned');
+                    setResourceSubjectFilter('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    resourceSubjectFilter === 'all'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                  }`}
+                >
+                  View All Subjects
+                </button>
+                {teacherAssignedSubjects.map((subj) => (
+                  <button
+                    key={subj}
+                    onClick={() => {
+                      setResourceScopeFilter('all_assigned');
+                      setResourceSubjectFilter(subj);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      resourceSubjectFilter === subj
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                    }`}
+                  >
+                    Only {subj}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Top Subject Switcher Tabs */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* All Assigned Tab */}
             <button
               onClick={() => {
                 setResourceScopeFilter('all_assigned');
                 setResourceSubjectFilter('all');
-                setResourceTypeFilter('all');
               }}
-              className={`p-4 rounded-xl border text-left transition-all ${
-                resourceScopeFilter === 'all_assigned'
-                  ? 'bg-indigo-600/15 border-indigo-500 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500/30'
+              className={`px-4 py-3 rounded-xl border text-left transition-all flex items-center gap-2.5 ${
+                resourceScopeFilter === 'all_assigned' && resourceSubjectFilter === 'all'
+                  ? 'bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500/30'
                   : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">🌟 All Assigned</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300">
-                  {teacherSubjectReferences.length}
-                </span>
+              <span className="text-base">🌟</span>
+              <div>
+                <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                  All Assigned Subjects
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300">
+                    {teacherSubjectReferences.length}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  {teacherAssignedSubjects.length > 1 ? `Combined across ${teacherAssignedSubjects.length} subjects` : 'All materials at once'}
+                </div>
               </div>
-              <div className="text-sm font-bold text-slate-200 mt-2">All Assigned (At Once)</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Primary + cross-assigned topics</div>
             </button>
 
-            <button
-              onClick={() => {
-                setResourceScopeFilter('primary');
-                setResourceSubjectFilter('all');
-                setResourceTypeFilter('all');
-              }}
-              className={`p-4 rounded-xl border text-left transition-all ${
-                resourceScopeFilter === 'primary'
-                  ? 'bg-emerald-600/15 border-emerald-500 shadow-md shadow-emerald-500/10 ring-1 ring-emerald-500/30'
-                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">🎯 Primary Subject</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300">
-                  {teacherSubjectReferences.filter(r => r.scope === 'primary_subject' || r.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase()).length}
-                </span>
-              </div>
-              <div className="text-sm font-bold text-slate-200 mt-2 truncate" title={teacher.subject}>{teacher.subject}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Core discipline materials</div>
-            </button>
+            {/* Individual Assigned Subject Tabs */}
+            {teacherAssignedSubjects.map((subj) => {
+              const theme = getSubjectTheme(subj);
+              const count = teacherSubjectReferences.filter(
+                (r) => toCanonicalSubject(r.subjectName).toLowerCase() === toCanonicalSubject(subj).toLowerCase()
+              ).length;
+              const isSelected = resourceScopeFilter === 'all_assigned' && resourceSubjectFilter === subj;
 
-            <button
-              onClick={() => {
-                setResourceScopeFilter('topics');
-                setResourceSubjectFilter('all');
-                setResourceTypeFilter('all');
-              }}
-              className={`p-4 rounded-xl border text-left transition-all ${
-                resourceScopeFilter === 'topics'
-                  ? 'bg-amber-600/15 border-amber-500 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/30'
-                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">📚 Assigned Topics</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300">
-                  {teacherSubjectReferences.filter(r => r.scope === 'assigned_topic' || (r.assignedTopicTitle && r.assignedTopicTitle.length > 0)).length}
-                </span>
-              </div>
-              <div className="text-sm font-bold text-slate-200 mt-2">Topic Specific</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Resources mapped to syllabus</div>
-            </button>
+              return (
+                <button
+                  key={subj}
+                  onClick={() => {
+                    setResourceScopeFilter('all_assigned');
+                    setResourceSubjectFilter(subj);
+                  }}
+                  className={`px-4 py-3 rounded-xl border text-left transition-all flex items-center gap-2.5 ${
+                    isSelected
+                      ? `bg-slate-800/80 ${theme.borderClass} shadow-md ring-1 ring-indigo-500/30`
+                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
+                  }`}
+                >
+                  <span className="text-base">{theme.icon}</span>
+                  <div>
+                    <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                      <span>{subj}</span>
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${theme.badgeClass}`}>
+                        {count}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Subject-specific study resources
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
 
+            {/* Institutional Catalog Tab */}
             <button
               onClick={() => {
                 setResourceScopeFilter('institutional');
                 setResourceSubjectFilter('all');
-                setResourceTypeFilter('all');
               }}
-              className={`p-4 rounded-xl border text-left transition-all ${
+              className={`px-4 py-3 rounded-xl border text-left transition-all flex items-center gap-2.5 ml-auto ${
                 resourceScopeFilter === 'institutional'
-                  ? 'bg-purple-600/15 border-purple-500 shadow-md shadow-purple-500/10 ring-1 ring-purple-500/30'
+                  ? 'bg-purple-600/20 border-purple-500 shadow-md shadow-purple-500/10 ring-1 ring-purple-500/30'
                   : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">🏛️ All Catalog</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300">
-                  {allPortalSubjectReferences.length}
-                </span>
+              <span className="text-base">🏛️</span>
+              <div>
+                <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                  Institutional Catalog
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300">
+                    {allPortalSubjectReferences.length}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Explore all university resources
+                </div>
               </div>
-              <div className="text-sm font-bold text-slate-200 mt-2">Institutional Library</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Explore all departmental notes</div>
             </button>
           </div>
 
@@ -3198,37 +3415,45 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 <Filter className="w-3 h-3 text-slate-400" /> Active View:
               </span>
               <button
-                onClick={() => setResourceScopeFilter('all_assigned')}
+                onClick={() => {
+                  setResourceScopeFilter('all_assigned');
+                  setResourceSubjectFilter('all');
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                  resourceScopeFilter === 'all_assigned'
+                  resourceScopeFilter === 'all_assigned' && resourceSubjectFilter === 'all'
                     ? 'bg-indigo-600 text-white font-semibold shadow-sm'
                     : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
                 }`}
               >
                 🌟 All Assigned ({teacherSubjectReferences.length})
               </button>
+              {teacherAssignedSubjects.map((subj) => {
+                const count = teacherSubjectReferences.filter(
+                  (r) => toCanonicalSubject(r.subjectName).toLowerCase() === toCanonicalSubject(subj).toLowerCase()
+                ).length;
+                const isSelected = resourceScopeFilter === 'all_assigned' && resourceSubjectFilter === subj;
+                return (
+                  <button
+                    key={subj}
+                    onClick={() => {
+                      setResourceScopeFilter('all_assigned');
+                      setResourceSubjectFilter(subj);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    {getSubjectTheme(subj).icon} {subj} ({count})
+                  </button>
+                );
+              })}
               <button
-                onClick={() => setResourceScopeFilter('primary')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                  resourceScopeFilter === 'primary'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                🎯 Primary: {teacher.subject}
-              </button>
-              <button
-                onClick={() => setResourceScopeFilter('topics')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                  resourceScopeFilter === 'topics'
-                    ? 'bg-amber-600 text-white font-semibold shadow-sm'
-                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                📚 Topic Specific ({teacherSubjectReferences.filter(r => r.scope === 'assigned_topic' || r.assignedTopicTitle).length})
-              </button>
-              <button
-                onClick={() => setResourceScopeFilter('institutional')}
+                onClick={() => {
+                  setResourceScopeFilter('institutional');
+                  setResourceSubjectFilter('all');
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
                   resourceScopeFilter === 'institutional'
                     ? 'bg-purple-600 text-white font-semibold shadow-sm'
@@ -3243,108 +3468,163 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </div>
           </div>
 
-          {/* Resources Cards Grid */}
+          {/* Resources Cards Grouped Subject-Wise */}
           {filteredStudyResources.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4.5">
-              {filteredStudyResources.map((ref) => {
-                const isPrimary = ref.scope === 'primary_subject' || ref.subjectName.toLowerCase() === (teacher.subject || '').toLowerCase();
-                const isTopicAssigned = ref.scope === 'assigned_topic' || Boolean(ref.assignedTopicTitle);
-                const isInstitutional = ref.scope === 'institutional';
-
+            <div className="space-y-8">
+              {subjectWiseResources.map((group) => {
+                const theme = getSubjectTheme(group.subject);
                 return (
-                  <div
-                    key={ref.id}
-                    className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg transition-all hover:shadow-indigo-500/5 group"
-                  >
-                    <div className="space-y-3">
-                      {/* Top Badges */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {isPrimary && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                              <span>🎯</span> Primary Subject
+                  <div key={group.subject} className="space-y-4">
+                    {/* Subject Section Header */}
+                    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-gradient-to-r ${theme.headerBg} border ${theme.borderClass} rounded-2xl p-4 shadow-md`}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{theme.icon}</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-slate-100">
+                              {group.subject}
+                            </h3>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${theme.badgeClass}`}>
+                              {group.items.length} {group.items.length === 1 ? 'Resource' : 'Resources'}
                             </span>
-                          )}
-                          {isTopicAssigned && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                              <span>📚</span> Assigned Topic
-                            </span>
-                          )}
-                          {isInstitutional && !isPrimary && !isTopicAssigned && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                              <span>🏛️</span> Institutional
-                            </span>
-                          )}
-                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/60">
-                            {ref.department || teacher.department || 'General'}
-                          </span>
-                        </div>
-
-                        {/* Type Icon Badge */}
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-800/40">
-                          {ref.resourceType === 'textbook' && '📖 Book'}
-                          {ref.resourceType === 'drive_folder' && '📁 Drive'}
-                          {ref.resourceType === 'question_bank' && '📝 PYQ Bank'}
-                          {ref.resourceType === 'lab_manual' && '🔬 Lab Manual'}
-                          {ref.resourceType === 'syllabus' && '📋 Syllabus'}
-                          {ref.resourceType === 'notes' && '📄 Notes'}
-                          {(!ref.resourceType || ref.resourceType === 'syllabus') && ''}
-                        </span>
-                      </div>
-
-                      {/* Title & Subject */}
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-100 group-hover:text-indigo-300 transition-colors leading-snug">
-                          {ref.title}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 font-mono">
-                          <span className="text-indigo-400 font-semibold">{ref.subjectName}</span>
-                          {ref.assignedTopicTitle && (
-                            <>
-                              <span>•</span>
-                              <span className="text-amber-400 truncate max-w-[180px]" title={ref.assignedTopicTitle}>
-                                For: {ref.assignedTopicTitle}
+                            {group.isPrimary ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                🎯 Primary Subject
                               </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Notes Box */}
-                      {ref.notes ? (
-                        <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800/90 text-slate-200 space-y-1.5">
-                          <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide flex items-center gap-1.5">
-                            <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                            Guidelines & Curriculum Notes:
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                📚 Assigned Module
+                              </span>
+                            )}
                           </div>
-                          <p className="italic text-[12px] leading-relaxed text-slate-100 whitespace-pre-wrap">
-                            "{ref.notes}"
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Standard reference materials, textbook guides, and Drive repositories for {group.subject}
                           </p>
                         </div>
+                      </div>
+
+                      {resourceSubjectFilter !== group.subject ? (
+                        <button
+                          onClick={() => setResourceSubjectFilter(group.subject)}
+                          className="px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer"
+                        >
+                          Focus on {group.subject} only →
+                        </button>
                       ) : (
-                        <div className="p-2.5 bg-slate-950/40 rounded-xl border border-slate-800/60 text-slate-400 text-[11px] italic">
-                          No additional text notes attached. Master reference documents available in the linked cloud Drive.
-                        </div>
+                        <button
+                          onClick={() => setResourceSubjectFilter('all')}
+                          className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer"
+                        >
+                          ← Show All Assigned Subjects
+                        </button>
                       )}
                     </div>
 
-                    {/* Footer Actions */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-slate-800/60">
-                      <button
-                        onClick={() => copyToClipboard(ref.referenceUrl, 'Study Resource Link')}
-                        className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-medium rounded-lg flex items-center gap-1.5 transition-colors"
-                        title="Copy direct URL"
-                      >
-                        <Copy className="w-3 h-3" /> Copy Link
-                      </button>
-                      <a
-                        href={ref.referenceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm"
-                      >
-                        <ExternalLink className="w-3 h-3" /> Open Drive
-                      </a>
+                    {/* Cards Grid for this Subject */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4.5">
+                      {group.items.map((ref) => {
+                        const isPrimary = ref.scope === 'primary_subject' || toCanonicalSubject(ref.subjectName).toLowerCase() === toCanonicalSubject(teacher.subject || '').toLowerCase();
+                        const isTopicAssigned = ref.scope === 'assigned_topic' || Boolean(ref.assignedTopicTitle);
+                        const isInstitutional = ref.scope === 'institutional';
+
+                        return (
+                          <div
+                            key={ref.id}
+                            className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 space-y-4 text-xs flex flex-col justify-between shadow-lg transition-all hover:shadow-indigo-500/5 group"
+                          >
+                            <div className="space-y-3">
+                              {/* Top Badges */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {isPrimary && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                      <span>🎯</span> Primary
+                                    </span>
+                                  )}
+                                  {isTopicAssigned && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                      <span>📚</span> Assigned Topic
+                                    </span>
+                                  )}
+                                  {isInstitutional && !isPrimary && !isTopicAssigned && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                                      <span>🏛️</span> Institutional
+                                    </span>
+                                  )}
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/60">
+                                    {ref.department || teacher.department || 'General'}
+                                  </span>
+                                </div>
+
+                                {/* Type Icon Badge */}
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-800/40">
+                                  {ref.resourceType === 'textbook' && '📖 Book'}
+                                  {ref.resourceType === 'drive_folder' && '📁 Drive'}
+                                  {ref.resourceType === 'question_bank' && '📝 PYQ Bank'}
+                                  {ref.resourceType === 'lab_manual' && '🔬 Lab Manual'}
+                                  {ref.resourceType === 'syllabus' && '📋 Syllabus'}
+                                  {ref.resourceType === 'notes' && '📄 Notes'}
+                                  {(!ref.resourceType || ref.resourceType === 'syllabus') && ''}
+                                </span>
+                              </div>
+
+                              {/* Title & Subject */}
+                              <div>
+                                <h3 className="font-bold text-sm text-slate-100 group-hover:text-indigo-300 transition-colors leading-snug">
+                                  {ref.title}
+                                </h3>
+                                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 font-mono">
+                                  <span className="text-indigo-400 font-semibold">{ref.subjectName}</span>
+                                  {ref.assignedTopicTitle && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-amber-400 truncate max-w-[180px]" title={ref.assignedTopicTitle}>
+                                        For: {ref.assignedTopicTitle}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Notes Box */}
+                              {ref.notes ? (
+                                <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800/90 text-slate-200 space-y-1.5">
+                                  <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wide flex items-center gap-1.5">
+                                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                                    Guidelines & Curriculum Notes:
+                                  </div>
+                                  <p className="italic text-[12px] leading-relaxed text-slate-100 whitespace-pre-wrap">
+                                    "{ref.notes}"
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="p-2.5 bg-slate-950/40 rounded-xl border border-slate-800/60 text-slate-400 text-[11px] italic">
+                                  No additional text notes attached. Master reference documents available in the linked cloud Drive.
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Footer Actions */}
+                            <div className="flex items-center gap-2 pt-3 border-t border-slate-800/60">
+                              <button
+                                onClick={() => copyToClipboard(ref.referenceUrl, 'Study Resource Link')}
+                                className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-medium rounded-lg flex items-center gap-1.5 transition-colors"
+                                title="Copy direct URL"
+                              >
+                                <Copy className="w-3 h-3" /> Copy Link
+                              </button>
+                              <a
+                                href={ref.referenceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                              >
+                                <ExternalLink className="w-3 h-3" /> Open Drive
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -3357,7 +3637,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
               <div className="font-bold text-slate-200 text-base">No Study Resources Found</div>
               <p className="text-slate-400 max-w-md mx-auto">
-                No resources match your active scope ({resourceScopeFilter}), subject filter, or search query: "{resourceSearchQuery}".
+                No resources match your active filter {resourceSubjectFilter !== 'all' ? `(${resourceSubjectFilter})` : ''} or search query: "{resourceSearchQuery}".
               </p>
               <button
                 onClick={() => {

@@ -25,6 +25,99 @@ const PR_COLLEGES_KEY = 'aew_pr_colleges_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 const SESSION_TOKEN_KEY = 'aew_portal_session_token_v2';
 
+export const CANONICAL_SUBJECT_MAP: Record<string, string> = {
+  'dsa': 'Data Structures & Algorithms',
+  'data structures': 'Data Structures & Algorithms',
+  'data structures and algorithms': 'Data Structures & Algorithms',
+  'data structure and algorithms': 'Data Structures & Algorithms',
+  'data structures & algorithms': 'Data Structures & Algorithms',
+  'algorithms': 'Data Structures & Algorithms',
+  'daa': 'Data Structures & Algorithms',
+  
+  'os': 'Operating Systems',
+  'operating systems': 'Operating Systems',
+  'operating system': 'Operating Systems',
+  
+  'dbms': 'Database Management Systems',
+  'database management systems': 'Database Management Systems',
+  'database management system': 'Database Management Systems',
+  'database': 'Database Management Systems',
+  'databases': 'Database Management Systems',
+  'sql': 'Database Management Systems',
+
+  'cn': 'Computer Networks',
+  'computer networks': 'Computer Networks',
+  'computer networking': 'Computer Networks',
+  'networking': 'Computer Networks',
+
+  'thermo': 'Thermodynamics',
+  'thermodynamics': 'Thermodynamics',
+  'thermal engineering': 'Thermodynamics',
+
+  'fm': 'Fluid Mechanics',
+  'fluid mechanics': 'Fluid Mechanics',
+  'fluid machinery': 'Fluid Mechanics',
+
+  'signals': 'Signals & Systems',
+  'signals and systems': 'Signals & Systems',
+  'signals & systems': 'Signals & Systems',
+  'signal and system': 'Signals & Systems',
+  'ss': 'Signals & Systems',
+
+  'math': 'Engineering Mathematics',
+  'maths': 'Engineering Mathematics',
+  'mathematics': 'Engineering Mathematics',
+  'engineering mathematics': 'Engineering Mathematics',
+  'engineering maths': 'Engineering Mathematics',
+
+  'pedagogy': 'Pedagogy & Faculty Development',
+  'pedagogy framework': 'Pedagogy & Faculty Development',
+  'aew pedagogy': 'Pedagogy & Faculty Development',
+  'teaching standards': 'Pedagogy & Faculty Development',
+};
+
+export function toCanonicalSubject(subjectName: string): string {
+  if (!subjectName) return '';
+  const clean = subjectName.trim();
+  const normalizedKey = clean
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (CANONICAL_SUBJECT_MAP[normalizedKey]) {
+    return CANONICAL_SUBJECT_MAP[normalizedKey];
+  }
+
+  if (normalizedKey === 'dsa' || normalizedKey.includes('data structure') || normalizedKey.includes('algorithm')) {
+    return 'Data Structures & Algorithms';
+  }
+  if (normalizedKey === 'os' || normalizedKey.includes('operating system')) {
+    return 'Operating Systems';
+  }
+  if (normalizedKey === 'dbms' || normalizedKey.includes('database')) {
+    return 'Database Management Systems';
+  }
+  if (normalizedKey === 'cn' || normalizedKey.includes('computer network') || normalizedKey.includes('networking')) {
+    return 'Computer Networks';
+  }
+  if (normalizedKey === 'thermo' || normalizedKey.includes('thermodynamic')) {
+    return 'Thermodynamics';
+  }
+  if (normalizedKey === 'fm' || normalizedKey.includes('fluid mechanic')) {
+    return 'Fluid Mechanics';
+  }
+  if (normalizedKey === 'ss' || normalizedKey.includes('signals')) {
+    return 'Signals & Systems';
+  }
+  if (normalizedKey.includes('math') || normalizedKey.includes('calculus') || normalizedKey.includes('algebra')) {
+    return 'Engineering Mathematics';
+  }
+
+  return clean;
+}
+
 export const SEED_SUBJECT_REFERENCES: SubjectReference[] = [
   {
     id: 'sref-dsa-01',
@@ -179,6 +272,124 @@ export const SEED_SUBJECT_REFERENCES: SubjectReference[] = [
     resourceType: 'syllabus',
     scope: 'institutional',
     updatedAt: '2026-09-01T08:00:00Z',
+  },
+];
+
+export const SEED_ASSIGNED_TOPICS: AssignedTopic[] = [
+  {
+    id: 'at-seed-101-1',
+    teacherId: 'AEW-T-101',
+    subject: 'Data Structures & Algorithms',
+    unitNumber: 'UNIT 1',
+    topicTitle: 'Binary Search Trees & AVL Balancing',
+    subtopics: ['BST Insert & Search', 'AVL Tree Rotations', 'Tree Balance Factor Analysis'],
+    subtopicItems: [
+      { id: 'sub-dsa-1', name: 'BST Insert & Search', status: 'completed' },
+      { id: 'sub-dsa-2', name: 'AVL Tree Rotations', status: 'pending' },
+      { id: 'sub-dsa-3', name: 'Tree Balance Factor Analysis', status: 'pending' },
+    ],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'approved',
+    assignedBy: 'Academic Operations',
+    deadlineDate: '2026-09-18',
+    status: 'pending',
+    priority: 'high',
+    notes: 'Cover worst-case O(log N) lookup proofs and rebalancing step-by-step.',
+    createdAt: '2026-09-01T09:00:00Z',
+    updatedAt: '2026-09-01T09:00:00Z',
+    displayOrder: 1,
+  },
+  {
+    id: 'at-seed-101-2',
+    teacherId: 'AEW-T-101',
+    subject: 'Data Structures & Algorithms',
+    unitNumber: 'UNIT 2',
+    topicTitle: 'Graph Algorithms & Shortest Paths',
+    subtopics: ['BFS & DFS Traversals', 'Dijkstra Single-Source Shortest Path', 'Prim & Kruskal MST'],
+    subtopicItems: [
+      { id: 'sub-dsa-4', name: 'BFS & DFS Traversals', status: 'pending' },
+      { id: 'sub-dsa-5', name: 'Dijkstra Single-Source Shortest Path', status: 'pending' },
+      { id: 'sub-dsa-6', name: 'Prim & Kruskal MST', status: 'pending' },
+    ],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'approved',
+    assignedBy: 'Academic Operations',
+    deadlineDate: '2026-09-22',
+    status: 'pending',
+    priority: 'high',
+    notes: 'Reference Cormen CLRS Chapters 22-24 for standard pseudocode and priority queue analysis.',
+    createdAt: '2026-09-02T09:00:00Z',
+    updatedAt: '2026-09-02T09:00:00Z',
+    displayOrder: 2,
+  },
+  {
+    id: 'at-seed-101-3',
+    teacherId: 'AEW-T-101',
+    subject: 'Operating Systems',
+    unitNumber: 'UNIT 1',
+    topicTitle: 'Process Synchronization & Semaphores',
+    subtopics: ['Critical Section Problem', 'Peterson Algorithm & Test-and-Set', 'Counting & Binary Semaphores'],
+    subtopicItems: [
+      { id: 'sub-os-1', name: 'Critical Section Problem', status: 'pending' },
+      { id: 'sub-os-2', name: 'Peterson Algorithm & Test-and-Set', status: 'pending' },
+      { id: 'sub-os-3', name: 'Counting & Binary Semaphores', status: 'pending' },
+    ],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'approved',
+    assignedBy: 'Academic Operations',
+    deadlineDate: '2026-09-25',
+    status: 'pending',
+    priority: 'medium',
+    notes: 'Cross-assigned module. Use Galvin OS concepts Chapter 6 and standard Linux semaphore lab examples.',
+    createdAt: '2026-09-03T09:00:00Z',
+    updatedAt: '2026-09-03T09:00:00Z',
+    displayOrder: 3,
+  },
+  {
+    id: 'at-seed-102-1',
+    teacherId: 'AEW-T-102',
+    subject: 'Thermodynamics',
+    unitNumber: 'UNIT 1',
+    topicTitle: 'First Law of Thermodynamics & Steady Flow Analysis',
+    subtopics: ['Internal Energy & Enthalpy', 'Conservation of Mass & Energy', 'Nozzles, Diffusers & Turbines'],
+    subtopicItems: [
+      { id: 'sub-th-1', name: 'Internal Energy & Enthalpy', status: 'pending' },
+      { id: 'sub-th-2', name: 'Conservation of Mass & Energy', status: 'pending' },
+      { id: 'sub-th-3', name: 'Nozzles, Diffusers & Turbines', status: 'pending' },
+    ],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'approved',
+    assignedBy: 'Academic Operations',
+    deadlineDate: '2026-09-20',
+    status: 'pending',
+    priority: 'high',
+    notes: 'Reference Cengel & Boles steam tables and enthalpy calculations.',
+    createdAt: '2026-09-01T10:00:00Z',
+    updatedAt: '2026-09-01T10:00:00Z',
+    displayOrder: 1,
+  },
+  {
+    id: 'at-seed-103-1',
+    teacherId: 'AEW-T-103',
+    subject: 'Signals & Systems',
+    unitNumber: 'UNIT 1',
+    topicTitle: 'Continuous-Time Fourier Transform (CTFT) & Filtering',
+    subtopics: ['CTFT Definition & Convergence', 'Duality, Time Shifting & Frequency Shifting', 'Ideal & Practical Low-Pass Filters'],
+    subtopicItems: [
+      { id: 'sub-ss-1', name: 'CTFT Definition & Convergence', status: 'pending' },
+      { id: 'sub-ss-2', name: 'Duality, Time Shifting & Frequency Shifting', status: 'pending' },
+      { id: 'sub-ss-3', name: 'Ideal & Practical Low-Pass Filters', status: 'pending' },
+    ],
+    proposedSubtopics: [],
+    subtopicsApprovalState: 'approved',
+    assignedBy: 'Academic Operations',
+    deadlineDate: '2026-09-20',
+    status: 'pending',
+    priority: 'high',
+    notes: 'Follow Oppenheim Chapter 4 transform tables and MATLAB live scripts.',
+    createdAt: '2026-09-01T10:00:00Z',
+    updatedAt: '2026-09-01T10:00:00Z',
+    displayOrder: 1,
   },
 ];
 
@@ -666,6 +877,9 @@ export const StorageService = {
   // ─── SUBJECT REFERENCE MATERIALS (WHOLE SUBJECT) ────────────────────────────
 
   getSubjectReferences(): SubjectReference[] {
+    if (typeof localStorage === 'undefined') {
+      return [...SEED_SUBJECT_REFERENCES];
+    }
     const data = localStorage.getItem(SUBJECT_REFERENCES_KEY);
     if (!data) {
       try {
@@ -754,13 +968,13 @@ export const StorageService = {
 
   /**
    * Retrieves all reference resources matching the given subjectName and optional department.
-   * Matches normalized canonical subject names with department compatibility checking.
-   * Also performs near-canonical fallback matching (e.g. "Data Structures" with "Data Structures & Algorithms")
-   * when within the same or compatible department.
+   * Matches canonical subject names (e.g. "DSA" -> "Data Structures & Algorithms")
+   * with department compatibility checking.
    */
   getReferencesForSubject(subjectName: string, department?: string): SubjectReference[] {
     if (!subjectName) return [];
-    const normTargetSubj = (subjectName || '')
+    const canonicalTarget = toCanonicalSubject(subjectName);
+    const normTargetSubj = canonicalTarget
       .toLowerCase()
       .replace(/&/g, 'and')
       .replace(/[^a-z0-9]/g, ' ')
@@ -782,7 +996,16 @@ export const StorageService = {
       return false;
     };
 
-    // 1. Exact normalized match with compatible department
+    // 1. Canonical subject match
+    const canonicalMatches = refs.filter((r) => {
+      const refCanonical = toCanonicalSubject(r.subjectName || '');
+      if (refCanonical.toLowerCase() !== canonicalTarget.toLowerCase()) return false;
+      return areDeptsCompatible(r.department, department);
+    });
+
+    if (canonicalMatches.length > 0) return canonicalMatches;
+
+    // 2. Exact normalized match with compatible department
     const exactMatches = refs.filter((r) => {
       const normRefSubj = (r.subjectName || '')
         .toLowerCase()
@@ -796,7 +1019,7 @@ export const StorageService = {
 
     if (exactMatches.length > 0) return exactMatches;
 
-    // 2. Near-canonical match (e.g. "Data Structures" vs "Data Structures & Algorithms")
+    // 3. Near-canonical match (e.g. "Data Structures" vs "Data Structures & Algorithms")
     const nearMatches = refs.filter((r) => {
       const normRefSubj = (r.subjectName || '')
         .toLowerCase()
@@ -816,83 +1039,121 @@ export const StorageService = {
   },
 
   /**
-   * Retrieves all relevant references for a teacher across all subjects they teach
-   * (primary subject + any subjects in assigned topics), department, and institutional materials.
-   * Tags each reference with scope ('primary_subject', 'assigned_topic', 'departmental', 'institutional')
-   * and linked assigned topics.
+   * Resolves the list of all distinct assigned subjects for a teacher.
+   * Checks primary subject (including comma/slash separated), subjects array, and assigned topics.
+   * Returns canonical subject names.
+   */
+  getTeacherAssignedSubjects(
+    teacher: { subject?: string; subjects?: string[] },
+    assignedTopics?: Array<{ subject?: string }>
+  ): string[] {
+    const subjectsMap = new Map<string, string>(); // canonicalKey -> canonicalSubjectName
+
+    // 1. Teacher primary subject (supports comma/slash/semicolon separation)
+    if (teacher?.subject) {
+      const parts = teacher.subject.split(/[,/|;]/).map((s) => s.trim()).filter(Boolean);
+      parts.forEach((p) => {
+        const canonical = toCanonicalSubject(p);
+        if (canonical) {
+          subjectsMap.set(canonical.toLowerCase(), canonical);
+        }
+      });
+    }
+
+    // 2. Teacher multiple subjects array (if present in User object)
+    if (Array.isArray(teacher?.subjects)) {
+      teacher.subjects.forEach((s) => {
+        if (s && typeof s === 'string') {
+          const canonical = toCanonicalSubject(s);
+          if (canonical) {
+            subjectsMap.set(canonical.toLowerCase(), canonical);
+          }
+        }
+      });
+    }
+
+    // 3. Topics assigned to this teacher
+    if (Array.isArray(assignedTopics)) {
+      assignedTopics.forEach((t) => {
+        if (t.subject && typeof t.subject === 'string') {
+          const canonical = toCanonicalSubject(t.subject);
+          if (canonical) {
+            subjectsMap.set(canonical.toLowerCase(), canonical);
+          }
+        }
+      });
+    }
+
+    return Array.from(subjectsMap.values());
+  },
+
+  /**
+   * Retrieves all reference resources for a teacher's assigned subjects:
+   * - If a teacher is of DSA, returns all resources of DSA.
+   * - If of another subject (e.g. Thermodynamics), returns all resources of that subject.
+   * - If more than 1 subject is assigned, returns all resources of both (all) assigned subjects.
+   * Strictly scopes to assigned subjects so faculty aren't polluted with unassigned departmental materials.
    */
   getAllReferencesForTeacher(
-    teacher: { subject?: string; department?: string },
+    teacher: { subject?: string; department?: string; subjects?: string[] },
     assignedTopics?: Array<{ subject?: string; topicTitle?: string }>
   ): SubjectReference[] {
+    const assignedSubjects = this.getTeacherAssignedSubjects(teacher, assignedTopics);
     const seenIds = new Set<string>();
     const result: SubjectReference[] = [];
 
-    const primarySubj = (teacher?.subject || '').trim();
-    const normTeacherDept = (teacher?.department || '').trim().toLowerCase();
+    // Identify primary canonical subject(s)
+    const primaryCanonicalSet = new Set<string>();
+    if (teacher?.subject) {
+      const parts = teacher.subject.split(/[,/|;]/).map((s) => s.trim()).filter(Boolean);
+      parts.forEach((p) => {
+        const c = toCanonicalSubject(p);
+        if (c) primaryCanonicalSet.add(c.toLowerCase());
+      });
+    }
+    if (Array.isArray(teacher?.subjects)) {
+      teacher.subjects.forEach((s) => {
+        const c = toCanonicalSubject(s);
+        if (c) primaryCanonicalSet.add(c.toLowerCase());
+      });
+    }
 
-    // 1. Primary Subject References
-    if (primarySubj) {
-      const primaryMatches = this.getReferencesForSubject(primarySubj, teacher?.department);
-      for (const m of primaryMatches) {
+    // For EACH assigned subject, retrieve all its curriculum references
+    for (const subj of assignedSubjects) {
+      const isPrimary = primaryCanonicalSet.has(subj.toLowerCase());
+      const subjectMatches = this.getReferencesForSubject(subj, teacher?.department);
+
+      // Collect any topic titles assigned to this subject
+      const linkedTopics = (assignedTopics || []).filter(
+        (t) => t.subject && toCanonicalSubject(t.subject).toLowerCase() === subj.toLowerCase()
+      );
+      const linkedTopicTitles = linkedTopics.map((t) => t.topicTitle).filter(Boolean).join(', ');
+
+      for (const m of subjectMatches) {
         if (!seenIds.has(m.id)) {
           seenIds.add(m.id);
           result.push({
             ...m,
-            scope: 'primary_subject',
+            subjectName: subj, // Display canonical subject name
+            scope: isPrimary ? 'primary_subject' : 'assigned_topic',
+            assignedTopicTitle: linkedTopicTitles || m.assignedTopicTitle,
           });
         }
       }
     }
 
-    // 2. Assigned Topics / Other Subjects
-    if (assignedTopics && assignedTopics.length > 0) {
-      for (const topic of assignedTopics) {
-        const tSubj = (topic.subject || '').trim();
-        if (tSubj) {
-          const topicMatches = this.getReferencesForSubject(tSubj, teacher?.department);
-          for (const m of topicMatches) {
-            if (!seenIds.has(m.id)) {
-              seenIds.add(m.id);
-              result.push({
-                ...m,
-                scope: m.subjectName.toLowerCase() === primarySubj.toLowerCase() ? 'primary_subject' : 'assigned_topic',
-                assignedTopicTitle: topic.topicTitle,
-              });
-            } else {
-              const existing = result.find((r) => r.id === m.id);
-              if (existing && topic.topicTitle) {
-                if (!existing.assignedTopicTitle) {
-                  existing.assignedTopicTitle = topic.topicTitle;
-                } else if (!existing.assignedTopicTitle.includes(topic.topicTitle)) {
-                  existing.assignedTopicTitle = `${existing.assignedTopicTitle}, ${topic.topicTitle}`;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 3. Departmental & Institutional References
-    const allRefs = this.getSubjectReferences();
-    for (const r of allRefs) {
-      const normRefDept = (r.department || '').trim().toLowerCase();
-      const isDeptMatch = normTeacherDept && (normRefDept.includes(normTeacherDept) || normTeacherDept.includes(normRefDept));
-      const isInstitutional = !normRefDept || normRefDept === 'general' || normRefDept === 'all' || normRefDept === 'academic operations';
-
-      if (!seenIds.has(r.id)) {
-        if (isDeptMatch) {
+    // Fallback: if teacher has no subjects assigned at all, show departmental resources
+    if (assignedSubjects.length === 0) {
+      const allRefs = this.getSubjectReferences();
+      const normTeacherDept = (teacher?.department || '').trim().toLowerCase();
+      for (const r of allRefs) {
+        const normRefDept = (r.department || '').trim().toLowerCase();
+        const isDeptMatch = normTeacherDept && (normRefDept.includes(normTeacherDept) || normTeacherDept.includes(normRefDept));
+        if (isDeptMatch && !seenIds.has(r.id)) {
           seenIds.add(r.id);
           result.push({
             ...r,
             scope: 'departmental',
-          });
-        } else if (isInstitutional) {
-          seenIds.add(r.id);
-          result.push({
-            ...r,
-            scope: 'institutional',
           });
         }
       }
@@ -918,10 +1179,24 @@ export const StorageService = {
   // ─── ASSIGNED TOPICS WITH SUBTOPIC DEADLINES ────────────────────────────────
   getAssignedTopics(): AssignedTopic[] {
     const data = localStorage.getItem(ASSIGNED_TOPICS_KEY);
-    if (!data) return [];
+    if (!data) {
+      try {
+        localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(SEED_ASSIGNED_TOPICS));
+      } catch {
+        // ignore
+      }
+      return this.sortAssignedTopics([...SEED_ASSIGNED_TOPICS]);
+    }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed)) return [];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        try {
+          localStorage.setItem(ASSIGNED_TOPICS_KEY, JSON.stringify(SEED_ASSIGNED_TOPICS));
+        } catch {
+          // ignore
+        }
+        return this.sortAssignedTopics([...SEED_ASSIGNED_TOPICS]);
+      }
       
       const topics = parsed as AssignedTopic[];
       let needsMigration = false;

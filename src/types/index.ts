@@ -12,6 +12,7 @@ export interface User {
   role: UserRole;
   department: string;
   subject: string;
+  subjects?: string[];           // Optional multiple assigned subjects
   dailyTargetMinutes: number;    // Minimum required lecture recording time per day in minutes (e.g. 120 min)
   maxDailyMinutes?: number;      // Admin-configurable maximum daily recording limit (e.g. 240 min)
   dailyUploadCutoffTime?: string; // Standard fixed daily upload cutoff time (e.g. "20:00" / "08:00 PM") set once upon first login
