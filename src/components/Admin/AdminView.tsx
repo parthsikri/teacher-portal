@@ -1,12 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest, PptRequestStatus } from '../../types';
 import { StorageService } from '../../services/storage';
+import { notificationService } from '../../services/notificationService';
 import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { EmailSettingsModal } from '../Common/EmailSettingsModal';
 import { DailyBacklogLogsView } from '../Teacher/DailyBacklogLogsView';
 import { PrManagementSection } from './PrManagementSection';
 import { AdminWebDevSection } from '../WebDev/Admin/AdminWebDevSection';
+import { AdminSalesCrmSection } from './AdminSalesCrmSection';
+import { AdminOfferLetterGenerator } from './AdminOfferLetterGenerator';
+import { OnboardEmployeeModal, ALL_ADMIN_PERMISSIONS } from './OnboardEmployeeModal';
 import { 
   Calendar, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
   Eye, MessageCircle, Clock, X, 
@@ -14,7 +18,8 @@ import {
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
-  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail
+  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail, FileCheck,
+  Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -24,18 +29,6 @@ interface AdminViewProps {
   refreshTrigger?: number;
   currentUser?: User;
 }
-
-const getNextTeacherId = (currentTeachers: User[]): string => {
-  const ids = currentTeachers
-    .map(t => {
-      const match = t.teacherId.match(/AEW-T-(\d+)/i);
-      return match ? parseInt(match[1], 10) : 0;
-    })
-    .filter(num => num > 0);
-  
-  const maxId = ids.length > 0 ? Math.max(...ids) : 100;
-  return `AEW-T-${maxId + 1}`;
-};
 
 export const AdminView: React.FC<AdminViewProps> = ({ 
   currentPage, 
@@ -52,6 +45,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
     role: 'admin',
   } as User);
   const [teachers, setTeachers] = useState<User[]>(StorageService.getTeachers());
+  const [allEmployees, setAllEmployees] = useState<User[]>(() => StorageService.getUsers());
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_intern' | 'web_developer' | 'sales' | 'admin'>('all');
+  const [showOnboardModal, setShowOnboardModal] = useState(false);
+  const [onboardInitialData, setOnboardInitialData] = useState<Partial<User> | undefined>(undefined);
+  const [showAdminAccessGuide, setShowAdminAccessGuide] = useState(false);
+  const [copiedEmployeeId, setCopiedEmployeeId] = useState<string | null>(null);
+  const [revealedPasswordId, setRevealedPasswordId] = useState<string | null>(null);
+  const [sendingWelcomeEmailId, setSendingWelcomeEmailId] = useState<string | null>(null);
+  const [welcomeEmailToast, setWelcomeEmailToast] = useState<{ id: string; status: 'delivered' | 'simulated' | 'failed'; message: string } | null>(null);
   const [lectures, setLectures] = useState<Lecture[]>(StorageService.getLectures());
   const [assignedTopics, setAssignedTopics] = useState<AssignedTopic[]>(StorageService.getAssignedTopics());
   const [subjectReferences, setSubjectReferences] = useState<SubjectReference[]>(StorageService.getSubjectReferences());
@@ -293,6 +295,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const refreshState = () => {
     setTeachers(StorageService.getTeachers());
+    setAllEmployees(StorageService.getUsers());
     setLectures(StorageService.getLectures());
     setAssignedTopics(StorageService.getAssignedTopics());
     setSubjectReferences(StorageService.getSubjectReferences());
@@ -361,19 +364,33 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     const generatedUsername = newUsername.trim().toLowerCase() || newTeacherId.trim().toLowerCase();
     const generatedPassword = newPassword.trim() || 'teach123';
+    const destEmail = newEmail.trim() || `${newTeacherId.toLowerCase()}@aew.com`;
 
     StorageService.addTeacher({
       teacherId: newTeacherId.trim().toUpperCase(),
       username: generatedUsername,
       password: generatedPassword,
       name: newName.trim(),
-      email: newEmail.trim() || `${newTeacherId.toLowerCase()}@aew.com`,
+      email: destEmail,
       department: newDept.trim() || 'Engineering',
       subject: newSubject.trim() || 'Engineering',
       dailyTargetMinutes: newTargetMinutes || 120,
       maxDailyMinutes: newMaxDailyMinutes || 240,
       joiningDate: newJoiningDate || new Date().toISOString().split('T')[0],
     });
+
+    // Automatically send welcome mail with credentials
+    notificationService.notifyEmployeeWelcome({
+      employeeEmail: destEmail,
+      employeeName: newName.trim(),
+      employeeId: newTeacherId.trim().toUpperCase(),
+      role: 'teacher',
+      department: newDept.trim() || 'Engineering',
+      subject: newSubject.trim() || 'Engineering',
+      username: generatedUsername,
+      password: generatedPassword,
+      joiningDate: newJoiningDate || new Date().toISOString().split('T')[0],
+    }).catch(console.warn);
 
     setShowAddModal(false);
     setNewName('');
@@ -730,19 +747,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setRemarkInput('');
     refreshState();
   };
-
-  const filteredTeachers = useMemo(() => {
-    const q = searchTeacherQuery.toLowerCase().trim();
-    if (!q) return teachers;
-    return teachers.filter(
-      (t) =>
-        (t.name || '').toLowerCase().includes(q) ||
-        (t.teacherId || '').toLowerCase().includes(q) ||
-        (t.username || '').toLowerCase().includes(q) ||
-        (t.department || '').toLowerCase().includes(q) ||
-        (t.subject || '').toLowerCase().includes(q)
-    );
-  }, [teachers, searchTeacherQuery]);
 
   // Helper function to resolve unit name for any lecture
   const resolveLectureUnit = (lec: Lecture, topics: AssignedTopic[]): string => {
@@ -1190,6 +1194,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <FileSpreadsheet className="w-4 h-4 text-amber-300" /> PYQ PPT Generator
               </button>
               <button
+                onClick={() => onPageChange('admin_offer_letters')}
+                className="px-4 py-3 rounded-2xl bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-500/40 text-indigo-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02] cursor-pointer"
+              >
+                <FileCheck className="w-4 h-4 text-indigo-400" /> Offer Letter Generator
+              </button>
+              <button
                 onClick={() => setShowEmailModal(true)}
                 className="px-4 py-3 rounded-2xl bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-500/40 text-indigo-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02] cursor-pointer"
               >
@@ -1222,14 +1232,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </button>
               <button
                 onClick={() => {
-                  const nextId = getNextTeacherId(teachers);
-                  setNewTeacherId(nextId);
-                  setNewUsername(`teacher_${nextId.replace('AEW-T-', '')}`);
-                  setShowAddModal(true);
+                  setOnboardInitialData(undefined);
+                  setShowOnboardModal(true);
                 }}
-                className="px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-xl shadow-purple-600/30 transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
+                className="px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-extrabold text-xs shadow-xl shadow-purple-600/30 transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02] cursor-pointer"
+                title="Onboard Faculty, PR Interns, Web Developers, Sales Reps, or Admins"
               >
-                <UserPlus className="w-4 h-4" /> + Onboard Faculty
+                <UserPlus className="w-4 h-4" /> + Onboard Employee
               </button>
             </div>
           </div>
@@ -2964,202 +2973,535 @@ export const AdminView: React.FC<AdminViewProps> = ({
         />
       )}
 
-      {currentPage === 'admin_faculty' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2">
-                <Users className="w-5 h-5 text-indigo-400" /> Faculty Roster & Login Credentials ({teachers.length})
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Configure teacher login usernames, reset passwords, adjust daily quotas, and onboard new faculty.
-              </p>
-            </div>
+      {/* PAGE: 💼 SALES CRM, LEADS & CALL CENTER WAR ROOM */}
+      {currentPage === 'admin_sales_crm' && (
+        <AdminSalesCrmSection
+          currentUser={activeAdminUser}
+          onRefreshData={onRefreshData}
+        />
+      )}
 
-            <div className="flex items-center gap-3">
-              <div className="relative w-full md:w-64">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search faculty..."
-                  value={searchTeacherQuery}
-                  onChange={(e) => setSearchTeacherQuery(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
+      {/* PAGE: 📜 OFFER LETTER & APPOINTMENT GENERATOR */}
+      {currentPage === 'admin_offer_letters' && (
+        <AdminOfferLetterGenerator
+          currentUser={activeAdminUser}
+          onOnboardCandidate={(data) => {
+            setOnboardInitialData(data);
+            setShowOnboardModal(true);
+          }}
+        />
+      )}
+
+      {currentPage === 'admin_faculty' && (() => {
+        const teachersCount = allEmployees.filter((u) => u.role === 'teacher').length;
+        const prCount = allEmployees.filter((u) => u.role === 'pr_intern').length;
+        const webDevCount = allEmployees.filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager').length;
+        const salesCount = allEmployees.filter((u) => u.role === 'sales').length;
+        const adminCount = allEmployees.filter((u) => u.role === 'admin').length;
+
+        const roleTabs = [
+          { id: 'all' as const, label: 'All Staff', count: allEmployees.length, icon: Users },
+          { id: 'teacher' as const, label: 'Faculty / SMEs', count: teachersCount, icon: GraduationCap },
+          { id: 'pr_intern' as const, label: 'PR Interns', count: prCount, icon: Award },
+          { id: 'web_developer' as const, label: 'Web Devs', count: webDevCount, icon: Code2 },
+          { id: 'sales' as const, label: 'Sales Reps', count: salesCount, icon: PhoneCall },
+          { id: 'admin' as const, label: 'Operations Admins', count: adminCount, icon: ShieldCheck },
+        ];
+
+        const filteredEmployees = allEmployees.filter((emp) => {
+          if (employeeRoleFilter !== 'all') {
+            if (employeeRoleFilter === 'web_developer') {
+              if (emp.role !== 'web_developer' && emp.role !== 'web_dev_manager') return false;
+            } else if (emp.role !== employeeRoleFilter) {
+              return false;
+            }
+          }
+          if (!searchTeacherQuery.trim()) return true;
+          const q = searchTeacherQuery.toLowerCase();
+          return (
+            emp.name.toLowerCase().includes(q) ||
+            emp.teacherId.toLowerCase().includes(q) ||
+            (emp.username && emp.username.toLowerCase().includes(q)) ||
+            (emp.department && emp.department.toLowerCase().includes(q)) ||
+            (emp.subject && emp.subject.toLowerCase().includes(q))
+          );
+        });
+
+        const handleCopyUserCredentials = (u: User) => {
+          const defaultPassword = 
+            u.role === 'admin' ? 'admin123' :
+            u.role === 'pr_intern' ? 'intern123' :
+            u.role === 'sales' ? 'sales123' :
+            (u.role === 'web_developer' || u.role === 'web_dev_manager') ? 'dev123' : 'teach123';
+          
+          const text = `AEW Portal Login Credentials:
+Name: ${u.name}
+Role: ${u.role.toUpperCase()} (${u.department})
+Employee ID: ${u.teacherId}
+Username: ${u.username || u.teacherId.toLowerCase()}
+Password: ${u.password || defaultPassword}
+Portal URL: ${window.location.origin}`;
+
+          navigator.clipboard.writeText(text).then(() => {
+            setCopiedEmployeeId(u.id || u.teacherId);
+            setTimeout(() => setCopiedEmployeeId(null), 2500);
+          });
+        };
+
+        const handleSendWelcomeEmail = async (u: User) => {
+          const empEmail = (u.email || '').trim() || `${u.username || u.teacherId.toLowerCase()}@aew.com`;
+          setSendingWelcomeEmailId(u.id || u.teacherId);
+          
+          try {
+            const defaultPassword = 
+              u.role === 'admin' ? 'admin123' :
+              u.role === 'pr_intern' ? 'intern123' :
+              u.role === 'sales' ? 'sales123' :
+              (u.role === 'web_developer' || u.role === 'web_dev_manager') ? 'dev123' : 'teach123';
+
+            const res = await notificationService.notifyEmployeeWelcome({
+              employeeEmail: empEmail,
+              employeeName: u.name,
+              employeeId: u.teacherId,
+              role: u.role,
+              department: u.department,
+              subject: u.subject,
+              username: u.username || u.teacherId.toLowerCase(),
+              password: u.password || defaultPassword,
+              joiningDate: u.joiningDate,
+              adminTier: u.adminTier,
+              adminPermissions: u.adminPermissions,
+              webDevTitle: u.webDevTitle,
+              crmRole: u.crmRole,
+              prTier: u.prTier,
+            });
+
+            if (res.success) {
+              setWelcomeEmailToast({
+                id: u.id || u.teacherId,
+                status: (res.status as any) || 'delivered',
+                message: res.status === 'simulated' ? `Logged in simulated audit (${empEmail})` : `Welcome email delivered to ${empEmail}!`,
+              });
+            } else {
+              setWelcomeEmailToast({
+                id: u.id || u.teacherId,
+                status: 'failed',
+                message: res.error || `Failed to dispatch email to ${empEmail}`,
+              });
+            }
+          } catch (err: any) {
+            setWelcomeEmailToast({
+              id: u.id || u.teacherId,
+              status: 'failed',
+              message: err?.message || 'Error communicating with notification server',
+            });
+          } finally {
+            setSendingWelcomeEmailId(null);
+            setTimeout(() => {
+              setWelcomeEmailToast(null);
+            }, 4500);
+          }
+        };
+
+        return (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] font-mono font-bold tracking-wide mb-1">
+                  <Sparkles className="w-3.5 h-3.5" /> INSTITUTIONAL ROSTER & ACCESS GOVERNANCE
+                </div>
+                <h2 className="text-xl md:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2">
+                  <Users className="w-6 h-6 text-indigo-400" /> Employee & Faculty Directory ({allEmployees.length})
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Manage active employees across all roles, inspect credentials, configure admin access privileges, and provision new staff.
+                </p>
               </div>
 
-              <button
-                onClick={() => {
-                  const nextId = getNextTeacherId(teachers);
-                  setNewTeacherId(nextId);
-                  setNewUsername(`teacher_${nextId.replace('AEW-T-', '')}`);
-                  setShowAddModal(true);
-                }}
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-md shrink-0 flex items-center gap-1.5"
-              >
-                <UserPlus className="w-4 h-4" /> + Onboard Faculty
-              </button>
-            </div>
-          </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="relative w-full sm:w-60">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, ID, role..."
+                    value={searchTeacherQuery}
+                    onChange={(e) => setSearchTeacherQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
 
-          {filteredTeachers.length === 0 ? (
-            <div className="p-16 text-center bg-slate-950 rounded-3xl border border-slate-800 space-y-3">
-              <div className="text-4xl">👨‍🏫</div>
-              <div className="font-bold text-slate-200 text-base">No Faculty Found</div>
-              <p className="text-xs text-slate-400">Click "+ Onboard Faculty" to register a new teacher.</p>
+                <button
+                  type="button"
+                  onClick={() => setShowAdminAccessGuide(true)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  title="View What All Admins Can Access Across Portal"
+                >
+                  <Shield className="w-4 h-4 text-rose-400" /> Admin Access Matrix
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOnboardInitialData(undefined);
+                    setShowOnboardModal(true);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs rounded-xl shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer hover:scale-[1.02] transition-all"
+                >
+                  <UserPlus className="w-4 h-4" /> + Onboard Employee
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {filteredTeachers.map((t) => {
+
+            {/* Role Filter Tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+              {roleTabs.map((tab) => {
+                const Icon = tab.icon;
+                const isSelected = employeeRoleFilter === tab.id;
                 return (
-                  <div key={t.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                            {t.teacherId}
-                          </span>
-                          <h4 className="font-extrabold text-sm text-slate-100 truncate mt-1">{t.name}</h4>
-                          <p className="text-xs text-slate-400 truncate">{t.department}</p>
-                          <p className="text-[11px] text-indigo-300/80 truncate mt-0.5">{t.subject}</p>
-                        </div>
-
-                        <button
-                          onClick={() => handleRemoveTeacher(t.teacherId, t.name)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                          title="Remove Teacher"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* CREDENTIALS BADGE */}
-                      <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400 flex items-center gap-1 font-medium">
-                            <UserIcon className="w-3 h-3 text-indigo-400" /> Username:
-                          </span>
-                          <span className="font-mono font-bold text-slate-200">{t.username || t.teacherId.toLowerCase()}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400 flex items-center gap-1 font-medium">
-                            <Lock className="w-3 h-3 text-purple-400" /> Password:
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-slate-400 text-[11px]">
-                              ••••••••
-                            </span>
-                            <button
-                              onClick={() => handleOpenEditTeacher(t)}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-medium text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/40 border border-indigo-900/40 transition-colors"
-                              title="Reset Password"
-                            >
-                              Reset
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* DAILY RECORDING TARGET (MINUTES) */}
-                      <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-400 font-medium">Daily Min Target:</span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleUpdateTargetMinutes(t.teacherId, -15)}
-                              className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center"
-                              title="Decrease by 15 mins"
-                            >
-                              -15m
-                            </button>
-                            <span className="font-mono font-black text-amber-400 text-xs px-1">
-                              {t.dailyTargetMinutes || 120} min
-                            </span>
-                            <button
-                              onClick={() => handleUpdateTargetMinutes(t.teacherId, 15)}
-                              className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center"
-                              title="Increase by 15 mins"
-                            >
-                              +15m
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/60">
-                          <span className="text-slate-400 font-medium">Daily Max Limit:</span>
-                          <span className="font-mono font-black text-indigo-300 text-xs">
-                            {t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240)} min
-                          </span>
-                        </div>
-
-                        {(() => {
-                          const backlog = StorageService.getPreviousDayBacklog(t.teacherId);
-                          const recorded = StorageService.getMinutesRecordedToday(t.teacherId);
-                          const target = t.dailyTargetMinutes || 120;
-                          const isMet = recorded >= target;
-
-                          return (
-                            <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
-                              <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                                <span>Recorded Today:</span>
-                                <span className={isMet ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>
-                                  {recorded} / {target} min {isMet ? '✓' : ''}
-                                </span>
-                              </div>
-                              {!backlog.isYesterdayFulfilled && (
-                                <div className="text-[10px] text-amber-400 font-bold">
-                                  ⚠️ Yesterday incomplete ({backlog.yesterdayUnfulfilledMinutes}m)
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* PERMANENT DAILY UPLOAD CUTOFF TIME & JOINING DATE */}
-                      {(() => {
-                        const cutoff = t.dailyUploadCutoffTime || StorageService.getDailyCommitment(t.teacherId)?.promisedTime;
-                        const formatTime = (time24?: string) => {
-                          if (!time24) return '';
-                          const [hours, minutes] = time24.split(':').map(Number);
-                          const period = hours >= 12 ? 'PM' : 'AM';
-                          const formattedHours = hours % 12 || 12;
-                          const formattedMinutes = String(minutes).padStart(2, '0');
-                          return `${formattedHours}:${formattedMinutes} ${period}`;
-                        };
-
-                        return (
-                          <div className="space-y-1.5">
-                            <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                              <span className="text-slate-400">Daily Cutoff:</span>
-                              <span className="font-mono font-bold text-amber-400">
-                                {cutoff ? formatTime(cutoff) : 'Pending 1st Login'}
-                              </span>
-                            </div>
-                            <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                              <span className="text-slate-400">Joining Date:</span>
-                              <span className="font-mono font-bold text-indigo-300">
-                                {t.joiningDate || t.firstLoginDate || '2026-08-25'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    <button
-                      onClick={() => handleOpenEditTeacher(t)}
-                      className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                    >
-                      <Key className="w-3.5 h-3.5" /> Edit Password & Profile
-                    </button>
-                  </div>
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setEmployeeRoleFilter(tab.id)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer border ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/20'
+                        : 'bg-slate-950/70 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      isSelected ? 'bg-indigo-800 text-indigo-100' : 'bg-slate-900 text-slate-400'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  </button>
                 );
               })}
             </div>
-          )}
-        </div>
-      )}
+
+            {filteredEmployees.length === 0 ? (
+              <div className="p-16 text-center bg-slate-950 rounded-3xl border border-slate-800 space-y-3">
+                <div className="text-4xl">👥</div>
+                <div className="font-bold text-slate-200 text-base">No Employees Found</div>
+                <p className="text-xs text-slate-400">
+                  {searchTeacherQuery ? 'Try clearing your search query' : 'Click "+ Onboard Employee" to register a new employee.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOnboardInitialData(undefined);
+                    setShowOnboardModal(true);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5 mt-2"
+                >
+                  <UserPlus className="w-3.5 h-3.5" /> Onboard New Employee
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredEmployees.map((t) => {
+                  const isTeacher = t.role === 'teacher';
+                  const isPr = t.role === 'pr_intern';
+                  const isDev = t.role === 'web_developer' || t.role === 'web_dev_manager';
+                  const isSales = t.role === 'sales';
+                  const isAdmin = t.role === 'admin';
+
+                  const defaultPassword = 
+                    isAdmin ? 'admin123' :
+                    isPr ? 'intern123' :
+                    isSales ? 'sales123' :
+                    isDev ? 'dev123' : 'teach123';
+                  const displayPassword = t.password || defaultPassword;
+                  const isPasswordRevealed = revealedPasswordId === (t.id || t.teacherId);
+                  const isCopied = copiedEmployeeId === (t.id || t.teacherId);
+
+                  const roleBadgeConfig = {
+                    teacher: { label: 'FACULTY / SME', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
+                    pr_intern: { label: 'PR INTERN', color: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+                    web_developer: { label: 'WEB DEVELOPER', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+                    web_dev_manager: { label: 'DEV ARCHITECT', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
+                    sales: { label: 'SALES REP', color: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+                    admin: { label: 'OPERATIONS ADMIN', color: 'bg-rose-500/10 text-rose-400 border-rose-500/30' },
+                  }[t.role] || { label: t.role.toUpperCase(), color: 'bg-slate-800 text-slate-300 border-slate-700' };
+
+                  return (
+                    <div
+                      key={t.id || t.teacherId}
+                      className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        {/* Header: Role Badge, ID & Actions */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${roleBadgeConfig.color}`}>
+                                {roleBadgeConfig.label}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-indigo-300 border border-slate-800">
+                                {t.teacherId}
+                              </span>
+                              {isAdmin && t.adminTier && (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-rose-950/60 text-rose-300 border border-rose-700/40">
+                                  {t.adminTier.replace('_', ' ').toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="font-extrabold text-sm text-slate-100 truncate">{t.name}</h4>
+                            <p className="text-xs text-slate-400 truncate">{t.department}</p>
+                            <p className="text-[11px] text-indigo-300/80 truncate mt-0.5">{t.subject}</p>
+                          </div>
+
+                          <button
+                            onClick={() => handleRemoveTeacher(t.teacherId, t.name)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
+                            title="Remove Employee"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* CREDENTIALS BADGE & ACTIONS */}
+                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400 flex items-center gap-1 font-medium">
+                              <UserIcon className="w-3 h-3 text-indigo-400" /> Username:
+                            </span>
+                            <span className="font-mono font-bold text-slate-200 select-all">{t.username || t.teacherId.toLowerCase()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400 flex items-center gap-1 font-medium">
+                              <Lock className="w-3 h-3 text-purple-400" /> Password:
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-slate-300 text-[11px] font-bold select-all">
+                                {isPasswordRevealed ? displayPassword : '••••••••'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setRevealedPasswordId(isPasswordRevealed ? null : (t.id || t.teacherId))}
+                                className="text-slate-400 hover:text-slate-200 p-0.5 cursor-pointer"
+                                title={isPasswordRevealed ? 'Hide password' : 'Peek password'}
+                              >
+                                {isPasswordRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyUserCredentials(t)}
+                                className="px-2 py-1 rounded text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 transition-all cursor-pointer"
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-400" /> Copied!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3 text-indigo-400" /> Copy Login
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSendWelcomeEmail(t)}
+                                disabled={sendingWelcomeEmailId === (t.id || t.teacherId)}
+                                className="px-2 py-1 rounded text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                                title="Send / Resend Welcome Email with Credentials"
+                              >
+                                {sendingWelcomeEmailId === (t.id || t.teacherId) ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin text-indigo-400" /> Sending...
+                                  </>
+                                ) : welcomeEmailToast && welcomeEmailToast.id === (t.id || t.teacherId) ? (
+                                  welcomeEmailToast.status === 'failed' ? (
+                                    <>
+                                      <X className="w-3 h-3 text-red-400" /> Error
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" /> Sent!
+                                    </>
+                                  )
+                                ) : (
+                                  <>
+                                    <Mail className="w-3 h-3 text-indigo-400" /> Welcome Mail
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => handleOpenEditTeacher(t)}
+                              className="px-2 py-1 rounded text-[10px] font-medium text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/40 border border-indigo-900/40 transition-colors cursor-pointer"
+                              title="Reset Password & Credentials"
+                            >
+                              Reset / Edit
+                            </button>
+                          </div>
+                          {welcomeEmailToast && welcomeEmailToast.id === (t.id || t.teacherId) && (
+                            <div className={`text-[10px] px-2.5 py-1 rounded-lg mt-1 font-mono flex items-center justify-between animate-in fade-in duration-150 ${
+                              welcomeEmailToast.status === 'failed' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}>
+                              <span>{welcomeEmailToast.message}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* ROLE-SPECIFIC INFO */}
+                        {isTeacher && (
+                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-400 font-medium">Daily Min Target:</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleUpdateTargetMinutes(t.teacherId, -15)}
+                                  className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center cursor-pointer"
+                                  title="Decrease by 15 mins"
+                                >
+                                  -15m
+                                </button>
+                                <span className="font-mono font-black text-amber-400 text-xs px-1">
+                                  {t.dailyTargetMinutes || 120} min
+                                </span>
+                                <button
+                                  onClick={() => handleUpdateTargetMinutes(t.teacherId, 15)}
+                                  className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center cursor-pointer"
+                                  title="Increase by 15 mins"
+                                >
+                                  +15m
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/60">
+                              <span className="text-slate-400 font-medium">Daily Max Limit:</span>
+                              <span className="font-mono font-black text-indigo-300 text-xs">
+                                {t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240)} min
+                              </span>
+                            </div>
+
+                            {(() => {
+                              const backlog = StorageService.getPreviousDayBacklog(t.teacherId);
+                              const recorded = StorageService.getMinutesRecordedToday(t.teacherId);
+                              const target = t.dailyTargetMinutes || 120;
+                              const isMet = recorded >= target;
+
+                              return (
+                                <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                                    <span>Recorded Today:</span>
+                                    <span className={isMet ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>
+                                      {recorded} / {target} min {isMet ? '✓' : ''}
+                                    </span>
+                                  </div>
+                                  {!backlog.isYesterdayFulfilled && (
+                                    <div className="text-[10px] text-amber-400 font-bold">
+                                      ⚠️ Yesterday incomplete ({backlog.yesterdayUnfulfilledMinutes}m)
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                        {isPr && (
+                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium">PR Tier:</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                {t.prTier || 'Silver'} Tier
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium">Points & Stars:</span>
+                              <span className="font-mono font-bold text-slate-200">
+                                {t.prPoints || 0} pts • {t.prStars || 0} ⭐
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {isDev && (
+                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium">Job Title:</span>
+                              <span className="font-bold text-slate-200 text-[11px] truncate max-w-[150px]">
+                                {t.webDevTitle || 'Full Stack Developer'}
+                              </span>
+                            </div>
+                            {t.skills && t.skills.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {t.skills.slice(0, 3).map((s) => (
+                                  <span key={s} className="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-emerald-300 font-mono">
+                                    {s}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {isSales && (
+                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium">CRM Role:</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                                {t.crmRole === 'sales_manager' ? 'Sales Desk Manager' : 'Sales Representative'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              Admissions Counselor • Lead Follow-ups
+                            </div>
+                          </div>
+                        )}
+
+                        {isAdmin && (
+                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium">Access Scope:</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-300 border border-rose-500/30">
+                                {t.adminTier === 'super_admin' || !t.adminPermissions
+                                  ? 'SUPER ADMIN (Full 9)'
+                                  : `${t.adminPermissions.length} / 9 Modules`}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowAdminAccessGuide(true)}
+                              className="text-[10px] text-rose-400 hover:text-rose-300 underline block cursor-pointer"
+                            >
+                              Inspect All Active Admin Permissions →
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Joining Date */}
+                        <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                          <span className="text-slate-400">Joining Date:</span>
+                          <span className="font-mono font-bold text-indigo-300">
+                            {t.joiningDate || t.firstLoginDate || '2026-08-25'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleOpenEditTeacher(t)}
+                        className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer mt-2"
+                      >
+                        <Key className="w-3.5 h-3.5" /> Edit Password & Profile
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* PAGE 4: 📚 SUBJECT REFERENCE LIBRARY MANAGER */}
       {currentPage === 'admin_resources' && (
@@ -5744,6 +6086,182 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Onboard Employee Modal */}
+      <OnboardEmployeeModal
+        isOpen={showOnboardModal}
+        onClose={() => setShowOnboardModal(false)}
+        onSuccess={(_newUser) => {
+          refreshState();
+        }}
+        initialData={onboardInitialData}
+      />
+
+      {/* Admin Access Matrix & Privileges Guide Modal */}
+      {showAdminAccessGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 md:p-8 space-y-6 my-8 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-slate-800/80 pb-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px] font-mono font-bold tracking-wide">
+                  <Shield className="w-3.5 h-3.5 text-rose-400" /> SYSTEM PRIVILEGE SPECIFICATION
+                </div>
+                <h3 className="text-xl font-black text-slate-100 flex items-center gap-2">
+                  Administrator Access Scope & Permissions Matrix
+                </h3>
+                <p className="text-xs text-slate-400 max-w-2xl">
+                  Comprehensive audit guide detailing what each administrative permission controls and how role tiers dictate portal accessibility.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdminAccessGuide(false)}
+                className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Admin Tier Overview */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-400" /> Admin Role Tiers & Default Scopes
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-rose-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs text-rose-300">Super Admin</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-200">Full 9/9</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Unrestricted access to all modules, faculty quotas, CRM, development, offer letters, credentials & leaves.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-purple-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs text-purple-300">Academic Ops Admin</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-200">4 Modules</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Faculty supervision, syllabus timelines, topic approvals, lecture quality audits, and leave grants.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-indigo-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs text-indigo-300">HR & Talent Admin</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-200">4 Modules</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Candidate offer letters, employee onboarding, credentials management, and leave & day-off approvals.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-amber-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs text-amber-300">PR & Growth Admin</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-200">3 Modules</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    College ambassador network, fest sponsorships, MoUs, admissions sales CRM desk & student calling logs.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-emerald-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs text-emerald-300">Tech Ops Admin</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200">3 Modules</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Engineering sprint tracking, developer squads, GitHub pull approvals, and system access credentials.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Granular Permission Explanations */}
+            <div className="space-y-3 pt-2">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> All 9 Access Privileges Explained
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {ALL_ADMIN_PERMISSIONS.map((perm) => (
+                  <div key={perm.key} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-xs text-slate-100 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{perm.label}</span>
+                      </div>
+                      <span className="text-[9px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                        {perm.category}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {perm.desc}
+                    </p>
+                    <div className="text-[10px] font-mono text-indigo-400/80">
+                      Permission Key: <span className="text-slate-300">{perm.key}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Current Admins In Portal */}
+            <div className="space-y-3 pt-2 border-t border-slate-800/80">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <Users className="w-4 h-4 text-purple-400" /> Active Platform Administrators ({allEmployees.filter(u => u.role === 'admin').length})
+              </h4>
+              <div className="space-y-2">
+                {allEmployees.filter(u => u.role === 'admin').map((adm) => (
+                  <div key={adm.id || adm.teacherId} className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center font-bold">
+                        🛡️
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-100 flex items-center gap-2">
+                          <span>{adm.name}</span>
+                          <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                            {adm.teacherId}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {adm.email} • Username: <span className="font-mono text-indigo-300">{adm.username || 'admin'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                        {adm.adminTier ? adm.adminTier.replace('_', ' ').toUpperCase() : 'SUPER ADMIN'}
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {adm.adminPermissions ? `${adm.adminPermissions.length}/9 Active` : '9/9 Active'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setShowAdminAccessGuide(false)}
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+              >
+                Close Guide
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

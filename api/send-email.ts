@@ -14,7 +14,8 @@ export type NotificationEventType =
   | 'ppt_ready'
   | 'day_off_granted'
   | 'video_reuploaded'
-  | 'test_dispatch';
+  | 'test_dispatch'
+  | 'welcome_employee';
 
 export interface EmailRequestBody {
   to: string | string[];
@@ -400,6 +401,166 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
         </p>
         `,
         `<a href="${PORTAL_URL}" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);">View in Admin Portal →</a>`
+      );
+      return { subject, html };
+    }
+
+    case 'welcome_employee': {
+      const role = data.role || 'teacher';
+      const roleTitleMap: Record<string, string> = {
+        teacher: 'Faculty / Subject Matter Expert',
+        pr_intern: 'PR & Campus Outreach Intern',
+        web_developer: data.webDevTitle || 'Software Engineer (Web Development)',
+        web_dev_manager: data.webDevTitle || 'Lead Software Architect & Manager',
+        sales: data.crmRole === 'sales_manager' ? 'Sales Manager (Course Admissions)' : 'Sales Representative (Admissions)',
+        admin: data.adminTier ? `Operations Admin (${String(data.adminTier).replace('_', ' ').toUpperCase()})` : 'Operations Administrator',
+      };
+      const roleTitle = data.roleTitle || roleTitleMap[role] || 'Team Member';
+      const subject = `🎉 Welcome to AEW Academic Operations! Your Account Credentials (${data.name || 'Team Member'})`;
+
+      let roleSpecificGuidance = '';
+      if (role === 'teacher') {
+        roleSpecificGuidance = `
+          <li style="margin-bottom: 6px;">Check your assigned syllabus topics, curriculum units, and target lecture duration.</li>
+          <li style="margin-bottom: 6px;">Submit proposed subtopic breakdowns before delivering lectures.</li>
+          <li style="margin-bottom: 6px;">Request professional 16:9 widescreen PYQ slides directly from the Content Studio.</li>
+          <li>Upload your recorded lecture video links (YouTube Unlisted or Google Drive) for quality auditing.</li>
+        `;
+      } else if (role === 'pr_intern') {
+        roleSpecificGuidance = `
+          <li style="margin-bottom: 6px;">Access your PR Ambassador & Sponsorship dashboard.</li>
+          <li style="margin-bottom: 6px;">Track college partnerships, fest sponsorships, and official MoUs.</li>
+          <li>Monitor your ambassador points and monthly incentive tiers.</li>
+        `;
+      } else if (role === 'web_developer' || role === 'web_dev_manager') {
+        roleSpecificGuidance = `
+          <li style="margin-bottom: 6px;">Access the Developer Hub & Engineering Sprint backlog.</li>
+          <li style="margin-bottom: 6px;">Review feature bounties, repository issues, and technical architecture specs.</li>
+          <li>Connect your GitHub profile to track pull requests and development progress.</li>
+        `;
+      } else if (role === 'sales') {
+        roleSpecificGuidance = `
+          <li style="margin-bottom: 6px;">Access the Admissions CRM & Leads desk.</li>
+          <li style="margin-bottom: 6px;">Review prospective student inquiries and log consultation calls.</li>
+          <li>Track enrollment conversions and course admissions targets.</li>
+        `;
+      } else if (role === 'admin') {
+        roleSpecificGuidance = `
+          <li style="margin-bottom: 6px;">Supervise the Faculty & Staff Roster and daily recording targets.</li>
+          <li style="margin-bottom: 6px;">Audit lecture submissions and issue quality directives.</li>
+          <li>Manage candidate offer letters, employee onboarding, and system permissions.</li>
+        `;
+      } else {
+        roleSpecificGuidance = `
+          <li style="margin-bottom: 6px;">Explore the portal features assigned to your departmental role.</li>
+          <li>Reach out to Academic Operations if you need additional workspace access.</li>
+        `;
+      }
+
+      const html = wrapContent(
+        `
+        <div style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); border: 1px solid #6366f1; border-radius: 10px; padding: 16px 20px; margin-bottom: 22px;">
+          <div style="color: #c7d2fe; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">
+            🎉 Official Onboarding & Welcome Dispatch
+          </div>
+          <div style="color: #ffffff; font-size: 16px; font-weight: 800; margin-top: 4px;">
+            Welcome to the AEW Team, ${data.name || 'Team Member'}!
+          </div>
+        </div>
+
+        <p style="font-size: 15px; color: #f8fafc; margin-top: 0; line-height: 1.6;">
+          Hello <strong>${data.name || 'Team Member'}</strong>,
+        </p>
+        <p style="color: #cbd5e1; line-height: 1.6;">
+          We are thrilled to welcome you to <strong>AEW Academic Studio & Operations</strong>! Your official team profile has been provisioned as <strong>${roleTitle}</strong> in the <strong>${data.department || 'Academic Operations'}</strong> department.
+        </p>
+
+        <!-- CREDENTIAL CARD -->
+        <div style="background-color: #0b1120; border: 1px solid #38bdf8; border-radius: 12px; padding: 20px; margin: 24px 0; box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.15);">
+          <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 14px;">
+            <span style="font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #38bdf8;">
+              🔑 Official Portal Credentials
+            </span>
+            <span style="font-size: 11px; font-weight: 700; color: #94a3b8; font-family: monospace;">
+              ${data.employeeId || 'AEW-STAFF'}
+            </span>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px;">
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; width: 140px; font-size: 12px;">Portal Login URL:</td>
+              <td style="padding: 8px 0;">
+                <a href="${PORTAL_URL}" style="color: #38bdf8; font-weight: 700; text-decoration: underline;">${PORTAL_URL}</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; font-size: 12px;">Employee ID:</td>
+              <td style="padding: 8px 0; color: #f8fafc; font-weight: 700; font-family: monospace;">
+                ${data.employeeId || 'AEW-STAFF'}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; font-size: 12px;">Username:</td>
+              <td style="padding: 8px 0; color: #a5b4fc; font-weight: 800; font-family: monospace; font-size: 14px;">
+                ${data.username}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; font-size: 12px;">Initial Password:</td>
+              <td style="padding: 8px 0;">
+                <span style="background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.3); color: #34d399; font-weight: 800; font-family: monospace; font-size: 14px; padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                  ${data.password || '(Default password)'}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; font-size: 12px;">Assigned Role:</td>
+              <td style="padding: 8px 0; color: #f1f5f9; font-weight: 700;">
+                ${roleTitle}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; font-size: 12px;">Department:</td>
+              <td style="padding: 8px 0; color: #cbd5e1;">
+                ${data.department || 'Academic Operations'}
+              </td>
+            </tr>
+            ${data.subject ? `
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; font-size: 12px;">Subject / Domain:</td>
+              <td style="padding: 8px 0; color: #cbd5e1;">
+                ${data.subject}
+              </td>
+            </tr>
+            ` : ''}
+            ${data.joiningDate ? `
+            <tr>
+              <td style="padding: 8px 0; color: #94a3b8; font-size: 12px;">Joining Date:</td>
+              <td style="padding: 8px 0; color: #cbd5e1;">
+                ${data.joiningDate}
+              </td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+
+        <!-- GETTING STARTED CHECKLIST -->
+        <div style="background-color: #1e293b; border-radius: 10px; padding: 18px 20px; margin: 20px 0; border: 1px solid #334155;">
+          <div style="color: #f8fafc; font-size: 13px; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
+            📋 Quick Start Checklist for Your Role
+          </div>
+          <ul style="margin: 0; padding-left: 20px; color: #cbd5e1; font-size: 13px; line-height: 1.6;">
+            ${roleSpecificGuidance}
+          </ul>
+        </div>
+
+        <p style="font-size: 12px; color: #94a3b8; line-height: 1.6; margin-top: 16px;">
+          🔒 <strong>Security Advisory:</strong> Please keep your login credentials secure. If you ever need to update your password or profile information, you can do so directly from your account settings inside the portal.
+        </p>
+        `,
+        `<a href="${PORTAL_URL}" style="display: inline-block; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; padding: 14px 32px; border-radius: 10px; font-weight: 800; text-decoration: none; font-size: 14px; letter-spacing: 0.5px; box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);">
+          🚀 Sign In to Your Portal Account →
+        </a>`
       );
       return { subject, html };
     }

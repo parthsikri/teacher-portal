@@ -31,3 +31,41 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
+
+/* Print Optimization for Offer Letters & Official Documents */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  html, body, #root {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  /* Hide app navigation chrome during print */
+  header, nav, aside, .no-print, button, [role="navigation"] {
+    display: none !important;
+  }
+
+  /* Pad container offset resets */
+  div[class*="pl-64"], div[class*="pl-72"], .min-h-screen {
+    padding-left: 0 !important;
+    min-height: auto !important;
+  }
+
+  #offer-letter-printable-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    color: #0f172a !important;
+    page-break-inside: avoid;
+  }
+}

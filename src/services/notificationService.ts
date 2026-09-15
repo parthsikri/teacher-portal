@@ -63,6 +63,9 @@ class NotificationService {
       if (options.data?.topicTitle) summaryParts.push(`Topic: ${options.data.topicTitle}`);
       if (options.data?.teacherName) summaryParts.push(`Teacher: ${options.data.teacherName}`);
       if (options.data?.lectureTitle) summaryParts.push(`Lecture: ${options.data.lectureTitle}`);
+      if (options.data?.name || options.data?.employeeName) {
+        summaryParts.push(`Employee: ${options.data.name || options.data.employeeName} (${options.data.role || 'Staff'})`);
+      }
 
       StorageService.addEmailLog({
         to: options.to,
@@ -320,6 +323,43 @@ class NotificationService {
       to: params.adminEmails,
       type: 'video_reuploaded',
       data: params,
+    });
+  }
+
+  /**
+   * 10. 🎉 Welcome new employee onboarded into system -> Email with credentials & portal link
+   */
+  async notifyEmployeeWelcome(params: {
+    employeeEmail: string;
+    employeeName: string;
+    employeeId: string;
+    role: string;
+    department?: string;
+    subject?: string;
+    username: string;
+    password?: string;
+    joiningDate?: string;
+    adminTier?: string;
+    adminPermissions?: string[];
+    webDevTitle?: string;
+    crmRole?: string;
+    prTier?: string;
+    [key: string]: any;
+  }): Promise<{ success: boolean; status: 'delivered' | 'failed' | 'simulated'; error?: string; messageId?: string; subject?: string }> {
+    if (!params.employeeEmail) {
+      console.warn('[NotificationService] No employeeEmail provided for welcome notification.');
+      return { success: false, status: 'failed', error: 'No recipient email address provided.' };
+    }
+
+    const { employeeEmail, employeeName, username, ...rest } = params;
+    return this.dispatch({
+      to: employeeEmail,
+      type: 'welcome_employee',
+      data: {
+        name: employeeName,
+        username: username || params.employeeId.toLowerCase(),
+        ...rest,
+      },
     });
   }
 }

@@ -13,10 +13,12 @@ import { DailyCommitmentModal } from './components/Teacher/DailyCommitmentModal'
 
 import { PptGenerator } from './components/Common/PptGenerator';
 import { ThumbnailStudio } from './components/Common/ThumbnailStudio';
+import { EmployeeSalesCrmView } from './components/Sales/EmployeeSalesCrmView';
 
 const getDefaultPageForUser = (user: User | null): string => {
   if (!user) return 'dashboard';
   if (user.role === 'admin') return 'admin_dashboard';
+  if (user.role === 'sales') return 'sales_crm';
   if (user.role === 'pr_intern') return 'pr_dashboard';
   if (user.role === 'web_dev_manager') return 'wdm_review';
   if (user.role === 'web_developer') return 'dev_tasks';
@@ -61,12 +63,26 @@ export const App: React.FC = () => {
           }
         }
 
-        // Invalid or expired token: clear session
-        StorageService.clearSessionToken();
-        StorageService.setCurrentUser(null);
-        setCurrentUser(null);
+        if (response.status === 401 || response.status === 403) {
+          // Explicitly expired or invalid session: clear session
+          StorageService.clearSessionToken();
+          StorageService.setCurrentUser(null);
+          setCurrentUser(null);
+        } else {
+          // Server starting up or returning 502/503: preserve existing cached user
+          const cached = StorageService.getCurrentUser();
+          if (cached) {
+            setCurrentUser(cached);
+            setCurrentPage(getDefaultPageForUser(cached));
+          }
+        }
       } catch {
         // In offline/network failure, keep existing cached user
+        const cached = StorageService.getCurrentUser();
+        if (cached) {
+          setCurrentUser(cached);
+          setCurrentPage(getDefaultPageForUser(cached));
+        }
       }
     };
 
@@ -190,6 +206,12 @@ export const App: React.FC = () => {
                   initialSubject={currentUser.subject || currentUser.department || 'General'}
                   initialTeacherName={undefined}
                   initialTeacherId={undefined}
+                />
+              ) : currentPage === 'sales_crm' ? (
+                <EmployeeSalesCrmView
+                  currentUser={currentUser}
+                  onPageChange={handlePageChange}
+                  onRefreshData={handleRefreshData}
                 />
               ) : currentUser.role === 'admin' ? (
                 <AdminView

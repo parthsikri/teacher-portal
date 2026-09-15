@@ -23,7 +23,10 @@ import {
   ListOrdered,
   Presentation,
   FileDown,
-  Search
+  Search,
+  BookOpen,
+  Layers,
+  Edit3
 } from 'lucide-react';
 
 interface PptGeneratorProps {
@@ -60,7 +63,47 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const [directSearchQuery, setDirectSearchQuery] = useState<string>('');
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('all');
 
-  // Syllabus Topics Ordering State (Pulled from Dashboard / Custom)
+  // Syllabus Topics & Unit-Wise Syllabus State
+  const [syllabusMode, setSyllabusMode] = useState<'unit_wise' | 'global'>('unit_wise');
+  const [unitWiseSyllabus, setUnitWiseSyllabus] = useState<Record<string, string[]>>({
+    'UNIT 1': [
+      'Asymptotic Notations & Complexity Analysis',
+      'Recurrence Relations & Master Theorem',
+      'Divide and Conquer Algorithmic Paradigm'
+    ],
+    'UNIT 2': [
+      'Array Operations & Searching',
+      'Singly and Doubly Linked Lists',
+      'Stack Applications & Infix/Postfix',
+      'Queue Operations & Circular Buffer'
+    ],
+    'UNIT 3': [
+      'Binary Trees & Hierarchical Traversals',
+      'Binary Search Trees (BST) & Invariants',
+      'AVL Trees & Self-Balancing Rotations',
+      'Heaps & Priority Queues'
+    ],
+    'UNIT 4': [
+      'Graph Representations & Traversals (BFS/DFS)',
+      'Minimum Spanning Trees (Kruskal & Prim)',
+      'Single-Source Shortest Paths (Dijkstra)'
+    ],
+    'UNIT 5': [
+      'Dynamic Programming & Optimal Substructure',
+      'Greedy Strategy & Approximations',
+      'NP-Completeness & Reductions'
+    ]
+  });
+  const [activeUnitTab, setActiveUnitTab] = useState<string>('UNIT 1');
+  const [newUnitTopicInput, setNewUnitTopicInput] = useState<string>('');
+  const [showAddUnitModal, setShowAddUnitModal] = useState<boolean>(false);
+  const [newUnitNameInput, setNewUnitNameInput] = useState<string>('');
+  const [showBulkUnitModal, setShowBulkUnitModal] = useState<boolean>(false);
+  const [bulkUnitText, setBulkUnitText] = useState<string>('');
+  const [showBulkFullSyllabusModal, setShowBulkFullSyllabusModal] = useState<boolean>(false);
+  const [bulkFullSyllabusText, setBulkFullSyllabusText] = useState<string>('');
+
+  // Global Syllabus Topics Ordering State (Pulled from Dashboard / Custom)
   const [syllabusTopicsList, setSyllabusTopicsList] = useState<string[]>([]);
   const [newTopicInput, setNewTopicInput] = useState<string>('');
   const [showBulkTopicModal, setShowBulkTopicModal] = useState<boolean>(false);
@@ -71,7 +114,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const [blankPagesCount, setBlankPagesCount] = useState<number>(2);
   const [generateAnswerPointers, setGenerateAnswerPointers] = useState<boolean>(true);
   const [answersPlacement, setAnswersPlacement] = useState<'after_question' | 'end_of_deck' | 'none'>('after_question');
-  const [deepSeekPointersMap, setDeepSeekPointersMap] = useState<Record<number, AnswerPointersData>>({});
+  const [deepSeekPointersMap, setDeepSeekPointersMap] = useState<Record<string | number, AnswerPointersData>>({});
+  const [targetUnitForAnswers, setTargetUnitForAnswers] = useState<string>('all');
   const [isGeneratingDeepSeekPointers, setIsGeneratingDeepSeekPointers] = useState<boolean>(false);
   const [isExportingAnswersOnly, setIsExportingAnswersOnly] = useState<boolean>(false);
   const [isExportingQuestionsOnly, setIsExportingQuestionsOnly] = useState<boolean>(false);
@@ -119,10 +163,25 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       );
 
       const topicSet = new Set<string>();
+      const unitMap: Record<string, string[]> = {};
+
       matching.forEach((t) => {
-        if (t.topicTitle) topicSet.add(t.topicTitle.trim());
+        const uKey = AiPptService.normalizeUnitNumber(t.unitNumber || 'UNIT 1');
+        if (!unitMap[uKey]) unitMap[uKey] = [];
+
+        if (t.topicTitle) {
+          const trimmed = t.topicTitle.trim();
+          topicSet.add(trimmed);
+          if (!unitMap[uKey].includes(trimmed)) unitMap[uKey].push(trimmed);
+        }
         if (t.subtopics && t.subtopics.length > 0) {
-          t.subtopics.forEach((st) => topicSet.add(st.trim()));
+          t.subtopics.forEach((st) => {
+            const stTrim = st.trim();
+            if (stTrim) {
+              topicSet.add(stTrim);
+              if (!unitMap[uKey].includes(stTrim)) unitMap[uKey].push(stTrim);
+            }
+          });
         }
       });
 
@@ -142,6 +201,10 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
           'Graph Algorithms & Dijkstra',
         ]);
       }
+
+      if (Object.keys(unitMap).length > 0) {
+        setUnitWiseSyllabus(unitMap);
+      }
     } catch {
       // Fallback
     }
@@ -155,6 +218,46 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     loadDashboardSyllabusTopics(directSubject);
   }, [directSubject, loadDashboardSyllabusTopics]);
 
+  // Union of units configured in syllabus, detected in PYQs, and standard defaults
+  const availableUnitTabs = useMemo(() => {
+    const unitSet = new Set<string>();
+    Object.keys(unitWiseSyllabus).forEach((u) => unitSet.add(u));
+    directPyqRows.forEach((r) => {
+      if (r.unitNumber) unitSet.add(AiPptService.normalizeUnitNumber(r.unitNumber));
+    });
+    ['UNIT 1', 'UNIT 2', 'UNIT 3', 'UNIT 4', 'UNIT 5'].forEach((u) => unitSet.add(u));
+    return Array.from(unitSet).sort((a, b) => AiPptService.extractUnitNumber(a) - AiPptService.extractUnitNumber(b));
+  }, [unitWiseSyllabus, directPyqRows]);
+
+  // Ensure activeUnitTab is always in availableUnitTabs
+  useEffect(() => {
+    if (availableUnitTabs.length > 0 && !availableUnitTabs.includes(activeUnitTab)) {
+      setActiveUnitTab(availableUnitTabs[0]);
+    }
+  }, [availableUnitTabs, activeUnitTab]);
+
+  // Synchronize units discovered from parsed PYQ Excel sheet
+  useEffect(() => {
+    if (directPyqRows.length > 0) {
+      setUnitWiseSyllabus((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        directPyqRows.forEach((r) => {
+          const uKey = AiPptService.normalizeUnitNumber(r.unitNumber || 'UNIT 1');
+          if (!next[uKey]) {
+            next[uKey] = [];
+            changed = true;
+          }
+          if (r.mappedTopic && r.mappedTopic !== 'General Concept' && !next[uKey].includes(r.mappedTopic)) {
+            next[uKey] = [...next[uKey], r.mappedTopic];
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [directPyqRows]);
+
   // Available subjects from faculty and dashboard
   const availableSubjects = useMemo(() => {
     const fromTeachers = StorageService.getTeachers().map((t) => t.subject).filter(Boolean);
@@ -165,13 +268,21 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
   // Sorted PYQs based on Unit Number & Syllabus Topics order
   const sortedDirectPyqs = useMemo(() => {
-    return AiPptService.sortDirectPyqs(directPyqRows, syllabusTopicsList);
-  }, [directPyqRows, syllabusTopicsList]);
+    return AiPptService.sortDirectPyqs(
+      directPyqRows,
+      syllabusTopicsList,
+      syllabusMode === 'unit_wise' ? unitWiseSyllabus : undefined
+    );
+  }, [directPyqRows, syllabusTopicsList, syllabusMode, unitWiseSyllabus]);
 
   // Grouped by Unit -> Topics -> Questions
   const unitQuestionGroups = useMemo(() => {
-    return AiPptService.groupAndSortPyqsByUnitAndTopic(directPyqRows, syllabusTopicsList);
-  }, [directPyqRows, syllabusTopicsList]);
+    return AiPptService.groupAndSortPyqsByUnitAndTopic(
+      directPyqRows,
+      syllabusTopicsList,
+      syllabusMode === 'unit_wise' ? unitWiseSyllabus : undefined
+    );
+  }, [directPyqRows, syllabusTopicsList, syllabusMode, unitWiseSyllabus]);
 
   // Unique units from parsed PYQs
   const detectedUnits = useMemo(() => {
@@ -232,6 +343,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
 
       setDirectPyqRows(parsed);
       setDirectFileName(file.name);
+      setDeepSeekPointersMap({});
       setSuccessToast(`✓ Successfully parsed ${parsed.length} PYQs from ${file.name}`);
       setTimeout(() => setSuccessToast(null), 4000);
 
@@ -256,6 +368,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   const handleClearDirectPyqs = () => {
     setDirectPyqRows([]);
     setDirectFileName('');
+    setDeepSeekPointersMap({});
     if (directFileInputRef.current) directFileInputRef.current.value = '';
   };
 
@@ -296,12 +409,113 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
     setTimeout(() => setSuccessToast(null), 3000);
   };
 
+  // ── Unit-Wise Syllabus Handlers ──
+  const handleAddUnitTopic = () => {
+    const trimmed = newUnitTopicInput.trim();
+    if (!trimmed || !activeUnitTab) return;
+    setUnitWiseSyllabus((prev) => {
+      const currentList = prev[activeUnitTab] || [];
+      if (currentList.some((t) => t.toLowerCase() === trimmed.toLowerCase())) return prev;
+      return {
+        ...prev,
+        [activeUnitTab]: [...currentList, trimmed],
+      };
+    });
+    setNewUnitTopicInput('');
+  };
+
+  const handleRemoveUnitTopic = (topicIndex: number) => {
+    if (!activeUnitTab) return;
+    setUnitWiseSyllabus((prev) => {
+      const currentList = prev[activeUnitTab] || [];
+      return {
+        ...prev,
+        [activeUnitTab]: currentList.filter((_, i) => i !== topicIndex),
+      };
+    });
+  };
+
+  const handleMoveUnitTopic = (index: number, direction: 'up' | 'down') => {
+    if (!activeUnitTab) return;
+    setUnitWiseSyllabus((prev) => {
+      const currentList = [...(prev[activeUnitTab] || [])];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= currentList.length) return prev;
+      const temp = currentList[index];
+      currentList[index] = currentList[targetIndex];
+      currentList[targetIndex] = temp;
+      return {
+        ...prev,
+        [activeUnitTab]: currentList,
+      };
+    });
+  };
+
+  const handleOpenBulkUnitModal = () => {
+    const currentList = unitWiseSyllabus[activeUnitTab] || [];
+    setBulkUnitText(currentList.join('\n'));
+    setShowBulkUnitModal(true);
+  };
+
+  const handleBulkUnitSave = () => {
+    if (!activeUnitTab) return;
+    const items = bulkUnitText
+      .split(/,|\n/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const unique = Array.from(new Set(items));
+    setUnitWiseSyllabus((prev) => ({
+      ...prev,
+      [activeUnitTab]: unique,
+    }));
+    setShowBulkUnitModal(false);
+    setBulkUnitText('');
+    setSuccessToast(`✓ Updated ${activeUnitTab} topics (${unique.length} topics)`);
+    setTimeout(() => setSuccessToast(null), 3000);
+  };
+
+  const handleBulkFullSyllabusSave = () => {
+    if (!bulkFullSyllabusText.trim()) return;
+    const parsed = AiPptService.parseMultiUnitSyllabus(bulkFullSyllabusText);
+    const unitKeys = Object.keys(parsed);
+    if (unitKeys.length === 0) {
+      setErrorMessage('Could not detect distinct units. Please use headers like "Unit 1: ...", "Unit 2: ...", or "Module 1".');
+      return;
+    }
+    setUnitWiseSyllabus((prev) => ({
+      ...prev,
+      ...parsed,
+    }));
+    setShowBulkFullSyllabusModal(false);
+    setBulkFullSyllabusText('');
+    setSuccessToast(`✓ Imported syllabus for ${unitKeys.length} units (${unitKeys.join(', ')})`);
+    setTimeout(() => setSuccessToast(null), 4000);
+  };
+
+  const handleAddCustomUnit = () => {
+    const trimmed = newUnitNameInput.trim();
+    if (!trimmed) return;
+    const normalized = AiPptService.normalizeUnitNumber(trimmed);
+    setUnitWiseSyllabus((prev) => {
+      if (prev[normalized]) return prev;
+      return {
+        ...prev,
+        [normalized]: [],
+      };
+    });
+    setActiveUnitTab(normalized);
+    setNewUnitNameInput('');
+    setShowAddUnitModal(false);
+    setSuccessToast(`✓ Created unit tab: ${normalized}`);
+    setTimeout(() => setSuccessToast(null), 3000);
+  };
+
   const handleGenerateDirectDeck = (overrideOptions?: {
     addBlankPages?: boolean;
     blankPagesCount?: number;
     generateAnswerPointers?: boolean;
-    answersPlacement?: 'after_question' | 'end_of_deck' | 'none';
-    deepSeekPointersMap?: Record<number, AnswerPointersData>;
+    answersPlacement?: 'integrated_same_slide' | 'after_question' | 'end_of_deck' | 'none';
+    deepSeekPointersMap?: Record<string | number, AnswerPointersData>;
   }) => {
     if (directPyqRows.length === 0) {
       setErrorMessage('Please upload an Excel file containing PYQs first.');
@@ -323,6 +537,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         deckTitle: directDeckTitle.trim() || `${directSubject} - PYQs Bank`,
         pyqs: directPyqRows,
         syllabusTopicsOrder: syllabusTopicsList,
+        unitWiseSyllabusOrder: syllabusMode === 'unit_wise' ? unitWiseSyllabus : undefined,
         includeUnitDividers,
         includeTopicDividers,
         addBlankPagesPerQuestion: useBlankPages,
@@ -351,19 +566,36 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   };
 
   /**
-   * Generates authentic, professor-grade answer pointers for all PYQs via DeepSeek API
+   * Generates authentic, professor-grade answer pointers for all PYQs or a specific Unit via DeepSeek API
    */
-  const handleGenerateAnswerPointersWithDeepSeek = async () => {
+  const handleGenerateAnswerPointersWithDeepSeek = async (scopedUnit?: string) => {
     if (directPyqRows.length === 0) {
       setErrorMessage('Please upload PYQs Excel file first.');
       return;
     }
 
+    const unitToUse = scopedUnit !== undefined ? scopedUnit : targetUnitForAnswers;
+    const isSingleUnit = unitToUse && unitToUse !== 'all';
+
+    const targetRows = isSingleUnit
+      ? directPyqRows.filter((r) => AiPptService.normalizeUnitNumber(r.unitNumber || 'UNIT 1') === AiPptService.normalizeUnitNumber(unitToUse))
+      : directPyqRows;
+
+    if (targetRows.length === 0) {
+      setErrorMessage(`No questions found in uploaded file for ${unitToUse}.`);
+      return;
+    }
+
     setIsGeneratingDeepSeekPointers(true);
     setErrorMessage(null);
+    setGenerationStep(
+      isSingleUnit
+        ? `Analyzing ${targetRows.length} questions for ${unitToUse} with DeepSeek in safe batches...`
+        : `Analyzing ${directPyqRows.length} questions with DeepSeek in safe batches...`
+    );
 
-    const questionsInput = directPyqRows.map((r, idx) => ({
-      id: idx,
+    const questionsInput = targetRows.map((r, idx) => ({
+      id: r.id || `${r.unitNumber || 'UNIT'}-${idx}`,
       questionText: r.questionText,
       examYear: r.yearExam,
       marks: r.marks,
@@ -376,6 +608,9 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
         subject: directSubject,
         questions: questionsInput,
         apiKey: apiKey || undefined,
+        onProgress: (completed, total) => {
+          setGenerationStep(`Analyzing ${isSingleUnit ? unitToUse : 'all'} questions with DeepSeek (${completed}/${total})...`);
+        },
       });
 
       if (!result.success) {
@@ -390,21 +625,43 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       }
 
       if (result.pointersMap) {
-        setDeepSeekPointersMap(result.pointersMap);
+        const mergedMap = { ...deepSeekPointersMap, ...result.pointersMap };
+        setDeepSeekPointersMap(mergedMap);
         setGenerateAnswerPointers(true);
-        // Instantly re-generate deck with DeepSeek pointers
+        // Instantly re-generate deck with merged DeepSeek pointers
         handleGenerateDirectDeck({
           generateAnswerPointers: true,
-          deepSeekPointersMap: result.pointersMap,
+          deepSeekPointersMap: mergedMap,
         });
 
-        setSuccessToast(`✨ Generated concise, human-professor solution pointers for ${Object.keys(result.pointersMap).length} questions via DeepSeek API!`);
+        const qCount = targetRows.length;
+        setSuccessToast(`✨ Generated concise solution pointers for ${isSingleUnit ? unitToUse : 'all units'} (${qCount} questions)!`);
         setTimeout(() => setSuccessToast(null), 4000);
       }
     } catch (err: any) {
-      setErrorMessage(`DeepSeek Pointer generation error: ${err?.message || 'Unknown error'}`);
+      console.warn('DeepSeek error caught, falling back to local professor notes:', err);
+      // Graceful fallback to deterministic professor lecture notes for targetRows
+      const fallbackMap: Record<string | number, AnswerPointersData> = { ...deepSeekPointersMap };
+      targetRows.forEach((r, idx) => {
+        const qKey = AiPptService.getQuestionKey(r.questionText);
+        const ptrs = AiPptService.formatSolutionIntoPointers(r.solution, r.questionText, r.mappedTopic);
+        ptrs.examYear = r.yearExam;
+        ptrs.marks = r.marks;
+        if (r.id) fallbackMap[r.id] = ptrs;
+        if (qKey) fallbackMap[qKey] = ptrs;
+        fallbackMap[idx] = ptrs;
+      });
+      setDeepSeekPointersMap(fallbackMap);
+      setGenerateAnswerPointers(true);
+      handleGenerateDirectDeck({
+        generateAnswerPointers: true,
+        deepSeekPointersMap: fallbackMap,
+      });
+      setSuccessToast(`✓ Formatted professor solution pointers for ${targetRows.length} questions (offline mode).`);
+      setTimeout(() => setSuccessToast(null), 4000);
     } finally {
       setIsGeneratingDeepSeekPointers(false);
+      setGenerationStep('');
     }
   };
 
@@ -537,7 +794,14 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       deckTitle: directDeckTitle,
       pyqs: directPyqRows,
       syllabusTopicsOrder: syllabusTopicsList,
+      unitWiseSyllabusOrder: syllabusMode === 'unit_wise' ? unitWiseSyllabus : undefined,
       includeUnitDividers,
+      includeTopicDividers,
+      addBlankPagesPerQuestion: addBlankPages,
+      blankPagesCount,
+      generateAnswerPointers,
+      answersPlacement,
+      deepSeekPointersMap,
     });
 
     setIsExportingPptx(true);
@@ -567,7 +831,14 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
       deckTitle: directDeckTitle,
       pyqs: directPyqRows,
       syllabusTopicsOrder: syllabusTopicsList,
+      unitWiseSyllabusOrder: syllabusMode === 'unit_wise' ? unitWiseSyllabus : undefined,
       includeUnitDividers,
+      includeTopicDividers,
+      addBlankPagesPerQuestion: addBlankPages,
+      blankPagesCount,
+      generateAnswerPointers,
+      answersPlacement,
+      deepSeekPointersMap,
     });
 
     setIsExportingPdf(true);
@@ -611,6 +882,763 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
   };
 
   const activeSlide: AiSlide | null = generatedDeck?.slides[activeSlideIndex] || null;
+  const render16x9SlideViewer = () => {
+    if (!generatedDeck || !activeSlide) return null;
+
+    return (
+      <div className={`space-y-4 ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl p-6 flex flex-col justify-center max-w-6xl mx-auto' : ''}`}>
+                {/* SLIDE FRAME (16:9) */}
+                <div
+                  className={`aspect-[16/9] w-full rounded-3xl border shadow-2xl overflow-hidden flex flex-col justify-between p-6 md:p-8 transition-all ${
+                    theme === 'dark_tech'
+                      ? 'bg-slate-950 border-slate-800 text-slate-100'
+                      : theme === 'deep_navy'
+                      ? 'bg-slate-900 border-slate-800 text-white'
+                      : 'bg-white border-slate-200 text-slate-900'
+                  }`}
+                >
+                  {/* SLIDE TOP HEADER — hidden for blank_workspace (pure canvas) */}
+                  {activeSlide?.type !== 'blank_workspace' && (
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800/40">
+                    {/* Top Left: Unit Number */}
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[11px] font-mono font-bold tracking-wider uppercase">
+                        {activeSlide?.unitBadge || (activeSlide?.badge?.includes('•') ? activeSlide.badge.split('•')[0].trim() : activeSlide?.badge) || generatedDeck.unit || 'UNIT 1'}
+                      </span>
+                      {generatedDeck.subject && (
+                        <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                          {generatedDeck.subject}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Top Right: Topic Name & Slide Counter */}
+                    <div className="flex items-center gap-3">
+                      {(activeSlide?.topicBadge || (activeSlide?.badge?.includes('•') ? activeSlide.badge.split('•')[1].trim() : null)) && (
+                        <span className="text-[11px] font-semibold text-emerald-400 tracking-wide uppercase truncate max-w-[280px] md:max-w-md">
+                          {activeSlide?.topicBadge || (activeSlide?.badge?.includes('•') ? activeSlide.badge.split('•')[1].trim() : '')}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono text-slate-500 border-l border-slate-800 pl-2.5">
+                        {activeSlideIndex + 1}/{generatedDeck.slides.length}
+                      </span>
+                    </div>
+                  </div>
+                  )}
+
+                  {/* SLIDE BODY */}
+                  <div className="my-auto space-y-4">
+                    
+                    {/* 1. COVER / TITLE SLIDE (Executive Academic Style) */}
+                    {activeSlide?.type === 'title' && (
+                      <div className="text-center py-4 space-y-3.5">
+                        <div className="inline-block px-4 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[11px] font-mono font-bold tracking-wide">
+                          {activeSlide.badge || 'UNIVERSITY & COMPETITIVE EXAMINATION SERIES'}
+                        </div>
+                        
+                        <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase max-w-xl mx-auto">
+                          {generatedDeck.subject || activeSlide.title}
+                        </h2>
+
+                        <div className="w-24 h-0.5 bg-indigo-500 mx-auto rounded-full" />
+
+                        <p className="text-xs text-slate-300 max-w-lg mx-auto font-medium">
+                          {activeSlide.subtitle || 'Topic-Mapped Previous Year Examination Questions (PYQ Bank)'}
+                        </p>
+
+                        {/* 3 Executive Metadata Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 max-w-xl mx-auto">
+                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
+                            <span className="text-[9px] font-bold text-indigo-400 font-mono tracking-wider block uppercase">
+                              Curriculum Scope
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-100 block truncate">
+                              {generatedDeck.unit || 'All Units'}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
+                            <span className="text-[9px] font-bold text-emerald-400 font-mono tracking-wider block uppercase">
+                              Problem Set Size
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-100 block">
+                              {generatedDeck.relevantPyqCount || 0} Examination PYQs
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
+                            <span className="text-[9px] font-bold text-amber-400 font-mono tracking-wider block uppercase">
+                              Organization
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-100 block">
+                              Topic-Wise Sequence
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. UNIT DIVIDER SLIDE */}
+                    {activeSlide?.type === 'unit_divider' && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
+                            {activeSlide.badge}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h2 className="text-xl md:text-2xl font-black text-white">
+                            {activeSlide.title}
+                          </h2>
+                          {activeSlide.subtitle && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {activeSlide.subtitle}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Topics Index Box */}
+                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">
+                            Syllabus Topics & Examination Questions in this Unit:
+                          </span>
+                          {activeSlide.bullets && activeSlide.bullets.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                              {activeSlide.bullets.map((t, idx) => (
+                                <div key={idx} className="p-1.5 bg-slate-950/80 border border-slate-800/80 rounded-lg text-[11px] text-slate-200 font-medium">
+                                  {t}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2b. TOPIC SECTION DIVIDER SLIDE */}
+                    {activeSlide?.type === 'topic_divider' && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
+                            {activeSlide.badge || 'TOPIC SECTION'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h2 className="text-xl md:text-2xl font-black text-white">
+                            {activeSlide.title}
+                          </h2>
+                          {activeSlide.subtitle && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {activeSlide.subtitle}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Problem Set Index */}
+                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                            Problem Sets Included in this Topic Series:
+                          </span>
+                          {activeSlide.bullets && activeSlide.bullets.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                              {activeSlide.bullets.map((t, idx) => (
+                                <div key={idx} className="p-1.5 bg-slate-950/80 border border-slate-800/80 rounded-lg text-[11px] text-amber-300 font-medium">
+                                  {t}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. DIRECT PYQ QUESTION CARD (Integrated or Separate) */}
+                    {activeSlide?.type === 'direct_pyq' && activeSlide.pyqDetails && (
+                      <div className="space-y-3 py-2">
+                        <div className="p-5 max-w-4xl mx-auto rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-xl">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="px-3 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center gap-1.5 font-mono">
+                              <span>📝</span>
+                              <span>Year of Question: {AiPptService.formatExamYearAndMonth(activeSlide.pyqDetails.examYear) || activeSlide.pyqDetails.examYear || 'Exam Question'}</span>
+                            </span>
+                            {activeSlide.pyqDetails.marks && (
+                              <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/30">
+                                Weightage: {activeSlide.pyqDetails.marks}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <p className="font-bold text-base md:text-lg text-slate-100 leading-relaxed pt-1">
+                            {activeSlide.pyqDetails.question}
+                          </p>
+                        </div>
+
+                        {!activeSlide.answerPointers && (
+                          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500 font-mono pt-1">
+                            <span>✍️</span>
+                            <span>Detailed solution & pointers start on following slide</span>
+                          </div>
+                        )}
+
+                        {/* Integrated Answer Section: Only rendered if explicitly integrated onto same slide */}
+                        {activeSlide.answerPointers && (answersPlacement as any) === 'integrated_same_slide' ? (() => {
+                          const ap = activeSlide.answerPointers;
+                          return (
+                            <div className="space-y-2.5 pt-1">
+                              {/* Identified Solution Hero Card */}
+                              {ap.identifiedSolution && (
+                                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/60 via-slate-900 to-emerald-950/40 border border-indigo-500/30 space-y-1.5 shadow-md">
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono font-bold text-[9px] uppercase tracking-wider">
+                                      🎯 Identified Solution & Approach
+                                    </span>
+                                    {ap.isTheory && (
+                                      <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono text-[9px]">
+                                        Theory / Invariant
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs font-semibold text-slate-100 leading-relaxed pt-0.5">
+                                    {ap.identifiedSolution}
+                                  </p>
+                                  {ap.definition && (
+                                    <p className="text-[11px] text-slate-300 italic pt-1 border-t border-slate-800/80">
+                                      <span className="text-indigo-400 font-bold not-italic font-mono text-[9px] uppercase mr-1.5">Def:</span>
+                                      {ap.definition}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Pointers Grid / List */}
+                              {ap.pointers && ap.pointers.length > 0 && (
+                                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 shadow-inner">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono block">
+                                    Key Analytical Steps & Derivation Invariants
+                                  </span>
+                                  <div className="space-y-1.5">
+                                    {ap.pointers.map((pointer, pIdx) => {
+                                      const boldMatch = pointer.match(/^\*\*([^*]+)\*\*[:\s]*(.*)/s);
+                                      return (
+                                        <div key={pIdx} className="flex items-start gap-2 text-[11px] leading-relaxed">
+                                          <span className="text-indigo-400 font-bold shrink-0 mt-0.5">•</span>
+                                          <span className="text-slate-200">
+                                            {boldMatch ? (
+                                              <>
+                                                <span className="font-bold text-slate-100">{boldMatch[1]}:</span>{' '}
+                                                <span>{boldMatch[2]}</span>
+                                              </>
+                                            ) : pointer.replace(/\*\*/g, '')}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Formula & Professor Note in Sober Columns */}
+                              {(ap.formulaOrResult || ap.professorNote) && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                  {ap.formulaOrResult && (
+                                    <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 space-y-1">
+                                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider font-mono block">
+                                        Governing Formula / Bound
+                                      </span>
+                                      <div className="font-mono text-emerald-300 text-xs font-bold leading-relaxed">
+                                        {ap.formulaOrResult}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {ap.professorNote && (
+                                    <div className="p-3 rounded-xl bg-amber-950/25 border border-amber-500/30 space-y-1">
+                                      <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider font-mono block">
+                                        💡 Professor's Exam Note
+                                      </span>
+                                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                                        {ap.professorNote}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : (answersPlacement as any) === 'integrated_same_slide' && activeSlide.pyqDetails.stepByStepSolution && activeSlide.pyqDetails.stepByStepSolution.length > 0 ? (
+                          <div className="p-3.5 rounded-2xl bg-slate-950 border border-indigo-500/30 text-xs space-y-2">
+                            <div className="text-indigo-400 font-bold text-[11px] flex items-center gap-1.5">
+                              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                              Faculty Solution & Derivation Notes:
+                            </div>
+                            <div className="text-[11px] text-slate-300 space-y-1 pl-1 leading-relaxed">
+                              {activeSlide.pyqDetails.stepByStepSolution.map((s, idx) => (
+                                <p key={idx} className="text-slate-300">• {s}</p>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* 3b. BLANK WORKSPACE — 100% PURE CANVAS (No text, no UI, just background) */}
+                    {activeSlide?.type === 'blank_workspace' && (
+                      <div className="absolute inset-0" />
+                    )}
+
+                    {/* 3c. ANSWER & EXPLANATION — Pure High-Yield Bullet Pointers Only (No Template Badges) */}
+                    {activeSlide?.type === 'answer_pointers' && (activeSlide.answerPointers || activeSlide.bullets) && (() => {
+                      const ap = activeSlide.answerPointers;
+                      const pointersList: string[] = ap?.pointers && ap.pointers.length > 0
+                        ? ap.pointers
+                        : (activeSlide.bullets || []);
+                      const slideIdx = activeSlide.answerSlideIndex ?? 0;
+                      const slideTotalCount = activeSlide.answerSlideTotalCount ?? 1;
+                      const rawYear = activeSlide.pyqDetails?.examYear || ap?.examYear;
+                      const examYearText = AiPptService.formatExamYearAndMonth(rawYear) || rawYear;
+                      const marksText = activeSlide.pyqDetails?.marks || ap?.marks;
+                      const qRefText = activeSlide.questionReference || activeSlide.pyqDetails?.question;
+
+                      return (
+                        <div className="space-y-3.5">
+                          {/* Top Question Reference & Year of Question Banner */}
+                          {(examYearText || qRefText) && (
+                            <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="px-2.5 py-1 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-xs shrink-0 font-mono">
+                                  📝 {examYearText || 'Exam PYQ'}{marksText ? ` [${marksText}]` : ''}
+                                </span>
+                                {qRefText && (
+                                  <span className="text-xs text-slate-300 truncate font-semibold">
+                                    Problem #{activeSlide.questionNumber || 1}: {qRefText}
+                                  </span>
+                                )}
+                              </div>
+                              {slideTotalCount > 1 && (
+                                <span className="text-[11px] font-mono text-indigo-300 bg-indigo-950/80 px-2.5 py-0.5 rounded-lg border border-indigo-500/30 font-bold shrink-0 self-end sm:self-auto">
+                                  Part {slideIdx + 1} of {slideTotalCount}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Pure, Sober Bullet Pointers Presentation (Natural, High-Yield Lecture Notes) */}
+                          <div className="p-6 md:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4 shadow-xl">
+                            <div className="space-y-3.5">
+                              {pointersList.map((pointer, pIdx) => {
+                                const cleanText = pointer.replace(/^(?:Milestone\s*\d+[:.-]?|Step\s*\d+[:.-]?)\s*/i, '').trim();
+                                const boldMatch = cleanText.match(/^\*\*([^*]+)\*\*[:\s]*(.*)/s);
+                                return (
+                                  <div key={pIdx} className="flex items-start gap-3 text-sm md:text-base leading-relaxed">
+                                    <span className="text-indigo-400 font-bold text-base md:text-lg select-none shrink-0 mt-0.5">•</span>
+                                    <div className="text-slate-100 flex-1">
+                                      {boldMatch ? (
+                                        <>
+                                          <span className="font-bold text-indigo-200 tracking-wide">{boldMatch[1]}:</span>{' '}
+                                          <span className="text-slate-200 font-normal">{boldMatch[2]}</span>
+                                        </>
+                                      ) : (
+                                        <span className="text-slate-200">{cleanText.replace(/\*\*/g, '')}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+
+
+                    {/* 4. FIRST PRINCIPLES / ANALOGY SLIDE */}
+                    {activeSlide?.type === 'first_principles' && (
+                      <div className="space-y-3.5">
+                        {activeSlide.analogy && (
+                          <div className="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 flex items-start gap-3 shadow-inner">
+                            <span className="text-lg shrink-0">💡</span>
+                            <div>
+                              <span className="text-[10px] font-bold text-indigo-400 font-mono tracking-wider uppercase block">
+                                Real-World Engineering Analogy (Intuition)
+                              </span>
+                              <p className="text-xs md:text-sm text-slate-200 font-medium leading-relaxed mt-0.5">
+                                {activeSlide.analogy}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                          <div className="p-4 rounded-2xl bg-red-950/20 border border-red-500/30 space-y-2.5 shadow-inner">
+                            <div className="flex items-center gap-2 border-b border-red-500/20 pb-2">
+                              <span className="text-sm">⚠️</span>
+                              <span className="text-xs font-bold text-red-400 uppercase tracking-wide">
+                                Why Naive Approaches Fail (Motivation)
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              {activeSlide.bullets?.slice(0, Math.ceil((activeSlide.bullets?.length || 0) / 2)).map((b, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+                                  <span className="text-red-400 font-bold shrink-0">•</span>
+                                  <span>{b.replace(/\*\*/g, '')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-2.5 shadow-inner">
+                            <div className="flex items-center gap-2 border-b border-emerald-500/20 pb-2">
+                              <span className="text-sm">⚡</span>
+                              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
+                                First-Principles Breakthrough & Invariant
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              {activeSlide.bullets?.slice(Math.ceil((activeSlide.bullets?.length || 0) / 2)).map((b, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs text-slate-100">
+                                  <span className="text-emerald-400 font-bold shrink-0">•</span>
+                                  <span>{b.replace(/\*\*/g, '')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 5. CONCEPT CARD WITH CODE / FORMULA */}
+                    {activeSlide?.type === 'concept_card' && (
+                      <div className="space-y-3.5">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                          <div className={`${activeSlide.formulaOrCode ? 'md:col-span-7' : 'md:col-span-12'} p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5 shadow-inner`}>
+                            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                              <span className="text-xs font-bold text-indigo-400 uppercase tracking-wide font-mono">
+                                Core Formulation & Invariant Principles
+                              </span>
+                            </div>
+                            <div className="space-y-2 pt-1">
+                              {activeSlide.bullets?.map((b, idx) => (
+                                <div key={idx} className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs text-slate-200 leading-relaxed">
+                                  <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                    •
+                                  </span>
+                                  <span>{b.replace(/\*\*/g, '')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {activeSlide.formulaOrCode && (
+                            <div className="md:col-span-5 p-4 rounded-2xl bg-slate-950 border border-indigo-500/30 space-y-2 shadow-inner">
+                              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono">
+                                  Formal Definition / Code
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-mono">C99 / Unicode</span>
+                              </div>
+                              <pre className="p-3 bg-slate-900 rounded-xl border border-slate-800 text-emerald-300 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                                {activeSlide.formulaOrCode}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 6. TWO COLUMN COMPARISON */}
+                    {activeSlide?.type === 'two_column' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div className="p-4 rounded-2xl bg-slate-900 border border-indigo-500/30 space-y-2.5 shadow-inner">
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span className="text-xs font-bold text-indigo-400 uppercase tracking-wide">
+                              {activeSlide.leftColumnTitle || 'Approach A'}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {activeSlide.leftColumnBullets?.map((b, idx) => (
+                              <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+                                <span className="text-indigo-400 font-bold shrink-0">•</span>
+                                <span>{b.replace(/\*\*/g, '')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-slate-900 border border-emerald-500/30 space-y-2.5 shadow-inner">
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
+                              {activeSlide.rightColumnTitle || 'Approach B'}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {activeSlide.rightColumnBullets?.map((b, idx) => (
+                              <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+                                <span className="text-emerald-400 font-bold shrink-0">•</span>
+                                <span>{b.replace(/\*\*/g, '')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 7. STEP BY STEP PROCEDURE */}
+                    {activeSlide?.type === 'step_by_step' && (
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                        <div className={`${activeSlide.formulaOrCode ? 'md:col-span-7' : 'md:col-span-12'} p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5 shadow-inner`}>
+                          <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block border-b border-slate-800 pb-1.5 font-mono">
+                            Algorithmic State Transition & Procedure Milestones
+                          </span>
+                          <div className="space-y-2 pt-0.5">
+                            {activeSlide.bullets?.map((b, idx) => {
+                              const clean = b.replace(/\*\*/g, '');
+                              const label = clean.startsWith('Step') || clean.startsWith('Milestone') ? clean : `Step ${idx + 1}: ${clean}`;
+                              return (
+                                <div key={idx} className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs text-slate-200 leading-relaxed">
+                                  <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                    {idx + 1}
+                                  </span>
+                                  <span>{label}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {activeSlide.formulaOrCode && (
+                          <div className="md:col-span-5 p-4 rounded-2xl bg-slate-950 border border-emerald-500/30 space-y-2 shadow-inner">
+                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono block border-b border-slate-800 pb-1.5">
+                              State Machine / Trace Table
+                            </span>
+                            <pre className="p-3 bg-slate-900 rounded-xl border border-slate-800 text-emerald-300 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre-wrap">
+                              {activeSlide.formulaOrCode}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 8. SOLVED EXAMINATION PYQ */}
+                    {activeSlide?.type === 'pyq_solution' && (
+                      <div className="space-y-3.5">
+                        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[11px]">
+                              📝 {activeSlide.pyqDetails?.examYear || 'Official Examination PYQ'}
+                            </span>
+                            {activeSlide.pyqDetails?.marks && (
+                              <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
+                                {activeSlide.pyqDetails.marks}
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-bold text-sm md:text-base text-slate-100 leading-relaxed">
+                            {activeSlide.pyqDetails?.question || activeSlide.title}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                          <div className="md:col-span-7 p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 shadow-inner">
+                            <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block border-b border-slate-800 pb-1.5 font-mono">
+                              Step-by-Step Worked Solution & Trace
+                            </span>
+                            <div className="space-y-1.5 pt-0.5">
+                              {(activeSlide.pyqDetails?.stepByStepSolution || activeSlide.bullets || []).map((step, sIdx) => (
+                                <div key={sIdx} className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-200">
+                                  <span className="font-bold text-indigo-300 mr-1.5">Step {sIdx + 1}:</span>
+                                  <span>{step.replace(/\*\*/g, '')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="md:col-span-5 space-y-2.5">
+                            <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/30 space-y-1.5 shadow-inner">
+                              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block font-mono">
+                                Boxed Final Result & Invariants
+                              </span>
+                              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-emerald-300 font-mono text-[11px] font-bold">
+                                {activeSlide.pyqDetails?.keyTakeaway || activeSlide.formulaOrCode || 'Asymptotic Bound Verified'}
+                              </div>
+                            </div>
+
+                            <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-1">
+                              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block font-mono">
+                                Chief Examiner Scoring Breakdown
+                              </span>
+                              <p className="text-[10.5px] text-indigo-200 font-mono font-bold leading-relaxed">
+                                [20% Setup & Initial State | 60% Trace & Proof | 20% Boxed Answer]
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 9. COMMON MISTAKES / PITFALLS VS CORRECTIONS */}
+                    {activeSlide?.type === 'common_mistakes' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div className="p-4 rounded-2xl bg-red-950/20 border border-red-500/40 space-y-2.5 shadow-inner">
+                          <span className="text-xs font-bold text-red-400 uppercase tracking-wider block border-b border-red-500/20 pb-1.5 flex items-center gap-1.5">
+                            ❌ Common Student Traps & Misconceptions
+                          </span>
+                          <div className="space-y-2 pt-0.5">
+                            {activeSlide.bullets?.slice(0, Math.ceil((activeSlide.bullets?.length || 0) / 2)).map((b, idx) => (
+                              <div key={idx} className="p-2 rounded-xl bg-slate-950/70 border border-red-500/20 text-xs text-red-200/90 leading-relaxed">
+                                {b.replace(/\*\*/g, '')}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/40 space-y-2.5 shadow-inner">
+                          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block border-b border-emerald-500/20 pb-1.5 flex items-center gap-1.5">
+                            ✅ Chief Examiner Corrections & Invariants
+                          </span>
+                          <div className="space-y-2 pt-0.5">
+                            {activeSlide.bullets?.slice(Math.ceil((activeSlide.bullets?.length || 0) / 2)).map((b, idx) => (
+                              <div key={idx} className="p-2 rounded-xl bg-slate-950/70 border border-emerald-500/20 text-xs text-emerald-200/90 leading-relaxed">
+                                {b.replace(/\*\*/g, '')}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 10. SUMMARY / 3-PILLAR CHECKLIST */}
+                    {activeSlide?.type === 'summary' && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-indigo-500/30 space-y-2 shadow-inner">
+                          <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block border-b border-slate-800 pb-1 font-mono">
+                            1. Governing Theory
+                          </span>
+                          <div className="space-y-1.5 pt-0.5">
+                            {activeSlide.bullets?.slice(0, 2).map((b, idx) => (
+                              <p key={idx} className="text-xs text-slate-200 leading-relaxed">
+                                • {b.replace(/\*\*/g, '')}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-emerald-500/30 space-y-2 shadow-inner">
+                          <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block border-b border-slate-800 pb-1 font-mono">
+                            2. Complexity Bounds
+                          </span>
+                          <div className="space-y-1.5 pt-0.5">
+                            {activeSlide.bullets?.slice(2, 4).map((b, idx) => (
+                              <p key={idx} className="text-xs text-slate-200 leading-relaxed">
+                                • {b.replace(/\*\*/g, '')}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-amber-500/30 space-y-2 shadow-inner">
+                          <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block border-b border-slate-800 pb-1 font-mono">
+                            3. Exam Checklist
+                          </span>
+                          <div className="space-y-1.5 pt-0.5">
+                            {activeSlide.bullets?.slice(4).map((b, idx) => (
+                              <p key={idx} className="text-xs text-slate-200 leading-relaxed">
+                                • {b.replace(/\*\*/g, '')}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 11. DEFAULT FALLBACK SLIDE */}
+                    {!['title', 'unit_divider', 'topic_divider', 'direct_pyq', 'blank_workspace', 'answer_pointers', 'first_principles', 'concept_card', 'two_column', 'step_by_step', 'pyq_solution', 'common_mistakes', 'summary'].includes(activeSlide?.type || '') && (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 shadow-inner">
+                          <h3 className="text-base font-bold text-white">{activeSlide?.title}</h3>
+                          {activeSlide?.subtitle && <p className="text-xs text-slate-400">{activeSlide.subtitle}</p>}
+                          {activeSlide?.bullets && activeSlide.bullets.length > 0 && (
+                            <div className="space-y-1.5 pt-2">
+                              {activeSlide.bullets.map((b, idx) => (
+                                <div key={idx} className="text-xs text-slate-200 flex items-start gap-2">
+                                  <span className="text-indigo-400 font-bold">•</span>
+                                  <span>{b.replace(/\*\*/g, '')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {activeSlide?.formulaOrCode && (
+                          <pre className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-emerald-300 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                            {activeSlide.formulaOrCode}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* SLIDE FOOTER — hidden for blank_workspace (pure canvas) */}
+                  {activeSlide?.type !== 'blank_workspace' && (
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
+                    <div className="text-[10px] text-slate-400">
+                      Apna Engineering Wallah • Faculty Lecture & Problem Repository
+                    </div>
+
+                    {isFullscreen && (
+                      <button
+                        onClick={() => setIsFullscreen(false)}
+                        className="px-3 py-1 bg-slate-800 text-slate-300 rounded text-xs"
+                      >
+                        Exit Fullscreen ✕
+                      </button>
+                    )}
+                  </div>
+                  )}
+                </div>
+
+                {/* SLIDE CAROUSEL & CONTROLS */}
+                <div className="flex items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSlideIndex((prev) => Math.max(0, prev - 1))}
+                    disabled={activeSlideIndex === 0}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 border border-slate-800 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Previous
+                  </button>
+
+                  {/* THUMBNAILS LIST */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-md">
+                    {generatedDeck.slides.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveSlideIndex(idx)}
+                        className={`w-7 h-7 rounded-lg text-[10px] font-mono font-bold transition-all flex items-center justify-center shrink-0 ${
+                          activeSlideIndex === idx
+                            ? 'bg-indigo-600 text-white ring-2 ring-indigo-400 scale-105'
+                            : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                        }`}
+                      >
+                        {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveSlideIndex((prev) => Math.min(generatedDeck.slides.length - 1, prev + 1))}
+                    disabled={activeSlideIndex === generatedDeck.slides.length - 1}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 border border-slate-800 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    Next <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6">
@@ -915,117 +1943,339 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
               </div>
             </div>
 
-            {/* 2. SYLLABUS TOPICS ORDERING CARD */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-3 shadow-xl">
-              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
-                <div>
-                  <h2 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
-                    <ListOrdered className="w-4 h-4 text-amber-400" />
-                    2. Syllabus Topics Order
-                  </h2>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Questions within each unit will be ordered according to this sequence.
-                  </p>
-                </div>
+            {/* 2. SYLLABUS TOPICS ORDERING CARD (DUAL MODE: UNIT-WISE vs GLOBAL) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-xl">
+              {/* Header with Mode Toggle */}
+              <div className="space-y-3 pb-3 border-b border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                      <ListOrdered className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                        2. Syllabus Sequence & Architecture
+                      </h2>
+                    </div>
+                  </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBulkTopicText(syllabusTopicsList.join('\n'));
-                      setShowBulkTopicModal(true);
-                    }}
-                    className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] text-slate-300 font-semibold flex items-center gap-1"
-                    title="Paste / Edit topics in bulk"
-                  >
-                    <ArrowUpDown className="w-3 h-3" /> Reorder
-                  </button>
+                  {/* Reset button */}
                   <button
                     type="button"
                     onClick={() => loadDashboardSyllabusTopics(directSubject)}
-                    className="p-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-200"
-                    title="Reset to Dashboard Syllabus Topics"
+                    className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-200 text-[10px] flex items-center gap-1 font-medium transition-colors"
+                    title="Reload topics from Dashboard"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Sync Dashboard</span>
+                  </button>
+                </div>
+
+                {/* Switcher: Unit-Wise Syllabus vs Global Topics Order */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 rounded-2xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setSyllabusMode('unit_wise')}
+                    className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      syllabusMode === 'unit_wise'
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Unit-Wise Syllabus</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSyllabusMode('global')}
+                    className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      syllabusMode === 'global'
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <ListOrdered className="w-3.5 h-3.5" />
+                    <span>Global Topics Order</span>
                   </button>
                 </div>
               </div>
 
-              {/* Add Single Topic Input */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newTopicInput}
-                  onChange={(e) => setNewTopicInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddSyllabusTopic();
-                    }
-                  }}
-                  placeholder="Add a syllabus topic to order..."
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddSyllabusTopic}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add
-                </button>
-              </div>
+              {/* MODE A: UNIT-WISE SYLLABUS */}
+              {syllabusMode === 'unit_wise' ? (
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-slate-400 leading-tight">
+                      Manage syllabus topics per unit. Questions in <span className="text-indigo-300 font-semibold">{activeUnitTab}</span> will be ordered by its syllabus sequence.
+                    </p>
 
-              {/* Topics List with Up/Down Arrows */}
-              <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 bg-slate-950 rounded-2xl border border-slate-800/80">
-                {syllabusTopicsList.length === 0 ? (
-                  <div className="p-3 text-center text-[11px] text-slate-500 italic">
-                    No syllabus topics defined. Questions will be sorted alphabetically.
-                  </div>
-                ) : (
-                  syllabusTopicsList.map((topic, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between gap-2 p-1.5 px-2.5 bg-slate-900/90 border border-slate-800/90 rounded-xl text-xs group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono text-[10px] font-bold text-amber-400 shrink-0 w-4">
-                          #{idx + 1}
-                        </span>
-                        <span className="text-slate-200 truncate text-[11px]">{topic}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleMoveTopic(idx, 'up')}
-                          disabled={idx === 0}
-                          className="p-1 hover:bg-slate-800 disabled:opacity-20 text-slate-400 hover:text-slate-100 rounded"
-                          title="Move up"
-                        >
-                          <ArrowUp className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveTopic(idx, 'down')}
-                          disabled={idx === syllabusTopicsList.length - 1}
-                          className="p-1 hover:bg-slate-800 disabled:opacity-20 text-slate-400 hover:text-slate-100 rounded"
-                          title="Move down"
-                        >
-                          <ArrowDown className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSyllabusTopic(idx)}
-                          className="p-1 hover:bg-slate-800 text-slate-500 hover:text-red-400 rounded"
-                          title="Remove topic"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                    {/* Bulk Action Buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowBulkFullSyllabusModal(true)}
+                        className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-indigo-400 hover:text-indigo-300 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                        title="Paste full multi-unit syllabus at once"
+                      >
+                        <BookOpen className="w-3 h-3" />
+                        <span>Import All Units</span>
+                      </button>
                     </div>
-                  ))
-                )}
-              </div>
+                  </div>
+
+                  {/* Unit Pill Tabs Bar */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                    {availableUnitTabs.map((uKey) => {
+                      const topicCount = unitWiseSyllabus[uKey]?.length || 0;
+                      const isActive = activeUnitTab === uKey;
+                      return (
+                        <button
+                          key={uKey}
+                          type="button"
+                          onClick={() => setActiveUnitTab(uKey)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 border ${
+                            isActive
+                              ? 'bg-indigo-600/30 border-indigo-500 text-white shadow-sm'
+                              : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                          }`}
+                        >
+                          <span>{uKey}</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono ${
+                              isActive ? 'bg-indigo-500 text-white font-black' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {topicCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    {/* Add Custom Unit Tab Button */}
+                    <button
+                      type="button"
+                      onClick={() => setShowAddUnitModal(true)}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-950 border border-dashed border-slate-700 text-slate-400 hover:text-indigo-300 hover:border-indigo-500/50 transition-colors shrink-0 flex items-center gap-1"
+                      title="Add a custom unit (e.g. UNIT 6)"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Unit</span>
+                    </button>
+                  </div>
+
+                  {/* Active Unit Bar with Bulk Edit */}
+                  <div className="flex items-center justify-between px-1 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-200 font-mono">{activeUnitTab}</span>
+                      <span className="text-[10px] text-slate-400">
+                        ({(unitWiseSyllabus[activeUnitTab] || []).length} syllabus topics)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetUnitForAnswers(activeUnitTab);
+                          handleGenerateAnswerPointersWithDeepSeek(activeUnitTab);
+                        }}
+                        disabled={isGeneratingDeepSeekPointers || directPyqRows.length === 0}
+                        className="px-2 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-[10px] text-purple-300 font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                        title={`Generate DeepSeek answer pointers specifically for ${activeUnitTab}`}
+                      >
+                        <Lightbulb className="w-3 h-3 text-amber-300" />
+                        <span>Answers for {activeUnitTab}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleOpenBulkUnitModal}
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"
+                        title={`Bulk edit topics for ${activeUnitTab}`}
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Bulk Edit {activeUnitTab}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Add Topic Input for Active Unit */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newUnitTopicInput}
+                      onChange={(e) => setNewUnitTopicInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddUnitTopic();
+                        }
+                      }}
+                      placeholder={`Add topic to ${activeUnitTab}...`}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddUnitTopic}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add
+                    </button>
+                  </div>
+
+                  {/* Topics List for Active Unit */}
+                  <div className="max-h-52 overflow-y-auto space-y-1.5 p-2 bg-slate-950 rounded-2xl border border-slate-800/80">
+                    {(unitWiseSyllabus[activeUnitTab] || []).length === 0 ? (
+                      <div className="p-4 text-center space-y-1 text-slate-500">
+                        <p className="text-xs italic">No syllabus topics listed for {activeUnitTab}.</p>
+                        <p className="text-[10px] text-slate-600">
+                          Add topics above or click "Bulk Edit {activeUnitTab}" to paste a list.
+                        </p>
+                      </div>
+                    ) : (
+                      (unitWiseSyllabus[activeUnitTab] || []).map((topic, idx, arr) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between gap-2 p-1.5 px-2.5 bg-slate-900/90 border border-slate-800/90 rounded-xl text-xs group"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono text-[10px] font-bold text-amber-400 shrink-0 w-4">
+                              #{idx + 1}
+                            </span>
+                            <span className="text-slate-200 truncate text-[11px] font-medium">{topic}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveUnitTopic(idx, 'up')}
+                              disabled={idx === 0}
+                              className="p-1 hover:bg-slate-800 disabled:opacity-20 text-slate-400 hover:text-slate-100 rounded transition-colors"
+                              title="Move up"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveUnitTopic(idx, 'down')}
+                              disabled={idx === arr.length - 1}
+                              className="p-1 hover:bg-slate-800 disabled:opacity-20 text-slate-400 hover:text-slate-100 rounded transition-colors"
+                              title="Move down"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUnitTopic(idx)}
+                              className="p-1 hover:bg-slate-800 text-slate-500 hover:text-red-400 rounded transition-colors"
+                              title="Remove topic"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* MODE B: GLOBAL SYLLABUS TOPICS ORDER */
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-slate-400 leading-tight">
+                      Global topic sequence applied across all units. Questions matching earlier topics appear first.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBulkTopicText(syllabusTopicsList.join('\n'));
+                        setShowBulkTopicModal(true);
+                      }}
+                      className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] text-slate-300 font-semibold flex items-center gap-1 shrink-0"
+                      title="Paste / Edit topics in bulk"
+                    >
+                      <ArrowUpDown className="w-3 h-3" /> Reorder Bulk
+                    </button>
+                  </div>
+
+                  {/* Add Single Topic Input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newTopicInput}
+                      onChange={(e) => setNewTopicInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSyllabusTopic();
+                        }
+                      }}
+                      placeholder="Add global syllabus topic to sequence..."
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSyllabusTopic}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add
+                    </button>
+                  </div>
+
+                  {/* Topics List with Up/Down Arrows */}
+                  <div className="max-h-52 overflow-y-auto space-y-1.5 p-2 bg-slate-950 rounded-2xl border border-slate-800/80">
+                    {syllabusTopicsList.length === 0 ? (
+                      <div className="p-3 text-center text-[11px] text-slate-500 italic">
+                        No syllabus topics defined. Questions will be sorted alphabetically.
+                      </div>
+                    ) : (
+                      syllabusTopicsList.map((topic, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between gap-2 p-1.5 px-2.5 bg-slate-900/90 border border-slate-800/90 rounded-xl text-xs group"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono text-[10px] font-bold text-amber-400 shrink-0 w-4">
+                              #{idx + 1}
+                            </span>
+                            <span className="text-slate-200 truncate text-[11px] font-medium">{topic}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveTopic(idx, 'up')}
+                              disabled={idx === 0}
+                              className="p-1 hover:bg-slate-800 disabled:opacity-20 text-slate-400 hover:text-slate-100 rounded transition-colors"
+                              title="Move up"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveTopic(idx, 'down')}
+                              disabled={idx === syllabusTopicsList.length - 1}
+                              className="p-1 hover:bg-slate-800 disabled:opacity-20 text-slate-400 hover:text-slate-100 rounded transition-colors"
+                              title="Move down"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSyllabusTopic(idx)}
+                              className="p-1 hover:bg-slate-800 text-slate-500 hover:text-red-400 rounded transition-colors"
+                              title="Remove topic"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* GENERATE ACTION BUTTON */}
@@ -1136,7 +2386,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 </div>
               </div>
             ) : (
-              <div className={`space-y-4 ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-950 p-6 flex flex-col justify-center' : ''}`}>
+              <div className="space-y-4">
                 
                 {/* POST-GENERATION CONTROL BAR: ANSWER POINTERS & BLANK PAGES OPTIONS */}
                 <div className="bg-gradient-to-r from-indigo-950/70 via-slate-900 to-purple-950/70 border border-indigo-500/30 rounded-3xl p-4 shadow-xl space-y-3">
@@ -1209,7 +2459,7 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                         </span>
                       </button>
 
-                      {/* Placement Selector */}
+                      {/* Placement / Layout Selector */}
                       {generateAnswerPointers && (
                         <select
                           value={answersPlacement}
@@ -1218,21 +2468,41 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                             setAnswersPlacement(val);
                             handleGenerateDirectDeck({ answersPlacement: val });
                           }}
-                          className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium"
+                          className="bg-slate-950 border border-indigo-500/30 text-indigo-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
                         >
-                          <option value="after_question">Placement: Consecutive (Q ➔ 2 Blanks ➔ Pointers)</option>
-                          <option value="end_of_deck">Placement: End-of-Deck Appendix</option>
+                          <option value="after_question">Separate Slides (Q ➔ Blanks ➔ Answer Slides)</option>
+                          <option value="end_of_deck">Appendix Mode (Questions First ➔ Answers at End)</option>
                         </select>
                       )}
+
+                      {/* Unit Scope Selector for Answer Generation */}
+                      <select
+                        value={targetUnitForAnswers}
+                        onChange={(e) => setTargetUnitForAnswers(e.target.value)}
+                        className="bg-slate-950 border border-purple-500/40 text-purple-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-purple-400 font-semibold cursor-pointer shadow-sm"
+                        title="Select whether to generate answers for a single unit or all units"
+                      >
+                        <option value="all">🌐 All Units ({directPyqRows.length} Qs)</option>
+                        {availableUnitTabs.map((u) => {
+                          const qCount = directPyqRows.filter(
+                            (r) => AiPptService.normalizeUnitNumber(r.unitNumber || 'UNIT 1') === u
+                          ).length;
+                          return (
+                            <option key={u} value={u}>
+                              ⚡ {u} ({qCount} Qs)
+                            </option>
+                          );
+                        })}
+                      </select>
 
                       {/* DeepSeek Answer Pointers Generator Button */}
                       <button
                         type="button"
-                        onClick={handleGenerateAnswerPointersWithDeepSeek}
+                        onClick={() => handleGenerateAnswerPointersWithDeepSeek()}
                         disabled={isGeneratingDeepSeekPointers}
                         className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
                           Object.keys(deepSeekPointersMap).length > 0
-                            ? 'bg-purple-600/20 border-purple-500/50 text-purple-200'
+                            ? 'bg-purple-600/20 border-purple-500/50 text-purple-200 hover:bg-purple-600/30'
                             : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-500/50'
                         }`}
                         title="Generate authentic, professor-style board solution pointers via DeepSeek API"
@@ -1245,12 +2515,20 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                         ) : Object.keys(deepSeekPointersMap).length > 0 ? (
                           <>
                             <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
-                            <span>DeepSeek Pointers Active ({Object.keys(deepSeekPointersMap).length} Qs)</span>
+                            <span>
+                              {targetUnitForAnswers === 'all'
+                                ? `DeepSeek Pointers Active (${Object.keys(deepSeekPointersMap).length} Qs)`
+                                : `Re-Generate ${targetUnitForAnswers} Answers`}
+                            </span>
                           </>
                         ) : (
                           <>
                             <Lightbulb className="w-3.5 h-3.5 text-amber-300" />
-                            <span>Generate Answer Pointers (DeepSeek API)</span>
+                            <span>
+                              {targetUnitForAnswers === 'all'
+                                ? 'Generate All Answer Pointers (DeepSeek)'
+                                : `Generate ${targetUnitForAnswers} Answers (DeepSeek)`}
+                            </span>
                           </>
                         )}
                       </button>
@@ -1283,367 +2561,8 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   </div>
                 </div>
 
-                {/* SLIDE FRAME (16:9) */}
-                <div
-                  className={`aspect-[16/9] w-full rounded-3xl border shadow-2xl overflow-hidden flex flex-col justify-between p-6 md:p-8 transition-all ${
-                    theme === 'dark_tech'
-                      ? 'bg-slate-950 border-slate-800 text-slate-100'
-                      : theme === 'deep_navy'
-                      ? 'bg-slate-900 border-slate-800 text-white'
-                      : 'bg-white border-slate-200 text-slate-900'
-                  }`}
-                >
-                  {/* SLIDE TOP HEADER */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[10px] font-mono font-bold tracking-wider uppercase">
-                        {activeSlide?.badge || 'QUESTION'}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        {generatedDeck.subject}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] font-mono text-slate-400">
-                      Slide {activeSlideIndex + 1} of {generatedDeck.slides.length}
-                    </div>
-                  </div>
-
-                  {/* SLIDE BODY */}
-                  <div className="my-auto space-y-4">
-                    
-                    {/* 1. COVER / TITLE SLIDE (Executive Academic Style) */}
-                    {activeSlide?.type === 'title' && (
-                      <div className="text-center py-4 space-y-3.5">
-                        <div className="inline-block px-4 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[11px] font-mono font-bold tracking-wide">
-                          {activeSlide.badge || 'UNIVERSITY & COMPETITIVE EXAMINATION SERIES'}
-                        </div>
-                        
-                        <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase max-w-xl mx-auto">
-                          {generatedDeck.subject || activeSlide.title}
-                        </h2>
-
-                        <div className="w-24 h-0.5 bg-indigo-500 mx-auto rounded-full" />
-
-                        <p className="text-xs text-slate-300 max-w-lg mx-auto font-medium">
-                          {activeSlide.subtitle || 'Topic-Mapped Previous Year Examination Questions (PYQ Bank)'}
-                        </p>
-
-                        {/* 3 Executive Metadata Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 max-w-xl mx-auto">
-                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
-                            <span className="text-[9px] font-bold text-indigo-400 font-mono tracking-wider block uppercase">
-                              Curriculum Scope
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-100 block truncate">
-                              {generatedDeck.unit || 'All Units'}
-                            </span>
-                          </div>
-
-                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
-                            <span className="text-[9px] font-bold text-emerald-400 font-mono tracking-wider block uppercase">
-                              Problem Set Size
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-100 block">
-                              {generatedDeck.relevantPyqCount || 0} Examination PYQs
-                            </span>
-                          </div>
-
-                          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-0.5">
-                            <span className="text-[9px] font-bold text-amber-400 font-mono tracking-wider block uppercase">
-                              Organization
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-100 block">
-                              Topic-Wise Sequence
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 2. UNIT DIVIDER SLIDE */}
-                    {activeSlide?.type === 'unit_divider' && (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
-                            {activeSlide.badge}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h2 className="text-xl md:text-2xl font-black text-white">
-                            {activeSlide.title}
-                          </h2>
-                          {activeSlide.subtitle && (
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {activeSlide.subtitle}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Topics Index Box */}
-                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-                          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">
-                            Syllabus Topics & Examination Questions in this Unit:
-                          </span>
-                          {activeSlide.bullets && activeSlide.bullets.length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
-                              {activeSlide.bullets.map((t, idx) => (
-                                <div key={idx} className="p-1.5 bg-slate-950/80 border border-slate-800/80 rounded-lg text-[11px] text-slate-200 font-medium">
-                                  {t}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 2b. TOPIC SECTION DIVIDER SLIDE */}
-                    {activeSlide?.type === 'topic_divider' && (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-mono font-bold uppercase tracking-wider">
-                            {activeSlide.badge || 'TOPIC SECTION'}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h2 className="text-xl md:text-2xl font-black text-white">
-                            {activeSlide.title}
-                          </h2>
-                          {activeSlide.subtitle && (
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {activeSlide.subtitle}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Problem Set Index */}
-                        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
-                            Problem Sets Included in this Topic Series:
-                          </span>
-                          {activeSlide.bullets && activeSlide.bullets.length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
-                              {activeSlide.bullets.map((t, idx) => (
-                                <div key={idx} className="p-1.5 bg-slate-950/80 border border-slate-800/80 rounded-lg text-[11px] text-amber-300 font-medium">
-                                  {t}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 3. DIRECT PYQ QUESTION CARD (Pure Question without answer leak) */}
-                    {activeSlide?.type === 'direct_pyq' && activeSlide.pyqDetails && (
-                      <div className="space-y-3">
-                        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 shadow-inner">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold text-[11px]">
-                              📝 {activeSlide.pyqDetails.examYear || 'Exam Question'}
-                            </span>
-                            {activeSlide.pyqDetails.marks && (
-                              <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
-                                {activeSlide.pyqDetails.marks}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <p className="font-bold text-base md:text-lg text-slate-100 leading-relaxed pt-1">
-                            {activeSlide.pyqDetails.question}
-                          </p>
-                        </div>
-
-                        {/* Pedagogy Note if answers are separated */}
-                        {generateAnswerPointers ? (
-                          <div className="p-3 rounded-xl bg-slate-950/80 border border-indigo-500/20 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                              <span>Answers kept separate on subsequent Solution Pointers slide</span>
-                            </div>
-                            <span className="text-[10px] font-mono text-indigo-300 font-semibold bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30">
-                              {addBlankPages ? '✍️ 2 Blank Whiteboard Sheets Follow' : '🎯 Answer Pointers Follow'}
-                            </span>
-                          </div>
-                        ) : activeSlide.pyqDetails.stepByStepSolution && activeSlide.pyqDetails.stepByStepSolution.length > 0 ? (
-                          <div className="p-3 rounded-xl bg-slate-950 border border-indigo-500/30 text-xs space-y-1">
-                            <div className="text-indigo-400 font-bold text-[11px] flex items-center gap-1.5">
-                              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                              Faculty Solution & Derivation Notes:
-                            </div>
-                            <div className="text-[11px] text-slate-300 space-y-0.5 pl-1 leading-relaxed">
-                              {activeSlide.pyqDetails.stepByStepSolution.map((s, idx) => (
-                                <p key={idx} className="text-slate-300">{s}</p>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-
-                    {/* 3b. BLANK WORKSPACE / LIVE DERIVATION CANVAS */}
-                    {activeSlide?.type === 'blank_workspace' && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-900 border border-emerald-500/30">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[10px] font-bold">
-                              ✍️ SHEET {activeSlide.workspacePage || 1} OF {activeSlide.workspaceTotalPages || 2}
-                            </span>
-                            <span className="text-xs font-bold text-slate-100">
-                              {activeSlide.title}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                            Digital Whiteboard Canvas
-                          </span>
-                        </div>
-
-                        {activeSlide.questionReference && (
-                          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 line-clamp-2">
-                            <span className="font-bold text-slate-300">Problem Statement: </span>
-                            {activeSlide.questionReference}
-                          </div>
-                        )}
-
-                        <div
-                          className="min-h-[160px] md:min-h-[200px] rounded-2xl border-2 border-dashed border-slate-800/90 bg-slate-950/60 p-6 flex flex-col items-center justify-center text-center space-y-2 relative overflow-hidden"
-                          style={{
-                            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)',
-                            backgroundSize: '16px 16px',
-                          }}
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                            ✍️
-                          </div>
-                          <p className="text-xs font-bold text-slate-200">
-                            Digital Whiteboard & Live Derivation Sheet
-                          </p>
-                          <p className="text-[10px] text-slate-500 max-w-sm">
-                            Space for faculty to derive mathematical equations, trace algorithms, and write notes with stylus/pen during class recordings.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 3c. ANSWER POINTERS SLIDE (KEPT SEPARATE, NOT ANSWERS JUST POINTERS, CLEAN & NON-AI) */}
-                    {activeSlide?.type === 'answer_pointers' && activeSlide.answerPointers && (
-                      <div className="space-y-3.5">
-                        {/* Clean Academic Header Banner */}
-                        <div className="p-3 rounded-2xl bg-slate-900 border border-slate-700/80 flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold text-[10px] tracking-wider uppercase">
-                              SOLUTION ROADMAP
-                            </span>
-                            <span className="text-xs md:text-sm font-bold text-slate-100">
-                              Question {activeSlide.questionNumber || ''} • {activeSlide.answerPointers.coreConcept || 'Solution Roadmap & Key Pointers'}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            Marking Guide & Formulas
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                          {/* Left: Solving Milestones */}
-                          <div className="md:col-span-7 p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2.5 shadow-inner">
-                            <span className="text-[11px] font-bold text-slate-200 tracking-wide block uppercase border-b border-slate-800 pb-1.5">
-                              Solving Milestones & Derivation Steps
-                            </span>
-                            <div className="space-y-2 pt-0.5">
-                              {activeSlide.answerPointers.pointers.map((pointer, pIdx) => (
-                                <div key={pIdx} className="flex items-start gap-2.5 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-[11px] text-slate-200 leading-relaxed">
-                                  <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                                    {pIdx + 1}
-                                  </span>
-                                  <span>{pointer}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Right: Governing Formula & Examiner Note */}
-                          <div className="md:col-span-5 space-y-3">
-                            <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1.5 shadow-inner">
-                              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
-                                Governing Formula / Result Check
-                              </span>
-                              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-emerald-300 font-mono text-[11px] font-bold break-all">
-                                {activeSlide.answerPointers.formulaOrResult || 'Dimensional & Boundary Verification Required'}
-                              </div>
-                            </div>
-
-                            <div className="p-3.5 rounded-2xl bg-amber-950/20 border border-amber-500/30 space-y-1">
-                              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                                Examiner's Note & Grading Check
-                              </span>
-                              <p className="text-[11px] text-amber-200/90 leading-relaxed font-medium">
-                                {activeSlide.answerPointers.commonPitfall || 'State initial assumptions and justify intermediate transitions to receive full step credit.'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                  </div>
-
-                  {/* SLIDE FOOTER */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
-                    <div className="text-[10px] text-slate-400">
-                      Apna Engineering Wallah • Faculty Lecture & Problem Repository
-                    </div>
-
-                    {isFullscreen && (
-                      <button
-                        onClick={() => setIsFullscreen(false)}
-                        className="px-3 py-1 bg-slate-800 text-slate-300 rounded text-xs"
-                      >
-                        Exit Fullscreen ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* SLIDE CAROUSEL & CONTROLS */}
-                <div className="flex items-center justify-between gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setActiveSlideIndex((prev) => Math.max(0, prev - 1))}
-                    disabled={activeSlideIndex === 0}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 border border-slate-800 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" /> Previous
-                  </button>
-
-                  {/* THUMBNAILS LIST */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-md">
-                    {generatedDeck.slides.map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setActiveSlideIndex(idx)}
-                        className={`w-7 h-7 rounded-lg text-[10px] font-mono font-bold transition-all flex items-center justify-center shrink-0 ${
-                          activeSlideIndex === idx
-                            ? 'bg-indigo-600 text-white ring-2 ring-indigo-400 scale-105'
-                            : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
-                        }`}
-                      >
-                        {idx + 1}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveSlideIndex((prev) => Math.min(generatedDeck.slides.length - 1, prev + 1))}
-                    disabled={activeSlideIndex === generatedDeck.slides.length - 1}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 border border-slate-800 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  >
-                    Next <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+                {/* 16:9 SLIDE VIEWER & CAROUSEL */}
+                {render16x9SlideViewer()}
 
               </div>
             )}
@@ -2058,46 +2977,66 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                   >
                     Deep Navy
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('clean_minimal')}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-medium ${
+                      theme === 'clean_minimal' ? 'bg-white text-slate-900 font-bold' : 'text-slate-400'
+                    }`}
+                  >
+                    Clean Minimal
+                  </button>
                 </div>
               </div>
 
-              {generatedDeck && (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {generatedDeck && (
                   <button
                     type="button"
-                    onClick={handleExportPdf}
-                    disabled={isExportingPdf}
-                    className="px-3.5 py-1.5 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl text-xs font-semibold"
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    className="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1"
+                    title="Fullscreen presentation mode"
                   >
-                    PDF
+                    <Maximize2 className="w-3.5 h-3.5" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleExportPptx}
-                    disabled={isExportingPptx}
-                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
-                  >
-                    Export .PPTX
-                  </button>
-                </div>
-              )}
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  disabled={isExportingPdf || !generatedDeck}
+                  className="px-3.5 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5 text-purple-400" />
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportPptx}
+                  disabled={isExportingPptx || !generatedDeck}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {isExportingPptx ? 'Exporting PPTX...' : 'Export .PPTX'}
+                </button>
+              </div>
             </div>
 
-            {/* AI Roadmap Preview */}
-            {generatedDeck?.subtopicRoadmap && generatedDeck.subtopicRoadmap.length > 0 && (
-              <div className="bg-slate-900 border border-indigo-500/30 rounded-3xl p-4 space-y-2 shadow-lg">
-                <div className="text-xs font-bold text-slate-100 flex items-center gap-2">
-                  🧠 First-Principles Roadmap & PYQ Coverage
+            {/* 16:9 SLIDE CANVAS PREVIEW */}
+            {!generatedDeck ? (
+              <div className="aspect-[16/9] w-full bg-slate-900/60 border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center p-8 text-center space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <Presentation className="w-7 h-7" />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  {generatedDeck.subtopicRoadmap.map((item, idx) => (
-                    <div key={idx} className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1 text-xs">
-                      <div className="font-semibold text-slate-200 truncate">{item.subtopicName}</div>
-                      <p className="text-[10px] text-slate-400 line-clamp-2">{item.pedagogicalGoal}</p>
-                    </div>
-                  ))}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200">No AI Deck Generated Yet</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mt-1">
+                    Enter your topic, choose pedagogy depth (Zero-Knowledge, PYQ Intensive, or Deep Theory), and click <strong>Generate AI Concept Deck</strong>.
+                  </p>
                 </div>
               </div>
+            ) : (
+              render16x9SlideViewer()
             )}
           </div>
 
@@ -2144,6 +3083,164 @@ export const PptGenerator: React.FC<PptGeneratorProps> = ({
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold"
               >
                 Apply Topic Sequence
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK UNIT TOPICS MODAL */}
+      {showBulkUnitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">Bulk Edit Topics: {activeUnitTab}</h3>
+                  <span className="text-[10px] text-slate-400">Order topics for this specific unit</span>
+                </div>
+              </div>
+              <button onClick={() => setShowBulkUnitModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Paste or rearrange topic titles for <span className="text-indigo-300 font-semibold">{activeUnitTab}</span> (one topic per line or comma-separated). Questions in {activeUnitTab} will follow this exact order.
+            </p>
+
+            <textarea
+              rows={8}
+              value={bulkUnitText}
+              onChange={(e) => setBulkUnitText(e.target.value)}
+              placeholder="Topic 1&#10;Topic 2&#10;Topic 3"
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-indigo-500"
+            />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkUnitModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkUnitSave}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold"
+              >
+                Save {activeUnitTab} Topics
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IMPORT MULTI-UNIT SYLLABUS MODAL */}
+      {showBulkFullSyllabusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+          <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">Import Full Multi-Unit Syllabus</h3>
+                  <span className="text-[10px] text-slate-400">Auto-detects UNIT 1, UNIT 2, UNIT 3...</span>
+                </div>
+              </div>
+              <button onClick={() => setShowBulkFullSyllabusModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Paste your university course syllabus. Units (e.g. <span className="text-indigo-300 font-mono">Unit 1:</span>, <span className="text-indigo-300 font-mono">Unit 2:</span>, or <span className="text-indigo-300 font-mono">Module 1</span>) and bulleted topics will be automatically organized into unit tabs.
+            </p>
+
+            <textarea
+              rows={10}
+              value={bulkFullSyllabusText}
+              onChange={(e) => setBulkFullSyllabusText(e.target.value)}
+              placeholder={`Unit 1: Asymptotic Analysis & Arrays\n- Asymptotic Notations & Complexity\n- Array Operations\n- Recurrence Relations\n\nUnit 2: Linear Data Structures\n- Singly Linked Lists\n- Doubly Linked Lists\n- Stacks & Queues\n\nUnit 3: Trees & Graphs\n- Binary Search Trees\n- Graph Traversals`}
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-indigo-500"
+            />
+
+            <div className="flex justify-between items-center pt-2">
+              <span className="text-[11px] text-slate-500 italic">
+                Accepts "Unit X", "Module X", or "Chapter X" prefixes
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkFullSyllabusModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkFullSyllabusSave}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold"
+                >
+                  Import & Parse Syllabus
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD CUSTOM UNIT MODAL */}
+      {showAddUnitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-100">Add New Unit</h3>
+              </div>
+              <button onClick={() => setShowAddUnitModal(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Enter unit identifier (e.g. "UNIT 6", "Unit 7", "Elective Unit").
+            </p>
+
+            <div>
+              <input
+                type="text"
+                value={newUnitNameInput}
+                onChange={(e) => setNewUnitNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustomUnit();
+                  }
+                }}
+                placeholder="e.g. UNIT 6"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-medium text-xs"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddUnitModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddCustomUnit}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold"
+              >
+                Add Unit Tab
               </button>
             </div>
           </div>

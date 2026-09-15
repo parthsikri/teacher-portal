@@ -3,7 +3,7 @@ import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award
+  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, FileCheck
 } from 'lucide-react';
 
 interface NavItem {
@@ -130,6 +130,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: Video,
       badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
       badgeColor: 'bg-emerald-500 text-white font-bold',
+    },
+    { 
+      id: 'admin_offer_letters', 
+      label: 'Offer Letters', 
+      icon: FileCheck,
     },
   ];
 

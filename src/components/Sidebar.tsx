@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { WebDevService } from '../services/webDevService';
@@ -6,7 +6,7 @@ import {
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
   Award, CheckCircle2, DollarSign, Star, TrendingUp, Building2, FileText,
-  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase
+  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, FileCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -90,6 +90,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
         StorageService.getAssignedTopics().filter((t) => t.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase())
       ).length
     : 0;
+
+  // Sales CRM Badges & Visibility
+  const todayStr = StorageService.toLocalDateKey(new Date());
+  const allSalesLeads = StorageService.getSalesLeads();
+  const adminTodayCallsDueCount = currentUser.role === 'admin'
+    ? allSalesLeads.filter(
+        (l) => l.nextFollowUpDate === todayStr && l.status !== 'closed_won' && l.status !== 'closed_lost'
+      ).length
+    : 0;
+
+  const myAssignedLeads = allSalesLeads.filter(
+    (l) => (l.assignedToEmployeeId === currentUser.id || l.assignedToEmployeeId === currentUser.teacherId)
+  );
+  const myTodayCallsDueCount = myAssignedLeads.filter(
+    (l) => l.nextFollowUpDate === todayStr && l.status !== 'closed_won' && l.status !== 'closed_lost'
+  ).length;
+
+  const hasEmployeeCrmAccess = StorageService.hasUserCrmAccess(currentUser);
 
   // PR Intern Navigation Links
   const prNavItems = [
@@ -212,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: '16:9 Thumbnail Studio', 
       icon: ImageIcon,
     },
-    { id: 'admin_faculty', label: 'Faculty Roster', icon: Users },
+    { id: 'admin_faculty', label: 'Staff & Faculty Roster', icon: Users },
     { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
     { 
       id: 'admin_lectures', 
@@ -227,6 +245,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Code2,
       badge: 'All Work',
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+    },
+    { 
+      id: 'admin_sales_crm', 
+      label: 'Sales CRM & Leads', 
+      icon: PhoneCall,
+      badge: adminTodayCallsDueCount > 0 ? `${adminTodayCallsDueCount} Due` : (allSalesLeads.length > 0 ? `${allSalesLeads.length}` : undefined),
+      badgeColor: adminTodayCallsDueCount > 0 
+        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
+        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
+    },
+    { 
+      id: 'admin_offer_letters', 
+      label: 'Offer Letter Studio', 
+      icon: FileCheck,
+      badge: 'Generator',
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold font-mono',
     },
   ];
 
@@ -297,8 +331,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dev_team', label: 'Team & Kudos', icon: Users },
   ];
 
-  const navItems: NavItem[] = currentUser.role === 'admin' 
-    ? adminNavItems 
+  // Dedicated Sales Representative Navigation
+  const salesNavItems: NavItem[] = [
+    { 
+      id: 'sales_crm', 
+      label: 'Sales CRM Desk', 
+      icon: PhoneCall,
+      badge: myTodayCallsDueCount > 0 ? `${myTodayCallsDueCount} Due` : (myAssignedLeads.length > 0 ? `${myAssignedLeads.length} Leads` : undefined),
+      badgeColor: myTodayCallsDueCount > 0 
+        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
+        : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold font-mono',
+    },
+  ];
+
+  // Filter admin items according to admin permissions scope
+  const filteredAdminNavItems = useMemo(() => {
+    if (currentUser.role !== 'admin') return adminNavItems;
+    if (!currentUser.adminPermissions || currentUser.adminTier === 'super_admin') {
+      return adminNavItems;
+    }
+    const perms = currentUser.adminPermissions;
+    return adminNavItems.filter((item) => {
+      if (item.id === 'admin_overview') return true;
+      if (item.id === 'admin_faculty') return perms.includes('manage_faculty') || perms.includes('manage_credentials');
+      if (item.id === 'admin_syllabus') return perms.includes('manage_syllabus');
+      if (item.id === 'ppt_generator') return perms.includes('manage_syllabus');
+      if (item.id === 'thumbnail_generator') return perms.includes('manage_syllabus') || perms.includes('manage_faculty');
+      if (item.id === 'admin_resources') return perms.includes('manage_syllabus');
+      if (item.id === 'admin_lectures') return perms.includes('manage_lectures');
+      if (item.id === 'admin_extensions') return perms.includes('manage_leaves');
+      if (item.id === 'admin_pr_management') return perms.includes('manage_pr');
+      if (item.id === 'admin_web_dev') return perms.includes('manage_webdev');
+      if (item.id === 'admin_sales_crm') return perms.includes('manage_sales');
+      if (item.id === 'admin_offer_letters') return perms.includes('manage_offer_letters');
+      return true;
+    });
+  }, [currentUser, adminNavItems]);
+
+  const baseNavItems: NavItem[] = currentUser.role === 'admin' 
+    ? filteredAdminNavItems 
+    : currentUser.role === 'sales'
+    ? salesNavItems
     : currentUser.role === 'pr_intern'
     ? prNavItems
     : currentUser.role === 'web_dev_manager'
@@ -306,6 +379,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     : currentUser.role === 'web_developer'
     ? devNavItems
     : teacherNavItems;
+
+  const navItems: NavItem[] = (hasEmployeeCrmAccess && currentUser.role !== 'admin' && currentUser.role !== 'sales')
+    ? [
+        ...baseNavItems,
+        {
+          id: 'sales_crm',
+          label: 'Sales CRM Desk',
+          icon: PhoneCall,
+          badge: myTodayCallsDueCount > 0 ? `${myTodayCallsDueCount} Due` : (myAssignedLeads.length > 0 ? `${myAssignedLeads.length}` : undefined),
+          badgeColor: myTodayCallsDueCount > 0 
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
+            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
+        }
+      ]
+    : baseNavItems;
 
   const handleNavClick = (id: string) => {
     onPageChange(id);

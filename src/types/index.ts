@@ -1,6 +1,19 @@
-export type UserRole = 'teacher' | 'admin' | 'pr_intern' | 'web_dev_manager' | 'web_developer';
+export type UserRole = 'teacher' | 'admin' | 'pr_intern' | 'web_dev_manager' | 'web_developer' | 'sales';
 
 export type PrTier = 'Silver' | 'Gold' | 'Premium';
+
+export type AdminRoleTier = 'super_admin' | 'academic_admin' | 'hr_admin' | 'growth_admin' | 'tech_admin';
+
+export type AdminPermissionKey = 
+  | 'manage_faculty'
+  | 'manage_syllabus'
+  | 'manage_lectures'
+  | 'manage_pr'
+  | 'manage_webdev'
+  | 'manage_sales'
+  | 'manage_offer_letters'
+  | 'manage_credentials'
+  | 'manage_leaves';
 
 export interface User {
   id: string;
@@ -22,6 +35,12 @@ export interface User {
   firstLoginDate?: string;       // Date when faculty first logged in (YYYY-MM-DD)
   createdAt?: string;            // Account creation timestamp
   phone?: string;
+  // Admin specific access & permissions
+  adminTier?: AdminRoleTier;
+  adminPermissions?: AdminPermissionKey[];
+  // Sales CRM specific fields
+  hasCrmAccess?: boolean;        // Whether employee has visibility into the Sales CRM
+  crmRole?: 'sales_rep' | 'sales_manager'; // Access level inside the CRM
   // PR Intern specific fields
   prTier?: PrTier;
   prPoints?: number;
@@ -850,5 +869,121 @@ export interface WebDevLeaderboardEntry {
   bountiesCompleted?: number;
   highlights?: string;
   rank: number;
+}
+
+// ─── SALES CRM & LEADS MANAGEMENT ───────────────────────────────────────────
+export type SalesLeadStatus = 
+  | 'new' 
+  | 'contacted' 
+  | 'follow_up_scheduled' 
+  | 'demo_scheduled' 
+  | 'proposal_sent' 
+  | 'negotiation' 
+  | 'closed_won' 
+  | 'closed_lost';
+
+export type SalesLeadPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export type CallDisposition = 
+  | 'picked_interested' 
+  | 'picked_followup_requested' 
+  | 'picked_not_interested' 
+  | 'not_picked' 
+  | 'busy' 
+  | 'switched_off' 
+  | 'wrong_number';
+
+export interface SalesActivityLog {
+  id: string;
+  leadId: string;
+  authorId: string;
+  authorName: string;
+  authorRole?: string;
+  callPicked?: boolean;            // true = call answered, false = not picked/busy
+  disposition?: CallDisposition | string; // e.g. "picked_interested", "not_picked", etc.
+  feedback: string;               // Conversation remarks & notes
+  wantToCallAgain?: boolean;       // If salesperson wants to follow-up again
+  callbackDate?: string;          // Target callback date (YYYY-MM-DD)
+  callbackTime?: string;          // Target callback time (e.g. "15:30" / "03:30 PM")
+  stageBefore?: SalesLeadStatus;
+  stageAfter?: SalesLeadStatus;
+  timestamp: string;              // ISO timestamp
+}
+
+export interface SalesLead {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  altPhoneNumber?: string;
+  email?: string;
+  organization?: string;          // College, School, Company, or Coaching Center
+  designation?: string;           // Student, Parent, Dean, HOD, Training Head, etc.
+  programOfInterest?: string;     // Subject / Course / Examination (e.g. "GATE CS 2025", "B.Tech OS")
+  city?: string;
+  state?: string;
+  status: SalesLeadStatus;
+  priority: SalesLeadPriority;
+  dealValue?: number;             // Estimated course fee or deal value in INR
+  assignedToEmployeeId?: string;  // User id or teacherId of assigned staff
+  assignedToEmployeeName?: string;// Name of the assigned employee
+  source?: string;                // "Direct Admin Entry", "Website", "Campus Seminar", "WhatsApp Inbound", "Referral"
+  tags?: string[];
+  notes?: string;                 // Initial intake remarks
+  createdAt: string;
+  updatedAt: string;
+  lastContactedAt?: string;
+  lastCallPicked?: boolean;
+  lastDisposition?: string;
+  lastFeedback?: string;
+  nextFollowUpDate?: string;      // YYYY-MM-DD
+  nextFollowUpTime?: string;      // e.g. "14:00"
+  activityLogs: SalesActivityLog[];
+}
+
+export type OfferLetterRoleType = 
+  | 'sme' 
+  | 'hr_intern' 
+  | 'pr_intern' 
+  | 'web_dev_intern' 
+  | 'graphic_designer' 
+  | 'sales_intern' 
+  | 'custom';
+
+export type OfferLetterStatus = 'draft' | 'issued' | 'accepted' | 'declined' | 'revoked';
+
+export type OfferLetterTheme = 'modern_tech' | 'executive_navy' | 'classic_academic';
+
+export interface OfferLetter {
+  id: string;
+  referenceNumber: string;         // e.g. "AEW/OL/2026/042"
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone?: string;
+  candidateCollege?: string;
+  candidateAddress?: string;
+  roleType: OfferLetterRoleType;
+  roleTitle: string;              // e.g. "Subject Matter Expert - Engineering Mathematics"
+  subject?: string;                // Relevant when roleType === 'sme'
+  department: string;             // e.g. "Academic Operations & Curriculum"
+  employmentType: 'Internship' | 'Full-time' | 'Part-time' | 'Contract';
+  workMode: 'Remote (Work From Home)' | 'Hybrid' | 'In-Office (New Delhi)';
+  duration: string;               // e.g. "3 Months", "6 Months", "1 Year", "Permanent"
+  joiningDate: string;            // YYYY-MM-DD
+  validUntil: string;             // YYYY-MM-DD (acceptance deadline)
+  stipendAmount: string;          // e.g. "₹15,000 / Month", "₹600 / Session"
+  incentiveDetails?: string;      // e.g. "Performance bonus up to ₹5,000 upon milestone completion"
+  workingHours: string;           // e.g. "20-25 Hours/Week (Flexible)"
+  reportingManager: string;       // e.g. "Director of Academic Operations"
+  responsibilities: string[];     // Bullet points of key responsibilities
+  perks: string[];                // Bullet points of benefits & perks
+  terms: string[];                // Institutional terms, confidentiality, notice period
+  signatoryName: string;          // e.g. "Dr. Aarav Sharma"
+  signatoryTitle: string;         // e.g. "Director of Operations & Academic Dean"
+  includeDigitalSeal: boolean;
+  status: OfferLetterStatus;
+  templateTheme: OfferLetterTheme;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
