@@ -1048,81 +1048,42 @@ export const StorageService = {
   authenticateUser(identifier: string, password: string): { success: boolean; user?: User; error?: string } {
     const cleanId = identifier.trim().toLowerCase();
     const cleanPass = password.trim();
+
+    if (!cleanId || !cleanPass) {
+      return { success: false, error: 'Username and password are required.' };
+    }
+
     const users = this.getUsers();
 
+    // Strict user lookup by registered username, teacher/employee ID, or email address
     const user = users.find(u => {
       const uTeacherId = (u.teacherId || '').toLowerCase();
       const uUsername = (u.username || '').toLowerCase();
       const uEmail = (u.email || '').toLowerCase();
-
-      if (uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId) return true;
-      if (cleanId === 'teacher_101' && (uTeacherId === 'aew-t-101' || uUsername === 'harish_mehta')) return true;
-      if (cleanId === 'teacher_102' && (uTeacherId === 'aew-t-102' || uUsername === 'bhumi')) return true;
-      if (cleanId === 'teacher_103' && (uTeacherId === 'aew-t-103' || uUsername === 'khushi')) return true;
-      return false;
+      return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
     });
 
     if (!user) {
-      if (cleanId === 'admin') {
-        const adminUser: User = users.find(u => u.role === 'admin') || {
-          id: 'u-admin',
-          teacherId: 'ADMIN-01',
-          username: 'admin',
-          name: 'Academic Operations Admin',
-          email: 'admin@aew.com',
-          role: 'admin',
-          department: 'Academic Operations',
-          subject: 'Management',
-          dailyTargetMinutes: 9999,
-          dailyLimit: 999,
-          adminTier: 'super_admin',
-          adminPermissions: [
-            'manage_faculty',
-            'manage_syllabus',
-            'manage_lectures',
-            'manage_pr',
-            'manage_webdev',
-            'manage_sales',
-            'manage_offer_letters',
-            'manage_credentials',
-            'manage_leaves',
-          ],
-        };
-        if (cleanPass === 'admin123' || cleanPass === 'admin' || cleanPass === 'password123') {
-          return { success: true, user: adminUser };
-        }
-      }
-      return { success: false, error: 'User account not found. Please check your username or ID.' };
+      return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
     }
 
-    // Role-based master fallback password verification
-    let isValid = false;
-    if (user.role === 'admin') {
-      if (cleanPass === 'admin123' || cleanPass === 'admin' || cleanPass === 'password123' || user.password === cleanPass) {
-        isValid = true;
-      }
-    } else if (user.role === 'teacher') {
-      if (cleanPass === 'teach123' || cleanPass === 'teacher123' || user.password === cleanPass) {
-        isValid = true;
-      }
-    } else if (user.role === 'pr_intern') {
-      if (cleanPass === 'intern123' || user.password === cleanPass) {
-        isValid = true;
-      }
-    } else if (user.role === 'web_dev_manager' || user.role === 'web_developer') {
-      if (cleanPass === 'dev123' || user.password === cleanPass) {
-        isValid = true;
-      }
-    } else if (user.role === 'sales') {
-      if (cleanPass === 'sales123' || user.password === cleanPass) {
-        isValid = true;
-      }
-    } else if (user.password === cleanPass) {
-      isValid = true;
-    }
+    // Determine the user's authentic password (user-defined or default initial assigned password)
+    const expectedPassword = (
+      user.password ||
+      (user.role === 'admin'
+        ? 'admin123'
+        : user.role === 'pr_intern'
+        ? 'intern123'
+        : user.role === 'sales'
+        ? 'sales123'
+        : user.role === 'web_developer' || user.role === 'web_dev_manager'
+        ? 'dev123'
+        : 'teach123')
+    ).trim();
 
-    if (!isValid) {
-      return { success: false, error: 'Incorrect password. Please try again.' };
+    // Strict password match — no weak master passwords or universal bypasses permitted
+    if (cleanPass !== expectedPassword) {
+      return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
     }
 
     return { success: true, user };
