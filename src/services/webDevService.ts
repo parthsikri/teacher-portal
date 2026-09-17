@@ -20,20 +20,36 @@ import type {
 } from '../types';
 import { StorageService } from './storage';
 
-// ─── LOCAL STORAGE KEYS ────────────────────────────────────────────────────────
-const PROJECTS_KEY = 'aew_webdev_projects_v1';
-const MILESTONES_KEY = 'aew_webdev_milestones_v1';
-const TASKS_KEY = 'aew_webdev_tasks_v1';
-const BOUNTIES_KEY = 'aew_webdev_bounties_v1';
-const XP_LEDGER_KEY = 'aew_webdev_xp_ledger_v1';
-const ACHIEVEMENTS_KEY = 'aew_webdev_achievements_v1';
-const USER_ACHIEVEMENTS_KEY = 'aew_webdev_user_achievements_v1';
-const REWARDS_KEY = 'aew_webdev_rewards_v1';
-const FULFILLMENTS_KEY = 'aew_webdev_fulfillments_v1';
-const CHALLENGES_KEY = 'aew_webdev_challenges_v1';
-const KUDOS_KEY = 'aew_webdev_kudos_v1';
-const AUDIT_LOGS_KEY = 'aew_webdev_audit_logs_v1';
-const NOTIFICATIONS_KEY = 'aew_webdev_notifications_v1';
+// ─── LOCAL STORAGE KEYS (V2 CLEAN) ───────────────────────────────────────────
+const PROJECTS_KEY = 'aew_webdev_projects_v2';
+const MILESTONES_KEY = 'aew_webdev_milestones_v2';
+const TASKS_KEY = 'aew_webdev_tasks_v2';
+const BOUNTIES_KEY = 'aew_webdev_bounties_v2';
+const XP_LEDGER_KEY = 'aew_webdev_xp_ledger_v2';
+const ACHIEVEMENTS_KEY = 'aew_webdev_achievements_v2';
+const USER_ACHIEVEMENTS_KEY = 'aew_webdev_user_achievements_v2';
+const REWARDS_KEY = 'aew_webdev_rewards_v2';
+const FULFILLMENTS_KEY = 'aew_webdev_fulfillments_v2';
+const CHALLENGES_KEY = 'aew_webdev_challenges_v2';
+const KUDOS_KEY = 'aew_webdev_kudos_v2';
+const AUDIT_LOGS_KEY = 'aew_webdev_audit_logs_v2';
+const NOTIFICATIONS_KEY = 'aew_webdev_notifications_v2';
+
+const OLD_V1_KEYS = [
+  'aew_webdev_projects_v1',
+  'aew_webdev_milestones_v1',
+  'aew_webdev_tasks_v1',
+  'aew_webdev_bounties_v1',
+  'aew_webdev_xp_ledger_v1',
+  'aew_webdev_achievements_v1',
+  'aew_webdev_user_achievements_v1',
+  'aew_webdev_rewards_v1',
+  'aew_webdev_fulfillments_v1',
+  'aew_webdev_challenges_v1',
+  'aew_webdev_kudos_v1',
+  'aew_webdev_audit_logs_v1',
+  'aew_webdev_notifications_v1',
+];
 
 // ─── DEFAULT SEED DATA (CLEAN FOR PRODUCTION) ──────────────────────────────────
 const SEED_PROJECTS: WebDevProject[] = [];
@@ -101,80 +117,163 @@ export function calculateLevelFromXp(xp: number): { level: number; title: string
   }
 }
 
+// ─── MOCK DETECTION HELPERS ──────────────────────────────────────────────────
+export function isMockBounty(b: any): boolean {
+  if (!b) return false;
+  const id = String(b.id || '').toUpperCase();
+  const title = String(b.title || '').toLowerCase();
+  const desc = String(b.description || '').toLowerCase();
+  const claimedByName = String(b.claimedByName || '').toLowerCase();
+  const claimedById = String(b.claimedById || '').toUpperCase();
+
+  if (
+    id.startsWith('BOUNTY-0') ||
+    id.startsWith('PREV-BOUNTY-') ||
+    id === 'BOUNTY-1' ||
+    id === 'BOUNTY-2' ||
+    id === 'BOUNTY-3' ||
+    id === 'BOUNTY-4'
+  ) return true;
+  if (claimedById === 'AEW-DEV-01' || claimedById === 'AEW-DEV-02') return true;
+  if (claimedByName.includes('aarav') || claimedByName.includes('neha') || claimedByName.includes('vikramaditya')) return true;
+  if (
+    title.includes('monaco') ||
+    title.includes('playwright') ||
+    title.includes('sanitize') ||
+    title.includes('keyboard shortcut') ||
+    title.includes('bundle size') ||
+    title.includes('lecture video player') ||
+    title.includes('optimize mobile viewport') ||
+    title.includes('fix memory leak') ||
+    title.includes('accessibility audit')
+  ) return true;
+  if (
+    desc.includes('monaco') ||
+    desc.includes('playwright') ||
+    desc.includes('dompurify') ||
+    desc.includes('youtube-like')
+  ) return true;
+  return false;
+}
+
+export function isMockTask(t: any): boolean {
+  if (!t) return false;
+  const id = String(t.id || '').toUpperCase();
+  const title = String(t.title || '').toLowerCase();
+  const assigneeId = String(t.assigneeId || '').toUpperCase();
+  const assigneeName = String(t.assigneeName || '').toLowerCase();
+  const reviewerName = String(t.reviewerName || '').toLowerCase();
+  const reviewerId = String(t.reviewerId || '').toUpperCase();
+
+  if (
+    id.startsWith('DEV-TASK-10') ||
+    id.startsWith('PREV-TASK-') ||
+    id === 'DEV-TASK-101' ||
+    id === 'DEV-TASK-102' ||
+    id === 'DEV-TASK-103' ||
+    id === 'DEV-TASK-104' ||
+    id === 'DEV-TASK-105'
+  ) return true;
+  if (assigneeId === 'AEW-DEV-01' || assigneeId === 'AEW-DEV-02' || reviewerId === 'AEW-WDM-01') return true;
+  if (assigneeName.includes('aarav') || assigneeName.includes('neha')) return true;
+  if (reviewerName.includes('vikramaditya')) return true;
+  if (title.includes('real-time lecture chat') || title.includes('database indexing') || title.includes('refactor global state')) return true;
+  return false;
+}
+
+export function isMockProject(p: any): boolean {
+  if (!p) return false;
+  const id = String(p.id || '').toUpperCase();
+  const title = String(p.title || '').toLowerCase();
+  const mgr = String(p.managerName || '').toLowerCase();
+
+  if (
+    id.startsWith('PROJ-0') ||
+    id.startsWith('PROJ-1') ||
+    id.startsWith('PROJ-2') ||
+    id === 'PROJ-01' ||
+    id === 'PROJ-02' ||
+    id === 'PROJ-03'
+  ) return true;
+  if (
+    title.includes('apna engg wallah 2.0') ||
+    title.includes('student portal') ||
+    title.includes('video processing pipeline') ||
+    title.includes('live streaming engine')
+  ) return true;
+  if (mgr.includes('vikramaditya')) return true;
+  return false;
+}
+
 // ─── LEGACY MOCK DATA PURGE HELPER ──────────────────────────────────────────
 export function purgeLegacyWebDevMockData(): void {
   if (typeof window === 'undefined') return;
   try {
-    // 1. Purge mock tasks
+    // 1. Wipe all old _v1 mock storage keys from user's browser
+    OLD_V1_KEYS.forEach((k) => {
+      try {
+        localStorage.removeItem(k);
+      } catch {
+        // ignore
+      }
+    });
+
+    // Also scan localStorage and remove any key starting with 'aew_webdev_' that is not '_v2'
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('aew_webdev_') && !k.endsWith('_v2')) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      // ignore
+    }
+
+    // 2. Purge mock tasks
     const tasksRaw = localStorage.getItem(TASKS_KEY);
     if (tasksRaw) {
       const parsed = JSON.parse(tasksRaw);
       if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((t: any) => {
-          if (!t) return false;
-          const id = String(t.id || '').toUpperCase();
-          const title = String(t.title || '').toLowerCase();
-          const assigneeId = String(t.assigneeId || '').toUpperCase();
-          const assigneeName = String(t.assigneeName || '').toLowerCase();
-          const reviewerName = String(t.reviewerName || '').toLowerCase();
-          const reviewerId = String(t.reviewerId || '').toUpperCase();
-          if (id === 'DEV-TASK-101' || id === 'DEV-TASK-102' || id === 'DEV-TASK-103' || id === 'DEV-TASK-104') return false;
-          if (assigneeId === 'AEW-DEV-01' || assigneeId === 'AEW-DEV-02' || reviewerId === 'AEW-WDM-01') return false;
-          if (assigneeName.includes('aarav') || assigneeName.includes('neha')) return false;
-          if (reviewerName.includes('vikramaditya')) return false;
-          if (title.includes('real-time lecture chat') || title.includes('database indexing') || title.includes('refactor global state')) return false;
-          return true;
-        });
+        const cleaned = parsed.filter((t: any) => !isMockTask(t));
         localStorage.setItem(TASKS_KEY, JSON.stringify(cleaned));
       }
     }
 
-    // 2. Purge mock projects
+    // 3. Purge mock projects
     const projRaw = localStorage.getItem(PROJECTS_KEY);
     if (projRaw) {
       const parsed = JSON.parse(projRaw);
       if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((p: any) => {
-          if (!p) return false;
-          const id = String(p.id || '').toUpperCase();
-          const title = String(p.title || '').toLowerCase();
-          const mgr = String(p.managerName || '').toLowerCase();
-          if (id === 'PROJ-01' || id === 'PROJ-02' || id === 'PROJ-03' || id === 'PROJ-1' || id === 'PROJ-2') return false;
-          if (title.includes('apna engg wallah 2.0') || title.includes('video processing pipeline') || title.includes('live streaming engine')) return false;
-          if (mgr.includes('vikramaditya')) return false;
-          return true;
-        });
+        const cleaned = parsed.filter((p: any) => !isMockProject(p));
         localStorage.setItem(PROJECTS_KEY, JSON.stringify(cleaned));
       }
     }
 
-    // 3. Purge mock bounties
+    // 4. Purge mock bounties (including BOUNTY-01, BOUNTY-02, BOUNTY-03, BOUNTY-04)
     const bntRaw = localStorage.getItem(BOUNTIES_KEY);
     if (bntRaw) {
       const parsed = JSON.parse(bntRaw);
       if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((b: any) => {
-          if (!b) return false;
-          const id = String(b.id || '').toUpperCase();
-          const title = String(b.title || '').toLowerCase();
-          if (id === 'BOUNTY-01' || id === 'BOUNTY-02' || id === 'BOUNTY-03' || id === 'BOUNTY-1' || id === 'BOUNTY-2') return false;
-          if (title.includes('optimize mobile viewport') || title.includes('fix memory leak') || title.includes('accessibility audit')) return false;
-          return true;
-        });
+        const cleaned = parsed.filter((b: any) => !isMockBounty(b));
         localStorage.setItem(BOUNTIES_KEY, JSON.stringify(cleaned));
       }
     }
 
-    // 4. Purge mock XP Ledger
+    // 5. Purge mock XP Ledger
     const xpRaw = localStorage.getItem(XP_LEDGER_KEY);
     if (xpRaw) {
       const parsed = JSON.parse(xpRaw);
       if (Array.isArray(parsed)) {
         const cleaned = parsed.filter((tx: any) => {
           if (!tx) return false;
+          const id = String(tx.id || '').toUpperCase();
           const uid = String(tx.userId || '').toUpperCase();
           const uname = String(tx.userName || '').toLowerCase();
           const aname = String(tx.awardedByName || '').toLowerCase();
+          if (id.startsWith('TX-0') || id.startsWith('TX-1')) return false;
           if (uid === 'AEW-DEV-01' || uid === 'AEW-DEV-02' || uid === 'DEVELOPER_AARAV' || uid === 'DEVELOPER_NEHA') return false;
           if (uname.includes('aarav') || uname.includes('neha')) return false;
           if (aname.includes('vikramaditya')) return false;
@@ -184,16 +283,18 @@ export function purgeLegacyWebDevMockData(): void {
       }
     }
 
-    // 5. Purge mock Audit Logs
+    // 6. Purge mock Audit Logs
     const auditRaw = localStorage.getItem(AUDIT_LOGS_KEY);
     if (auditRaw) {
       const parsed = JSON.parse(auditRaw);
       if (Array.isArray(parsed)) {
         const cleaned = parsed.filter((l: any) => {
           if (!l) return false;
+          const id = String(l.id || '').toUpperCase();
           const user = String(l.performedByUserName || '').toLowerCase();
           const uid = String(l.performedByUserId || '').toUpperCase();
           const details = String(l.details || '').toLowerCase();
+          if (id.startsWith('AUD-0')) return false;
           if (user.includes('vikramaditya') || uid === 'AEW-WDM-01') return false;
           if (details.includes('database indexing') || details.includes('refactor global state') || details.includes('aarav') || details.includes('wd-2026-99431')) return false;
           return true;
@@ -202,19 +303,55 @@ export function purgeLegacyWebDevMockData(): void {
       }
     }
 
-    // 6. Purge mock Fulfillments
+    // 7. Purge mock Fulfillments
     const fulRaw = localStorage.getItem(FULFILLMENTS_KEY);
     if (fulRaw) {
       const parsed = JSON.parse(fulRaw);
       if (Array.isArray(parsed)) {
         const cleaned = parsed.filter((f: any) => {
           if (!f) return false;
+          const id = String(f.id || '').toUpperCase();
           const uid = String(f.userId || '').toUpperCase();
           const uname = String(f.userName || '').toLowerCase();
+          if (id.startsWith('FUL-0')) return false;
           if (uid === 'AEW-DEV-01' || uname.includes('aarav') || f.verificationCode === 'WD-2026-99431') return false;
           return true;
         });
         localStorage.setItem(FULFILLMENTS_KEY, JSON.stringify(cleaned));
+      }
+    }
+
+    // 8. Purge mock Team Challenges
+    const chalRaw = localStorage.getItem(CHALLENGES_KEY);
+    if (chalRaw) {
+      const parsed = JSON.parse(chalRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((c: any) => {
+          if (!c) return false;
+          const id = String(c.id || '').toUpperCase();
+          const title = String(c.title || '').toLowerCase();
+          if (id.startsWith('CHAL-0') || id === 'CHAL-01' || title.includes('technical debt blitz') || c.currentXp === 2530) return false;
+          return true;
+        });
+        localStorage.setItem(CHALLENGES_KEY, JSON.stringify(cleaned));
+      }
+    }
+
+    // 9. Purge mock Kudos
+    const kudosRaw = localStorage.getItem(KUDOS_KEY);
+    if (kudosRaw) {
+      const parsed = JSON.parse(kudosRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((k: any) => {
+          if (!k) return false;
+          const id = String(k.id || '').toUpperCase();
+          const from = String(k.fromUserName || '').toLowerCase();
+          const to = String(k.toUserName || '').toLowerCase();
+          if (id.startsWith('KUDOS-0') || id === 'KUDOS-01') return false;
+          if (from.includes('aarav') || to.includes('neha')) return false;
+          return true;
+        });
+        localStorage.setItem(KUDOS_KEY, JSON.stringify(cleaned));
       }
     }
   } catch {
@@ -262,7 +399,7 @@ export const WebDevService = {
 
   // ─── PROJECTS ──────────────────────────────────────────────────────────────
   getProjects(): WebDevProject[] {
-    return this._load<WebDevProject>(PROJECTS_KEY, SEED_PROJECTS);
+    return this._load<WebDevProject>(PROJECTS_KEY, SEED_PROJECTS).filter((p) => !isMockProject(p));
   },
 
   getProjectById(id: string): WebDevProject | undefined {
@@ -381,7 +518,7 @@ export const WebDevService = {
     status?: string;
     priority?: string;
   }): WebDevTask[] {
-    let list = this._load<WebDevTask>(TASKS_KEY, SEED_TASKS);
+    let list = this._load<WebDevTask>(TASKS_KEY, SEED_TASKS).filter((t) => !isMockTask(t));
     if (filter?.projectId) list = list.filter((t) => t.projectId === filter.projectId);
     if (filter?.assigneeId) list = list.filter((t) => t.assigneeId === filter.assigneeId);
     if (filter?.status) list = list.filter((t) => t.status === filter.status);
@@ -797,7 +934,7 @@ export const WebDevService = {
 
   // ─── BOUNTIES ──────────────────────────────────────────────────────────────
   getBounties(): WebDevBounty[] {
-    return this._load<WebDevBounty>(BOUNTIES_KEY, SEED_BOUNTIES);
+    return this._load<WebDevBounty>(BOUNTIES_KEY, SEED_BOUNTIES).filter((b) => !isMockBounty(b));
   },
 
   saveBounty(bounty: WebDevBounty, performedBy?: { id: string; name: string }): WebDevBounty {

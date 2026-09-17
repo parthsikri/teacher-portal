@@ -1026,57 +1026,67 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {bounties.map((b) => (
-                <div key={b.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-slate-800 text-slate-300">
-                      {b.difficulty}
-                    </span>
-                    <span className="text-xs font-bold text-amber-400">+{b.xpReward} XP</span>
-                  </div>
-
-                  <div>
-                    <h3 className="text-base font-bold text-white">{b.title}</h3>
-                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">{b.description}</p>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-800 text-xs flex items-center justify-between">
-                    <span className="text-slate-400">
-                      {b.claimedByName ? `Claimed by ${b.claimedByName}` : 'Open for claims'}
-                    </span>
-                    <span className="font-semibold text-amber-300 uppercase text-[10px]">
-                      {b.status}
-                    </span>
-                  </div>
-
-                  {b.status === 'submitted' && (
-                    <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl space-y-2 text-xs">
-                      <div className="font-semibold text-indigo-300">Submitted Proof:</div>
-                      <a
-                        href={b.submissionUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-indigo-400 underline break-all"
-                      >
-                        {b.submissionUrl}
-                      </a>
-                      <button
-                        onClick={() => {
-                          WebDevService.approveBounty(
-                            b.id,
-                            { id: currentUser.teacherId, name: currentUser.name },
-                            'Excellent solution! High performance and test coverage verified.'
-                          );
-                          loadData();
-                        }}
-                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs"
-                      >
-                        Approve Bounty & Award {b.xpReward} XP
-                      </button>
-                    </div>
-                  )}
+              {bounties.length === 0 ? (
+                <div className="col-span-full py-12 px-4 text-center bg-slate-900/50 border border-slate-800/80 rounded-2xl">
+                  <Target className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                  <h3 className="text-sm font-semibold text-slate-300">No Active Bounties</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    There are currently no engineering bounties posted. Click &quot;Add New Bounty&quot; above to create one.
+                  </p>
                 </div>
-              ))}
+              ) : (
+                bounties.map((b) => (
+                  <div key={b.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-slate-800 text-slate-300">
+                        {b.difficulty}
+                      </span>
+                      <span className="text-xs font-bold text-amber-400">+{b.xpReward} XP</span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-base font-bold text-white">{b.title}</h3>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">{b.description}</p>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-800 text-xs flex items-center justify-between">
+                      <span className="text-slate-400">
+                        {b.claimedByName ? `Claimed by ${b.claimedByName}` : 'Open for claims'}
+                      </span>
+                      <span className="font-semibold text-amber-300 uppercase text-[10px]">
+                        {b.status}
+                      </span>
+                    </div>
+
+                    {b.status === 'submitted' && (
+                      <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl space-y-2 text-xs">
+                        <div className="font-semibold text-indigo-300">Submitted Proof:</div>
+                        <a
+                          href={b.submissionUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-indigo-400 underline break-all"
+                        >
+                          {b.submissionUrl}
+                        </a>
+                        <button
+                          onClick={() => {
+                            WebDevService.approveBounty(
+                              b.id,
+                              { id: currentUser.teacherId, name: currentUser.name },
+                              'Excellent solution! High performance and test coverage verified.'
+                            );
+                            loadData();
+                          }}
+                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs"
+                        >
+                          Approve Bounty & Award {b.xpReward} XP
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

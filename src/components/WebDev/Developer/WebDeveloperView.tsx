@@ -627,78 +627,88 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {bounties.map((bounty) => {
-                const isClaimedByMe = bounty.claimedById === currentUser.teacherId;
-                const isOpen = bounty.status === 'open';
+              {bounties.length === 0 ? (
+                <div className="col-span-full py-12 px-4 text-center bg-slate-900/50 border border-slate-800/80 rounded-2xl">
+                  <Target className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                  <h3 className="text-sm font-semibold text-slate-300">No Open Bounties</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    There are currently no active engineering bounties available to claim. Check back later or ask your Dev Architect!
+                  </p>
+                </div>
+              ) : (
+                bounties.map((bounty) => {
+                  const isClaimedByMe = bounty.claimedById === currentUser.teacherId;
+                  const isOpen = bounty.status === 'open';
 
-                return (
-                  <div
-                    key={bounty.id}
-                    className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded ${
-                          bounty.difficulty === 'hard' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                          bounty.difficulty === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                          'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        }`}>
-                          {bounty.difficulty}
-                        </span>
+                  return (
+                    <div
+                      key={bounty.id}
+                      className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded ${
+                            bounty.difficulty === 'hard' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                            bounty.difficulty === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          }`}>
+                            {bounty.difficulty}
+                          </span>
 
-                        <span className="flex items-center gap-1 text-xs font-bold text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-                          <Award className="w-3.5 h-3.5" />
-                          +{bounty.xpReward} XP
-                        </span>
-                      </div>
-
-                      <h3 className="text-base font-bold text-white">{bounty.title}</h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">{bounty.description}</p>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-800 space-y-3">
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span className="capitalize text-[11px] bg-slate-800 px-2 py-0.5 rounded">
-                          #{bounty.category}
-                        </span>
-                        <span className={`text-[11px] font-semibold ${
-                          bounty.status === 'completed' ? 'text-emerald-400' :
-                          bounty.status === 'assigned' ? 'text-amber-400' :
-                          bounty.status === 'submitted' ? 'text-indigo-400' :
-                          'text-slate-400'
-                        }`}>
-                          Status: {bounty.status.toUpperCase()}
-                        </span>
-                      </div>
-
-                      {isOpen && (
-                        <button
-                          onClick={() => handleClaimBounty(bounty.id)}
-                          className="w-full py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-bold rounded-xl text-xs shadow-md shadow-amber-500/20 transition-all"
-                        >
-                          Claim Bounty (+{bounty.xpReward} XP)
-                        </button>
-                      )}
-
-                      {isClaimedByMe && bounty.status === 'assigned' && (
-                        <button
-                          onClick={() => setClaimBountyModal(bounty)}
-                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
-                        >
-                          <GitPullRequest className="w-3.5 h-3.5" />
-                          Submit Solution Proof
-                        </button>
-                      )}
-
-                      {isClaimedByMe && bounty.status === 'submitted' && (
-                        <div className="p-2 bg-indigo-950/40 border border-indigo-500/30 rounded-lg text-center text-xs text-indigo-300 font-medium">
-                          Solution Submitted • Awaiting Manager Approval
+                          <span className="flex items-center gap-1 text-xs font-bold text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                            <Award className="w-3.5 h-3.5" />
+                            +{bounty.xpReward} XP
+                          </span>
                         </div>
-                      )}
+
+                        <h3 className="text-base font-bold text-white">{bounty.title}</h3>
+                        <p className="text-xs text-slate-400 leading-relaxed">{bounty.description}</p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span className="capitalize text-[11px] bg-slate-800 px-2 py-0.5 rounded">
+                            #{bounty.category}
+                          </span>
+                          <span className={`text-[11px] font-semibold ${
+                            bounty.status === 'completed' ? 'text-emerald-400' :
+                            bounty.status === 'assigned' ? 'text-amber-400' :
+                            bounty.status === 'submitted' ? 'text-indigo-400' :
+                            'text-slate-400'
+                          }`}>
+                            Status: {bounty.status.toUpperCase()}
+                          </span>
+                        </div>
+
+                        {isOpen && (
+                          <button
+                            onClick={() => handleClaimBounty(bounty.id)}
+                            className="w-full py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-bold rounded-xl text-xs shadow-md shadow-amber-500/20 transition-all"
+                          >
+                            Claim Bounty (+{bounty.xpReward} XP)
+                          </button>
+                        )}
+
+                        {isClaimedByMe && bounty.status === 'assigned' && (
+                          <button
+                            onClick={() => setClaimBountyModal(bounty)}
+                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <GitPullRequest className="w-3.5 h-3.5" />
+                            Submit Solution Proof
+                          </button>
+                        )}
+
+                        {isClaimedByMe && bounty.status === 'submitted' && (
+                          <div className="p-2 bg-indigo-950/40 border border-indigo-500/30 rounded-lg text-center text-xs text-indigo-300 font-medium">
+                            Solution Submitted • Awaiting Manager Approval
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         )}

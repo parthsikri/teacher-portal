@@ -4056,14 +4056,14 @@ export const StorageService = {
       crmPermissions: this.getCrmPermissions(),
       emailConfig: this.getEmailConfig(),
       emailLogs: this.getEmailLogs(),
-      webDevProjects: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_projects_v1') || '[]') : [],
-      webDevMilestones: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_milestones_v1') || '[]') : [],
-      webDevTasks: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_tasks_v1') || '[]') : [],
-      webDevBounties: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_bounties_v1') || '[]') : [],
-      webDevXpLedger: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_xp_ledger_v1') || '[]') : [],
-      webDevFulfillments: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_fulfillments_v1') || '[]') : [],
-      webDevKudos: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_kudos_v1') || '[]') : [],
-      webDevAuditLogs: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_audit_logs_v1') || '[]') : [],
+      webDevProjects: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_projects_v2') || '[]') : [],
+      webDevMilestones: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_milestones_v2') || '[]') : [],
+      webDevTasks: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_tasks_v2') || '[]') : [],
+      webDevBounties: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_bounties_v2') || '[]') : [],
+      webDevXpLedger: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_xp_ledger_v2') || '[]') : [],
+      webDevFulfillments: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_fulfillments_v2') || '[]') : [],
+      webDevKudos: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_kudos_v2') || '[]') : [],
+      webDevAuditLogs: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_audit_logs_v2') || '[]') : [],
     };
   },
 
@@ -4071,28 +4071,28 @@ export const StorageService = {
     if (!state || typeof state !== 'object') return;
 
     if (Array.isArray(state.webDevProjects) && state.webDevProjects.length > 0) {
-      localStorage.setItem('aew_webdev_projects_v1', JSON.stringify(state.webDevProjects));
+      localStorage.setItem('aew_webdev_projects_v2', JSON.stringify(state.webDevProjects));
     }
     if (Array.isArray(state.webDevMilestones) && state.webDevMilestones.length > 0) {
-      localStorage.setItem('aew_webdev_milestones_v1', JSON.stringify(state.webDevMilestones));
+      localStorage.setItem('aew_webdev_milestones_v2', JSON.stringify(state.webDevMilestones));
     }
     if (Array.isArray(state.webDevTasks) && state.webDevTasks.length > 0) {
-      localStorage.setItem('aew_webdev_tasks_v1', JSON.stringify(state.webDevTasks));
+      localStorage.setItem('aew_webdev_tasks_v2', JSON.stringify(state.webDevTasks));
     }
     if (Array.isArray(state.webDevBounties) && state.webDevBounties.length > 0) {
-      localStorage.setItem('aew_webdev_bounties_v1', JSON.stringify(state.webDevBounties));
+      localStorage.setItem('aew_webdev_bounties_v2', JSON.stringify(state.webDevBounties));
     }
     if (Array.isArray(state.webDevXpLedger) && state.webDevXpLedger.length > 0) {
-      localStorage.setItem('aew_webdev_xp_ledger_v1', JSON.stringify(state.webDevXpLedger));
+      localStorage.setItem('aew_webdev_xp_ledger_v2', JSON.stringify(state.webDevXpLedger));
     }
     if (Array.isArray(state.webDevFulfillments) && state.webDevFulfillments.length > 0) {
-      localStorage.setItem('aew_webdev_fulfillments_v1', JSON.stringify(state.webDevFulfillments));
+      localStorage.setItem('aew_webdev_fulfillments_v2', JSON.stringify(state.webDevFulfillments));
     }
     if (Array.isArray(state.webDevKudos) && state.webDevKudos.length > 0) {
-      localStorage.setItem('aew_webdev_kudos_v1', JSON.stringify(state.webDevKudos));
+      localStorage.setItem('aew_webdev_kudos_v2', JSON.stringify(state.webDevKudos));
     }
     if (Array.isArray(state.webDevAuditLogs) && state.webDevAuditLogs.length > 0) {
-      localStorage.setItem('aew_webdev_audit_logs_v1', JSON.stringify(state.webDevAuditLogs));
+      localStorage.setItem('aew_webdev_audit_logs_v2', JSON.stringify(state.webDevAuditLogs));
     }
 
     const deletedIds = new Set<string>([
