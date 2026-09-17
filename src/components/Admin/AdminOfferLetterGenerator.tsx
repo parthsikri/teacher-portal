@@ -1208,16 +1208,23 @@ export const AdminOfferLetterGenerator: React.FC<AdminOfferLetterGeneratorProps>
                           {letter.stipendAmount}
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
-                          <select
-                            value={letter.status}
-                            onChange={(e) => handleUpdateStatus(letter.id, e.target.value as OfferLetterStatus)}
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider focus:outline-none cursor-pointer ${statusColors[letter.status] || 'bg-slate-800 text-slate-300'}`}
-                          >
-                            <option value="draft">Draft</option>
-                            <option value="issued">Issued</option>
-                            <option value="accepted">Accepted</option>
-                            <option value="declined">Declined</option>
-                          </select>
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={letter.status}
+                              onChange={(e) => handleUpdateStatus(letter.id, e.target.value as OfferLetterStatus)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider focus:outline-none cursor-pointer ${statusColors[letter.status] || 'bg-slate-800 text-slate-300'}`}
+                            >
+                              <option value="draft">Draft</option>
+                              <option value="issued">Issued</option>
+                              <option value="accepted">Accepted</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                            {letter.status === 'accepted' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 animate-in fade-in">
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" /> ONBOARDED
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
@@ -1246,8 +1253,12 @@ export const AdminOfferLetterGenerator: React.FC<AdminOfferLetterGeneratorProps>
                             </button>
                             <button
                               onClick={() => handleTriggerOnboard(letter)}
-                              className="p-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer"
-                              title="Onboard Candidate as Employee"
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                letter.status === 'accepted'
+                                  ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/80'
+                                  : 'bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30'
+                              }`}
+                              title={letter.status === 'accepted' ? 'Candidate Onboarded ✓ (Click to edit/re-onboard)' : 'Onboard Candidate as Employee'}
                             >
                               <UserPlus className="w-3.5 h-3.5" />
                             </button>

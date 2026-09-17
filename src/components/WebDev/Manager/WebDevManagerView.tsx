@@ -107,11 +107,11 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskId, setNewTaskId] = useState('');
-  const [newTaskProject, setNewTaskProject] = useState('PROJ-01');
+  const [newTaskProject, setNewTaskProject] = useState('');
   const [newTaskType, setNewTaskType] = useState<WebDevTask['type']>('feature');
   const [newTaskPriority, setNewTaskPriority] = useState<WebDevTask['priority']>('medium');
   const [newTaskXp, setNewTaskXp] = useState<number>(200);
-  const [newTaskAssignee, setNewTaskAssignee] = useState('AEW-DEV-01');
+  const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDue, setNewTaskDue] = useState('');
   const [newTaskTags, setNewTaskTags] = useState('Frontend, React');
 
@@ -138,7 +138,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newProjDesc, setNewProjDesc] = useState('');
   const [newProjRepo, setNewProjRepo] = useState('');
   const [newProjTech, setNewProjTech] = useState('Next.js, TypeScript, PostgreSQL');
-  const [newProjLead, setNewProjLead] = useState('AEW-DEV-01');
+  const [newProjLead, setNewProjLead] = useState('');
   const [newProjTarget, setNewProjTarget] = useState('2026-11-15');
 
   // Milestones for Project Creation Modal
@@ -564,7 +564,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
                   Engineering Operations
                 </span>
-                <span className="text-xs text-slate-400 font-mono">AEW-WDM-01</span>
+                <span className="text-xs text-slate-400 font-mono">{currentUser?.teacherId || 'ENGINEERING'}</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                 Web Development Management Hub

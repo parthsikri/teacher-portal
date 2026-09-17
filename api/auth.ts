@@ -75,11 +75,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ success: false, error: 'Invalid username or password. Please verify your credentials.' });
     }
 
+    if (matchedUser.isOffboarded) {
+      return res.status(403).json({
+        success: false,
+        error: `Account has been offboarded (${matchedUser.offboardReason || 'Departure'}). Access is disabled. Please contact HR administration.`,
+      });
+    }
+
     // Determine the user's authentic password (user-defined or default initial assigned password)
     const storedPassword = (
       matchedUser.password ||
       (matchedUser.role === 'admin'
         ? 'admin123'
+        : matchedUser.role === 'pr_head'
+        ? 'head123'
         : matchedUser.role === 'pr_intern'
         ? 'intern123'
         : matchedUser.role === 'web_dev_manager' || matchedUser.role === 'web_developer'
@@ -171,6 +180,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     targetUser.password = hashPassword(String(newPassword).trim());
+    targetUser.mustChangePassword = false;
+    targetUser.lastPasswordChangedAt = new Date().toISOString();
     state.updatedAt = new Date().toISOString();
     await saveCloudPortalState(state);
 

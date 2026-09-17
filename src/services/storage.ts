@@ -123,280 +123,9 @@ export function toCanonicalSubject(subjectName: string): string {
   return clean;
 }
 
-export const SEED_SUBJECT_REFERENCES: SubjectReference[] = [
-  {
-    id: 'sref-dsa-01',
-    subjectName: 'Data Structures & Algorithms',
-    department: 'Computer Science',
-    title: 'Master Course Syllabus & CLRS 4th Edition Standard Textbook',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-dsa-master-syllabus',
-    notes: 'Follow Cormen CLRS 4th Edition Chapters 1-15 as official curriculum standard. Includes syllabus breakdown, weekly lecture milestones, and recommended readings.',
-    resourceType: 'textbook',
-    scope: 'primary_subject',
-    updatedAt: '2026-09-01T10:00:00Z',
-  },
-  {
-    id: 'sref-dsa-02',
-    subjectName: 'Data Structures & Algorithms',
-    department: 'Computer Science',
-    title: 'Visual Algorithms & Data Structures Interactive Slide Repository',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-dsa-visualizer-slides',
-    notes: 'Comprehensive slide decks with memory visualizers for Linked Lists, Binary Trees, AVL Rotations, Graph Traversals (BFS/DFS), and Dynamic Programming grids.',
-    resourceType: 'drive_folder',
-    scope: 'primary_subject',
-    updatedAt: '2026-09-02T10:00:00Z',
-  },
-  {
-    id: 'sref-dsa-03',
-    subjectName: 'Data Structures & Algorithms',
-    department: 'Computer Science',
-    title: 'Standard Problem Sets, Coding Quizzes & LeetCode/GFG Question Bank',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-dsa-question-bank',
-    notes: 'Curated 150 top interview and university examination problems with test cases, complexity benchmarks, and boilerplate solution templates.',
-    resourceType: 'question_bank',
-    scope: 'primary_subject',
-    updatedAt: '2026-09-03T10:00:00Z',
-  },
-  {
-    id: 'sref-os-01',
-    subjectName: 'Operating Systems',
-    department: 'Computer Science',
-    title: 'Operating System Concepts (Galvin 10th Ed) & System Architecture Guide',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-os-textbook-galvin',
-    notes: 'Silberschatz & Galvin 10th edition companion slides covering CPU Scheduling, Virtual Memory Paging, Deadlock Avoidance, and IPC.',
-    resourceType: 'textbook',
-    scope: 'assigned_topic',
-    updatedAt: '2026-09-04T10:00:00Z',
-  },
-  {
-    id: 'sref-os-02',
-    subjectName: 'Operating Systems',
-    department: 'Computer Science',
-    title: 'Linux Kernel Architecture, POSIX Threads & Semaphore Code Laboratory',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-os-kernel-lab',
-    notes: 'C implementations of process fork/exec, thread pools, mutex locks, and custom memory allocator assignments.',
-    resourceType: 'lab_manual',
-    scope: 'assigned_topic',
-    updatedAt: '2026-09-04T12:00:00Z',
-  },
-  {
-    id: 'sref-dbms-01',
-    subjectName: 'Database Management Systems',
-    department: 'Computer Science',
-    title: 'Database System Concepts (Silberschatz) & SQL Query Cheatsheets',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-dbms-concepts',
-    notes: 'Relational algebra fundamentals, ER modeling, B+ Tree indexing, and ACID transaction concurrency isolation levels.',
-    resourceType: 'textbook',
-    scope: 'assigned_topic',
-    updatedAt: '2026-09-05T10:00:00Z',
-  },
-  {
-    id: 'sref-cn-01',
-    subjectName: 'Computer Networks',
-    department: 'Computer Science',
-    title: 'Computer Networking: A Top-Down Approach (Kurose & Ross) & Wireshark Labs',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-cn-top-down',
-    notes: 'Application to physical layer walkthroughs, TCP congestion control, sliding window protocols, and packet capture traces.',
-    resourceType: 'syllabus',
-    scope: 'assigned_topic',
-    updatedAt: '2026-09-05T14:00:00Z',
-  },
-  {
-    id: 'sref-thermo-01',
-    subjectName: 'Thermodynamics',
-    department: 'Mechanical Engineering',
-    title: 'Thermodynamics: An Engineering Approach (Cengel & Boles) & Steam Tables',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-thermo-cengel-tables',
-    notes: 'Standard textbook chapters 1-9 covering 1st and 2nd Laws, Rankine & Brayton Cycles, Refrigeration, and steam enthalpy-entropy charts.',
-    resourceType: 'textbook',
-    scope: 'primary_subject',
-    updatedAt: '2026-09-01T11:00:00Z',
-  },
-  {
-    id: 'sref-thermo-02',
-    subjectName: 'Thermodynamics',
-    department: 'Mechanical Engineering',
-    title: 'Applied Heat Transfer & Engine Thermodynamic Cycle Calculation Worksheets',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-thermo-cycle-worksheets',
-    notes: 'Solved numerical problem sets covering Otto, Diesel, Dual cycles, and heat exchanger LMTD/NTU methods.',
-    resourceType: 'notes',
-    scope: 'primary_subject',
-    updatedAt: '2026-09-02T11:00:00Z',
-  },
-  {
-    id: 'sref-fluid-01',
-    subjectName: 'Fluid Mechanics',
-    department: 'Mechanical Engineering',
-    title: 'Fluid Mechanics (Frank M. White 8th Ed) & Hydraulic Machinery Lab Manual',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-fluid-mechanics-white',
-    notes: 'Navier-Stokes simplifications, Bernoulli equation applications, pipe friction Darcy-Weisbach loss calculations, and centrifugal pump curves.',
-    resourceType: 'lab_manual',
-    scope: 'assigned_topic',
-    updatedAt: '2026-09-03T11:00:00Z',
-  },
-  {
-    id: 'sref-signals-01',
-    subjectName: 'Signals & Systems',
-    department: 'Electronics & Communication',
-    title: 'Signals and Systems (Oppenheim & Willsky) & Transform Formula Handouts',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-signals-oppenheim',
-    notes: 'Comprehensive study sheets for Continuous & Discrete-Time Fourier Series, Fourier Transforms, Laplace Transforms, and Z-Transforms with ROC properties.',
-    resourceType: 'textbook',
-    scope: 'primary_subject',
-    updatedAt: '2026-09-01T12:00:00Z',
-  },
-  {
-    id: 'sref-signals-02',
-    subjectName: 'Signals & Systems',
-    department: 'Electronics & Communication',
-    title: 'MATLAB Audio Signal Processing Scripts & Digital Filter Design Worksheets',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-signals-matlab-lab',
-    notes: 'Hands-on MATLAB live scripts for FIR/IIR Butterworth filter synthesis, spectrogram generation, and sampling theorem demonstrations.',
-    resourceType: 'lab_manual',
-    scope: 'primary_subject',
-    updatedAt: '2026-09-02T12:00:00Z',
-  },
-  {
-    id: 'sref-math-01',
-    subjectName: 'Engineering Mathematics',
-    department: 'Academic Operations',
-    title: 'Advanced Engineering Mathematics (Erwin Kreyszig) & Formula Reference Library',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-engg-mathematics',
-    notes: 'Standard mathematical methods for engineering faculty: Linear Algebra eigenvalues, Differential Equations, Laplace Transforms, and Complex Analysis.',
-    resourceType: 'textbook',
-    scope: 'institutional',
-    updatedAt: '2026-09-01T09:00:00Z',
-  },
-  {
-    id: 'sref-guide-01',
-    subjectName: 'Pedagogy & Delivery Standards',
-    department: 'Academic Operations',
-    title: 'AEW Academic Faculty Lecture Delivery Framework, Video/Audio Standards & Pedagogical Handouts',
-    referenceUrl: 'https://drive.google.com/drive/folders/aew-faculty-pedagogy-standards',
-    notes: 'Official Apna Engg Wallah guidelines: 1080p60 recording settings, microphone setup, blackboard annotation styles, and student engagement practices.',
-    resourceType: 'syllabus',
-    scope: 'institutional',
-    updatedAt: '2026-09-01T08:00:00Z',
-  },
-];
+export const SEED_SUBJECT_REFERENCES: SubjectReference[] = [];
 
-export const SEED_ASSIGNED_TOPICS: AssignedTopic[] = [
-  {
-    id: 'at-seed-101-1',
-    teacherId: 'AEW-T-101',
-    subject: 'Data Structures & Algorithms',
-    unitNumber: 'UNIT 1',
-    topicTitle: 'Binary Search Trees & AVL Balancing',
-    subtopics: ['BST Insert & Search', 'AVL Tree Rotations', 'Tree Balance Factor Analysis'],
-    subtopicItems: [
-      { id: 'sub-dsa-1', name: 'BST Insert & Search', status: 'completed' },
-      { id: 'sub-dsa-2', name: 'AVL Tree Rotations', status: 'pending' },
-      { id: 'sub-dsa-3', name: 'Tree Balance Factor Analysis', status: 'pending' },
-    ],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'approved',
-    assignedBy: 'Academic Operations',
-    deadlineDate: '2026-09-18',
-    status: 'pending',
-    priority: 'high',
-    notes: 'Cover worst-case O(log N) lookup proofs and rebalancing step-by-step.',
-    createdAt: '2026-09-01T09:00:00Z',
-    updatedAt: '2026-09-01T09:00:00Z',
-    displayOrder: 1,
-  },
-  {
-    id: 'at-seed-101-2',
-    teacherId: 'AEW-T-101',
-    subject: 'Data Structures & Algorithms',
-    unitNumber: 'UNIT 2',
-    topicTitle: 'Graph Algorithms & Shortest Paths',
-    subtopics: ['BFS & DFS Traversals', 'Dijkstra Single-Source Shortest Path', 'Prim & Kruskal MST'],
-    subtopicItems: [
-      { id: 'sub-dsa-4', name: 'BFS & DFS Traversals', status: 'pending' },
-      { id: 'sub-dsa-5', name: 'Dijkstra Single-Source Shortest Path', status: 'pending' },
-      { id: 'sub-dsa-6', name: 'Prim & Kruskal MST', status: 'pending' },
-    ],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'approved',
-    assignedBy: 'Academic Operations',
-    deadlineDate: '2026-09-22',
-    status: 'pending',
-    priority: 'high',
-    notes: 'Reference Cormen CLRS Chapters 22-24 for standard pseudocode and priority queue analysis.',
-    createdAt: '2026-09-02T09:00:00Z',
-    updatedAt: '2026-09-02T09:00:00Z',
-    displayOrder: 2,
-  },
-  {
-    id: 'at-seed-101-3',
-    teacherId: 'AEW-T-101',
-    subject: 'Operating Systems',
-    unitNumber: 'UNIT 1',
-    topicTitle: 'Process Synchronization & Semaphores',
-    subtopics: ['Critical Section Problem', 'Peterson Algorithm & Test-and-Set', 'Counting & Binary Semaphores'],
-    subtopicItems: [
-      { id: 'sub-os-1', name: 'Critical Section Problem', status: 'pending' },
-      { id: 'sub-os-2', name: 'Peterson Algorithm & Test-and-Set', status: 'pending' },
-      { id: 'sub-os-3', name: 'Counting & Binary Semaphores', status: 'pending' },
-    ],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'approved',
-    assignedBy: 'Academic Operations',
-    deadlineDate: '2026-09-25',
-    status: 'pending',
-    priority: 'medium',
-    notes: 'Cross-assigned module. Use Galvin OS concepts Chapter 6 and standard Linux semaphore lab examples.',
-    createdAt: '2026-09-03T09:00:00Z',
-    updatedAt: '2026-09-03T09:00:00Z',
-    displayOrder: 3,
-  },
-  {
-    id: 'at-seed-102-1',
-    teacherId: 'AEW-T-102',
-    subject: 'Thermodynamics',
-    unitNumber: 'UNIT 1',
-    topicTitle: 'First Law of Thermodynamics & Steady Flow Analysis',
-    subtopics: ['Internal Energy & Enthalpy', 'Conservation of Mass & Energy', 'Nozzles, Diffusers & Turbines'],
-    subtopicItems: [
-      { id: 'sub-th-1', name: 'Internal Energy & Enthalpy', status: 'pending' },
-      { id: 'sub-th-2', name: 'Conservation of Mass & Energy', status: 'pending' },
-      { id: 'sub-th-3', name: 'Nozzles, Diffusers & Turbines', status: 'pending' },
-    ],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'approved',
-    assignedBy: 'Academic Operations',
-    deadlineDate: '2026-09-20',
-    status: 'pending',
-    priority: 'high',
-    notes: 'Reference Cengel & Boles steam tables and enthalpy calculations.',
-    createdAt: '2026-09-01T10:00:00Z',
-    updatedAt: '2026-09-01T10:00:00Z',
-    displayOrder: 1,
-  },
-  {
-    id: 'at-seed-103-1',
-    teacherId: 'AEW-T-103',
-    subject: 'Signals & Systems',
-    unitNumber: 'UNIT 1',
-    topicTitle: 'Continuous-Time Fourier Transform (CTFT) & Filtering',
-    subtopics: ['CTFT Definition & Convergence', 'Duality, Time Shifting & Frequency Shifting', 'Ideal & Practical Low-Pass Filters'],
-    subtopicItems: [
-      { id: 'sub-ss-1', name: 'CTFT Definition & Convergence', status: 'pending' },
-      { id: 'sub-ss-2', name: 'Duality, Time Shifting & Frequency Shifting', status: 'pending' },
-      { id: 'sub-ss-3', name: 'Ideal & Practical Low-Pass Filters', status: 'pending' },
-    ],
-    proposedSubtopics: [],
-    subtopicsApprovalState: 'approved',
-    assignedBy: 'Academic Operations',
-    deadlineDate: '2026-09-20',
-    status: 'pending',
-    priority: 'high',
-    notes: 'Follow Oppenheim Chapter 4 transform tables and MATLAB live scripts.',
-    createdAt: '2026-09-01T10:00:00Z',
-    updatedAt: '2026-09-01T10:00:00Z',
-    displayOrder: 1,
-  },
-];
+export const SEED_ASSIGNED_TOPICS: AssignedTopic[] = [];
 
 // Initial Registered Administrator (Credentials verified server-side only; passwords never stored in frontend bundle)
 const INITIAL_USERS: User[] = [
@@ -411,132 +140,6 @@ const INITIAL_USERS: User[] = [
     subject: 'Management',
     dailyTargetMinutes: 9999,
     dailyLimit: 999,
-  },
-  {
-    id: 'u-t101',
-    teacherId: 'AEW-T-101',
-    username: 'teacher_101',
-    name: 'Dr. Ananya Sharma',
-    email: 'ananya@aew.com',
-    role: 'teacher',
-    department: 'Computer Science',
-    subject: 'Data Structures & Algorithms',
-    dailyTargetMinutes: 120,
-    dailyLimit: 240,
-    joiningDate: '2026-08-25',
-    firstLoginDate: '2026-08-25',
-  },
-  {
-    id: 'u-t102',
-    teacherId: 'AEW-T-102',
-    username: 'teacher_102',
-    name: 'Prof. Rajesh Verma',
-    email: 'rajesh@aew.com',
-    role: 'teacher',
-    department: 'Mechanical Engineering',
-    subject: 'Thermodynamics',
-    dailyTargetMinutes: 120,
-    dailyLimit: 240,
-    joiningDate: '2026-08-25',
-    firstLoginDate: '2026-08-25',
-  },
-  {
-    id: 'u-t103',
-    teacherId: 'AEW-T-103',
-    username: 'teacher_103',
-    name: 'Dr. Vikram Malhotra',
-    email: 'vikram@aew.com',
-    role: 'teacher',
-    department: 'Electronics & Communication',
-    subject: 'Signals & Systems',
-    dailyTargetMinutes: 120,
-    dailyLimit: 240,
-    joiningDate: '2026-08-25',
-    firstLoginDate: '2026-08-25',
-  },
-  {
-    id: 'u-pr101',
-    teacherId: 'AEW-PR-01',
-    username: 'pr_intern_1',
-    name: 'Rohan Verma',
-    email: 'rohan.pr@aew.com',
-    role: 'pr_intern',
-    department: 'Public Relations & Sponsorship',
-    subject: 'College Sponsorship & Outreach',
-    dailyTargetMinutes: 0,
-    dailyLimit: 0,
-    prTier: 'Gold',
-    prPoints: 165,
-    prStars: 8,
-    totalSponsorshipRevenue: 85000,
-    totalCommissionEarned: 5950,
-  },
-  {
-    id: 'u-pr102',
-    teacherId: 'AEW-PR-02',
-    username: 'pr_intern_2',
-    name: 'Priya Saini',
-    email: 'priya.pr@aew.com',
-    role: 'pr_intern',
-    department: 'Public Relations & Sponsorship',
-    subject: 'Brand Alliance & Ambassador Network',
-    dailyTargetMinutes: 0,
-    dailyLimit: 0,
-    prTier: 'Silver',
-    prPoints: 45,
-    prStars: 2,
-    totalSponsorshipRevenue: 25000,
-    totalCommissionEarned: 825,
-  },
-  {
-    id: 'u-wdm01',
-    teacherId: 'AEW-WDM-01',
-    username: 'webdev_manager',
-    name: 'Vikramaditya Sen',
-    email: 'vikram.tech@aew.com',
-    role: 'web_dev_manager',
-    department: 'Engineering & Product',
-    subject: 'Web Development & Architecture',
-    dailyTargetMinutes: 0,
-    dailyLimit: 0,
-    webDevTitle: 'Engineering Lead & Architect',
-    webDevLevel: 4,
-    webDevXp: 3200,
-    skills: ['System Architecture', 'React', 'Node.js', 'PostgreSQL', 'Cloud Infrastructure'],
-  },
-  {
-    id: 'u-dev01',
-    teacherId: 'AEW-DEV-01',
-    username: 'developer_aarav',
-    name: 'Aarav Sharma',
-    email: 'aarav.dev@aew.com',
-    role: 'web_developer',
-    department: 'Web Development',
-    subject: 'Full Stack Web Development',
-    dailyTargetMinutes: 0,
-    dailyLimit: 0,
-    webDevTitle: 'Full Stack Developer',
-    webDevLevel: 3,
-    webDevXp: 1850,
-    skills: ['React', 'Next.js', 'TypeScript', 'PostgreSQL', 'Tailwind CSS'],
-    githubUsername: 'aarav-sharma-dev',
-  },
-  {
-    id: 'u-dev02',
-    teacherId: 'AEW-DEV-02',
-    username: 'developer_neha',
-    name: 'Neha Verma',
-    email: 'neha.dev@aew.com',
-    role: 'web_developer',
-    department: 'Web Development',
-    subject: 'Backend & Cloud Infrastructure',
-    dailyTargetMinutes: 0,
-    dailyLimit: 0,
-    webDevTitle: 'Backend Developer',
-    webDevLevel: 2,
-    webDevXp: 680,
-    skills: ['Node.js', 'Express', 'PostgreSQL', 'Docker', 'Redis'],
-    githubUsername: 'neha-verma-tech',
   },
 ];
 
@@ -556,10 +159,13 @@ export const StorageService = {
   // Collects all registered users
   getUsers(): User[] {
     const userMap = new Map<string, User>();
+    const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
 
-    // 1. Seed with initial admin & mock teachers
+    // 1. Seed with initial admin & mock staff (excluding any deleted IDs)
     INITIAL_USERS.forEach((u) => {
-      userMap.set(u.teacherId.toUpperCase(), { ...u });
+      if (!deletedIds.has(u.teacherId.toUpperCase())) {
+        userMap.set(u.teacherId.toUpperCase(), { ...u });
+      }
     });
 
     // 2. Read registered users from storage
@@ -571,6 +177,7 @@ export const StorageService = {
           parsed.forEach((u: User) => {
             if (u && u.teacherId) {
               const cleanId = u.teacherId.trim().toUpperCase();
+              if (deletedIds.has(cleanId)) return;
               const existing: Partial<User> = userMap.get(cleanId) || {};
               userMap.set(cleanId, {
                 ...existing,
@@ -580,26 +187,32 @@ export const StorageService = {
                 username: (u.username || existing.username || cleanId.toLowerCase()).trim().toLowerCase().replace(/\s+/g, '_'),
                 password: (u.password || existing.password || '').trim() || undefined,
                 name: (u.name || existing.name || cleanId).trim(),
-                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : cleanId.startsWith('AEW-PR') ? 'pr_intern' : cleanId.startsWith('AEW-WDM') ? 'web_dev_manager' : cleanId.startsWith('AEW-DEV') ? 'web_developer' : 'teacher'),
+                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : cleanId.startsWith('AEW-PRH') ? 'pr_head' : cleanId.startsWith('AEW-PR') ? 'pr_intern' : cleanId.startsWith('AEW-WDM') ? 'web_dev_manager' : cleanId.startsWith('AEW-DEV') ? 'web_developer' : 'teacher'),
                 email: (u.email && !String(u.email).endsWith('@aew.com')
                   ? u.email
                   : (existing.email && !String(existing.email).endsWith('@aew.com')
                     ? existing.email
                     : (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`))).trim(),
-                department: u.department || existing.department || (cleanId.startsWith('AEW-PR') ? 'Public Relations & Sponsorship' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
-                subject: u.subject || existing.subject || (cleanId.startsWith('AEW-PR') ? 'College Sponsorship & Outreach' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
+                department: u.department || existing.department || (cleanId.startsWith('AEW-PRH') ? 'Public Relations & Strategic Partnerships' : cleanId.startsWith('AEW-PR') ? 'Public Relations & Sponsorship' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
+                subject: u.subject || existing.subject || (cleanId.startsWith('AEW-PRH') ? 'Corporate Brand Sponsorships & Deals' : cleanId.startsWith('AEW-PR') ? 'Corporate Sponsor Outreach' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
                 dailyTargetMinutes: u.dailyTargetMinutes !== undefined ? u.dailyTargetMinutes : (existing.dailyTargetMinutes || 0),
                 dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
                 hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
                 dailyLimit: u.dailyLimit !== undefined ? u.dailyLimit : (existing.dailyLimit || 0),
-                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') || cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-WDM') || cleanId.startsWith('AEW-DEV') ? undefined : '2026-08-25'),
+                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') || cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-PRH') || cleanId.startsWith('AEW-WDM') || cleanId.startsWith('AEW-DEV') ? undefined : '2026-08-25'),
                 firstLoginDate: u.firstLoginDate || existing.firstLoginDate,
                 createdAt: u.createdAt || existing.createdAt || new Date().toISOString(),
-                prTier: u.prTier || existing.prTier || (cleanId.startsWith('AEW-PR') ? 'Silver' : undefined),
-                prPoints: u.prPoints !== undefined ? u.prPoints : (existing.prPoints !== undefined ? existing.prPoints : (cleanId.startsWith('AEW-PR') ? 0 : undefined)),
-                prStars: u.prStars !== undefined ? u.prStars : (existing.prStars !== undefined ? existing.prStars : (cleanId.startsWith('AEW-PR') ? 0 : undefined)),
+                prTier: u.prTier || existing.prTier || (cleanId.startsWith('AEW-PRH') ? 'Premium' : cleanId.startsWith('AEW-PR') ? 'Silver' : undefined),
+                prPoints: u.prPoints !== undefined ? u.prPoints : (existing.prPoints !== undefined ? existing.prPoints : (cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-PRH') ? 0 : undefined)),
+                prStars: u.prStars !== undefined ? u.prStars : (existing.prStars !== undefined ? existing.prStars : (cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-PRH') ? 0 : undefined)),
                 totalSponsorshipRevenue: u.totalSponsorshipRevenue !== undefined ? u.totalSponsorshipRevenue : (existing.totalSponsorshipRevenue || 0),
                 totalCommissionEarned: u.totalCommissionEarned !== undefined ? u.totalCommissionEarned : (existing.totalCommissionEarned || 0),
+                prCustomTierPercentages: u.prCustomTierPercentages || existing.prCustomTierPercentages,
+                prCustomCommissionRate: u.prCustomCommissionRate !== undefined ? u.prCustomCommissionRate : existing.prCustomCommissionRate,
+                isOffboarded: u.isOffboarded !== undefined ? u.isOffboarded : existing.isOffboarded,
+                offboardedAt: u.offboardedAt || existing.offboardedAt,
+                offboardReason: u.offboardReason || existing.offboardReason,
+                offboardRemarks: u.offboardRemarks || existing.offboardRemarks,
                 webDevTitle: u.webDevTitle || existing.webDevTitle,
                 webDevLevel: u.webDevLevel !== undefined ? u.webDevLevel : existing.webDevLevel,
                 webDevXp: u.webDevXp !== undefined ? u.webDevXp : existing.webDevXp,
@@ -641,6 +254,17 @@ export const StorageService = {
         .filter(n => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 100;
       return `AEW-T-${max + 1}`;
+    }
+    if (role === 'pr_head') {
+      const ids = users
+        .filter(u => u.role === 'pr_head')
+        .map(u => {
+          const m = u.teacherId.match(/AEW-PRH-(\d+)/i);
+          return m ? parseInt(m[1], 10) : 0;
+        })
+        .filter(n => n > 0);
+      const max = ids.length > 0 ? Math.max(...ids) : 0;
+      return `AEW-PRH-${String(max + 1).padStart(2, '0')}`;
     }
     if (role === 'pr_intern') {
       const ids = users
@@ -710,6 +334,8 @@ export const StorageService = {
       employee.password?.trim() ||
       (employee.role === 'admin'
         ? 'admin123'
+        : employee.role === 'pr_head'
+        ? 'head123'
         : employee.role === 'pr_intern'
         ? 'intern123'
         : employee.role === 'web_dev_manager' || employee.role === 'web_developer'
@@ -732,6 +358,7 @@ export const StorageService = {
       role: employee.role,
       department: employee.department?.trim() || (
         employee.role === 'admin' ? 'Academic Operations' :
+        employee.role === 'pr_head' ? 'Public Relations & Strategic Partnerships' :
         employee.role === 'pr_intern' ? 'Public Relations & Sponsorship' :
         employee.role === 'web_developer' || employee.role === 'web_dev_manager' ? 'Engineering & Product' :
         employee.role === 'sales' ? 'Admissions & Growth' :
@@ -739,7 +366,8 @@ export const StorageService = {
       ),
       subject: employee.subject?.trim() || (
         employee.role === 'admin' ? 'Management' :
-        employee.role === 'pr_intern' ? 'College Sponsorship & Outreach' :
+        employee.role === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' :
+        employee.role === 'pr_intern' ? 'Corporate Sponsor Outreach' :
         employee.role === 'web_developer' ? 'Frontend & React Core' :
         employee.role === 'web_dev_manager' ? 'Full Stack & Cloud Architecture' :
         employee.role === 'sales' ? 'Course Admissions' :
@@ -768,11 +396,13 @@ export const StorageService = {
       hasCrmAccess: employee.role === 'sales' || employee.role === 'admin' || !!employee.hasCrmAccess,
       crmRole: employee.crmRole || (employee.role === 'sales' ? 'sales_rep' : undefined),
       // PR specific
-      prTier: employee.prTier || (employee.role === 'pr_intern' ? 'Silver' : undefined),
-      prPoints: employee.prPoints ?? (employee.role === 'pr_intern' ? 0 : undefined),
-      prStars: employee.prStars ?? (employee.role === 'pr_intern' ? 0 : undefined),
+      prTier: employee.prTier || (employee.role === 'pr_head' ? 'Premium' : employee.role === 'pr_intern' ? 'Silver' : undefined),
+      prPoints: employee.prPoints ?? (employee.role === 'pr_head' || employee.role === 'pr_intern' ? 0 : undefined),
+      prStars: employee.prStars ?? (employee.role === 'pr_head' || employee.role === 'pr_intern' ? 0 : undefined),
       totalSponsorshipRevenue: employee.totalSponsorshipRevenue || 0,
       totalCommissionEarned: employee.totalCommissionEarned || 0,
+      prCustomTierPercentages: employee.prCustomTierPercentages,
+      prCustomCommissionRate: employee.prCustomCommissionRate,
       // Web Dev specific
       webDevTitle: employee.webDevTitle || (
         employee.role === 'web_dev_manager' ? 'Lead Software Architect & Manager' :
@@ -786,6 +416,7 @@ export const StorageService = {
       ),
       githubUsername: employee.githubUsername || undefined,
       avatarUrl: employee.avatarUrl || undefined,
+      mustChangePassword: employee.mustChangePassword !== undefined ? employee.mustChangePassword : true,
     };
 
     filtered.push(created);
@@ -817,6 +448,7 @@ export const StorageService = {
       role: 'teacher',
       joiningDate: (newTeacher.joiningDate || todayStr).trim(),
       createdAt: new Date().toISOString(),
+      mustChangePassword: true,
     };
     filtered.push(created);
     this.saveUsers(filtered);
@@ -824,7 +456,7 @@ export const StorageService = {
   },
 
   getPrInterns(): User[] {
-    return this.getUsers().filter((u) => u.role === 'pr_intern');
+    return this.getUsers().filter((u) => (u.role === 'pr_intern' || u.role === 'pr_head') && !u.isOffboarded);
   },
 
   addPrIntern(newIntern: Omit<User, 'id' | 'role'>): User {
@@ -853,6 +485,7 @@ export const StorageService = {
       totalSponsorshipRevenue: newIntern.totalSponsorshipRevenue || 0,
       totalCommissionEarned: newIntern.totalCommissionEarned || 0,
       createdAt: new Date().toISOString(),
+      mustChangePassword: true,
     };
     filtered.push(created);
     this.saveUsers(filtered);
@@ -1009,11 +642,93 @@ export const StorageService = {
     }
   },
 
-  removeTeacher(teacherId: string): void {
-    const cleanId = teacherId.trim().toUpperCase();
+  deleteEmployee(identifier: string): { success: boolean; error?: string } {
+    const cleanId = (identifier || '').trim().toUpperCase();
+    if (cleanId === 'ADMIN-01' || cleanId === 'ADMIN') {
+      return { success: false, error: 'Primary Super Administrator account (ADMIN-01) cannot be deleted.' };
+    }
+    const current = this.getCurrentUser();
+    if (current && (current.id.toUpperCase() === cleanId || current.teacherId.toUpperCase() === cleanId)) {
+      return { success: false, error: 'You cannot delete your own active session account.' };
+    }
+
     this.addDeletedId(cleanId);
-    const users = this.getUsers().filter((u) => u.teacherId.toUpperCase() !== cleanId);
+    const users = this.getUsers().filter((u) => u.id !== identifier && u.teacherId.toUpperCase() !== cleanId);
     this.saveUsers(users);
+    return { success: true };
+  },
+
+  offboardEmployee(identifier: string, reason: string, remarks?: string): { success: boolean; error?: string; user?: User } {
+    const cleanId = (identifier || '').trim().toUpperCase();
+    if (cleanId === 'ADMIN-01' || cleanId === 'ADMIN') {
+      return { success: false, error: 'Primary Super Administrator account (ADMIN-01) cannot be offboarded.' };
+    }
+    const current = this.getCurrentUser();
+    if (current && (current.id.toUpperCase() === cleanId || current.teacherId.toUpperCase() === cleanId)) {
+      return { success: false, error: 'You cannot offboard your own active session account.' };
+    }
+
+    const users = this.getUsers();
+    const idx = users.findIndex((u) => u.id === identifier || u.teacherId.toUpperCase() === cleanId);
+    if (idx === -1) {
+      return { success: false, error: 'Employee record not found.' };
+    }
+
+    const updated: User = {
+      ...users[idx],
+      isOffboarded: true,
+      offboardedAt: new Date().toISOString(),
+      offboardReason: reason.trim() || 'Departure / Left Organization',
+      offboardRemarks: remarks?.trim() || undefined,
+    };
+    users[idx] = updated;
+    this.saveUsers(users);
+    return { success: true, user: updated };
+  },
+
+  reactivateEmployee(identifier: string): { success: boolean; error?: string; user?: User } {
+    const cleanId = (identifier || '').trim().toUpperCase();
+    const users = this.getUsers();
+    const idx = users.findIndex((u) => u.id === identifier || u.teacherId.toUpperCase() === cleanId);
+    if (idx === -1) {
+      return { success: false, error: 'Employee record not found.' };
+    }
+
+    const updated: User = {
+      ...users[idx],
+      isOffboarded: false,
+      offboardedAt: undefined,
+      offboardReason: undefined,
+      offboardRemarks: undefined,
+    };
+    users[idx] = updated;
+    this.saveUsers(users);
+    return { success: true, user: updated };
+  },
+
+  updatePrEmployeeCommissionSettings(
+    employeeId: string,
+    settings: {
+      customTierPercentages?: Record<PrTier, number>;
+      customCommissionRate?: number;
+    }
+  ): User | null {
+    const cleanId = employeeId.trim().toUpperCase();
+    const users = this.getUsers();
+    const idx = users.findIndex((u) => u.id === employeeId || u.teacherId.toUpperCase() === cleanId);
+    if (idx === -1) return null;
+
+    users[idx] = {
+      ...users[idx],
+      prCustomTierPercentages: settings.customTierPercentages !== undefined ? settings.customTierPercentages : users[idx].prCustomTierPercentages,
+      prCustomCommissionRate: settings.customCommissionRate !== undefined ? settings.customCommissionRate : users[idx].prCustomCommissionRate,
+    };
+    this.saveUsers(users);
+    return users[idx];
+  },
+
+  removeTeacher(teacherId: string): void {
+    this.deleteEmployee(teacherId);
   },
 
   updateTeacherTargetMinutes(teacherId: string, targetMinutes: number): void {
@@ -1067,11 +782,21 @@ export const StorageService = {
       return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
     }
 
+    // Check if employee has been offboarded / relieved
+    if (user.isOffboarded) {
+      return {
+        success: false,
+        error: `Account has been offboarded (${user.offboardReason || 'Departure'}). Access is disabled. Please contact HR administration.`,
+      };
+    }
+
     // Determine the user's authentic password (user-defined or default initial assigned password)
     const expectedPassword = (
       user.password ||
       (user.role === 'admin'
         ? 'admin123'
+        : user.role === 'pr_head'
+        ? 'head123'
         : user.role === 'pr_intern'
         ? 'intern123'
         : user.role === 'sales'
@@ -1087,6 +812,162 @@ export const StorageService = {
     }
 
     return { success: true, user };
+  },
+
+  /**
+   * Change user password with current password verification.
+   * Clears mustChangePassword and updates lastPasswordChangedAt.
+   */
+  async changeUserPassword(
+    identifierOrId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const cleanId = (identifierOrId || '').trim().toLowerCase();
+    const cleanCurrent = (currentPassword || '').trim();
+    const cleanNew = (newPassword || '').trim();
+
+    if (!cleanId) return { success: false, error: 'User identifier is required.' };
+    if (!cleanCurrent || !cleanNew) {
+      return { success: false, error: 'Both current password and new password are required.' };
+    }
+    if (cleanNew.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters long.' };
+    }
+    if (cleanCurrent === cleanNew) {
+      return { success: false, error: 'New password cannot be identical to your current password.' };
+    }
+
+    const users = this.getUsers();
+    const userIndex = users.findIndex(
+      (u) =>
+        (u.id && u.id.toLowerCase() === cleanId) ||
+        (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
+        (u.username && u.username.toLowerCase() === cleanId) ||
+        (u.email && u.email.toLowerCase() === cleanId)
+    );
+
+    if (userIndex === -1) {
+      return { success: false, error: 'User account not found.' };
+    }
+
+    const targetUser = users[userIndex];
+    const expectedPassword = (
+      targetUser.password ||
+      (targetUser.role === 'admin'
+        ? 'admin123'
+        : targetUser.role === 'pr_head'
+        ? 'head123'
+        : targetUser.role === 'pr_intern'
+        ? 'intern123'
+        : targetUser.role === 'sales'
+        ? 'sales123'
+        : targetUser.role === 'web_developer' || targetUser.role === 'web_dev_manager'
+        ? 'dev123'
+        : 'teach123')
+    ).trim();
+
+    if (cleanCurrent !== expectedPassword) {
+      return { success: false, error: 'Current password is incorrect.' };
+    }
+
+    const nowIso = new Date().toISOString();
+    targetUser.password = cleanNew;
+    targetUser.mustChangePassword = false;
+    targetUser.lastPasswordChangedAt = nowIso;
+    users[userIndex] = targetUser;
+
+    this.saveUsers(users);
+
+    const curr = this.getCurrentUser();
+    if (curr && (curr.id === targetUser.id || curr.teacherId === targetUser.teacherId)) {
+      this.setCurrentUser({
+        ...curr,
+        password: cleanNew,
+        mustChangePassword: false,
+        lastPasswordChangedAt: nowIso,
+      });
+    }
+
+    try {
+      const token = this.getSessionToken();
+      if (token) {
+        await fetch('/api/auth', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            action: 'change_password',
+            currentPassword: cleanCurrent,
+            newPassword: cleanNew,
+          }),
+        }).catch(() => {});
+      }
+      await this.syncToCloud().catch(() => {});
+    } catch {
+      // Offline / fallback handled locally
+    }
+
+    return { success: true };
+  },
+
+  /**
+   * Force set a user's password (e.g. on first-login mandatory password change).
+   */
+  async forceSetUserPassword(
+    identifierOrId: string,
+    newPassword: string
+  ): Promise<{ success: boolean; user?: User; error?: string }> {
+    const cleanId = (identifierOrId || '').trim().toLowerCase();
+    const cleanNew = (newPassword || '').trim();
+
+    if (!cleanId) return { success: false, error: 'User identifier is required.' };
+    if (!cleanNew) return { success: false, error: 'New password is required.' };
+    if (cleanNew.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters long.' };
+    }
+
+    const users = this.getUsers();
+    const userIndex = users.findIndex(
+      (u) =>
+        (u.id && u.id.toLowerCase() === cleanId) ||
+        (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
+        (u.username && u.username.toLowerCase() === cleanId) ||
+        (u.email && u.email.toLowerCase() === cleanId)
+    );
+
+    if (userIndex === -1) {
+      return { success: false, error: 'User account not found.' };
+    }
+
+    const targetUser = users[userIndex];
+    const nowIso = new Date().toISOString();
+    targetUser.password = cleanNew;
+    targetUser.mustChangePassword = false;
+    targetUser.lastPasswordChangedAt = nowIso;
+    users[userIndex] = targetUser;
+
+    this.saveUsers(users);
+
+    const curr = this.getCurrentUser();
+    if (curr && (curr.id === targetUser.id || curr.teacherId === targetUser.teacherId)) {
+      this.setCurrentUser({
+        ...curr,
+        password: cleanNew,
+        mustChangePassword: false,
+        lastPasswordChangedAt: nowIso,
+      });
+    }
+
+    try {
+      await this.syncToCloud().catch(() => {});
+    } catch {
+      // ignore
+    }
+
+    return { success: true, user: targetUser };
   },
 
   // ─── SUBJECT REFERENCE MATERIALS (WHOLE SUBJECT) ────────────────────────────
@@ -3505,7 +3386,15 @@ export const StorageService = {
 
   // ─── PR INTERNS TIER & GAMIFICATION HELPERS ─────────────────────────────────
 
-  getTierCommissionRate(tier: PrTier = 'Silver'): number {
+  getTierCommissionRate(tier: PrTier = 'Silver', user?: User | null): number {
+    if (user) {
+      if (typeof user.prCustomCommissionRate === 'number' && !isNaN(user.prCustomCommissionRate)) {
+        return Number(user.prCustomCommissionRate);
+      }
+      if (user.prCustomTierPercentages && typeof user.prCustomTierPercentages[tier] === 'number') {
+        return Number(user.prCustomTierPercentages[tier]);
+      }
+    }
     switch (tier) {
       case 'Premium': return 12.0;
       case 'Gold': return 7.0;
@@ -3527,81 +3416,10 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-
-    const defaultTasks: PrTask[] = [
-      {
-        id: 'pr-task-1',
-        title: 'Pitch Title Sponsorship for DTU Yuvaan Fest 2026',
-        description: 'Connect with DTU Cultural Council & Student Convener to pitch AEW Title Sponsorship for the annual college fest. Deliver proposal deck and negotiate deliverables.',
-        assignedToInternId: 'AEW-PR-01',
-        assignedToInternName: 'Rohan Verma',
-        assignedByAdminName: 'Academic Operations Admin',
-        deadline: '2026-09-18',
-        pointsReward: 45,
-        starsReward: 3,
-        priority: 'high',
-        status: 'approved',
-        submissionNotes: 'Held in-person meeting with Convener Aarav Gupta. Presented AEW deck with ₹60k sponsorship offer for logo on all banners, workshop slot, and student app booth.',
-        submissionProofUrl: 'https://drive.google.com/drive/folders/dtu-yuvaan-proposal',
-        submittedAt: '2026-09-02T14:30:00.000Z',
-        reviewedAt: '2026-09-03T10:15:00.000Z',
-        adminRemarks: 'Outstanding work securing the preliminary sponsorship agreement. Well negotiated.',
-        awardedPoints: 45,
-        awardedStars: 3,
-        createdAt: '2026-08-28T09:00:00.000Z',
-      },
-      {
-        id: 'pr-task-2',
-        title: 'Onboard 5 Campus Ambassadors in Delhi NCR Engineering Colleges',
-        description: 'Interview and onboard at least 5 active student council or technical club members across NSUT, IPU, and Jamia to act as AEW Campus Ambassadors.',
-        assignedToInternId: 'AEW-PR-01',
-        assignedToInternName: 'Rohan Verma',
-        assignedByAdminName: 'Academic Operations Admin',
-        deadline: '2026-09-15',
-        pointsReward: 35,
-        starsReward: 2,
-        priority: 'medium',
-        status: 'submitted',
-        submissionNotes: 'Successfully onboarded 5 student reps from NSUT, MAIT, BPIT, USICT, and MSIT. Created dedicated WhatsApp community channel with 350+ student joins.',
-        submissionProofUrl: 'https://docs.google.com/spreadsheets/d/delhi-ambassadors-roster',
-        submittedAt: '2026-09-05T18:00:00.000Z',
-        createdAt: '2026-08-30T10:00:00.000Z',
-      },
-      {
-        id: 'pr-task-3',
-        title: 'Organize AEW Free Workshop with VIT Vellore IEEE Chapter',
-        description: 'Coordinate a 2-hour online masterclass on "Mastering Tree DP for Product Interviews" with Dr. Ananya Sharma as keynote speaker.',
-        assignedToInternId: 'AEW-PR-01',
-        assignedToInternName: 'Rohan Verma',
-        assignedByAdminName: 'Academic Operations Admin',
-        deadline: '2026-09-22',
-        pointsReward: 50,
-        starsReward: 4,
-        priority: 'high',
-        status: 'pending',
-        createdAt: '2026-09-04T11:00:00.000Z',
-      },
-      {
-        id: 'pr-task-4',
-        title: 'Compile Verified Directory of 20 Engineering College Placement Cells',
-        description: 'Research and verify official emails, TPO officer names, and contact numbers of placement and training heads across tier-1/2 institutes.',
-        assignedToInternId: 'AEW-PR-02',
-        assignedToInternName: 'Priya Saini',
-        assignedByAdminName: 'Academic Operations Admin',
-        deadline: '2026-09-20',
-        pointsReward: 25,
-        starsReward: 2,
-        priority: 'normal',
-        status: 'pending',
-        createdAt: '2026-09-04T12:00:00.000Z',
-      },
-    ];
-
-    localStorage.setItem(PR_TASKS_KEY, JSON.stringify(defaultTasks));
-    return defaultTasks;
+    return [];
   },
 
   savePrTasks(tasks: PrTask[]): void {
@@ -3721,90 +3539,10 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-
-    const defaultLeads: PrLead[] = [
-      {
-        id: 'pr-lead-1',
-        internId: 'AEW-PR-01',
-        internName: 'Rohan Verma',
-        type: 'college_sponsorship',
-        organizationName: 'Delhi Technological University (Yuvaan Fest)',
-        contactPerson: 'Aarav Gupta',
-        designation: 'Festival Convener',
-        email: 'convener.yuvaan@dtu.ac.in',
-        phone: '+91 98112 34567',
-        expectedSponsorshipAmount: 60000,
-        stage: 'negotiation',
-        internTierAtClosure: 'Gold',
-        commissionRate: 7.0,
-        commissionEarned: 4200,
-        notes: 'Negotiating logo placement on all mainstage LED backdrops, 2000+ delegate handbook feature, and student coding contest sponsorship.',
-        createdAt: '2026-08-29T10:00:00.000Z',
-        updatedAt: '2026-09-04T12:00:00.000Z',
-      },
-      {
-        id: 'pr-lead-2',
-        internId: 'AEW-PR-01',
-        internName: 'Rohan Verma',
-        type: 'event_partner',
-        organizationName: 'Vellore Institute of Technology (Riviera Tech Track)',
-        contactPerson: 'Dr. S. Ramanathan',
-        designation: 'Faculty Advisor & Techfest Chair',
-        email: 's.ramanathan@vit.ac.in',
-        phone: '+91 94441 98765',
-        expectedSponsorshipAmount: 80000,
-        stage: 'pitch_deck_sent',
-        internTierAtClosure: 'Gold',
-        commissionRate: 7.0,
-        notes: 'Shared formal proposal for Title Sponsorship of the Algorithms Track. Meeting scheduled for Friday.',
-        createdAt: '2026-09-01T11:00:00.000Z',
-        updatedAt: '2026-09-05T15:30:00.000Z',
-      },
-      {
-        id: 'pr-lead-3',
-        internId: 'AEW-PR-01',
-        internName: 'Rohan Verma',
-        type: 'brand_sponsor',
-        organizationName: 'IIT Delhi Rendezvous Coding Arena',
-        contactPerson: 'Meera Nair',
-        designation: 'Overall Events Lead',
-        email: 'meera.rendezvous@iitd.ac.in',
-        phone: '+91 98710 54321',
-        expectedSponsorshipAmount: 85000,
-        closedAmount: 85000,
-        stage: 'closed_won',
-        internTierAtClosure: 'Gold',
-        commissionRate: 7.0,
-        commissionEarned: 5950,
-        notes: 'Deal finalized! AEW is exclusive Knowledge Partner. Full sponsorship amount of ₹85,000 received in escrow.',
-        createdAt: '2026-08-20T09:00:00.000Z',
-        updatedAt: '2026-09-03T16:00:00.000Z',
-      },
-      {
-        id: 'pr-lead-4',
-        internId: 'AEW-PR-02',
-        internName: 'Priya Saini',
-        type: 'event_partner',
-        organizationName: 'BITS Pilani Waves Hackathon',
-        contactPerson: 'Tanmay Joshi',
-        designation: 'Sponsorship Coordinator',
-        email: 'tanmay.waves@pilani.bits-pilani.ac.in',
-        phone: '+91 97230 11223',
-        expectedSponsorshipAmount: 45000,
-        stage: 'contacted',
-        internTierAtClosure: 'Silver',
-        commissionRate: 3.3,
-        notes: 'Initial pitch sent via LinkedIn and official mail. Follow-up call scheduled.',
-        createdAt: '2026-09-03T14:00:00.000Z',
-        updatedAt: '2026-09-05T11:00:00.000Z',
-      },
-    ];
-
-    localStorage.setItem(PR_LEADS_KEY, JSON.stringify(defaultLeads));
-    return defaultLeads;
+    return [];
   },
 
   savePrLeads(leads: PrLead[]): void {
@@ -3848,10 +3586,10 @@ export const StorageService = {
     const isClosing = stage === 'closed_won';
     const finalAmount = isClosing ? (closedAmount || lead.expectedSponsorshipAmount) : lead.closedAmount;
 
-    // Determine commission using intern's current tier
+    // Determine commission using intern's current tier and custom settings
     const intern = this.getUsers().find((u) => u.teacherId.toUpperCase() === lead.internId.toUpperCase());
     const tier: PrTier = intern?.prTier || lead.internTierAtClosure || 'Silver';
-    const rate = this.getTierCommissionRate(tier);
+    const rate = this.getTierCommissionRate(tier, intern);
     const commission = isClosing && finalAmount ? Math.round((finalAmount * rate) / 100) : lead.commissionEarned;
 
     leads[idx] = {
@@ -3888,61 +3626,10 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-
-    const defaultMous: PrMouRequest[] = [
-      {
-        id: 'mou-001',
-        mouNumber: 'AEW/MOU/2026/001',
-        internId: 'AEW-PR-01',
-        internName: 'Rohan Verma',
-        partnerOrganization: 'Delhi Technological University Cultural Council',
-        partnerSignatory: 'Prof. K. Sharma',
-        partnerDesignation: 'Dean, Student Welfare & Community Affairs',
-        partnerAddress: 'Shahbad Daulatpur, Main Bawana Road, Delhi - 110042',
-        purpose: 'Official Academic Knowledge Partner & Title Sponsor for Annual National Techfest (Yuvaan 2026)',
-        terms: [
-          'AEW shall be recognized as the Principal Title Sponsor across all digital, print, and physical campus collaterals.',
-          'AEW shall have dedicated 60-minute keynote slot conducted by expert faculty (Dr. Ananya Sharma).',
-          'DTU shall provide prime on-ground interactive booth space in the Main Quadrangle for student counseling.',
-          'Consideration Amount of ₹60,000 to be disbursed in two equal milestones: 50% upon signing, 50% post-event.',
-          'DTU shall grant AEW permission to conduct on-campus coding scholarship diagnostic tests.',
-        ],
-        sponsorshipAmount: 60000,
-        startDate: '2026-09-15',
-        endDate: '2026-09-20',
-        status: 'approved',
-        adminFeedback: 'Approved by Director of Academic Operations. Official digital seal applied.',
-        generatedAt: '2026-09-01T10:00:00.000Z',
-        approvedAt: '2026-09-02T11:30:00.000Z',
-      },
-      {
-        id: 'mou-002',
-        mouNumber: 'AEW/MOU/2026/002',
-        internId: 'AEW-PR-01',
-        internName: 'Rohan Verma',
-        partnerOrganization: 'Vellore Institute of Technology IEEE Student Branch',
-        partnerSignatory: 'Dr. S. Ramanathan',
-        partnerDesignation: 'Faculty Chair, IEEE Computer Society VIT',
-        partnerAddress: 'VIT Campus, Tiruvalam Road, Katpadi, Vellore, Tamil Nadu - 632014',
-        purpose: 'Strategic Partnership for Competitive Programming Hackathon & Campus Workshops',
-        terms: [
-          'AEW to provide cash prize pool sponsorship of ₹80,000 for top 3 winning teams in Hack-Algorithms.',
-          'VIT IEEE branch shall mandate free enrollment of all 1,200+ members in AEW foundation study decks.',
-          'Co-branded digital participation certificates with AEW & IEEE logos for all participants.',
-        ],
-        sponsorshipAmount: 80000,
-        startDate: '2026-09-25',
-        endDate: '2026-09-27',
-        status: 'pending_admin_approval',
-        generatedAt: '2026-09-05T14:20:00.000Z',
-      },
-    ];
-
-    localStorage.setItem(PR_MOUS_KEY, JSON.stringify(defaultMous));
-    return defaultMous;
+    return [];
   },
 
   savePrMous(mous: PrMouRequest[]): void {
@@ -3994,115 +3681,10 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-
-    const defaultColleges: PrCollege[] = [
-      {
-        id: 'col-1',
-        name: 'Delhi Technological University (DTU)',
-        university: 'Delhi Technological University',
-        state: 'Delhi',
-        city: 'New Delhi',
-        tier: 'Tier 1',
-        contactPerson: 'Dr. V. Singh',
-        designation: 'Head, Training & Placement Cell',
-        phone: '+91 11 2787 1018',
-        email: 'tpo@dtu.ac.in',
-        status: 'partner',
-        studentCount: 14000,
-        notes: 'Active partner for Yuvaan Fest 2026. Very receptive to DSA masterclasses.',
-        assignedInternId: 'AEW-PR-01',
-        assignedInternName: 'Rohan Verma',
-        lastContactedDate: '2026-09-04',
-        createdAt: '2026-08-25T10:00:00.000Z',
-        updatedAt: '2026-09-04T12:00:00.000Z',
-      },
-      {
-        id: 'col-2',
-        name: 'Netaji Subhas University of Technology (NSUT)',
-        university: 'State University',
-        state: 'Delhi',
-        city: 'New Delhi',
-        tier: 'Tier 1',
-        contactPerson: 'Prof. M. Batra',
-        designation: 'HOD, Computer Science & Engineering',
-        phone: '+91 11 2500 0000',
-        email: 'hod.cse@nsut.ac.in',
-        status: 'meeting_scheduled',
-        studentCount: 9500,
-        notes: 'Meeting scheduled next Tuesday for placement preparatory series.',
-        assignedInternId: 'AEW-PR-01',
-        assignedInternName: 'Rohan Verma',
-        lastContactedDate: '2026-09-05',
-        createdAt: '2026-08-26T10:00:00.000Z',
-        updatedAt: '2026-09-05T16:00:00.000Z',
-      },
-      {
-        id: 'col-3',
-        name: 'Vellore Institute of Technology (VIT Vellore)',
-        university: 'VIT Deemed University',
-        state: 'Tamil Nadu',
-        city: 'Vellore',
-        tier: 'Tier 1',
-        contactPerson: 'Dr. S. Ramanathan',
-        designation: 'Dean, Academic Research & Student Bodies',
-        phone: '+91 416 220 2011',
-        email: 'dean.acad@vit.ac.in',
-        status: 'contacted',
-        studentCount: 35000,
-        notes: 'Proposal sent for Riviera tech track sponsorship.',
-        assignedInternId: 'AEW-PR-01',
-        assignedInternName: 'Rohan Verma',
-        lastContactedDate: '2026-09-05',
-        createdAt: '2026-08-27T10:00:00.000Z',
-        updatedAt: '2026-09-05T16:00:00.000Z',
-      },
-      {
-        id: 'col-4',
-        name: 'National Institute of Technology (NIT Trichy)',
-        university: 'Institute of National Importance',
-        state: 'Tamil Nadu',
-        city: 'Tiruchirappalli',
-        tier: 'Tier 1',
-        contactPerson: 'Dr. B. Anand',
-        designation: 'Dean, Student Affairs & Outreach',
-        phone: '+91 431 250 3000',
-        email: 'dean.sa@nitt.edu',
-        status: 'partner',
-        studentCount: 7500,
-        notes: 'Pragyan techfest knowledge collaboration signed.',
-        assignedInternId: 'AEW-PR-02',
-        assignedInternName: 'Priya Saini',
-        lastContactedDate: '2026-09-02',
-        createdAt: '2026-08-27T10:00:00.000Z',
-        updatedAt: '2026-09-02T11:00:00.000Z',
-      },
-      {
-        id: 'col-5',
-        name: 'Thapar Institute of Engineering & Technology',
-        university: 'Deemed University',
-        state: 'Punjab',
-        city: 'Patiala',
-        tier: 'Tier 2',
-        contactPerson: 'Dr. P. Grover',
-        designation: 'Director, Corporate Relations & Placement',
-        phone: '+91 175 239 3000',
-        email: 'placements@thapar.edu',
-        status: 'lead',
-        studentCount: 11000,
-        notes: 'Targeting for GATE & coding bootcamp partnership.',
-        assignedInternId: 'AEW-PR-02',
-        assignedInternName: 'Priya Saini',
-        lastContactedDate: '2026-09-03',
-        createdAt: '2026-08-28T10:00:00.000Z',
-        updatedAt: '2026-09-03T14:00:00.000Z',
-      },
-    ];
-
-    localStorage.setItem(PR_COLLEGES_KEY, JSON.stringify(defaultColleges));
-    return defaultColleges;
+    return [];
   },
 
   savePrColleges(colleges: PrCollege[]): void {
@@ -4149,164 +3731,10 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-
-    const defaultLeads: SalesLead[] = [
-      {
-        id: 'lead-001',
-        name: 'Aarav Mehta',
-        phoneNumber: '+91 98765 43210',
-        altPhoneNumber: '+91 98765 43211',
-        email: 'aarav.mehta@gmail.com',
-        organization: 'Delhi Technological University (DTU)',
-        designation: '3rd Year B.Tech CSE',
-        programOfInterest: 'GATE CS 2026 Comprehensive Masterclass',
-        city: 'New Delhi',
-        state: 'Delhi',
-        status: 'contacted',
-        priority: 'high',
-        dealValue: 18500,
-        assignedToEmployeeId: 'ADMIN-01',
-        assignedToEmployeeName: 'Academic Operations Admin',
-        source: 'Website Inquiry',
-        tags: ['GATE 2026', 'High Intent', 'OS & Algo'],
-        notes: 'Requested complete course curriculum and faculty lecture samples.',
-        createdAt: '2026-09-08T10:00:00.000Z',
-        updatedAt: '2026-09-12T14:30:00.000Z',
-        lastContactedAt: '2026-09-12T14:30:00.000Z',
-        lastCallPicked: true,
-        lastDisposition: 'picked_interested',
-        lastFeedback: 'Student was very polite and interested in OS batch. Wants parent discussion on fee installment.',
-        nextFollowUpDate: new Date().toISOString().split('T')[0], // Scheduled for today!
-        nextFollowUpTime: '16:00',
-        activityLogs: [
-          {
-            id: 'log-001',
-            leadId: 'lead-001',
-            authorId: 'ADMIN-01',
-            authorName: 'Academic Operations Admin',
-            callPicked: true,
-            disposition: 'picked_interested',
-            feedback: 'Student picked the call. Discussed syllabus and faculty credentials. Requested callback at 4 PM.',
-            wantToCallAgain: true,
-            callbackDate: new Date().toISOString().split('T')[0],
-            callbackTime: '16:00',
-            stageBefore: 'new',
-            stageAfter: 'contacted',
-            timestamp: '2026-09-12T14:30:00.000Z',
-          },
-        ],
-      },
-      {
-        id: 'lead-002',
-        name: 'Kavita Sundaram',
-        phoneNumber: '+91 91234 56789',
-        email: 'kavita.sundaram@vit.ac.in',
-        organization: 'VIT Vellore',
-        designation: 'Final Year Student',
-        programOfInterest: 'Full-Stack Web Dev & System Design Placement Track',
-        city: 'Vellore',
-        state: 'Tamil Nadu',
-        status: 'follow_up_scheduled',
-        priority: 'urgent',
-        dealValue: 24000,
-        assignedToEmployeeId: 'AEW-PR-01',
-        assignedToEmployeeName: 'Rohan Verma',
-        source: 'Campus Seminar',
-        tags: ['Placement 2026', 'System Design'],
-        notes: 'Attended campus seminar. Inquired about live mentorship sessions.',
-        createdAt: '2026-09-09T11:00:00.000Z',
-        updatedAt: '2026-09-11T16:00:00.000Z',
-        lastContactedAt: '2026-09-11T16:00:00.000Z',
-        lastCallPicked: false,
-        lastDisposition: 'busy',
-        lastFeedback: 'Call was busy on 1st attempt. Need to connect today.',
-        nextFollowUpDate: new Date().toISOString().split('T')[0],
-        nextFollowUpTime: '17:30',
-        activityLogs: [
-          {
-            id: 'log-002',
-            leadId: 'lead-002',
-            authorId: 'AEW-PR-01',
-            authorName: 'Rohan Verma',
-            callPicked: false,
-            disposition: 'busy',
-            feedback: 'Candidate phone engaged. Will retry in afternoon.',
-            wantToCallAgain: true,
-            callbackDate: new Date().toISOString().split('T')[0],
-            callbackTime: '17:30',
-            stageBefore: 'new',
-            stageAfter: 'follow_up_scheduled',
-            timestamp: '2026-09-11T16:00:00.000Z',
-          },
-        ],
-      },
-      {
-        id: 'lead-003',
-        name: 'Rohit Deshmukh',
-        phoneNumber: '+91 99887 76655',
-        email: 'rohit.d@coep.ac.in',
-        organization: 'COEP Technological University',
-        designation: '2nd Year Student',
-        programOfInterest: 'Data Structures & Algorithms in Java',
-        city: 'Pune',
-        state: 'Maharashtra',
-        status: 'new',
-        priority: 'medium',
-        dealValue: 9500,
-        source: 'WhatsApp Inbound',
-        tags: ['DSA', 'Beginner'],
-        notes: 'Looking for semester exams preparation and recursion fundamentals.',
-        createdAt: '2026-09-11T09:00:00.000Z',
-        updatedAt: '2026-09-11T09:00:00.000Z',
-        activityLogs: [],
-      },
-      {
-        id: 'lead-004',
-        name: 'Pooja Iyer',
-        phoneNumber: '+91 97654 32100',
-        email: 'pooja.iyer@gmail.com',
-        organization: 'PES University Bengaluru',
-        designation: '4th Year Student',
-        programOfInterest: 'GATE CS Complete Online Crash Course',
-        city: 'Bengaluru',
-        state: 'Karnataka',
-        status: 'closed_won',
-        priority: 'high',
-        dealValue: 22000,
-        assignedToEmployeeId: 'ADMIN-01',
-        assignedToEmployeeName: 'Academic Operations Admin',
-        source: 'Referral',
-        tags: ['Enrolled', 'Closed Won'],
-        notes: 'Enrolled successfully. Full fee paid via UPI.',
-        createdAt: '2026-09-02T10:00:00.000Z',
-        updatedAt: '2026-09-10T12:00:00.000Z',
-        lastContactedAt: '2026-09-10T12:00:00.000Z',
-        lastCallPicked: true,
-        lastDisposition: 'picked_interested',
-        lastFeedback: 'Admission confirmed and batch access granted.',
-        activityLogs: [
-          {
-            id: 'log-004',
-            leadId: 'lead-004',
-            authorId: 'ADMIN-01',
-            authorName: 'Academic Operations Admin',
-            callPicked: true,
-            disposition: 'picked_interested',
-            feedback: 'Student confirmed transaction ref #UPI893429. Enrolled in Batch Alpha.',
-            wantToCallAgain: false,
-            stageBefore: 'negotiation',
-            stageAfter: 'closed_won',
-            timestamp: '2026-09-10T12:00:00.000Z',
-          },
-        ],
-      },
-    ];
-
-    localStorage.setItem(SALES_LEADS_KEY, JSON.stringify(defaultLeads));
-    return defaultLeads;
+    return [];
   },
 
   saveSalesLeads(leads: SalesLead[]): void {
@@ -5212,197 +4640,7 @@ export const StorageService = {
     } catch (e) {
       console.error('[Storage] Error reading offer letters:', e);
     }
-
-    // Default seed offer letters
-    const seedLetters: OfferLetter[] = [
-      {
-        id: 'ol_seed_dsa_01',
-        referenceNumber: 'AEW/OL/2026/104',
-        candidateName: 'Aarav Mehra',
-        candidateEmail: 'aarav.mehra@example.com',
-        candidatePhone: '+91 98112 34567',
-        candidateCollege: 'Indian Institute of Technology (IIT), Delhi',
-        candidateAddress: 'Hauz Khas, New Delhi - 110016',
-        roleType: 'sme',
-        roleTitle: 'Subject Matter Expert - Data Structures & Algorithms',
-        subject: 'Data Structures & Algorithms',
-        department: 'Academic Operations & Curriculum Development',
-        employmentType: 'Contract',
-        workMode: 'Remote (Work From Home)',
-        duration: '6 Months',
-        joiningDate: '2026-09-20',
-        validUntil: '2026-09-27',
-        stipendAmount: '₹28,000 / Month',
-        incentiveDetails: 'Performance honorarium of up to ₹5,000 based on timely unit completions and student ratings.',
-        workingHours: '20-25 Hours/Week (Flexible)',
-        reportingManager: 'Director of Academic Operations & Curriculum Dean',
-        responsibilities: [
-          'Formulate and structure comprehensive curriculum outlines, subtopic milestones, and chapter-wise lesson roadmaps for Data Structures & Algorithms.',
-          'Develop high-yield Previous Year Question (PYQ) slide decks with rigorous step-by-step analytical solutions.',
-          'Deliver recorded and interactive masterclasses focusing on core conceptual clarity and university examination patterns.',
-          'Author comprehensive academic revision formula sheets, cheat-sheets, and quick reference summaries.',
-          'Review student doubt submissions and provide accurate, pedagogically sound clarifications within stipulated turnaround times.',
-        ],
-        perks: [
-          'Official Certificate of Completion issued by Apna Engineering Wallah upon successful tenure.',
-          'Formal Letter of Recommendation (LOR) & LinkedIn endorsement based on exemplary performance.',
-          'Direct 1-on-1 mentorship sessions with senior engineering leaders and academic directors.',
-          'Flexible working hours with a supportive, growth-oriented remote/hybrid culture.',
-          'Complimentary access to AEW premium courses, lecture masterclasses, and PYQ formula repositories.',
-        ],
-        terms: [
-          'Confidentiality & Non-Disclosure: The appointee agrees to protect all proprietary course curricula, software code, student databases, and internal documents from unauthorized disclosure.',
-          'Intellectual Property: All software code, slide decks, video recordings, and question solutions created during this tenure shall be the exclusive property of Apna Engineering Wallah (AEW).',
-          'Termination & Notice: Either party may terminate this appointment by providing a written notice of 7 (seven) days.',
-          'Acceptance of Offer: This appointment offer is contingent upon your formal acceptance by signing and returning on or before the acceptance deadline.',
-        ],
-        signatoryName: 'Dr. Aarav Sharma',
-        signatoryTitle: 'Director of Academic Operations & Dean',
-        includeDigitalSeal: true,
-        status: 'accepted',
-        templateTheme: 'executive_navy',
-        notes: 'Top tier candidate onboarded for Semester 5 DSA revision masterclasses.',
-        createdAt: '2026-09-10T14:30:00.000Z',
-        updatedAt: '2026-09-12T10:15:00.000Z',
-      },
-      {
-        id: 'ol_seed_hr_02',
-        referenceNumber: 'AEW/OL/2026/108',
-        candidateName: 'Priya Nambiar',
-        candidateEmail: 'priya.nambiar@example.com',
-        candidatePhone: '+91 97234 56789',
-        candidateCollege: 'Symbiosis Institute of Business Management (SIBM), Pune',
-        candidateAddress: 'Viman Nagar, Pune, Maharashtra - 411014',
-        roleType: 'hr_intern',
-        roleTitle: 'Human Resources (HR) Intern',
-        department: 'People Operations & Human Resources',
-        employmentType: 'Internship',
-        workMode: 'Remote (Work From Home)',
-        duration: '3 Months',
-        joiningDate: '2026-09-22',
-        validUntil: '2026-09-29',
-        stipendAmount: '₹10,000 / Month',
-        incentiveDetails: 'Quarterly hiring milestone bonus of ₹2,500 upon achieving recruitment targets.',
-        workingHours: '25-30 Hours/Week (Flexible)',
-        reportingManager: 'Lead - People Operations & Human Resources',
-        responsibilities: [
-          'Spearhead talent sourcing across university campuses and technical portals for Subject Matter Experts and technical interns.',
-          'Conduct initial candidate screening, profile evaluation, and coordinate interview rounds with department leads.',
-          'Facilitate smooth onboarding procedures, credential provisioning, and documentation audits for newly onboarded faculty.',
-          'Track daily attendance logs, commitment check-ins, leave requests, and assist in monthly stipend reconciliation.',
-        ],
-        perks: [
-          'Official Certificate of Internship issued by Apna Engineering Wallah upon successful tenure.',
-          'Formal Letter of Recommendation (LOR) & LinkedIn endorsement based on exemplary performance.',
-          'Direct 1-on-1 mentorship sessions with senior talent acquisition leaders.',
-          'Flexible working hours with a supportive, growth-oriented remote/hybrid culture.',
-        ],
-        terms: [
-          'Confidentiality & Non-Disclosure: The appointee agrees to protect all personal records, candidate databases, and internal agreements.',
-          'Termination & Notice: Either party may terminate this appointment by providing a written notice of 7 (seven) days.',
-        ],
-        signatoryName: 'Dr. Aarav Sharma',
-        signatoryTitle: 'Director of Academic Operations & Dean',
-        includeDigitalSeal: true,
-        status: 'issued',
-        templateTheme: 'executive_navy',
-        notes: 'Offer dispatched via email. Awaiting countersigned document.',
-        createdAt: '2026-09-14T09:00:00.000Z',
-        updatedAt: '2026-09-14T09:00:00.000Z',
-      },
-      {
-        id: 'ol_seed_pr_03',
-        referenceNumber: 'AEW/OL/2026/112',
-        candidateName: 'Tanmay Kulkarni',
-        candidateEmail: 'tanmay.kulkarni@example.com',
-        candidatePhone: '+91 99887 66554',
-        candidateCollege: 'College of Engineering, Pune (COEP)',
-        candidateAddress: 'Shivajinagar, Pune - 411005',
-        roleType: 'pr_intern',
-        roleTitle: 'Public Relations (PR) & Outreach Intern',
-        department: 'Corporate Partnerships & Campus Outreach',
-        employmentType: 'Internship',
-        workMode: 'Remote (Work From Home)',
-        duration: '3 Months',
-        joiningDate: '2026-09-25',
-        validUntil: '2026-10-02',
-        stipendAmount: '₹12,000 / Month',
-        incentiveDetails: 'Performance-based incentive of up to 10% on closed fest sponsorship tie-ups and student partner MoUs.',
-        workingHours: '20-25 Hours/Week (Flexible)',
-        reportingManager: 'Head of Public Relations & Strategic Partnerships',
-        responsibilities: [
-          'Identify, research, and establish strategic partnerships with engineering colleges, student clubs, and annual technical fests.',
-          'Draft, negotiate, and execute formal Memorandums of Understanding (MoUs) for campus collaborations.',
-          'Lead and nurture the AEW Campus Ambassador network across designated university clusters.',
-        ],
-        perks: [
-          'Official Certificate of Internship issued by Apna Engineering Wallah upon successful tenure.',
-          'Letter of Recommendation (LOR) for top tier fest partnership achievements.',
-        ],
-        terms: [
-          'Confidentiality & Non-Disclosure of sponsor agreements, partner terms, and commercial arrangements.',
-          'Termination with 7 days written notice.',
-        ],
-        signatoryName: 'Dr. Aarav Sharma',
-        signatoryTitle: 'Director of Academic Operations & Dean',
-        includeDigitalSeal: true,
-        status: 'issued',
-        templateTheme: 'modern_tech',
-        notes: 'Recommended by West Zone outreach lead.',
-        createdAt: '2026-09-14T11:30:00.000Z',
-        updatedAt: '2026-09-14T11:30:00.000Z',
-      },
-      {
-        id: 'ol_seed_dev_04',
-        referenceNumber: 'AEW/OL/2026/115',
-        candidateName: 'Sneha Mukherjee',
-        candidateEmail: 'sneha.mukherjee@example.com',
-        candidatePhone: '+91 91234 56780',
-        candidateCollege: 'Jadavpur University, Kolkata',
-        candidateAddress: 'Salt Lake Sector 3, Kolkata - 700098',
-        roleType: 'web_dev_intern',
-        roleTitle: 'Web Development Intern',
-        department: 'Engineering & Digital Product Development',
-        employmentType: 'Internship',
-        workMode: 'Remote (Work From Home)',
-        duration: '3 Months',
-        joiningDate: '2026-10-01',
-        validUntil: '2026-10-08',
-        stipendAmount: '₹15,000 / Month',
-        incentiveDetails: 'Bounty rewards up to ₹5,000 for critical bug-squashing and high-impact feature deployments.',
-        workingHours: '25-30 Hours/Week (Flexible)',
-        reportingManager: 'Lead Software Architect & Engineering Manager',
-        responsibilities: [
-          'Develop, enhance, and optimize modern responsive web interfaces using React, TypeScript, and modern styling architectures.',
-          'Integrate cloud backend services, RESTful APIs, and Google Drive endpoints with resilient error boundaries.',
-          'Collaborate with academic leads and UI/UX designers to translate complex workflow requirements into intuitive user experiences.',
-        ],
-        perks: [
-          'Official Certificate of Internship upon successful deployment of assigned product modules.',
-          'Fast-track consideration for permanent full-stack role at AEW Engineering.',
-        ],
-        terms: [
-          'All software code, git commits, documentation, and designs shall remain exclusive intellectual property of AEW.',
-          '7 days written notice period.',
-        ],
-        signatoryName: 'Dr. Aarav Sharma',
-        signatoryTitle: 'Director of Academic Operations & Dean',
-        includeDigitalSeal: true,
-        status: 'draft',
-        templateTheme: 'modern_tech',
-        notes: 'Draft stage pending final tech lead sign-off.',
-        createdAt: '2026-09-15T08:00:00.000Z',
-        updatedAt: '2026-09-15T08:00:00.000Z',
-      }
-    ];
-
-    try {
-      localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(seedLetters));
-    } catch (e) {
-      console.warn('[Storage] Could not persist default seed offer letters:', e);
-    }
-
-    return seedLetters;
+    return [];
   },
 
   saveOfferLetter(offer: OfferLetter): OfferLetter {

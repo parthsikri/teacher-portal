@@ -335,7 +335,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </div>
             <div>
               <div className="text-slate-500 uppercase font-semibold text-[10px]">Reviewer</div>
-              <div className="text-white font-medium mt-1">{currentTask.reviewerName || 'Vikramaditya Sen'}</div>
+              <div className="text-white font-medium mt-1">{currentTask.reviewerName || 'Unassigned'}</div>
             </div>
             <div>
               <div className="text-slate-500 uppercase font-semibold text-[10px]">Due Date</div>

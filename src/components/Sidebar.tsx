@@ -6,8 +6,20 @@ import {
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
   Award, CheckCircle2, DollarSign, Star, TrendingUp, Building2, FileText,
-  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, FileCheck
+  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, FileCheck, Key, Lock
 } from 'lucide-react';
+import { ChangePasswordModal } from './Common/ChangePasswordModal';
+
+const ADMIN_PAGE_PERMISSIONS: Record<string, string> = {
+  admin_faculty: 'manage_faculty',
+  admin_syllabus: 'manage_syllabus',
+  admin_lectures: 'manage_lectures',
+  admin_leaves: 'manage_leaves',
+  admin_pr: 'manage_pr',
+  admin_web_dev: 'manage_webdev',
+  admin_sales_crm: 'manage_sales',
+  admin_offer_letters: 'manage_offer_letters',
+};
 
 interface SidebarProps {
   currentUser: User | null;
@@ -24,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
 }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   if (!currentUser) return null;
 
@@ -372,7 +385,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ? filteredAdminNavItems 
     : currentUser.role === 'sales'
     ? salesNavItems
-    : currentUser.role === 'pr_intern'
+    : (currentUser.role === 'pr_intern' || currentUser.role === 'pr_head')
     ? prNavItems
     : currentUser.role === 'web_dev_manager'
     ? wdmNavItems
@@ -455,6 +468,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
+            const requiredPerm = ADMIN_PAGE_PERMISSIONS[item.id];
+            const isRestricted =
+              currentUser.role === 'admin' &&
+              currentUser.adminTier &&
+              currentUser.adminTier !== 'super_admin' &&
+              Array.isArray(currentUser.adminPermissions) &&
+              requiredPerm &&
+              !currentUser.adminPermissions.includes(requiredPerm as any);
+
             return (
               <button
                 key={item.id}
@@ -462,12 +484,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={`w-full px-3.5 py-2.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
                   isActive
                     ? 'bg-slate-800 text-white font-bold shadow-sm'
+                    : isRestricted
+                    ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 opacity-75 font-medium'
                     : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium'
                 }`}
+                title={isRestricted ? `${item.label} (Access Restricted)` : item.label}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : isRestricted ? 'text-slate-500' : 'text-slate-400'}`} />
                   <span className="truncate">{item.label}</span>
+                  {isRestricted && (
+                    <Lock className="w-3 h-3 text-amber-500/70 ml-1 inline" />
+                  )}
                 </div>
 
                 {item.badge && (
@@ -607,16 +635,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-[11px] text-slate-400 truncate">{currentUser.subject || currentUser.department}</div>
             </div>
 
-            <button
-              onClick={onLogout}
-              className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowChangePasswordModal(true)}
+                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
+                title="Change Password"
+              >
+                <Key className="w-4 h-4 text-amber-400" />
+              </button>
+
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
+
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          isOpen={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+          user={currentUser}
+        />
+      )}
     </>
   );
 };

@@ -1,4 +1,4 @@
-export type UserRole = 'teacher' | 'admin' | 'pr_intern' | 'web_dev_manager' | 'web_developer' | 'sales';
+export type UserRole = 'teacher' | 'admin' | 'pr_intern' | 'pr_head' | 'web_dev_manager' | 'web_developer' | 'sales';
 
 export type PrTier = 'Silver' | 'Gold' | 'Premium';
 
@@ -41,12 +41,14 @@ export interface User {
   // Sales CRM specific fields
   hasCrmAccess?: boolean;        // Whether employee has visibility into the Sales CRM
   crmRole?: 'sales_rep' | 'sales_manager'; // Access level inside the CRM
-  // PR Intern specific fields
+  // PR Intern / Head specific fields
   prTier?: PrTier;
   prPoints?: number;
   prStars?: number;
   totalSponsorshipRevenue?: number;
   totalCommissionEarned?: number;
+  prCustomTierPercentages?: Record<PrTier, number>; // Admin-configured custom tier % (e.g. { Silver: 4, Gold: 8, Premium: 14 })
+  prCustomCommissionRate?: number; // Optional flat commission rate override
   // Web Development specific fields
   webDevTitle?: string;
   webDevLevel?: number;
@@ -54,6 +56,13 @@ export interface User {
   skills?: string[];
   githubUsername?: string;
   avatarUrl?: string;
+  mustChangePassword?: boolean; // When true, user is prompted to set personal password on login
+  lastPasswordChangedAt?: string; // ISO timestamp of last password change
+  // Employee Offboarding / Status Tracking
+  isOffboarded?: boolean;        // True when employee has left, resigned, or completed tenure
+  offboardedAt?: string;         // ISO timestamp of departure
+  offboardReason?: string;       // Reason for departure (e.g. "Tenure Completed", "Resigned", "Contract Ended")
+  offboardRemarks?: string;      // Optional administrative notes upon offboarding
 }
 
 export interface DailyCommitment {
@@ -336,27 +345,44 @@ export type PrLeadStage =
   | 'closed_lost';
 
 export type PrLeadType = 
-  | 'college_sponsorship' 
-  | 'event_partner' 
-  | 'brand_sponsor' 
-  | 'campus_ambassador_lead';
+  | 'corporate_brand_sponsor'     // Corporate Tech & SaaS Brands
+  | 'tech_event_sponsor'          // TechFest & Hackathon Sponsors
+  | 'recruitment_partner_sponsor' // Talent & Hiring Sponsors
+  | 'fmcg_lifestyle_sponsor'      // Energy Drinks, Food, Lifestyle Brands
+  | 'developer_tools_sponsor'     // Cloud, DevTools, API Platforms
+  | 'college_sponsorship'         // Legacy support
+  | 'event_partner'               // Legacy support
+  | 'brand_sponsor'               // Legacy support
+  | 'campus_ambassador_lead';     // Legacy support
+
+export type PrSponsorshipPackage = 
+  | 'title_sponsor'          // ₹1,50,000+ (Exclusive Title Partner)
+  | 'powered_by'             // ₹80,000 - ₹1,50,000 (Powered By Partner)
+  | 'associate_sponsor'      // ₹40,000 - ₹80,000 (Associate / Category Partner)
+  | 'hackathon_track'        // ₹25,000 - ₹50,000 (Track / Problem Statement Sponsor)
+  | 'talent_recruitment'     // ₹20,000 - ₹40,000 (Hiring & Resume Access Partner)
+  | 'swag_merchandise'       // ₹15,000+ (Swag & Merchandise Partner)
+  | 'custom_sponsorship';
 
 export interface PrLead {
   id: string;
   internId: string;
   internName: string;
   type: PrLeadType;
-  organizationName: string;
-  contactPerson: string;
-  designation: string;
+  organizationName: string; // Sponsoring Company / Corporate Brand Name
+  companyIndustry?: string; // SaaS / Cloud, FinTech, FMCG, Hardware, EdTech, DevTools, Gaming, Other
+  contactPerson: string;    // Corporate POC (e.g. Brand Partnerships Lead / DevRel)
+  designation: string;      // Corporate POC Designation
   email: string;
   phone: string;
-  expectedSponsorshipAmount: number;
-  closedAmount?: number;
+  sponsorshipPackage?: PrSponsorshipPackage;
+  expectedSponsorshipAmount: number; // Sponsorship consideration payable BY Company TO AEW (₹)
+  closedAmount?: number;             // Closed sponsorship consideration received from company (₹)
+  deliverablesPromised?: string[];   // Promised branding deliverables (e.g. Mainstage logo, booth, keynote slot)
   stage: PrLeadStage;
   internTierAtClosure?: PrTier;
-  commissionRate?: number; // 3.3, 7.0, or 12.0 (%)
-  commissionEarned?: number;
+  commissionRate?: number; // % earned by PR rep from the incoming company sponsorship
+  commissionEarned?: number; // ₹ commission earned by PR rep
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -944,6 +970,7 @@ export type OfferLetterRoleType =
   | 'sme' 
   | 'hr_intern' 
   | 'pr_intern' 
+  | 'pr_head'
   | 'web_dev_intern' 
   | 'graphic_designer' 
   | 'sales_intern' 

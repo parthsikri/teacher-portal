@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Mail, CheckCircle2, AlertCircle, X, Send, Sparkles, Key, Server, Save, Check,
-  History, RefreshCw, Trash2, Cloud, ExternalLink, ShieldCheck, AlertTriangle
+  History, RefreshCw, Trash2, Cloud, ExternalLink, ShieldCheck, AlertTriangle, Search
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
 import { StorageService } from '../../services/storage';
@@ -221,6 +221,24 @@ export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({ onClose,
   const deliveredCount = emailLogs.filter((l) => l.status === 'delivered').length;
   const failedCount = emailLogs.filter((l) => l.status === 'failed').length;
   const simulatedCount = emailLogs.filter((l) => l.status === 'simulated').length;
+  const welcomeMailsCount = emailLogs.filter((l) => l.type === 'welcome_employee').length;
+
+  const [logTypeFilter, setLogTypeFilter] = useState<'all' | 'welcome_employee' | 'directive' | 'topic_assigned' | 'test'>('all');
+  const [logSearch, setLogSearch] = useState('');
+
+  const filteredLogs = useMemo(() => {
+    return emailLogs.filter((log) => {
+      const matchType = logTypeFilter === 'all' || log.type === logTypeFilter;
+      const recipientsStr = Array.isArray(log.to) ? log.to.join(', ') : log.to || '';
+      const q = logSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        log.subject.toLowerCase().includes(q) ||
+        recipientsStr.toLowerCase().includes(q) ||
+        (log.dataSummary && log.dataSummary.toLowerCase().includes(q));
+      return matchType && matchSearch;
+    });
+  }, [emailLogs, logTypeFilter, logSearch]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
@@ -567,27 +585,111 @@ export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({ onClose,
                 </div>
               </div>
 
+              {/* Category Filters and Search Bar */}
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setLogTypeFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      logTypeFilter === 'all'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    All ({emailLogs.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogTypeFilter('welcome_employee')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                      logTypeFilter === 'welcome_employee'
+                        ? 'bg-teal-600 text-white shadow-sm'
+                        : 'bg-slate-950 text-teal-400 hover:text-teal-300 border border-teal-500/30'
+                    }`}
+                  >
+                    <span>🎉 Welcome Mails</span>
+                    {welcomeMailsCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-teal-900/60 text-[10px] font-mono">
+                        {welcomeMailsCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogTypeFilter('directive')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      logTypeFilter === 'directive'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    Directives
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogTypeFilter('topic_assigned')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      logTypeFilter === 'topic_assigned'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    Assignments
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogTypeFilter('test')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      logTypeFilter === 'test'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    Tests
+                  </button>
+                </div>
+
+                <div className="relative shrink-0 sm:w-44">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search logs…"
+                    value={logSearch}
+                    onChange={(e) => setLogSearch(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+              </div>
+
               {/* Logs List */}
-              {emailLogs.length === 0 ? (
+              {filteredLogs.length === 0 ? (
                 <div className="p-8 text-center bg-slate-950/40 border border-slate-800/80 rounded-2xl space-y-2">
                   <Mail className="w-8 h-8 text-slate-600 mx-auto" />
-                  <div className="text-xs font-semibold text-slate-300">No Emails Dispatched Yet</div>
+                  <div className="text-xs font-semibold text-slate-300">
+                    {emailLogs.length === 0 ? 'No Emails Dispatched Yet' : 'No Mails Matched Filter'}
+                  </div>
                   <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                    When notifications are sent for topic assignments, directives, extensions, or test emails, their delivery status will appear here and sync to the cloud.
+                    {emailLogs.length === 0
+                      ? 'When notifications are sent for welcome credentials, directives, or test emails, their delivery status will appear here.'
+                      : 'Try clearing the search query or switching to All logs to view audit history.'}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
-                  {emailLogs.map((log) => {
+                  {filteredLogs.map((log) => {
                     const isDelivered = log.status === 'delivered';
                     const isFailed = log.status === 'failed';
+                    const isWelcome = log.type === 'welcome_employee';
                     const recipientsStr = Array.isArray(log.to) ? log.to.join(', ') : log.to;
 
                     return (
                       <div
                         key={log.id}
                         className={`p-3.5 rounded-xl border space-y-2 transition-colors ${
-                          isDelivered
+                          isWelcome
+                            ? 'bg-teal-950/20 border-teal-500/30 ring-1 ring-teal-500/20'
+                            : isDelivered
                             ? 'bg-slate-950/80 border-slate-800/90'
                             : isFailed
                             ? 'bg-rose-950/20 border-rose-500/30'
@@ -607,9 +709,15 @@ export const EmailSettingsModal: React.FC<EmailSettingsModalProps> = ({ onClose,
                             >
                               {isDelivered ? '✓ DELIVERED' : isFailed ? '✕ FAILED' : 'ℹ️ SIMULATED'}
                             </span>
-                            <span className="text-[10px] font-mono text-slate-400 uppercase">
-                              {log.type.replace(/_/g, ' ')}
-                            </span>
+                            {isWelcome ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center gap-1">
+                                🎉 WELCOME ONBOARD
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-slate-400 uppercase">
+                                {log.type.replace(/_/g, ' ')}
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2">

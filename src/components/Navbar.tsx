@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, FileCheck
+  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, FileCheck, Key, Lock
 } from 'lucide-react';
+import { ChangePasswordModal } from './Common/ChangePasswordModal';
+
+const ADMIN_PAGE_PERMISSIONS: Record<string, string> = {
+  admin_faculty: 'manage_faculty',
+  admin_syllabus: 'manage_syllabus',
+  admin_lectures: 'manage_lectures',
+  admin_leaves: 'manage_leaves',
+  admin_pr: 'manage_pr',
+  admin_offer_letters: 'manage_offer_letters',
+};
 
 interface NavItem {
   id: string;
@@ -28,6 +38,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onPageChange,
   onLogout,
 }) => {
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+
   // Calculate notifications/action badges
   const pendingApprovalsCount = currentUser?.role === 'admin'
     ? StorageService.getAssignedTopics().filter((t) => t.subtopicsApprovalState === 'pending_admin_approval').length
@@ -182,6 +194,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             {currentNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentPage === item.id;
+              const requiredPerm = ADMIN_PAGE_PERMISSIONS[item.id];
+              const isRestricted =
+                currentUser.role === 'admin' &&
+                currentUser.adminTier &&
+                currentUser.adminTier !== 'super_admin' &&
+                Array.isArray(currentUser.adminPermissions) &&
+                requiredPerm &&
+                !currentUser.adminPermissions.includes(requiredPerm as any);
+
               return (
                 <button
                   key={item.id}
@@ -189,11 +210,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shrink-0 relative ${
                     isActive
                       ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                      : isRestricted
+                      ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 opacity-75'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
                   }`}
+                  title={isRestricted ? `${item.label} (Access Restricted)` : item.label}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : isRestricted ? 'text-slate-500' : 'text-slate-400'}`} />
                   <span className="whitespace-nowrap">{item.label}</span>
+                  {isRestricted && (
+                    <Lock className="w-2.5 h-2.5 text-amber-500/70 ml-0.5" />
+                  )}
                   {item.badge && (
                     <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${item.badgeColor}`}>
                       {item.badge}
@@ -217,6 +244,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             <button
+              type="button"
+              onClick={() => setShowChangePasswordModal(true)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-amber-500/15 hover:text-amber-300 hover:border-amber-500/30 text-slate-300 font-bold text-xs transition-all border border-slate-700/80 flex items-center gap-1.5 shadow-sm cursor-pointer"
+              title="Change Password"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Password</span>
+            </button>
+
+            <button
               onClick={onLogout}
               className="px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-red-500/10 hover:text-red-400 text-slate-300 font-bold text-xs transition-all border border-slate-700/80 flex items-center gap-1 shadow-sm"
               title="Logout"
@@ -227,6 +264,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         )}
       </div>
+
+      {showChangePasswordModal && currentUser && (
+        <ChangePasswordModal
+          isOpen={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+          user={currentUser}
+        />
+      )}
     </header>
   );
 };

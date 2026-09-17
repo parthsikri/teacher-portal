@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest, PptRequestStatus } from '../../types';
+import type { User, Lecture, AssignedTopic, SubjectReference, SubtopicItem, PptRequest, PptRequestStatus, AdminPermissionKey } from '../../types';
 import { StorageService } from '../../services/storage';
 import { notificationService } from '../../services/notificationService';
 import { VideoModal } from '../Common/VideoModal';
@@ -19,7 +19,8 @@ import {
   Users, FileSpreadsheet, Database, Folder,
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
   ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail, FileCheck,
-  Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2
+  Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2,
+  Crown, UserX, Percent, AlertTriangle, CheckCheck
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -46,9 +47,98 @@ export const AdminView: React.FC<AdminViewProps> = ({
   } as User);
   const [teachers, setTeachers] = useState<User[]>(StorageService.getTeachers());
   const [allEmployees, setAllEmployees] = useState<User[]>(() => StorageService.getUsers());
-  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_intern' | 'web_developer' | 'sales' | 'admin'>('all');
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_head' | 'pr_intern' | 'web_developer' | 'sales' | 'admin' | 'offboarded'>('all');
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [onboardInitialData, setOnboardInitialData] = useState<Partial<User> | undefined>(undefined);
+  const [onboardOfferId, setOnboardOfferId] = useState<string | undefined>(undefined);
+
+  // Employee Offboard / Delete Modal State
+  const [employeeToOffboardOrDelete, setEmployeeToOffboardOrDelete] = useState<User | null>(null);
+  const [offboardReason, setOffboardReason] = useState('Resigned / End of Tenure');
+  const [offboardRemarks, setOffboardRemarks] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [offboardActionType, setOffboardActionType] = useState<'offboard' | 'delete'>('offboard');
+
+  // PR Commission Settings Modal State
+  const [adjustingPrUser, setAdjustingPrUser] = useState<User | null>(null);
+  const [customSilverRate, setCustomSilverRate] = useState(3.3);
+  const [customGoldRate, setCustomGoldRate] = useState(7.0);
+  const [customPremiumRate, setCustomPremiumRate] = useState(12.0);
+  const [customFlatOverride, setCustomFlatOverride] = useState<string>('');
+
+  // Administrative Tier & Permissions Route Guard Checker
+  const checkHasAdminPermission = (requiredPermission: AdminPermissionKey): boolean => {
+    if (!activeAdminUser.adminTier || activeAdminUser.adminTier === 'super_admin') {
+      return true;
+    }
+    if (Array.isArray(activeAdminUser.adminPermissions)) {
+      return activeAdminUser.adminPermissions.includes(requiredPermission);
+    }
+    return true;
+  };
+
+  // High-Security Guard Component for Restricted Administrative Modules
+  const AdminPermissionRestrictedCard: React.FC<{
+    moduleName: string;
+    requiredPermission: AdminPermissionKey;
+  }> = ({ moduleName, requiredPermission }) => {
+    const permMeta = ALL_ADMIN_PERMISSIONS.find((p) => p.key === requiredPermission);
+    const tierName =
+      activeAdminUser.adminTier === 'academic_admin' ? 'Academic Ops Admin' :
+      activeAdminUser.adminTier === 'hr_admin' ? 'HR & Talent Admin' :
+      activeAdminUser.adminTier === 'growth_admin' ? 'PR & Growth Admin' :
+      activeAdminUser.adminTier === 'tech_admin' ? 'Tech Ops Admin' :
+      'Restricted Administrator';
+
+    return (
+      <div className="min-h-[55vh] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center space-y-4 animate-in fade-in duration-150">
+          <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto shadow-inner">
+            <Shield className="w-7 h-7" />
+          </div>
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-300 font-mono text-[10px] font-bold uppercase tracking-wider">
+              Access Restricted
+            </div>
+            <h3 className="text-lg font-black text-slate-100">
+              {moduleName}
+            </h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Your assigned administrative tier (<strong className="text-slate-200">{tierName}</strong>) does not have authorization to view or edit this operational module.
+            </p>
+          </div>
+
+          <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-[11px] text-left space-y-1.5">
+            <div className="text-slate-400 font-semibold">Required Privilege:</div>
+            <div className="font-mono font-bold text-indigo-300 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-indigo-400" />
+              {permMeta?.label || requiredPermission}
+            </div>
+            {permMeta?.desc && (
+              <div className="text-[10px] text-slate-500">{permMeta.desc}</div>
+            )}
+          </div>
+
+          <div className="pt-2 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => onPageChange('admin_dashboard')}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors cursor-pointer"
+            >
+              Return to Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAdminAccessGuide(true)}
+              className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold rounded-xl border border-indigo-500/30 transition-colors cursor-pointer"
+            >
+              Permissions Matrix
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
   const [showAdminAccessGuide, setShowAdminAccessGuide] = useState(false);
   const [copiedEmployeeId, setCopiedEmployeeId] = useState<string | null>(null);
   const [revealedPasswordId, setRevealedPasswordId] = useState<string | null>(null);
@@ -726,12 +816,92 @@ export const AdminView: React.FC<AdminViewProps> = ({
     refreshState();
   };
 
-  const handleRemoveTeacher = (teacherId: string, name: string) => {
-    if (window.confirm(`Are you sure you want to remove teacher "${name}" (${teacherId})?`)) {
-      StorageService.removeTeacher(teacherId);
+  // Open Offboard or Delete modal
+  const handleOpenOffboardOrDelete = (emp: User) => {
+    setEmployeeToOffboardOrDelete(emp);
+    setOffboardActionType(emp.isOffboarded ? 'delete' : 'offboard');
+    setOffboardReason(emp.offboardReason || 'Resigned / End of Tenure');
+    setOffboardRemarks(emp.offboardRemarks || '');
+    setDeleteConfirmText('');
+  };
+
+  // Confirm Offboard or Delete
+  const handleConfirmOffboardOrDelete = () => {
+    if (!employeeToOffboardOrDelete) return;
+
+    if (offboardActionType === 'offboard') {
+      const res = StorageService.offboardEmployee(
+        employeeToOffboardOrDelete.teacherId,
+        offboardReason,
+        offboardRemarks
+      );
+      if (!res.success) {
+        alert(res.error || 'Failed to offboard employee.');
+        return;
+      }
+      setEmployeeToOffboardOrDelete(null);
       refreshState();
+      alert(`✓ ${employeeToOffboardOrDelete.name} (${employeeToOffboardOrDelete.teacherId}) has been offboarded. Portal login disabled, historical activity retained.`);
+    } else {
+      // Permanent Delete
+      if (deleteConfirmText.trim().toUpperCase() !== employeeToOffboardOrDelete.teacherId.toUpperCase()) {
+        alert(`Please type "${employeeToOffboardOrDelete.teacherId}" in the confirmation box to confirm permanent deletion.`);
+        return;
+      }
+      const res = StorageService.deleteEmployee(employeeToOffboardOrDelete.teacherId);
+      if (!res.success) {
+        alert(res.error || 'Failed to delete employee.');
+        return;
+      }
+      setEmployeeToOffboardOrDelete(null);
+      refreshState();
+      alert(`✓ Employee record for ${employeeToOffboardOrDelete.name} (${employeeToOffboardOrDelete.teacherId}) permanently deleted.`);
     }
   };
+
+  // Reactivate an offboarded employee
+  const handleReactivateEmployee = (emp: User) => {
+    if (window.confirm(`Reactivate employee ${emp.name} (${emp.teacherId})? This will restore portal login access.`)) {
+      const res = StorageService.reactivateEmployee(emp.teacherId);
+      if (!res.success) {
+        alert(res.error || 'Failed to reactivate employee.');
+        return;
+      }
+      refreshState();
+      alert(`✓ ${emp.name} (${emp.teacherId}) has been reactivated successfully.`);
+    }
+  };
+
+  // Open PR Tier Commission modal
+  const handleOpenAdjustPrCommission = (emp: User) => {
+    setAdjustingPrUser(emp);
+    setCustomSilverRate(emp.prCustomTierPercentages?.Silver ?? 3.3);
+    setCustomGoldRate(emp.prCustomTierPercentages?.Gold ?? 7.0);
+    setCustomPremiumRate(emp.prCustomTierPercentages?.Premium ?? 12.0);
+    setCustomFlatOverride(emp.prCustomCommissionRate !== undefined ? String(emp.prCustomCommissionRate) : '');
+  };
+
+  // Save PR Tier Commission Settings
+  const handleSavePrCommissionSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustingPrUser) return;
+
+    const flatVal = customFlatOverride.trim() ? parseFloat(customFlatOverride) : undefined;
+    const settings = {
+      customTierPercentages: {
+        Silver: Math.max(0, Number(customSilverRate) || 3.3),
+        Gold: Math.max(0, Number(customGoldRate) || 7.0),
+        Premium: Math.max(0, Number(customPremiumRate) || 12.0),
+      },
+      customCommissionRate: (flatVal !== undefined && !isNaN(flatVal)) ? flatVal : undefined,
+    };
+
+    StorageService.updatePrEmployeeCommissionSettings(adjustingPrUser.teacherId, settings);
+    setAdjustingPrUser(null);
+    refreshState();
+    alert(`✓ PR commission settings updated for ${adjustingPrUser.name}!`);
+  };
+
 
   const handleRemoveTopic = (topicId: string) => {
     if (window.confirm('Delete this assigned topic?')) {
@@ -1818,6 +1988,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
       {/* PAGE 2: 📌 SYLLABUS TOPICS & SUBTOPIC DEADLINES HUB (SQUARE CARDS SELECTOR) */}
       {currentPage === 'admin_syllabus' && (
+        !checkHasAdminPermission('manage_syllabus') ? (
+          <AdminPermissionRestrictedCard moduleName="Syllabus & Approvals" requiredPermission="manage_syllabus" />
+        ) : (
         <div className="space-y-6">
           {/* HEADER BANNER */}
           <div className="bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -2517,6 +2690,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           )}
         </div>
+        )
       )}
 
 
@@ -2760,6 +2934,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
       {/* ─── PAGE: 🏖️ FACULTY DAY OFFS & APPROVED LEAVES MANAGEMENT HUB ─── */}
       {currentPage === 'admin_leaves' && (() => {
+        if (!checkHasAdminPermission('manage_leaves')) {
+          return <AdminPermissionRestrictedCard moduleName="Day Offs & Leave Approvals" requiredPermission="manage_leaves" />;
+        }
         const todayKey = StorageService.toLocalDateKey(new Date());
         const yesterdayObj = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1);
         const yesterdayKey = StorageService.toLocalDateKey(yesterdayObj);
@@ -2960,60 +3137,90 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
       {/* PAGE: 🤝 PR GAMIFICATION, TIERS & OUTREACH WAR ROOM */}
       {currentPage === 'admin_pr' && (
-        <PrManagementSection
-          onRefreshData={onRefreshData}
-          refreshTrigger={refreshTrigger}
-        />
+        !checkHasAdminPermission('manage_pr') ? (
+          <AdminPermissionRestrictedCard moduleName="PR Team & Outreach War Room" requiredPermission="manage_pr" />
+        ) : (
+          <PrManagementSection
+            onRefreshData={onRefreshData}
+            refreshTrigger={refreshTrigger}
+          />
+        )
       )}
 
       {/* PAGE: 💻 WEB DEVELOPMENT MANAGEMENT & ALL-WORK MASTER */}
       {currentPage === 'admin_web_dev' && (
-        <AdminWebDevSection
-          currentUser={activeAdminUser}
-        />
+        !checkHasAdminPermission('manage_webdev') ? (
+          <AdminPermissionRestrictedCard moduleName="Web Dev War Room" requiredPermission="manage_webdev" />
+        ) : (
+          <AdminWebDevSection
+            currentUser={activeAdminUser}
+          />
+        )
       )}
 
       {/* PAGE: 💼 SALES CRM, LEADS & CALL CENTER WAR ROOM */}
       {currentPage === 'admin_sales_crm' && (
-        <AdminSalesCrmSection
-          currentUser={activeAdminUser}
-          onRefreshData={onRefreshData}
-        />
+        !checkHasAdminPermission('manage_sales') ? (
+          <AdminPermissionRestrictedCard moduleName="Sales CRM & Call Center" requiredPermission="manage_sales" />
+        ) : (
+          <AdminSalesCrmSection
+            currentUser={activeAdminUser}
+            onRefreshData={onRefreshData}
+          />
+        )
       )}
 
       {/* PAGE: 📜 OFFER LETTER & APPOINTMENT GENERATOR */}
       {currentPage === 'admin_offer_letters' && (
-        <AdminOfferLetterGenerator
-          currentUser={activeAdminUser}
-          onOnboardCandidate={(data) => {
-            setOnboardInitialData(data);
-            setShowOnboardModal(true);
-          }}
-        />
+        !checkHasAdminPermission('manage_offer_letters') ? (
+          <AdminPermissionRestrictedCard moduleName="Offer Letter Studio" requiredPermission="manage_offer_letters" />
+        ) : (
+          <AdminOfferLetterGenerator
+            currentUser={activeAdminUser}
+            onOnboardCandidate={(data, offerId) => {
+              setOnboardInitialData(data);
+              setOnboardOfferId(offerId);
+              setShowOnboardModal(true);
+            }}
+          />
+        )
       )}
 
       {currentPage === 'admin_faculty' && (() => {
-        const teachersCount = allEmployees.filter((u) => u.role === 'teacher').length;
-        const prCount = allEmployees.filter((u) => u.role === 'pr_intern').length;
-        const webDevCount = allEmployees.filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager').length;
-        const salesCount = allEmployees.filter((u) => u.role === 'sales').length;
-        const adminCount = allEmployees.filter((u) => u.role === 'admin').length;
+        if (!checkHasAdminPermission('manage_faculty')) {
+          return <AdminPermissionRestrictedCard moduleName="Faculty & Staff Roster" requiredPermission="manage_faculty" />;
+        }
+        const activeStaff = allEmployees.filter((u) => !u.isOffboarded);
+        const teachersCount = activeStaff.filter((u) => u.role === 'teacher').length;
+        const prHeadCount = activeStaff.filter((u) => u.role === 'pr_head').length;
+        const prInternCount = activeStaff.filter((u) => u.role === 'pr_intern').length;
+        const webDevCount = activeStaff.filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager').length;
+        const salesCount = activeStaff.filter((u) => u.role === 'sales').length;
+        const adminCount = activeStaff.filter((u) => u.role === 'admin').length;
+        const offboardedCount = allEmployees.filter((u) => u.isOffboarded).length;
 
         const roleTabs = [
-          { id: 'all' as const, label: 'All Staff', count: allEmployees.length, icon: Users },
+          { id: 'all' as const, label: 'All Active', count: activeStaff.length, icon: Users },
           { id: 'teacher' as const, label: 'Faculty / SMEs', count: teachersCount, icon: GraduationCap },
-          { id: 'pr_intern' as const, label: 'PR Interns', count: prCount, icon: Award },
+          { id: 'pr_head' as const, label: 'PR Heads', count: prHeadCount, icon: Crown },
+          { id: 'pr_intern' as const, label: 'PR Reps', count: prInternCount, icon: Award },
           { id: 'web_developer' as const, label: 'Web Devs', count: webDevCount, icon: Code2 },
           { id: 'sales' as const, label: 'Sales Reps', count: salesCount, icon: PhoneCall },
           { id: 'admin' as const, label: 'Operations Admins', count: adminCount, icon: ShieldCheck },
+          ...(offboardedCount > 0 ? [{ id: 'offboarded' as const, label: 'Offboarded / Left', count: offboardedCount, icon: UserX }] : []),
         ];
 
         const filteredEmployees = allEmployees.filter((emp) => {
-          if (employeeRoleFilter !== 'all') {
-            if (employeeRoleFilter === 'web_developer') {
-              if (emp.role !== 'web_developer' && emp.role !== 'web_dev_manager') return false;
-            } else if (emp.role !== employeeRoleFilter) {
-              return false;
+          if (employeeRoleFilter === 'offboarded') {
+            if (!emp.isOffboarded) return false;
+          } else {
+            if (emp.isOffboarded) return false;
+            if (employeeRoleFilter !== 'all') {
+              if (employeeRoleFilter === 'web_developer') {
+                if (emp.role !== 'web_developer' && emp.role !== 'web_dev_manager') return false;
+              } else if (emp.role !== employeeRoleFilter) {
+                return false;
+              }
             }
           }
           if (!searchTeacherQuery.trim()) return true;
@@ -3203,12 +3410,14 @@ Portal URL: ${window.location.origin}`;
                 {filteredEmployees.map((t) => {
                   const isTeacher = t.role === 'teacher';
                   const isPr = t.role === 'pr_intern';
+                  const isPrHead = t.role === 'pr_head';
                   const isDev = t.role === 'web_developer' || t.role === 'web_dev_manager';
                   const isSales = t.role === 'sales';
                   const isAdmin = t.role === 'admin';
 
                   const defaultPassword = 
                     isAdmin ? 'admin123' :
+                    isPrHead ? 'head123' :
                     isPr ? 'intern123' :
                     isSales ? 'sales123' :
                     isDev ? 'dev123' : 'teach123';
@@ -3218,7 +3427,8 @@ Portal URL: ${window.location.origin}`;
 
                   const roleBadgeConfig = {
                     teacher: { label: 'FACULTY / SME', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
-                    pr_intern: { label: 'PR INTERN', color: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+                    pr_head: { label: 'PR HEAD', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
+                    pr_intern: { label: 'PR REP', color: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
                     web_developer: { label: 'WEB DEVELOPER', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
                     web_dev_manager: { label: 'DEV ARCHITECT', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
                     sales: { label: 'SALES REP', color: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
@@ -3228,7 +3438,9 @@ Portal URL: ${window.location.origin}`;
                   return (
                     <div
                       key={t.id || t.teacherId}
-                      className="bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between"
+                      className={`bg-slate-950 border rounded-2xl p-5 space-y-4 shadow-lg transition-all flex flex-col justify-between ${
+                        t.isOffboarded ? 'border-red-500/30 bg-red-950/10 opacity-80' : 'border-slate-800 hover:border-slate-700'
+                      }`}
                     >
                       <div className="space-y-3">
                         {/* Header: Role Badge, ID & Actions */}
@@ -3241,6 +3453,11 @@ Portal URL: ${window.location.origin}`;
                               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-indigo-300 border border-slate-800">
                                 {t.teacherId}
                               </span>
+                              {t.isOffboarded && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-red-500/20 text-red-300 border border-red-500/40">
+                                  OFFBOARDED / LEFT
+                                </span>
+                              )}
                               {isAdmin && t.adminTier && (
                                 <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-rose-950/60 text-rose-300 border border-rose-700/40">
                                   {t.adminTier.replace('_', ' ').toUpperCase()}
@@ -3252,14 +3469,44 @@ Portal URL: ${window.location.origin}`;
                             <p className="text-[11px] text-indigo-300/80 truncate mt-0.5">{t.subject}</p>
                           </div>
 
-                          <button
-                            onClick={() => handleRemoveTeacher(t.teacherId, t.name)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
-                            title="Remove Employee"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {(isPr || isPrHead) && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAdjustPrCommission(t)}
+                                className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                                title="Adjust PR Tier Commission %"
+                              >
+                                <Percent className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenOffboardOrDelete(t)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                              title={t.isOffboarded ? "Delete or Reactivate Record" : "Offboard or Delete Employee"}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
+
+                        {/* OFFBOARDED STATUS BANNER */}
+                        {t.isOffboarded && (
+                          <div className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/30 text-xs flex items-center justify-between">
+                            <div>
+                              <span className="font-bold text-red-300 block text-[11px]">⚠️ Account Offboarded / Relieved</span>
+                              <span className="text-red-400/80 text-[10px]">{t.offboardReason || 'Left organization'}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleReactivateEmployee(t)}
+                              className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer shadow transition-colors"
+                            >
+                              Reactivate
+                            </button>
+                          </div>
+                        )}
 
                         {/* CREDENTIALS BADGE & ACTIONS */}
                         <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2 text-xs">
@@ -3408,18 +3655,45 @@ Portal URL: ${window.location.origin}`;
                           </div>
                         )}
 
-                        {isPr && (
+                        {(isPr || isPrHead) && (
                           <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-medium">PR Tier:</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                                {t.prTier || 'Silver'} Tier
-                              </span>
+                              <span className="text-slate-400 font-medium">PR Tier & Rate:</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  t.prTier === 'Premium' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
+                                  t.prTier === 'Gold' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                                  'bg-slate-800 text-slate-300 border-slate-700'
+                                }`}>
+                                  {t.prTier || 'Silver'}
+                                </span>
+                                <span className="font-mono font-bold text-emerald-400 text-xs">
+                                  {StorageService.getTierCommissionRate(t.prTier || 'Silver', t)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-medium">Points & Stars:</span>
+                            {t.prCustomCommissionRate !== undefined && (
+                              <div className="text-[10px] text-amber-300 font-mono flex items-center justify-between bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                <span>★ Flat Override Rate:</span>
+                                <span className="font-bold">{t.prCustomCommissionRate}%</span>
+                              </div>
+                            )}
+                            {t.prCustomTierPercentages && !t.prCustomCommissionRate && (
+                              <div className="text-[9px] text-indigo-300 font-mono flex items-center justify-between bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                <span>Custom Tiers:</span>
+                                <span>S:{t.prCustomTierPercentages.Silver ?? 3.3}% G:{t.prCustomTierPercentages.Gold ?? 7}% P:{t.prCustomTierPercentages.Premium ?? 12}%</span>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between text-[11px] text-slate-400">
+                              <span>Points & Stars:</span>
                               <span className="font-mono font-bold text-slate-200">
                                 {t.prPoints || 0} pts • {t.prStars || 0} ⭐
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/80">
+                              <span>Sponsor Revenue:</span>
+                              <span className="font-bold text-emerald-400 font-mono">
+                                ₹{(t.totalSponsorshipRevenue || 0).toLocaleString('en-IN')}
                               </span>
                             </div>
                           </div>
@@ -3615,6 +3889,9 @@ Portal URL: ${window.location.origin}`;
 
       {/* PAGE 5: 🎬 LECTURE SUBMISSIONS & DIRECTIVES AUDIT (ORGANIZED BY TEACHER & UNITWISE) */}
       {currentPage === 'admin_lectures' && (
+        !checkHasAdminPermission('manage_lectures') ? (
+          <AdminPermissionRestrictedCard moduleName="Lecture Quality Audits & Remarks" requiredPermission="manage_lectures" />
+        ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
           
           {/* HEADER & GLOBAL STATS */}
@@ -4080,6 +4357,7 @@ Portal URL: ${window.location.origin}`;
             </div>
           )}
         </div>
+        )
       )}
 
       {/* MODAL: ADMIN REVIEWS & MANAGES SUBTOPICS */}
@@ -6090,8 +6368,15 @@ Portal URL: ${window.location.origin}`;
       {/* Onboard Employee Modal */}
       <OnboardEmployeeModal
         isOpen={showOnboardModal}
-        onClose={() => setShowOnboardModal(false)}
+        onClose={() => {
+          setShowOnboardModal(false);
+          setOnboardOfferId(undefined);
+        }}
         onSuccess={(_newUser) => {
+          if (onboardOfferId) {
+            StorageService.updateOfferLetterStatus(onboardOfferId, 'accepted');
+            setOnboardOfferId(undefined);
+          }
           refreshState();
         }}
         initialData={onboardInitialData}
@@ -6258,6 +6543,400 @@ Portal URL: ${window.location.origin}`;
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: OFFBOARD OR DELETE EMPLOYEE */}
+      {employeeToOffboardOrDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-lg w-full space-y-6 shadow-2xl relative">
+            <button
+              onClick={() => setEmployeeToOffboardOrDelete(null)}
+              className="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold ${
+                  offboardActionType === 'delete' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                }`}>
+                  {offboardActionType === 'delete' ? <Trash2 className="w-5 h-5" /> : <UserX className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-100">
+                    {offboardActionType === 'delete' ? 'Permanently Delete Record' : 'Offboard / Relieve Employee'}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {employeeToOffboardOrDelete.name} • <span className="font-mono text-indigo-300 font-bold">{employeeToOffboardOrDelete.teacherId}</span> ({employeeToOffboardOrDelete.role.replace('_', ' ').toUpperCase()})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Check protected admin */}
+            {(employeeToOffboardOrDelete.teacherId === 'ADMIN-01' || employeeToOffboardOrDelete.teacherId === activeAdminUser.teacherId) ? (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-3 text-xs text-amber-200">
+                <div className="flex items-center gap-2 font-bold text-amber-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Protected Primary Administrator Account</span>
+                </div>
+                <p>
+                  This administrator account cannot be offboarded or deleted to prevent catastrophic portal lockout. If you need to reassign admin credentials, please update them via Portal Configuration Settings.
+                </p>
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeToOffboardOrDelete(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Switch Between Soft Offboard and Hard Delete */}
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setOffboardActionType('offboard')}
+                    className={`py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      offboardActionType === 'offboard'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>Relieve / Soft Offboard</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOffboardActionType('delete')}
+                    className={`py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      offboardActionType === 'delete'
+                        ? 'bg-red-500/20 text-red-300 border border-red-500/30 shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hard Delete</span>
+                  </button>
+                </div>
+
+                {offboardActionType === 'offboard' ? (
+                  <div className="space-y-4 text-xs">
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-200/90 leading-relaxed">
+                      <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+                        <CheckCheck className="w-4 h-4 text-amber-400" /> Preserves Historical Audit Trail (Recommended)
+                      </p>
+                      Disables immediate login access for this employee while retaining their lecture submissions, reviews, corporate sponsorships, and performance analytics. You can 1-click reactivate them anytime.
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-slate-300 font-bold block text-xs">Exit / Offboarding Reason</label>
+                      <select
+                        value={offboardReason}
+                        onChange={(e) => setOffboardReason(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 text-xs focus:border-amber-500 outline-none"
+                      >
+                        <option value="Resigned / End of Tenure">Resigned / End of Tenure</option>
+                        <option value="Completed Internship / Contract">Completed Internship / Contract</option>
+                        <option value="Relieved from Duties">Relieved from Duties</option>
+                        <option value="Inactive / No Response">Inactive / No Response</option>
+                        <option value="Performance / Misconduct">Performance / Misconduct</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-slate-300 font-bold block text-xs">Handover Remarks / Exit Notes (Optional)</label>
+                      <textarea
+                        value={offboardRemarks}
+                        onChange={(e) => setOffboardRemarks(e.target.value)}
+                        placeholder="e.g., Handed over sponsor leads to Ananya, completed final unit recordings..."
+                        rows={3}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 text-xs focus:border-amber-500 outline-none resize-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setEmployeeToOffboardOrDelete(null)}
+                        className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-bold cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmOffboardOrDelete}
+                        className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <UserX className="w-4 h-4" />
+                        <span>Relieve & Disable Login</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 text-xs">
+                    <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-200 leading-relaxed space-y-2">
+                      <p className="font-bold text-red-400 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-red-400" /> Irreversible Permanent Action
+                      </p>
+                      <p>
+                        This will permanently remove this employee from the roster. A persistent tombstone will prevent this ID from ever being re-seeded.
+                      </p>
+                      <p className="text-[11px] text-red-300/80 font-mono">
+                        To confirm, please type <span className="font-bold text-white underline">{employeeToOffboardOrDelete.teacherId}</span> below:
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder={`Type "${employeeToOffboardOrDelete.teacherId}" to confirm`}
+                        className="w-full bg-slate-950 border border-red-500/40 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:border-red-500 outline-none uppercase placeholder:normal-case"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setEmployeeToOffboardOrDelete(null)}
+                        className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-bold cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmOffboardOrDelete}
+                        disabled={deleteConfirmText.trim().toUpperCase() !== employeeToOffboardOrDelete.teacherId.toUpperCase()}
+                        className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-red-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Permanently Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADJUST PR TIER COMMISSION PERCENTAGE */}
+      {adjustingPrUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-lg w-full space-y-6 shadow-2xl relative">
+            <button
+              onClick={() => setAdjustingPrUser(null)}
+              className="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center font-bold">
+                  <Percent className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-100">
+                    Adjust PR Commission Rates
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {adjustingPrUser.name} • <span className="font-mono text-amber-300 font-bold">{adjustingPrUser.teacherId}</span> ({adjustingPrUser.role === 'pr_head' ? 'PR Head' : 'PR Representative'})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Current Status Overview */}
+            <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-slate-950 border border-slate-800 text-center text-xs">
+              <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Active Tier</span>
+                <span className="text-xs font-bold text-amber-300">{adjustingPrUser.prTier || 'Silver'}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Effective Rate</span>
+                <span className="text-xs font-mono font-bold text-emerald-400">
+                  {StorageService.getTierCommissionRate(adjustingPrUser.prTier || 'Silver', adjustingPrUser)}%
+                </span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Closed Sponsors</span>
+                <span className="text-xs font-mono font-bold text-indigo-300">
+                  ₹{(adjustingPrUser.totalSponsorshipRevenue || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSavePrCommissionSettings} className="space-y-4 text-xs">
+              {/* Option 1: Custom Tier Percentages */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-200 font-bold block text-xs">
+                    Custom Tier Percentages (%)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomSilverRate(3.3);
+                      setCustomGoldRate(7.0);
+                      setCustomPremiumRate(12.0);
+                      setCustomFlatOverride('');
+                    }}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                  >
+                    Reset System Defaults
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="space-y-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 block">Silver Tier</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={customSilverRate}
+                        onChange={(e) => setCustomSilverRate(parseFloat(e.target.value) || 0)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none text-right"
+                      />
+                      <span className="text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 block">Default: 3.3%</span>
+                  </div>
+
+                  <div className="space-y-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-[10px] font-bold text-amber-400 block">Gold Tier</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={customGoldRate}
+                        onChange={(e) => setCustomGoldRate(parseFloat(e.target.value) || 0)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none text-right"
+                      />
+                      <span className="text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 block">Default: 7.0%</span>
+                  </div>
+
+                  <div className="space-y-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-[10px] font-bold text-purple-400 block">Premium Tier</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={customPremiumRate}
+                        onChange={(e) => setCustomPremiumRate(parseFloat(e.target.value) || 0)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none text-right"
+                      />
+                      <span className="text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 block">Default: 12.0%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Option 2: Flat Commission Override */}
+              <div className="space-y-1.5 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-200 font-bold block text-xs">
+                    Flat Commission Override (Optional)
+                  </label>
+                  {customFlatOverride && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomFlatOverride('')}
+                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
+                    >
+                      Clear Override
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={customFlatOverride}
+                    onChange={(e) => setCustomFlatOverride(e.target.value)}
+                    placeholder="Leave blank to use tier percentages above"
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none placeholder:text-slate-600"
+                  />
+                  <span className="text-slate-400 font-mono font-bold">%</span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  If set, this fixed percentage overrides the employee's tier level for every closed corporate sponsorship.
+                </p>
+              </div>
+
+              {/* Live Calculator Simulation */}
+              <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-indigo-300 font-bold">
+                  <span>💡 Live Commission Simulator</span>
+                  <span>Example Sponsor Check: ₹1,00,000</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                  {customFlatOverride && !isNaN(parseFloat(customFlatOverride)) ? (
+                    <div className="col-span-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200">
+                      <span className="block font-bold">Flat Override Applied ({customFlatOverride}%):</span>
+                      <span className="text-sm font-mono font-bold text-amber-300">
+                        ₹{((100000 * parseFloat(customFlatOverride)) / 100).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-slate-400 block">Silver ({customSilverRate}%)</span>
+                        <span className="font-mono font-bold text-slate-200">₹{((100000 * customSilverRate) / 100).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-amber-400 block">Gold ({customGoldRate}%)</span>
+                        <span className="font-mono font-bold text-amber-300">₹{((100000 * customGoldRate) / 100).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-purple-400 block">Premium ({customPremiumRate}%)</span>
+                        <span className="font-mono font-bold text-purple-300">₹{((100000 * customPremiumRate) / 100).toLocaleString('en-IN')}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustingPrUser(null)}
+                  className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save Commission Settings</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

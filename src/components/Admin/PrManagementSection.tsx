@@ -28,7 +28,9 @@ import {
   Sparkles,
   Check,
   X,
-  Printer
+  Printer,
+  Crown,
+  Percent
 } from 'lucide-react';
 
 interface PrManagementSectionProps {
@@ -90,6 +92,38 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
   const [bonusStars, setBonusStars] = useState<number>(1);
   const [bonusPoints, setBonusPoints] = useState<number>(25);
   const [bonusReason, setBonusReason] = useState('');
+
+  // Commission Adjustment Modal State
+  const [adjustingPrUser, setAdjustingPrUser] = useState<User | null>(null);
+  const [customSilverRate, setCustomSilverRate] = useState<number>(3.3);
+  const [customGoldRate, setCustomGoldRate] = useState<number>(7.0);
+  const [customPremiumRate, setCustomPremiumRate] = useState<number>(12.0);
+  const [customFlatOverride, setCustomFlatOverride] = useState<string>('');
+
+  const handleOpenAdjustCommission = (user: User) => {
+    setAdjustingPrUser(user);
+    setCustomSilverRate(user.prCustomTierPercentages?.Silver ?? 3.3);
+    setCustomGoldRate(user.prCustomTierPercentages?.Gold ?? 7.0);
+    setCustomPremiumRate(user.prCustomTierPercentages?.Premium ?? 12.0);
+    setCustomFlatOverride(user.prCustomCommissionRate !== undefined ? String(user.prCustomCommissionRate) : '');
+  };
+
+  const handleSaveCommission = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustingPrUser) return;
+    const flatVal = customFlatOverride.trim() ? parseFloat(customFlatOverride) : undefined;
+    StorageService.updatePrEmployeeCommissionSettings(adjustingPrUser.teacherId, {
+      customTierPercentages: {
+        Silver: Math.max(0, Number(customSilverRate) || 3.3),
+        Gold: Math.max(0, Number(customGoldRate) || 7.0),
+        Premium: Math.max(0, Number(customPremiumRate) || 12.0),
+      },
+      customCommissionRate: (flatVal !== undefined && !isNaN(flatVal)) ? flatVal : undefined,
+    });
+    setAdjustingPrUser(null);
+    reloadData();
+    alert(`✓ Commission rates updated for ${adjustingPrUser.name}!`);
+  };
 
   // Synchronize with external changes
   const reloadData = () => {
@@ -580,9 +614,10 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
               )
               .map((intern) => {
                 const tier = intern.prTier || 'Silver';
-                const commissionRate = StorageService.getTierCommissionRate(tier);
+                const commissionRate = StorageService.getTierCommissionRate(tier, intern);
                 const points = intern.prPoints || 0;
                 const stars = intern.prStars || 0;
+                const isPrHead = intern.role === 'pr_head';
 
                 // Tier badge styles
                 const isSilver = tier === 'Silver';
@@ -614,21 +649,35 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                             {intern.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <h3 className="text-base font-bold text-slate-100">{intern.name}</h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-bold text-slate-100">{intern.name}</h3>
+                              {isPrHead && (
+                                <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                  <Crown className="w-2.5 h-2.5 text-purple-400" /> Head
+                                </span>
+                              )}
+                            </div>
                             <span className="text-xs text-slate-400 block font-mono">{intern.teacherId} • @{intern.username}</span>
                           </div>
                         </div>
 
                         {/* Tier Tag with Commission % */}
-                        <div className={`px-2.5 py-1 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm ${
-                          isPremium
-                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                            : isGold
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                            : 'bg-slate-700/40 text-slate-300 border border-slate-600/60'
-                        }`}>
-                          <Award className="w-3.5 h-3.5" />
-                          {tier} ({commissionRate}%)
+                        <div className="flex flex-col items-end gap-1">
+                          <div className={`px-2.5 py-1 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm ${
+                            isPremium
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                              : isGold
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : 'bg-slate-700/40 text-slate-300 border border-slate-600/60'
+                          }`}>
+                            <Award className="w-3.5 h-3.5" />
+                            {tier} ({commissionRate}%)
+                          </div>
+                          {intern.prCustomCommissionRate !== undefined && (
+                            <span className="text-[9px] text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/30">
+                              ★ Override: {intern.prCustomCommissionRate}%
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -722,8 +771,8 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                       </div>
                     </div>
 
-                    {/* Action Button */}
-                    <div className="pt-4 mt-4 border-t border-slate-800">
+                    {/* Action Buttons */}
+                    <div className="pt-4 mt-4 border-t border-slate-800 flex items-center gap-2">
                       <button
                         onClick={() => {
                           setRewardingIntern(intern);
@@ -731,9 +780,16 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                           setBonusPoints(25);
                           setBonusReason('');
                         }}
-                        className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Award Bonus ⭐ / Points
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Bonus
+                      </button>
+                      <button
+                        onClick={() => handleOpenAdjustCommission(intern)}
+                        className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        title="Adjust Commission Rates"
+                      >
+                        <Percent className="w-3.5 h-3.5 text-amber-400" /> Rates
                       </button>
                     </div>
                   </div>
@@ -1721,6 +1777,216 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: ADJUST PR TIER COMMISSION PERCENTAGES */}
+      {adjustingPrUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl space-y-5 relative">
+            <button
+              onClick={() => setAdjustingPrUser(null)}
+              className="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center font-bold">
+                  <Percent className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-100">
+                    Adjust PR Commission Rates
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {adjustingPrUser.name} • <span className="font-mono text-amber-300 font-bold">{adjustingPrUser.teacherId}</span> ({adjustingPrUser.role === 'pr_head' ? 'PR Head' : 'PR Representative'})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Current Status Overview */}
+            <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-slate-950 border border-slate-800 text-center text-xs">
+              <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Active Tier</span>
+                <span className="text-xs font-bold text-amber-300">{adjustingPrUser.prTier || 'Silver'}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Effective Rate</span>
+                <span className="text-xs font-mono font-bold text-emerald-400">
+                  {StorageService.getTierCommissionRate(adjustingPrUser.prTier || 'Silver', adjustingPrUser)}%
+                </span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Closed Sponsors</span>
+                <span className="text-xs font-mono font-bold text-indigo-300">
+                  ₹{(adjustingPrUser.totalSponsorshipRevenue || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveCommission} className="space-y-4 text-xs">
+              {/* Option 1: Custom Tier Percentages */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-200 font-bold block text-xs">
+                    Custom Tier Percentages (%)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomSilverRate(3.3);
+                      setCustomGoldRate(7.0);
+                      setCustomPremiumRate(12.0);
+                      setCustomFlatOverride('');
+                    }}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                  >
+                    Reset System Defaults
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="space-y-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 block">Silver Tier</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={customSilverRate}
+                        onChange={(e) => setCustomSilverRate(parseFloat(e.target.value) || 0)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none text-right"
+                      />
+                      <span className="text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 block">Default: 3.3%</span>
+                  </div>
+
+                  <div className="space-y-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-[10px] font-bold text-amber-400 block">Gold Tier</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={customGoldRate}
+                        onChange={(e) => setCustomGoldRate(parseFloat(e.target.value) || 0)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none text-right"
+                      />
+                      <span className="text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 block">Default: 7.0%</span>
+                  </div>
+
+                  <div className="space-y-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-[10px] font-bold text-purple-400 block">Premium Tier</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={customPremiumRate}
+                        onChange={(e) => setCustomPremiumRate(parseFloat(e.target.value) || 0)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none text-right"
+                      />
+                      <span className="text-slate-400 font-mono">%</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 block">Default: 12.0%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Option 2: Flat Commission Override */}
+              <div className="space-y-1.5 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-200 font-bold block text-xs">
+                    Flat Commission Override (Optional)
+                  </label>
+                  {customFlatOverride && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomFlatOverride('')}
+                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
+                    >
+                      Clear Override
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={customFlatOverride}
+                    onChange={(e) => setCustomFlatOverride(e.target.value)}
+                    placeholder="Leave blank to use tier percentages above"
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono text-xs focus:border-amber-500 outline-none placeholder:text-slate-600"
+                  />
+                  <span className="text-slate-400 font-mono font-bold">%</span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  If set, this fixed percentage overrides the employee's tier level for every closed corporate sponsorship.
+                </p>
+              </div>
+
+              {/* Live Calculator Simulation */}
+              <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-indigo-300 font-bold">
+                  <span>💡 Live Commission Simulator</span>
+                  <span>Example Sponsor Check: ₹1,00,000</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                  {customFlatOverride && !isNaN(parseFloat(customFlatOverride)) ? (
+                    <div className="col-span-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200">
+                      <span className="block font-bold">Flat Override Applied ({customFlatOverride}%):</span>
+                      <span className="text-sm font-mono font-bold text-amber-300">
+                        ₹{((100000 * parseFloat(customFlatOverride)) / 100).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-slate-400 block">Silver ({customSilverRate}%)</span>
+                        <span className="font-mono font-bold text-slate-200">₹{((100000 * customSilverRate) / 100).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-amber-400 block">Gold ({customGoldRate}%)</span>
+                        <span className="font-mono font-bold text-amber-300">₹{((100000 * customGoldRate) / 100).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-purple-400 block">Premium ({customPremiumRate}%)</span>
+                        <span className="font-mono font-bold text-purple-300">₹{((100000 * customPremiumRate) / 100).toLocaleString('en-IN')}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustingPrUser(null)}
+                  className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save Commission Settings</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

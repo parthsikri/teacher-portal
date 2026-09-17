@@ -19,7 +19,7 @@ const getDefaultPageForUser = (user: User | null): string => {
   if (!user) return 'dashboard';
   if (user.role === 'admin') return 'admin_dashboard';
   if (user.role === 'sales') return 'sales_crm';
-  if (user.role === 'pr_intern') return 'pr_dashboard';
+  if (user.role === 'pr_intern' || user.role === 'pr_head') return 'pr_dashboard';
   if (user.role === 'web_dev_manager') return 'wdm_review';
   if (user.role === 'web_developer') return 'dev_tasks';
   return 'dashboard';
@@ -221,7 +221,7 @@ export const App: React.FC = () => {
                   refreshTrigger={refreshKey}
                   currentUser={currentUser}
                 />
-              ) : currentUser.role === 'pr_intern' ? (
+              ) : (currentUser.role === 'pr_intern' || currentUser.role === 'pr_head') ? (
                 <PrInternView
                   intern={currentUser}
                   currentPage={currentPage}

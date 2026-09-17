@@ -50,16 +50,16 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const [mouSignatory, setMouSignatory] = useState('');
   const [mouDesignation, setMouDesignation] = useState('');
   const [mouAddress, setMouAddress] = useState('');
-  const [mouPurpose, setMouPurpose] = useState('Official Academic Knowledge Partner & Title Sponsor for Annual College Fest');
-  const [mouSponsorshipAmount, setMouSponsorshipAmount] = useState<number>(50000);
+  const [mouPurpose, setMouPurpose] = useState('Official Corporate Event Sponsorship for AEW National Hackathon & Student Tech Summit 2026');
+  const [mouSponsorshipAmount, setMouSponsorshipAmount] = useState<number>(100000);
   const [mouStartDate, setMouStartDate] = useState('2026-09-20');
   const [mouEndDate, setMouEndDate] = useState('2026-09-22');
   const [mouCustomTerms, setMouCustomTerms] = useState<string>([
-    'AEW shall be recognized as the Principal Title Sponsor across all event hoardings, posters, and digital broadcasts.',
-    'AEW faculty shall be allocated a 60-minute prime stage slot for interactive tech keynote and student mentorship.',
-    'Partner institution shall provide AEW prime 10x10 ft booth space in main college courtyard for app downloads.',
-    'Financial consideration to be disbursed: 50% advance upon MoU signing, 50% post-event completion.',
-    'Partner shall grant AEW access to share free syllabus and PYQ repository links to all registered student delegates.'
+    'Second Party (Corporate Sponsor) commits the agreed sponsorship funds to First Party (Apna Engineering Wallah - AEW) towards the official Title / Powered-By sponsorship.',
+    'AEW shall feature Sponsor Company branding on all student portal banners, event stages, hackathon problem statements, and digital media.',
+    'AEW faculty & management shall allocate a dedicated 45-minute stage keynote & recruitment workshop slot to the Sponsor Company.',
+    'Sponsor Company engineering & talent teams shall receive verified resumes of the top 100 student hackathon finalists for campus recruitment.',
+    'Financial Disbursement: 50% advance upon MoU execution, 50% within 7 business days following conclusion of the event.'
   ].join('\n'));
 
   // Quick WhatsApp pitch copied indicator
@@ -84,7 +84,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const currentTier: PrTier = currentUser.prTier || 'Silver';
   const points = currentUser.prPoints || 0;
   const stars = currentUser.prStars || 0;
-  const commissionRate = StorageService.getTierCommissionRate(currentTier);
+  const commissionRate = StorageService.getTierCommissionRate(currentTier, currentUser);
 
   // Next tier threshold calculation
   const nextTierInfo = useMemo(() => {
@@ -1198,19 +1198,22 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-emerald-400" /> Register Sponsorship Opportunity
-              </h3>
+              <div>
+                <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-emerald-400" /> Register Corporate Sponsorship Lead
+                </h3>
+                <p className="text-[11px] text-slate-400">Companies & brands sponsoring AEW hackathons, events & curriculum initiatives</p>
+              </div>
               <button onClick={() => setShowAddLeadModal(false)} className="text-slate-400 hover:text-white text-lg">✕</button>
             </div>
 
             <form onSubmit={handleAddLead} className="space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">College / Organization Name *</label>
+                <label className="block text-slate-300 font-semibold">Corporate Sponsor / Company Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Delhi Technological University (Yuvaan Fest)"
+                  placeholder="e.g. Razorpay Software Pvt Ltd / Google Cloud / Red Bull"
                   value={leadOrgName}
                   onChange={(e) => setLeadOrgName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1219,11 +1222,11 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Contact Person *</label>
+                  <label className="block text-slate-300 font-semibold">Company Contact Person (POC) *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Aarav Gupta"
+                    placeholder="e.g. Vikram Malhotra"
                     value={leadContactPerson}
                     onChange={(e) => setLeadContactPerson(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1231,10 +1234,10 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Designation / Role</label>
+                  <label className="block text-slate-300 font-semibold">POC Designation / Role</label>
                   <input
                     type="text"
-                    placeholder="e.g. Convener / TPO Head"
+                    placeholder="e.g. Lead Campus Evangelist / Brand Lead"
                     value={leadDesignation}
                     onChange={(e) => setLeadDesignation(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1244,7 +1247,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Phone Number</label>
+                  <label className="block text-slate-300 font-semibold">Corporate Phone / WhatsApp</label>
                   <input
                     type="tel"
                     placeholder="+91 98110..."
@@ -1255,10 +1258,10 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Email Address</label>
+                  <label className="block text-slate-300 font-semibold">Work Email Address</label>
                   <input
                     type="email"
-                    placeholder="fest@college.ac.in"
+                    placeholder="partnerships@company.com"
                     value={leadEmail}
                     onChange={(e) => setLeadEmail(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1268,25 +1271,26 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Deal Category</label>
+                  <label className="block text-slate-300 font-semibold">Sponsorship Package / Tier</label>
                   <select
                     value={leadType}
                     onChange={(e) => setLeadType(e.target.value as PrLead['type'])}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="college_sponsorship">College Fest Title Sponsorship</option>
-                    <option value="event_partner">Hackathon / Event Partner</option>
-                    <option value="brand_sponsor">Co-Branded Workshop</option>
-                    <option value="campus_ambassador_lead">Campus Ambassador Chapter</option>
+                    <option value="corporate_brand_sponsor">Title Corporate Sponsor (₹2,50,000+)</option>
+                    <option value="tech_event_sponsor">Powered By / Tech Track Sponsor (₹1,00,000)</option>
+                    <option value="recruitment_partner_sponsor">Exclusive Hiring Partner Sponsor (₹75,000)</option>
+                    <option value="developer_tools_sponsor">Cloud & Dev Tools Sponsor (₹50,000)</option>
+                    <option value="fmcg_lifestyle_sponsor">FMCG / Beverage Partner Sponsor (₹40,000)</option>
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Expected Deal Amount (₹)</label>
+                  <label className="block text-slate-300 font-semibold">Sponsorship Check Amount (₹)</label>
                   <input
                     type="number"
                     step="5000"
-                    placeholder="50000"
+                    placeholder="100000"
                     value={leadExpectedAmount}
                     onChange={(e) => setLeadExpectedAmount(Number(e.target.value))}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-emerald-400 font-mono font-bold focus:outline-none focus:border-indigo-500"
@@ -1295,15 +1299,18 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs flex items-center justify-between font-mono">
-                <span className="text-slate-400">Your Take-Home Commission ({commissionRate}%):</span>
-                <span className="text-emerald-400 font-bold">₹{Math.round((leadExpectedAmount * commissionRate) / 100).toLocaleString('en-IN')}</span>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Your Direct Commission ({commissionRate}%):</span>
+                  <span className="text-[10px] text-slate-500">Paid to you upon sponsor funds received</span>
+                </div>
+                <span className="text-emerald-400 font-bold text-sm">₹{Math.round((leadExpectedAmount * commissionRate) / 100).toLocaleString('en-IN')}</span>
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Discussion Notes</label>
+                <label className="block text-slate-300 font-semibold">Deliverables & Discussion Notes</label>
                 <textarea
                   rows={2}
-                  placeholder="Key deliverables discussed, timeline, special requests..."
+                  placeholder="e.g. Logo on hackathon mainstage, 45-min tech workshop, recruitment booth, social media shoutouts..."
                   value={leadNotes}
                   onChange={(e) => setLeadNotes(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1322,7 +1329,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                   type="submit"
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/30 cursor-pointer"
                 >
-                  Save Sponsorship Lead
+                  Save Corporate Sponsor Lead
                 </button>
               </div>
             </form>
@@ -1339,10 +1346,10 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-purple-400" /> Draft Formal Memorandum of Understanding (MoU)
+                  <FileText className="w-5 h-5 text-purple-400" /> Draft Corporate Sponsorship Agreement (MoU)
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Generates legal contract between Apna Engineering Wallah (AEW) and Partner Institution.
+                  Official contract wherein Corporate Sponsor provides funds to Apna Engineering Wallah (AEW) for student events, hackathons & curriculum branding.
                 </p>
               </div>
               <button onClick={() => setShowMouModal(false)} className="text-slate-400 hover:text-white text-lg">✕</button>
@@ -1350,11 +1357,11 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
             <form onSubmit={handleCreateMou} className="space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Partner Institution / Festival Council Name *</label>
+                <label className="block text-slate-300 font-semibold">Corporate Sponsor Company / Brand Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Delhi Technological University Cultural & Technical Council"
+                  placeholder="e.g. Google Cloud India / Razorpay Software Pvt Ltd"
                   value={mouPartnerOrg}
                   onChange={(e) => setMouPartnerOrg(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1363,11 +1370,11 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Signatory Authority Name *</label>
+                  <label className="block text-slate-300 font-semibold">Corporate Signatory Authority Name *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Prof. K. Sharma"
+                    placeholder="e.g. Rohit Varma"
                     value={mouSignatory}
                     onChange={(e) => setMouSignatory(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1378,7 +1385,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                   <label className="block text-slate-300 font-semibold">Signatory Designation</label>
                   <input
                     type="text"
-                    placeholder="e.g. Dean Student Welfare / Fest Convener"
+                    placeholder="e.g. Director of Campus Partnerships / Marketing Head"
                     value={mouDesignation}
                     onChange={(e) => setMouDesignation(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1387,10 +1394,10 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Partner Campus Address</label>
+                <label className="block text-slate-300 font-semibold">Corporate Registered Office Address</label>
                 <input
                   type="text"
-                  placeholder="e.g. Shahbad Daulatpur, Bawana Road, Delhi - 110042"
+                  placeholder="e.g. RMZ Infinity, Old Madras Road, Bengaluru - 560016"
                   value={mouAddress}
                   onChange={(e) => setMouAddress(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1398,10 +1405,10 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">MoU Purpose & Theme</label>
+                <label className="block text-slate-300 font-semibold">Sponsorship Event / Campaign Purpose</label>
                 <input
                   type="text"
-                  placeholder="e.g. Official Academic Knowledge Partner & Title Sponsor for Annual College Fest"
+                  placeholder="e.g. Official Title Sponsorship for AEW National Hackathon & Student Tech Summit 2026"
                   value={mouPurpose}
                   onChange={(e) => setMouPurpose(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
@@ -1410,7 +1417,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Sponsorship Amount (₹)</label>
+                  <label className="block text-slate-300 font-semibold">Sponsorship Funds to AEW (₹)</label>
                   <input
                     type="number"
                     step="5000"
@@ -1442,7 +1449,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Key Terms & Mutual Deliverables (One per line)</label>
+                <label className="block text-slate-300 font-semibold">Sponsorship Terms & Corporate Deliverables (One per line)</label>
                 <textarea
                   rows={5}
                   value={mouCustomTerms}
@@ -1463,7 +1470,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                   type="submit"
                   className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg shadow-purple-600/30 cursor-pointer"
                 >
-                  Generate Official Agreement
+                  Generate Corporate Sponsorship Agreement
                 </button>
               </div>
             </form>
@@ -1512,22 +1519,22 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                   Center for Technical Excellence & Academic Operations • New Delhi - 110001
                 </p>
                 <div className="text-[10px] font-mono text-slate-500 tracking-wider">
-                  OFFICIAL MEMORANDUM OF UNDERSTANDING • {selectedPreviewMou.mouNumber}
+                  OFFICIAL CORPORATE SPONSORSHIP AGREEMENT • {selectedPreviewMou.mouNumber}
                 </div>
               </div>
 
               {/* Preamble */}
               <div className="space-y-2 text-justify">
                 <p>
-                  This Memorandum of Understanding (hereinafter referred to as <strong>"MoU"</strong>) is entered into as of{' '}
+                  This Corporate Sponsorship Agreement and Memorandum of Understanding (hereinafter referred to as <strong>"Agreement"</strong>) is entered into as of{' '}
                   <strong>{selectedPreviewMou.startDate}</strong>, by and between:
                 </p>
                 <p>
-                  <strong>FIRST PARTY:</strong> <strong>APNA ENGINEERING WALLAH (AEW)</strong>, an academic organization dedicated to advanced engineering curriculum, having its principal operations in New Delhi, represented herein by its authorized PR Representative <strong>{selectedPreviewMou.internName}</strong>.
+                  <strong>FIRST PARTY (ORGANIZING BODY):</strong> <strong>APNA ENGINEERING WALLAH (AEW)</strong>, an academic organization dedicated to advanced engineering curriculum and developer initiatives, having its principal operations in New Delhi, represented herein by its authorized PR Executive <strong>{selectedPreviewMou.internName}</strong>.
                 </p>
                 <p className="text-center font-bold">AND</p>
                 <p>
-                  <strong>SECOND PARTY:</strong> <strong>{selectedPreviewMou.partnerOrganization}</strong>, having its address at {selectedPreviewMou.partnerAddress}, represented herein by <strong>{selectedPreviewMou.partnerSignatory}</strong>, in the capacity of <strong>{selectedPreviewMou.partnerDesignation}</strong>.
+                  <strong>SECOND PARTY (CORPORATE SPONSOR):</strong> <strong>{selectedPreviewMou.partnerOrganization}</strong>, having its registered corporate office at {selectedPreviewMou.partnerAddress}, represented herein by <strong>{selectedPreviewMou.partnerSignatory}</strong>, in the capacity of <strong>{selectedPreviewMou.partnerDesignation}</strong>.
                 </p>
               </div>
 
@@ -1540,10 +1547,10 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
               {/* Financial Clause */}
               {selectedPreviewMou.sponsorshipAmount ? (
                 <div className="space-y-1">
-                  <h4 className="font-bold text-slate-950 uppercase font-sans text-[11px]">2. CONSIDERATION & SPONSORSHIP DISBURSEMENT</h4>
+                  <h4 className="font-bold text-slate-950 uppercase font-sans text-[11px]">2. CORPORATE SPONSORSHIP FUNDS TO AEW</h4>
                   <p>
-                    The First Party agrees to provide a financial consideration of{' '}
-                    <strong>₹{selectedPreviewMou.sponsorshipAmount.toLocaleString('en-IN')}</strong> to the Second Party, disbursed in compliance with milestone deliverables specified herein.
+                    The Second Party (Corporate Sponsor) agrees to provide a total financial sponsorship contribution of{' '}
+                    <strong>₹{selectedPreviewMou.sponsorshipAmount.toLocaleString('en-IN')}</strong> to the First Party (Apna Engineering Wallah), disbursed in support of the event, student participants, curriculum workshops, and brand deliverables specified herein.
                   </p>
                 </div>
               ) : null}

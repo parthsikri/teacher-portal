@@ -67,7 +67,7 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   // 2. BULK UNIT EXPORTER STATE
   // ════════════════════════════════════════════════════════════════════════════
   const [bulkTeacherId, setBulkTeacherId] = useState<string>(
-    initialTeacherId || (teachers[0]?.teacherId || 'AEW-T-101')
+    initialTeacherId || (teachers[0]?.teacherId || '')
   );
   const [bulkUnit, setBulkUnit] = useState<string>(initialUnit);
   const [bulkTheme, setBulkTheme] = useState<ThumbnailTheme>('obsidian_gold');

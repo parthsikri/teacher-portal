@@ -22,6 +22,7 @@ import {
   Mail,
   Send,
   Loader2,
+  Crown,
 } from 'lucide-react';
 import type { User, UserRole, PrTier, AdminRoleTier, AdminPermissionKey } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -183,6 +184,7 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
     const defaultPasswords: Record<UserRole, string> = {
       teacher: 'teach123',
       pr_intern: 'intern123',
+      pr_head: 'head123',
       web_developer: 'dev123',
       web_dev_manager: 'dev123',
       sales: 'sales123',
@@ -193,6 +195,7 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
     // Role-specific defaults if not prefilled
     if (!initialData?.department) {
       if (roleToUse === 'teacher') setDepartment('Engineering');
+      else if (roleToUse === 'pr_head') setDepartment('Public Relations & Strategic Partnerships');
       else if (roleToUse === 'pr_intern') setDepartment('Public Relations & Sponsorship');
       else if (roleToUse === 'web_developer' || roleToUse === 'web_dev_manager') setDepartment('Engineering & Product');
       else if (roleToUse === 'sales') setDepartment('Admissions & Student Growth');
@@ -201,11 +204,18 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
 
     if (!initialData?.subject) {
       if (roleToUse === 'teacher') setSubject('Engineering Mathematics');
-      else if (roleToUse === 'pr_intern') setSubject('College Sponsorship & Fest Outreach');
+      else if (roleToUse === 'pr_head') setSubject('Corporate Brand Partnerships & Sponsorships');
+      else if (roleToUse === 'pr_intern') setSubject('Corporate Sponsor Outreach');
       else if (roleToUse === 'web_developer') setSubject('Frontend & React Core');
       else if (roleToUse === 'web_dev_manager') setSubject('Full Stack & Cloud Architecture');
       else if (roleToUse === 'sales') setSubject('Course Admissions');
       else if (roleToUse === 'admin') setSubject('Management');
+    }
+
+    if (roleToUse === 'pr_head') {
+      setPrTier('Premium');
+      setPrPoints(250);
+      setPrStars(10);
     }
 
     if (roleToUse === 'web_developer') {
@@ -324,9 +334,9 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
       joiningDate: joiningDate || new Date().toISOString().split('T')[0],
       dailyTargetMinutes: selectedRole === 'teacher' ? dailyTargetMinutes : 0,
       maxDailyMinutes: selectedRole === 'teacher' ? maxDailyMinutes : 0,
-      prTier: selectedRole === 'pr_intern' ? prTier : undefined,
-      prPoints: selectedRole === 'pr_intern' ? prPoints : undefined,
-      prStars: selectedRole === 'pr_intern' ? prStars : undefined,
+      prTier: (selectedRole === 'pr_intern' || selectedRole === 'pr_head') ? prTier : undefined,
+      prPoints: (selectedRole === 'pr_intern' || selectedRole === 'pr_head') ? prPoints : undefined,
+      prStars: (selectedRole === 'pr_intern' || selectedRole === 'pr_head') ? prStars : undefined,
       webDevTitle: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager' ? webDevTitle : undefined,
       webDevLevel: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager' ? webDevLevel : undefined,
       webDevXp: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager' ? webDevXp : undefined,
@@ -379,11 +389,18 @@ Portal URL: ${window.location.origin}`;
       desc: 'Lecture recordings, syllabus topics & formula decks',
     },
     {
+      role: 'pr_head',
+      label: 'PR Head',
+      icon: Crown,
+      color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
+      desc: 'Corporate sponsors, brand alliances & PR squad management',
+    },
+    {
       role: 'pr_intern',
-      label: 'PR Intern',
+      label: 'PR Representative',
       icon: Award,
       color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
-      desc: 'College fests, MoUs, campus ambassador network',
+      desc: 'Corporate sponsor lead generation & brand pitch decks',
     },
     {
       role: 'web_developer',
@@ -817,8 +834,8 @@ Portal URL: ${window.location.origin}`;
                   </div>
                 )}
 
-                {/* PR INTERN SPECIFIC */}
-                {selectedRole === 'pr_intern' && (
+                {/* PR INTERN & PR HEAD SPECIFIC */}
+                {(selectedRole === 'pr_intern' || selectedRole === 'pr_head') && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 border-t border-slate-800/80">
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-slate-400">Initial PR Tier</label>
