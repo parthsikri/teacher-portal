@@ -202,6 +202,87 @@ function requireRole(role) {
 }
 
 // ─── 5. SANITIZATION HELPERS ────────────────────────────────────────────────
+const HARDCODED_MOCK_USER_IDS = new Set([
+  'u-t101',
+  'u-t102',
+  'u-t103',
+  'u-test-teacher',
+  'u-pr101',
+  'u-pr102',
+  'u-prhead01',
+  'u-wdm01',
+  'u-dev01',
+  'u-dev02',
+]);
+
+const HARDCODED_MOCK_USERNAMES = new Set([
+  'teacher_101',
+  'teacher_102',
+  'teacher_103',
+  'pr_intern_1',
+  'pr_intern_2',
+  'pr_head_1',
+  'webdev_manager',
+  'developer_aarav',
+  'developer_neha',
+]);
+
+const HARDCODED_MOCK_TEACHER_IDS = new Set([
+  'AEW-PR-01',
+  'AEW-PR-02',
+  'AEW-PRH-01',
+  'AEW-WDM-01',
+  'AEW-DEV-01',
+  'AEW-DEV-02',
+]);
+
+function isHardcodedMockUser(u) {
+  if (!u) return false;
+  const tid = (u.teacherId || '').trim().toUpperCase();
+  const uid = (u.id || '').trim();
+  const uname = (u.username || '').trim().toLowerCase();
+
+  // EXPLICIT WHITELIST: Primary Super Admin, bhumi, and khushi must NEVER be treated as mock or deleted
+  if (
+    tid === 'ADMIN-01' ||
+    tid === 'ADMIN' ||
+    uname === 'admin' ||
+    uname === 'bhumi' ||
+    uname === 'khushi' ||
+    uid === 'u-1787383338021' ||
+    uid === 'u-1787387463369'
+  ) {
+    return false;
+  }
+
+  // Any custom account created through onboarding (timestamp ID u-17...) is a real account
+  if (uid.startsWith('u-17') && uname !== 'teacher_101' && uname !== 'teacher_102' && uname !== 'teacher_103') {
+    return false;
+  }
+
+  // Exact mock user ID from old seeds
+  if (HARDCODED_MOCK_USER_IDS.has(uid)) {
+    return true;
+  }
+
+  // Exact mock username from old seeds
+  if (HARDCODED_MOCK_USERNAMES.has(uname)) {
+    return true;
+  }
+
+  // Exact mock employee ID for non-teachers
+  if (HARDCODED_MOCK_TEACHER_IDS.has(tid)) {
+    return true;
+  }
+
+  // Mock test teacher AEW-T-101 (only if legacy test/seed, preserving any user-created with timestamp ID like u-17...)
+  if (tid === 'AEW-T-101' && (uid === 'u-test-teacher' || uid === 'u-t101' || uname === 'teacher_101' || !uid.startsWith('u-17'))) {
+    return true;
+  }
+
+  return false;
+}
+
 function sanitizeUser(user) {
   if (!user || typeof user !== 'object') return user;
   const clone = { ...user };
@@ -214,7 +295,7 @@ function sanitizePortalState(state, role) {
   if (!state || typeof state !== 'object') return state;
   const clone = { ...state };
   if (Array.isArray(clone.users)) {
-    clone.users = clone.users.map(sanitizeUser);
+    clone.users = clone.users.filter(u => !isHardcodedMockUser(u)).map(sanitizeUser);
   }
   if (role !== 'admin' && clone.emailConfig) {
     clone.emailConfig = {
@@ -237,6 +318,7 @@ module.exports = {
   authenticateRequest,
   requireAuth,
   requireRole,
+  isHardcodedMockUser,
   sanitizeUser,
   sanitizePortalState,
 };

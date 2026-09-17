@@ -15,6 +15,7 @@ const {
   createSessionToken,
   authenticateRequest,
   requireAuth,
+  isHardcodedMockUser,
   sanitizeUser,
   sanitizePortalState,
 } = require('./auth-utils');
@@ -119,15 +120,23 @@ async function getLatestPortalState() {
     if (dbRes.ok) {
       const rows = await dbRes.json();
       if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
-        inMemoryStateCache = rows[0].data;
-        return rows[0].data;
+        const data = rows[0].data;
+        if (Array.isArray(data.users)) {
+          data.users = data.users.filter(u => !isHardcodedMockUser(u));
+        }
+        inMemoryStateCache = data;
+        return data;
       }
     }
   } catch (err) {
     console.warn('[server] Error fetching Supabase portal state:', err?.message);
   }
 
-  return inMemoryStateCache || DEFAULT_STATE;
+  const fallback = inMemoryStateCache || DEFAULT_STATE;
+  if (Array.isArray(fallback.users)) {
+    fallback.users = fallback.users.filter(u => !isHardcodedMockUser(u));
+  }
+  return fallback;
 }
 
 async function persistPortalState(mergedData) {
@@ -202,13 +211,14 @@ app.post('/api/auth', async (req, res) => {
 
     // Strict user lookup by registered username, teacher/employee ID, or email address
     const matchedUser = users.find((u) => {
+      if (isHardcodedMockUser(u)) return false;
       const uTeacherId = (u.teacherId || '').toLowerCase();
       const uUsername = (u.username || '').toLowerCase();
       const uEmail = (u.email || '').toLowerCase();
       return uTeacherId === query || uUsername === query || uEmail === query;
     });
 
-    if (!matchedUser) {
+    if (!matchedUser || isHardcodedMockUser(matchedUser)) {
       return res.status(401).json({ success: false, error: 'Invalid username or password. Please verify your credentials.' });
     }
 
@@ -469,7 +479,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
   const userMap = new Map();
   if (Array.isArray(current.users)) {
     current.users.forEach((u) => {
-      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
+      if (u && u.teacherId && !isHardcodedMockUser(u) && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id?.toUpperCase())) {
         userMap.set(u.teacherId.toUpperCase(), u);
       }
     });
@@ -477,7 +487,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
 
   if (callerRole === 'admin' && Array.isArray(incoming.users)) {
     incoming.users.forEach((u) => {
-      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
+      if (u && u.teacherId && !isHardcodedMockUser(u) && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id?.toUpperCase())) {
         const existing = userMap.get(u.teacherId.toUpperCase());
         const isExistingRealEmail = existing?.email && !String(existing.email).endsWith('@aew.com');
         const isIncomingRealEmail = u?.email && !String(u.email).endsWith('@aew.com');

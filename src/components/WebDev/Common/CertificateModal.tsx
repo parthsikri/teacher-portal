@@ -3,6 +3,7 @@ import { Award, CheckCircle2, Download, ShieldCheck, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import jsPDF from 'jspdf';
 import type { WebDevRewardFulfillment, WebDevReward } from '../../../types';
+import { StorageService } from '../../../services/storage';
 
 interface CertificateModalProps {
   fulfillment: WebDevRewardFulfillment;
@@ -17,6 +18,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
 }) => {
   const [downloading, setDownloading] = useState(false);
   const certRef = useRef<HTMLDivElement>(null);
+  const signatoryName = StorageService.getUsers().find(u => u.role === 'web_dev_manager' && !u.isOffboarded)?.name || 'Head of Web Development';
 
   React.useEffect(() => {
     try {
@@ -116,7 +118,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
       doc.setTextColor(245, 158, 11);
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text('Vikramaditya Sen', 232.5, 162, { align: 'center' });
+      doc.text(signatoryName, 232.5, 162, { align: 'center' });
       doc.setTextColor(148, 163, 184);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
@@ -209,7 +211,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
 
             <div className="text-right">
               <div className="text-slate-500 uppercase tracking-wider font-semibold text-[10px]">Signed by</div>
-              <div className="text-slate-200 font-semibold text-xs">Vikramaditya Sen</div>
+              <div className="text-slate-200 font-semibold text-xs">{signatoryName}</div>
               <div className="text-[10px] text-slate-400">Head of Web Development</div>
             </div>
           </div>

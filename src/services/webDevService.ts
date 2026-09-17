@@ -125,6 +125,16 @@ export const WebDevService = {
     localStorage.setItem(key, JSON.stringify(data));
   },
 
+  getManagerId(): string {
+    try {
+      const users = StorageService.getUsers();
+      const manager = users.find((u) => u.role === 'web_dev_manager' && !u.isOffboarded);
+      return manager?.teacherId || manager?.id || 'ADMIN-01';
+    } catch {
+      return 'ADMIN-01';
+    }
+  },
+
   // ─── PROJECTS ──────────────────────────────────────────────────────────────
   getProjects(): WebDevProject[] {
     return this._load<WebDevProject>(PROJECTS_KEY, SEED_PROJECTS);
@@ -335,7 +345,7 @@ export const WebDevService = {
 
     this.saveTask(task, developer);
     this.createNotification({
-      userId: task.reviewerId || 'AEW-WDM-01',
+      userId: task.reviewerId || this.getManagerId(),
       title: `Task Blocked: ${task.title}`,
       message: `${developer.name} reported a blocker: "${reason}"`,
       type: 'warning',
@@ -461,7 +471,7 @@ export const WebDevService = {
 
     // Notify reviewer / manager
     this.createNotification({
-      userId: task.reviewerId || 'AEW-WDM-01',
+      userId: task.reviewerId || this.getManagerId(),
       title: `Review Requested: ${task.title}`,
       message: `${submission.developerName} submitted work for "${task.title}".`,
       type: 'info',
@@ -714,7 +724,7 @@ export const WebDevService = {
     this._save(BOUNTIES_KEY, list);
 
     this.createNotification({
-      userId: 'AEW-WDM-01',
+      userId: this.getManagerId(),
       title: `Bounty Claimed: ${bounty.title}`,
       message: `${developer.name} claimed bounty for ${bounty.xpReward} XP.`,
       type: 'info',
@@ -734,7 +744,7 @@ export const WebDevService = {
     this._save(BOUNTIES_KEY, list);
 
     this.createNotification({
-      userId: 'AEW-WDM-01',
+      userId: this.getManagerId(),
       title: `Bounty Submitted: ${bounty.title}`,
       message: `${developer.name} submitted solution: ${submissionUrl}`,
       type: 'info',
@@ -1202,7 +1212,7 @@ export const WebDevService = {
     this._save(FULFILLMENTS_KEY, fulfillments);
 
     this.createNotification({
-      userId: 'AEW-WDM-01',
+      userId: this.getManagerId(),
       title: `Reward Requested: ${reward.title}`,
       message: `${user.name} (${totalXp} XP) requested "${reward.title}".`,
       type: 'info',

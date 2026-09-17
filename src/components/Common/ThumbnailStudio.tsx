@@ -49,7 +49,7 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
   const [subtopics, setSubtopics] = useState<string[]>(initialSubtopics);
   const [subtopicInput, setSubtopicInput] = useState('');
   const [teacherName, setTeacherName] = useState(
-    initialTeacherName || (teachers[0]?.name || 'Dr. Ananya Sharma')
+    initialTeacherName || (teachers[0]?.name || 'Faculty Educator')
   );
   const [teacherRole, setTeacherRole] = useState('HOD & Expert Educator • AEW');
   const [targetTag, setTargetTag] = useState('B.Tech 2nd Year • GATE 2026 • Placements');
@@ -551,7 +551,7 @@ export const ThumbnailStudio: React.FC<ThumbnailStudioProps> = ({
                       type="text"
                       value={teacherName}
                       onChange={(e) => setTeacherName(e.target.value)}
-                      placeholder="e.g. Dr. Ananya Sharma"
+                      placeholder="e.g. Dr. Harish Mehta"
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                     />
                   </div>

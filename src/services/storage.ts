@@ -127,6 +127,87 @@ export const SEED_SUBJECT_REFERENCES: SubjectReference[] = [];
 
 export const SEED_ASSIGNED_TOPICS: AssignedTopic[] = [];
 
+export const HARDCODED_MOCK_USER_IDS = new Set([
+  'u-t101',
+  'u-t102',
+  'u-t103',
+  'u-test-teacher',
+  'u-pr101',
+  'u-pr102',
+  'u-prhead01',
+  'u-wdm01',
+  'u-dev01',
+  'u-dev02',
+]);
+
+export const HARDCODED_MOCK_USERNAMES = new Set([
+  'teacher_101',
+  'teacher_102',
+  'teacher_103',
+  'pr_intern_1',
+  'pr_intern_2',
+  'pr_head_1',
+  'webdev_manager',
+  'developer_aarav',
+  'developer_neha',
+]);
+
+export const HARDCODED_MOCK_TEACHER_IDS = new Set([
+  'AEW-PR-01',
+  'AEW-PR-02',
+  'AEW-PRH-01',
+  'AEW-WDM-01',
+  'AEW-DEV-01',
+  'AEW-DEV-02',
+]);
+
+export function isHardcodedMockUser(u: { teacherId?: string; id?: string; username?: string } | null | undefined): boolean {
+  if (!u) return false;
+  const tid = (u.teacherId || '').trim().toUpperCase();
+  const uid = (u.id || '').trim();
+  const uname = (u.username || '').trim().toLowerCase();
+
+  // EXPLICIT WHITELIST: Primary Super Admin, bhumi, and khushi must NEVER be treated as mock or deleted
+  if (
+    tid === 'ADMIN-01' ||
+    tid === 'ADMIN' ||
+    uname === 'admin' ||
+    uname === 'bhumi' ||
+    uname === 'khushi' ||
+    uid === 'u-1787383338021' ||
+    uid === 'u-1787387463369'
+  ) {
+    return false;
+  }
+
+  // Any custom account created through onboarding (timestamp ID u-17...) is a real account
+  if (uid.startsWith('u-17') && uname !== 'teacher_101' && uname !== 'teacher_102' && uname !== 'teacher_103') {
+    return false;
+  }
+
+  // Exact mock user ID from old seeds
+  if (HARDCODED_MOCK_USER_IDS.has(uid)) {
+    return true;
+  }
+
+  // Exact mock username from old seeds
+  if (HARDCODED_MOCK_USERNAMES.has(uname)) {
+    return true;
+  }
+
+  // Exact mock employee ID for non-teachers
+  if (HARDCODED_MOCK_TEACHER_IDS.has(tid)) {
+    return true;
+  }
+
+  // Mock test teacher AEW-T-101 (only if legacy test/seed, preserving any user-created with timestamp ID like u-17...)
+  if (tid === 'AEW-T-101' && (uid === 'u-test-teacher' || uid === 'u-t101' || uname === 'teacher_101' || !uid.startsWith('u-17'))) {
+    return true;
+  }
+
+  return false;
+}
+
 // Initial Registered Administrator (Credentials verified server-side only; passwords never stored in frontend bundle)
 const INITIAL_USERS: User[] = [
   {
@@ -161,9 +242,9 @@ export const StorageService = {
     const userMap = new Map<string, User>();
     const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
 
-    // 1. Seed with initial admin & mock staff (excluding any deleted IDs)
+    // 1. Seed with initial admin (excluding any deleted IDs or mock accounts)
     INITIAL_USERS.forEach((u) => {
-      if (!deletedIds.has(u.teacherId.toUpperCase())) {
+      if (!deletedIds.has(u.teacherId.toUpperCase()) && !isHardcodedMockUser(u)) {
         userMap.set(u.teacherId.toUpperCase(), { ...u });
       }
     });
@@ -177,7 +258,9 @@ export const StorageService = {
           parsed.forEach((u: User) => {
             if (u && u.teacherId) {
               const cleanId = u.teacherId.trim().toUpperCase();
-              if (deletedIds.has(cleanId)) return;
+              if (deletedIds.has(cleanId) || (u.id && deletedIds.has(u.id.toUpperCase())) || isHardcodedMockUser(u)) {
+                return;
+              }
               const existing: Partial<User> = userMap.get(cleanId) || {};
               userMap.set(cleanId, {
                 ...existing,
@@ -199,7 +282,7 @@ export const StorageService = {
                 dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
                 hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
                 dailyLimit: u.dailyLimit !== undefined ? u.dailyLimit : (existing.dailyLimit || 0),
-                joiningDate: u.joiningDate || existing.joiningDate || (cleanId.startsWith('ADMIN') || cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-PRH') || cleanId.startsWith('AEW-WDM') || cleanId.startsWith('AEW-DEV') ? undefined : '2026-08-25'),
+                joiningDate: u.joiningDate || existing.joiningDate || undefined,
                 firstLoginDate: u.firstLoginDate || existing.firstLoginDate,
                 createdAt: u.createdAt || existing.createdAt || new Date().toISOString(),
                 prTier: u.prTier || existing.prTier || (cleanId.startsWith('AEW-PRH') ? 'Premium' : cleanId.startsWith('AEW-PR') ? 'Silver' : undefined),
@@ -228,13 +311,14 @@ export const StorageService = {
       }
     }
 
-    const allUsers = Array.from(userMap.values());
+    const allUsers = Array.from(userMap.values()).filter((u) => !isHardcodedMockUser(u));
     localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
     return allUsers;
   },
 
   saveUsers(users: User[]): void {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    const cleaned = users.filter((u) => !isHardcodedMockUser(u));
+    localStorage.setItem(USERS_KEY, JSON.stringify(cleaned));
     triggerBackgroundCloudSync();
   },
 
@@ -405,15 +489,16 @@ export const StorageService = {
       prCustomCommissionRate: employee.prCustomCommissionRate,
       // Web Dev specific
       webDevTitle: employee.webDevTitle || (
-        employee.role === 'web_dev_manager' ? 'Lead Software Architect & Manager' :
-        employee.role === 'web_developer' ? 'Full Stack Developer' : undefined
+        employee.role === 'web_dev_manager' ? 'Engineering Manager' :
+        employee.role === 'web_developer' ? 'Web Developer' : undefined
       ),
-      webDevLevel: employee.webDevLevel || (employee.role === 'web_dev_manager' ? 5 : employee.role === 'web_developer' ? 2 : undefined),
-      webDevXp: employee.webDevXp || (employee.role === 'web_dev_manager' ? 5000 : employee.role === 'web_developer' ? 500 : undefined),
-      skills: employee.skills || (
-        employee.role === 'web_developer' ? ['React', 'TypeScript', 'TailwindCSS'] :
-        employee.role === 'web_dev_manager' ? ['React', 'Node.js', 'PostgreSQL', 'Architecture'] : undefined
+      webDevLevel: employee.webDevLevel !== undefined ? employee.webDevLevel : (
+        employee.role === 'web_dev_manager' || employee.role === 'web_developer' ? 1 : undefined
       ),
+      webDevXp: employee.webDevXp !== undefined ? employee.webDevXp : (
+        employee.role === 'web_dev_manager' || employee.role === 'web_developer' ? 0 : undefined
+      ),
+      skills: employee.skills || [],
       githubUsername: employee.githubUsername || undefined,
       avatarUrl: employee.avatarUrl || undefined,
       mustChangePassword: employee.mustChangePassword !== undefined ? employee.mustChangePassword : true,
@@ -622,13 +707,44 @@ export const StorageService = {
 
   getDeletedIds(): string[] {
     const data = localStorage.getItem(DELETED_IDS_KEY);
-    if (!data) return [];
-    try {
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
+    let list: string[] = [];
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch {
+        list = [];
+      }
     }
+    const MOCK_TOMBSTONES = [
+      'AEW-PR-01',
+      'AEW-PR-02',
+      'AEW-PRH-01',
+      'AEW-WDM-01',
+      'AEW-DEV-01',
+      'AEW-DEV-02',
+      'u-pr101',
+      'u-pr102',
+      'u-prhead01',
+      'u-wdm01',
+      'u-dev01',
+      'u-dev02',
+      'u-test-teacher',
+      'u-t101',
+    ];
+    // Protected accounts that must NEVER be in deletedIds
+    const PROTECTED_IDS = new Set([
+      'ADMIN-01',
+      'ADMIN',
+      'U-ADMIN',
+      'AEW-T-102',
+      'AEW-T-103',
+      'U-1787383338021',
+      'U-1787387463369',
+      'BHUMI',
+      'KHUSHI',
+    ]);
+    return Array.from(new Set([...MOCK_TOMBSTONES, ...list])).filter((id) => !PROTECTED_IDS.has(id.toUpperCase()));
   },
 
   addDeletedId(id: string): void {
@@ -1324,7 +1440,16 @@ export const StorageService = {
         this.syncToCloud().catch(() => {});
       }
 
-      return this.sortAssignedTopics(topics);
+      const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
+      const filtered = topics.filter((t) => {
+        if (!t) return false;
+        if (t.id === 'at-seed-101-2') return false;
+        if (deletedIds.has(t.id?.toUpperCase())) return false;
+        if (t.teacherId && deletedIds.has(t.teacherId.trim().toUpperCase())) return false;
+        return true;
+      });
+
+      return this.sortAssignedTopics(filtered);
     } catch {
       return [];
     }
@@ -3990,12 +4115,12 @@ export const StorageService = {
       const existingUsers = this.getUsers();
       const userMap = new Map<string, User>();
       existingUsers.forEach((u) => {
-        if (!deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
+        if (!deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase()) && !isHardcodedMockUser(u)) {
           userMap.set(u.teacherId.toUpperCase(), u);
         }
       });
       state.users.forEach((u: User) => {
-        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
+        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && (!u.id || !deletedIds.has(u.id.toUpperCase())) && !isHardcodedMockUser(u)) {
           const existing = userMap.get(u.teacherId.toUpperCase());
           const isExistingReal = Boolean(existing?.email && !String(existing.email).endsWith('@aew.com'));
           const isCloudReal = Boolean(u?.email && !String(u.email).endsWith('@aew.com'));
@@ -4008,7 +4133,8 @@ export const StorageService = {
           });
         }
       });
-      localStorage.setItem(USERS_KEY, JSON.stringify(Array.from(userMap.values())));
+      const cleanUsers = Array.from(userMap.values()).filter((u) => !isHardcodedMockUser(u));
+      localStorage.setItem(USERS_KEY, JSON.stringify(cleanUsers));
     }
 
     if (Array.isArray(state.assignedTopics)) {

@@ -5,6 +5,7 @@ import {
   checkRateLimit,
   getClientIp,
   hashPassword,
+  isHardcodedMockUser,
   sanitizePortalState,
   SUPABASE_URL,
   SUPABASE_KEY,
@@ -27,7 +28,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
   const userMap = new Map<string, any>();
   if (Array.isArray(current.users)) {
     current.users.forEach((u: any) => {
-      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
+      if (u && u.teacherId && !isHardcodedMockUser(u) && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id?.toUpperCase())) {
         userMap.set(u.teacherId.toUpperCase(), u);
       }
     });
@@ -35,7 +36,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
 
   if (callerRole === 'admin' && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
-      if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase())) {
+      if (u && u.teacherId && !isHardcodedMockUser(u) && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id?.toUpperCase())) {
         const existing = userMap.get(u.teacherId.toUpperCase());
         const isExistingRealEmail = existing?.email && !String(existing.email).endsWith('@aew.com');
         const isIncomingRealEmail = u?.email && !String(u.email).endsWith('@aew.com');
