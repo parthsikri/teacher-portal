@@ -311,7 +311,33 @@ export const StorageService = {
       }
     }
 
-    const allUsers = Array.from(userMap.values()).filter((u) => !isHardcodedMockUser(u));
+    const allUsers = Array.from(userMap.values())
+      .filter((u) => !isHardcodedMockUser(u))
+      .map((u) => {
+        if (u.role === 'web_dev_manager' || u.role === 'web_developer') {
+          const isLegacyMockSkills = Array.isArray(u.skills) && 
+            u.skills.length === 4 && 
+            u.skills.includes('React') && 
+            u.skills.includes('Node.js') && 
+            u.skills.includes('PostgreSQL') && 
+            u.skills.includes('Architecture');
+          
+          const isLegacyMockXp = (u.role === 'web_dev_manager' && u.webDevXp === 5000 && u.webDevLevel === 5) ||
+                                (u.role === 'web_developer' && u.webDevXp === 500 && u.webDevLevel === 2);
+          
+          if (isLegacyMockXp) {
+            u.webDevXp = 0;
+            u.webDevLevel = 1;
+          }
+          if (isLegacyMockSkills) {
+            u.skills = [];
+          }
+          if (u.role === 'web_dev_manager' && (!u.webDevTitle || u.webDevTitle === 'Engineering Manager' || u.webDevTitle === 'Lead Software Architect & Manager')) {
+            u.webDevTitle = 'Dev Architect';
+          }
+        }
+        return u;
+      });
     localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
     return allUsers;
   },
@@ -452,8 +478,8 @@ export const StorageService = {
         employee.role === 'admin' ? 'Management' :
         employee.role === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' :
         employee.role === 'pr_intern' ? 'Corporate Sponsor Outreach' :
-        employee.role === 'web_developer' ? 'Frontend & React Core' :
-        employee.role === 'web_dev_manager' ? 'Full Stack & Cloud Architecture' :
+        employee.role === 'web_developer' ? 'Web Development' :
+        employee.role === 'web_dev_manager' ? 'Software Architecture' :
         employee.role === 'sales' ? 'Course Admissions' :
         'Engineering'
       ),
@@ -489,7 +515,7 @@ export const StorageService = {
       prCustomCommissionRate: employee.prCustomCommissionRate,
       // Web Dev specific
       webDevTitle: employee.webDevTitle || (
-        employee.role === 'web_dev_manager' ? 'Engineering Manager' :
+        employee.role === 'web_dev_manager' ? 'Dev Architect' :
         employee.role === 'web_developer' ? 'Web Developer' : undefined
       ),
       webDevLevel: employee.webDevLevel !== undefined ? employee.webDevLevel : (

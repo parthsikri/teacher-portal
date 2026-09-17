@@ -206,8 +206,8 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
       if (roleToUse === 'teacher') setSubject('Engineering Mathematics');
       else if (roleToUse === 'pr_head') setSubject('Corporate Brand Partnerships & Sponsorships');
       else if (roleToUse === 'pr_intern') setSubject('Corporate Sponsor Outreach');
-      else if (roleToUse === 'web_developer') setSubject('Frontend & React Core');
-      else if (roleToUse === 'web_dev_manager') setSubject('Full Stack & Cloud Architecture');
+      else if (roleToUse === 'web_developer') setSubject('Web Development');
+      else if (roleToUse === 'web_dev_manager') setSubject('Software Architecture');
       else if (roleToUse === 'sales') setSubject('Course Admissions');
       else if (roleToUse === 'admin') setSubject('Management');
     }
@@ -219,15 +219,15 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
     }
 
     if (roleToUse === 'web_developer') {
-      setWebDevTitle('Frontend React Developer');
-      setWebDevLevel(2);
-      setWebDevXp(500);
-      setSkills('React, TypeScript, TailwindCSS');
+      setWebDevTitle(initialData?.webDevTitle || 'Web Developer');
+      setWebDevLevel(initialData?.webDevLevel ?? 1);
+      setWebDevXp(initialData?.webDevXp ?? 0);
+      setSkills(initialData?.skills ? (Array.isArray(initialData.skills) ? initialData.skills.join(', ') : initialData.skills) : '');
     } else if (roleToUse === 'web_dev_manager') {
-      setWebDevTitle('Lead Software Architect & Manager');
-      setWebDevLevel(5);
-      setWebDevXp(5000);
-      setSkills('React, Node.js, PostgreSQL, Architecture');
+      setWebDevTitle(initialData?.webDevTitle || 'Dev Architect');
+      setWebDevLevel(initialData?.webDevLevel ?? 1);
+      setWebDevXp(initialData?.webDevXp ?? 0);
+      setSkills(initialData?.skills ? (Array.isArray(initialData.skills) ? initialData.skills.join(', ') : initialData.skills) : '');
     }
 
     if (roleToUse === 'admin') {

@@ -186,7 +186,9 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
             <div className="text-xl sm:text-2xl font-black text-white mt-0.5">
               {developers.filter((d) => d.role === 'web_developer').length}
             </div>
-            <div className="text-[10px] text-slate-500">+1 Lead Architect</div>
+            <div className="text-[10px] text-slate-500">
+              +{developers.filter((d) => d.role === 'web_dev_manager').length} Dev Architect{developers.filter((d) => d.role === 'web_dev_manager').length !== 1 ? 's' : ''}
+            </div>
           </div>
 
           <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl">

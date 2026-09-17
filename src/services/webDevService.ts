@@ -101,11 +101,136 @@ export function calculateLevelFromXp(xp: number): { level: number; title: string
   }
 }
 
+// ─── LEGACY MOCK DATA PURGE HELPER ──────────────────────────────────────────
+export function purgeLegacyWebDevMockData(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    // 1. Purge mock tasks
+    const tasksRaw = localStorage.getItem(TASKS_KEY);
+    if (tasksRaw) {
+      const parsed = JSON.parse(tasksRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((t: any) => {
+          if (!t) return false;
+          const id = String(t.id || '').toUpperCase();
+          const title = String(t.title || '').toLowerCase();
+          const assigneeId = String(t.assigneeId || '').toUpperCase();
+          const assigneeName = String(t.assigneeName || '').toLowerCase();
+          const reviewerName = String(t.reviewerName || '').toLowerCase();
+          const reviewerId = String(t.reviewerId || '').toUpperCase();
+          if (id === 'DEV-TASK-101' || id === 'DEV-TASK-102' || id === 'DEV-TASK-103' || id === 'DEV-TASK-104') return false;
+          if (assigneeId === 'AEW-DEV-01' || assigneeId === 'AEW-DEV-02' || reviewerId === 'AEW-WDM-01') return false;
+          if (assigneeName.includes('aarav') || assigneeName.includes('neha')) return false;
+          if (reviewerName.includes('vikramaditya')) return false;
+          if (title.includes('real-time lecture chat') || title.includes('database indexing') || title.includes('refactor global state')) return false;
+          return true;
+        });
+        localStorage.setItem(TASKS_KEY, JSON.stringify(cleaned));
+      }
+    }
+
+    // 2. Purge mock projects
+    const projRaw = localStorage.getItem(PROJECTS_KEY);
+    if (projRaw) {
+      const parsed = JSON.parse(projRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((p: any) => {
+          if (!p) return false;
+          const id = String(p.id || '').toUpperCase();
+          const title = String(p.title || '').toLowerCase();
+          const mgr = String(p.managerName || '').toLowerCase();
+          if (id === 'PROJ-01' || id === 'PROJ-02' || id === 'PROJ-03' || id === 'PROJ-1' || id === 'PROJ-2') return false;
+          if (title.includes('apna engg wallah 2.0') || title.includes('video processing pipeline') || title.includes('live streaming engine')) return false;
+          if (mgr.includes('vikramaditya')) return false;
+          return true;
+        });
+        localStorage.setItem(PROJECTS_KEY, JSON.stringify(cleaned));
+      }
+    }
+
+    // 3. Purge mock bounties
+    const bntRaw = localStorage.getItem(BOUNTIES_KEY);
+    if (bntRaw) {
+      const parsed = JSON.parse(bntRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((b: any) => {
+          if (!b) return false;
+          const id = String(b.id || '').toUpperCase();
+          const title = String(b.title || '').toLowerCase();
+          if (id === 'BOUNTY-01' || id === 'BOUNTY-02' || id === 'BOUNTY-03' || id === 'BOUNTY-1' || id === 'BOUNTY-2') return false;
+          if (title.includes('optimize mobile viewport') || title.includes('fix memory leak') || title.includes('accessibility audit')) return false;
+          return true;
+        });
+        localStorage.setItem(BOUNTIES_KEY, JSON.stringify(cleaned));
+      }
+    }
+
+    // 4. Purge mock XP Ledger
+    const xpRaw = localStorage.getItem(XP_LEDGER_KEY);
+    if (xpRaw) {
+      const parsed = JSON.parse(xpRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((tx: any) => {
+          if (!tx) return false;
+          const uid = String(tx.userId || '').toUpperCase();
+          const uname = String(tx.userName || '').toLowerCase();
+          const aname = String(tx.awardedByName || '').toLowerCase();
+          if (uid === 'AEW-DEV-01' || uid === 'AEW-DEV-02' || uid === 'DEVELOPER_AARAV' || uid === 'DEVELOPER_NEHA') return false;
+          if (uname.includes('aarav') || uname.includes('neha')) return false;
+          if (aname.includes('vikramaditya')) return false;
+          return true;
+        });
+        localStorage.setItem(XP_LEDGER_KEY, JSON.stringify(cleaned));
+      }
+    }
+
+    // 5. Purge mock Audit Logs
+    const auditRaw = localStorage.getItem(AUDIT_LOGS_KEY);
+    if (auditRaw) {
+      const parsed = JSON.parse(auditRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((l: any) => {
+          if (!l) return false;
+          const user = String(l.performedByUserName || '').toLowerCase();
+          const uid = String(l.performedByUserId || '').toUpperCase();
+          const details = String(l.details || '').toLowerCase();
+          if (user.includes('vikramaditya') || uid === 'AEW-WDM-01') return false;
+          if (details.includes('database indexing') || details.includes('refactor global state') || details.includes('aarav') || details.includes('wd-2026-99431')) return false;
+          return true;
+        });
+        localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify(cleaned));
+      }
+    }
+
+    // 6. Purge mock Fulfillments
+    const fulRaw = localStorage.getItem(FULFILLMENTS_KEY);
+    if (fulRaw) {
+      const parsed = JSON.parse(fulRaw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((f: any) => {
+          if (!f) return false;
+          const uid = String(f.userId || '').toUpperCase();
+          const uname = String(f.userName || '').toLowerCase();
+          if (uid === 'AEW-DEV-01' || uname.includes('aarav') || f.verificationCode === 'WD-2026-99431') return false;
+          return true;
+        });
+        localStorage.setItem(FULFILLMENTS_KEY, JSON.stringify(cleaned));
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Automatically trigger purge when module is evaluated in the browser
+purgeLegacyWebDevMockData();
+
 // ─── SERVICE IMPLEMENTATION ───────────────────────────────────────────────────
 export const WebDevService = {
   // ─── STORAGE HELPERS ───────────────────────────────────────────────────────
   _load<T>(key: string, seed: T[]): T[] {
     if (typeof window === 'undefined') return seed;
+    purgeLegacyWebDevMockData();
     const raw = localStorage.getItem(key);
     if (!raw) {
       localStorage.setItem(key, JSON.stringify(seed));
@@ -1452,16 +1577,16 @@ export const WebDevService = {
       name: devData.name.trim(),
       email: devData.email.trim(),
       username: cleanUsername,
-      password: devData.password || 'code123',
+      password: devData.password || 'dev123',
       role: devData.role || 'web_developer',
-      department: 'Web Development',
-      subject: devData.webDevTitle?.trim() || 'Frontend Web Development',
+      department: 'Engineering & Product',
+      subject: devData.webDevTitle?.trim() || (devData.role === 'web_dev_manager' ? 'Software Architecture' : 'Web Development'),
       dailyTargetMinutes: 0,
       dailyLimit: 0,
-      webDevTitle: devData.webDevTitle?.trim() || 'Frontend Developer',
+      webDevTitle: devData.webDevTitle?.trim() || (devData.role === 'web_dev_manager' ? 'Dev Architect' : 'Web Developer'),
       webDevXp: 0,
       webDevLevel: 1,
-      skills: devData.skills && devData.skills.length > 0 ? devData.skills : ['React', 'TypeScript', 'Frontend'],
+      skills: devData.skills && devData.skills.length > 0 ? devData.skills : [],
       createdAt: new Date().toISOString(),
     };
 

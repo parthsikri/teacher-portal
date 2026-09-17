@@ -113,23 +113,19 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newTaskXp, setNewTaskXp] = useState<number>(200);
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDue, setNewTaskDue] = useState('');
-  const [newTaskTags, setNewTaskTags] = useState('Frontend, React');
+  const [newTaskTags, setNewTaskTags] = useState('');
 
   // Manual Subtasks for Task Creation Modal
-  const [newTaskSubtasks, setNewTaskSubtasks] = useState<string[]>([
-    'Initial technical research & setup',
-    'Core code implementation & unit tests',
-    'Verify PR diff & demo link',
-  ]);
+  const [newTaskSubtasks, setNewTaskSubtasks] = useState<string[]>([]);
   const [newSubtaskInput, setNewSubtaskInput] = useState('');
 
   // Create Bounty Modal State
   const [showCreateBountyModal, setShowCreateBountyModal] = useState(false);
   const [newBountyTitle, setNewBountyTitle] = useState('');
   const [newBountyDesc, setNewBountyDesc] = useState('');
-  const [newBountyXp, setNewBountyXp] = useState(250);
+  const [newBountyXp, setNewBountyXp] = useState(200);
   const [newBountyDiff, setNewBountyDiff] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [newBountyCat, setNewBountyCat] = useState<'feature' | 'bugfix' | 'optimization' | 'security' | 'testing'>('optimization');
+  const [newBountyCat, setNewBountyCat] = useState<'feature' | 'bugfix' | 'optimization' | 'security' | 'testing'>('feature');
 
   // Create Project Modal State with Milestones
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
@@ -137,17 +133,14 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newProjTitle, setNewProjTitle] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
   const [newProjRepo, setNewProjRepo] = useState('');
-  const [newProjTech, setNewProjTech] = useState('Next.js, TypeScript, PostgreSQL');
+  const [newProjTech, setNewProjTech] = useState('');
   const [newProjLead, setNewProjLead] = useState('');
-  const [newProjTarget, setNewProjTarget] = useState('2026-11-15');
+  const [newProjTarget, setNewProjTarget] = useState('');
 
   // Milestones for Project Creation Modal
   const [newProjMilestones, setNewProjMilestones] = useState<
     Array<{ id: string; title: string; deadline: string; description?: string }>
-  >([
-    { id: 'm-1', title: 'Architecture & Schema Review', deadline: '2026-10-15', description: 'DB schemas & API contracts finalized' },
-    { id: 'm-2', title: 'Core MVP Feature Release', deadline: '2026-11-01', description: 'Functional release on staging' },
-  ]);
+  >([]);
   const [newMilestoneTitle, setNewMilestoneTitle] = useState('');
   const [newMilestoneDeadline, setNewMilestoneDeadline] = useState('');
   const [newMilestoneDesc, setNewMilestoneDesc] = useState('');
@@ -157,9 +150,9 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newDevName, setNewDevName] = useState('');
   const [newDevEmail, setNewDevEmail] = useState('');
   const [newDevUsername, setNewDevUsername] = useState('');
-  const [newDevPassword, setNewDevPassword] = useState('code123');
-  const [newDevTitle, setNewDevTitle] = useState('Frontend Developer');
-  const [newDevSkills, setNewDevSkills] = useState('React, TypeScript, CSS');
+  const [newDevPassword, setNewDevPassword] = useState('dev123');
+  const [newDevTitle, setNewDevTitle] = useState('Web Developer');
+  const [newDevSkills, setNewDevSkills] = useState('');
 
   // Leaderboard State
   const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'monthly' | 'all_time'>('all_time');
@@ -310,11 +303,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     setNewTaskTitle('');
     setNewTaskDesc('');
     setNewTaskId('');
-    setNewTaskSubtasks([
-      'Initial technical research & setup',
-      'Core code implementation & unit tests',
-      'Verify PR diff & demo link',
-    ]);
+    setNewTaskSubtasks([]);
     setNewSubtaskInput('');
     loadData();
   };
@@ -395,10 +384,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     setNewProjKey('');
     setNewProjTitle('');
     setNewProjDesc('');
-    setNewProjMilestones([
-      { id: 'm-1', title: 'Architecture & Schema Review', deadline: '2026-10-15', description: 'DB schemas & API contracts finalized' },
-      { id: 'm-2', title: 'Core MVP Feature Release', deadline: '2026-11-01', description: 'Functional release on staging' },
-    ]);
+    setNewProjMilestones([]);
     setNewMilestoneTitle('');
     setNewMilestoneDeadline('');
     setNewMilestoneDesc('');
@@ -441,9 +427,9 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
       setNewDevName('');
       setNewDevEmail('');
       setNewDevUsername('');
-      setNewDevPassword('code123');
-      setNewDevTitle('Frontend Developer');
-      setNewDevSkills('React, TypeScript, CSS');
+      setNewDevPassword('dev123');
+      setNewDevTitle('Web Developer');
+      setNewDevSkills('');
       loadData();
     } catch (err: any) {
       alert(err.message || 'Failed to add developer.');
