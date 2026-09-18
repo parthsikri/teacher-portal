@@ -10,15 +10,10 @@ import {
   Plus,
   Clock,
   CheckCircle2,
-  XCircle,
-  Calendar,
-  Sparkles,
   Crown,
   X,
   Check,
   Timer,
-  UserCheck,
-  ShieldAlert,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type {

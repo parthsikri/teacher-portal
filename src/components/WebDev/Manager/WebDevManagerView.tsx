@@ -29,8 +29,6 @@ import {
   UserMinus,
   Calendar,
   Crown,
-  Clock,
-  Timer,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type {
