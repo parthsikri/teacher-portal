@@ -526,7 +526,8 @@ export type WebDevTaskStatus =
   | 'changes_requested'
   | 'completed'
   | 'blocked'
-  | 'approved';
+  | 'approved'
+  | 'not_done';
 
 export type WebDevDeadlineCategory = 'on_track' | 'due_soon' | 'at_risk' | 'overdue';
 
@@ -585,6 +586,7 @@ export interface WebDevTask {
   milestoneTitle?: string;
   assigneeId?: string;
   assigneeName?: string;
+  assigneeRole?: UserRole;
   assignedDeveloperId?: string;
   assignedDeveloperName?: string;
   assignedDeveloperAvatar?: string;
@@ -592,6 +594,9 @@ export interface WebDevTask {
   reviewerName?: string;
   createdByManagerId?: string;
   createdByManagerName?: string;
+  assignedByRole?: UserRole;
+  assignedByName?: string;
+  assignedById?: string;
   type?: WebDevTaskType | string;
   taskType?: WebDevTaskType | string;
   priority: WebDevTaskPriority;
@@ -614,6 +619,12 @@ export interface WebDevTask {
   dueDate?: string;
   deadline?: string;
   completedAt?: string;
+  completionStatus?: 'on_time' | 'late' | 'not_done' | 'pending';
+  timeMarkedBy?: string;
+  timeMarkedByName?: string;
+  timeMarkedAt?: string;
+  timeMarkedNote?: string;
+  actualXpAwarded?: number;
   submission?: WebDevSubmission;
   currentSubmission?: WebDevSubmission;
   comments?: WebDevComment[];

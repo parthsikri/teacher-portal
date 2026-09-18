@@ -932,6 +932,103 @@ export const WebDevService = {
     return task;
   },
 
+  // Mark Task with Time-Based Completion (Done On-Time, Done Late, or Not Done)
+  markTaskTimeBasedStatus(
+    taskId: string,
+    params: {
+      status: 'on_time' | 'late' | 'not_done';
+      xpAwarded: number;
+      notes?: string;
+      evaluator: { id: string; name: string; role: string };
+    }
+  ): WebDevTask | null {
+    const task = this.getTaskById(taskId);
+    if (!task) return null;
+
+    const now = new Date().toISOString();
+    const cleanXp = Math.max(0, Number(params.xpAwarded) || 0);
+
+    task.completionStatus = params.status;
+    task.timeMarkedBy = params.evaluator.id;
+    task.timeMarkedByName = params.evaluator.name;
+    task.timeMarkedAt = now;
+    task.timeMarkedNote = params.notes?.trim() || undefined;
+    task.actualXpAwarded = params.status === 'not_done' ? 0 : cleanXp;
+    task.updatedAt = now;
+
+    if (params.status === 'on_time') {
+      task.status = 'completed';
+      task.completedAt = now;
+    } else if (params.status === 'late') {
+      task.status = 'completed';
+      task.completedAt = now;
+    } else {
+      task.status = 'not_done';
+    }
+
+    if (task.submission) {
+      task.submission.status = params.status === 'not_done' ? 'rejected' : 'approved';
+      task.submission.reviewedBy = params.evaluator.id;
+      task.submission.reviewedAt = now;
+      task.submission.managerFeedback = params.notes;
+    }
+
+    const statusLabel = 
+      params.status === 'on_time' ? '✅ Completed On-Time' :
+      params.status === 'late' ? '⏰ Completed Late / Overdue' :
+      '❌ Marked Not Done (Missed Deadline)';
+
+    const comm: WebDevComment = {
+      id: `comm-time-${Date.now()}`,
+      taskId,
+      authorId: params.evaluator.id,
+      authorName: params.evaluator.name,
+      authorRole: params.evaluator.role as any,
+      content: `⏱️ Time-Based Evaluation: ${statusLabel}\nXP Awarded: +${task.actualXpAwarded} XP${params.notes ? `\nNotes: ${params.notes}` : ''}`,
+      createdAt: now,
+    };
+    task.comments = [...(task.comments || []), comm];
+
+    this.saveTask(task, { id: params.evaluator.id, name: params.evaluator.name });
+
+    // Award XP to assignee if positive
+    if (task.assigneeId && task.actualXpAwarded > 0) {
+      this.awardXP({
+        userId: task.assigneeId,
+        userName: task.assigneeName || task.assigneeId,
+        amount: task.actualXpAwarded,
+        type: params.status === 'on_time' ? 'task_approved' : 'admin_adjustment',
+        sourceId: task.id,
+        description: `Time-Based Evaluation (${params.status === 'on_time' ? 'On-Time' : 'Late'}): ${task.title}`,
+        awardedById: params.evaluator.id,
+        awardedByName: params.evaluator.name,
+      });
+
+      this.checkAndUnlockAchievements(task.assigneeId);
+    }
+
+    if (task.assigneeId) {
+      this.createNotification({
+        userId: task.assigneeId,
+        title: `Task Time Evaluation: ${statusLabel}`,
+        message: `Task "${task.title}" was evaluated as ${statusLabel} by ${params.evaluator.name}. Awarded: +${task.actualXpAwarded} XP.`,
+        type: params.status === 'not_done' ? 'error' : (params.status === 'on_time' ? 'success' : 'warning'),
+        link: `/tasks/${task.id}`,
+      });
+    }
+
+    this.logAudit({
+      action: params.status === 'on_time' ? 'TASK_TIME_EVALUATED_ON_TIME' : (params.status === 'late' ? 'TASK_TIME_EVALUATED_LATE' : 'TASK_TIME_EVALUATED_MISSED'),
+      entityType: 'task',
+      entityId: task.id,
+      performedByUserId: params.evaluator.id,
+      performedByUserName: params.evaluator.name,
+      details: `${statusLabel} for "${task.title}" (${task.assigneeName || 'developer'}). Awarded: +${task.actualXpAwarded} XP`,
+    });
+
+    return task;
+  },
+
   // ─── BOUNTIES ──────────────────────────────────────────────────────────────
   getBounties(): WebDevBounty[] {
     return this._load<WebDevBounty>(BOUNTIES_KEY, SEED_BOUNTIES).filter((b) => !isMockBounty(b));
@@ -1067,7 +1164,7 @@ export const WebDevService = {
     userId: string;
     userName: string;
     amount: number;
-    type: 'task_approved' | 'bounty_approved' | 'achievement_unlocked' | 'manager_bonus' | 'kudos_received' | 'challenge_completed';
+    type: 'task_approved' | 'bounty_approved' | 'achievement_unlocked' | 'manager_bonus' | 'kudos_received' | 'challenge_completed' | 'admin_adjustment' | string;
     sourceId?: string;
     description: string;
     awardedById?: string;

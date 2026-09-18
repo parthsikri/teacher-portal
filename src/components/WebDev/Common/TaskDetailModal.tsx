@@ -17,6 +17,9 @@ import {
   ThumbsUp,
   RotateCcw,
   Sparkles,
+  Timer,
+  Crown,
+  Check,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { WebDevTask, User } from '../../../types';
@@ -91,8 +94,52 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [reviewFeedback, setReviewFeedback] = useState('');
   const [bonusXp, setBonusXp] = useState<number>(0);
 
+  // Time-Based Evaluation Action State
+  const [showTimeEvalForm, setShowTimeEvalForm] = useState(false);
+  const [timeEvalChoice, setTimeEvalChoice] = useState<'on_time' | 'late' | 'not_done'>('on_time');
+  const [timeEvalXp, setTimeEvalXp] = useState<number>(task.xpReward || 200);
+  const [timeEvalNotes, setTimeEvalNotes] = useState('');
+
   const isManagerOrAdmin = currentUser.role === 'web_dev_manager' || currentUser.role === 'admin';
   const isAssignee = currentTask.assigneeId === currentUser.teacherId;
+
+  const handleOpenTimeEval = (choice: 'on_time' | 'late' | 'not_done') => {
+    setTimeEvalChoice(choice);
+    const baseReward = currentTask.xpReward || 200;
+    if (choice === 'on_time') {
+      setTimeEvalXp(baseReward);
+    } else if (choice === 'late') {
+      setTimeEvalXp(Math.round(baseReward * 0.7));
+    } else {
+      setTimeEvalXp(0);
+    }
+    setShowTimeEvalForm(true);
+  };
+
+  const handleConfirmTimeEvaluation = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = WebDevService.markTaskTimeBasedStatus(currentTask.id, {
+      status: timeEvalChoice,
+      xpAwarded: timeEvalChoice === 'not_done' ? 0 : timeEvalXp,
+      notes: timeEvalNotes,
+      evaluator: {
+        id: currentUser.teacherId,
+        name: currentUser.name,
+        role: currentUser.role,
+      },
+    });
+    if (updated) {
+      setCurrentTask({ ...updated });
+      onTaskUpdated(updated);
+      setShowTimeEvalForm(false);
+      setTimeEvalNotes('');
+      if (timeEvalChoice !== 'not_done') {
+        try {
+          confetti({ particleCount: 60, spread: 60 });
+        } catch {}
+      }
+    }
+  };
 
   // Toggle Subtask
   const handleToggleSubtask = (subId: string, currentVal: boolean) => {
@@ -240,6 +287,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     switch (status) {
       case 'completed':
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Completed</span>;
+      case 'not_done':
+        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">Not Done / Missed</span>;
       case 'review_requested':
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Under Review</span>;
       case 'changes_requested':
@@ -328,10 +377,29 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           )}
 
           {/* Details & Tags Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-slate-800/50 rounded-xl border border-slate-800 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-800/50 rounded-xl border border-slate-800 text-xs">
             <div>
               <div className="text-slate-500 uppercase font-semibold text-[10px]">Assignee</div>
-              <div className="text-white font-medium mt-1">{currentTask.assigneeName || 'Unassigned'}</div>
+              <div className="text-white font-medium mt-1 flex items-center gap-1">
+                {currentTask.assigneeRole === 'web_dev_manager' && (
+                  <span className="px-1 py-0.2 rounded text-[9px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Manager
+                  </span>
+                )}
+                <span>{currentTask.assigneeName || 'Unassigned'}</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-slate-500 uppercase font-semibold text-[10px]">Assigned By</div>
+              <div className="text-white font-medium mt-1 flex items-center gap-1">
+                {currentTask.assignedByRole === 'admin' && (
+                  <span className="px-1 py-0.2 rounded text-[9px] font-bold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-0.5">
+                    <Crown className="w-2.5 h-2.5" />
+                    Admin
+                  </span>
+                )}
+                <span>{currentTask.assignedByName || currentTask.reviewerName || 'System'}</span>
+              </div>
             </div>
             <div>
               <div className="text-slate-500 uppercase font-semibold text-[10px]">Reviewer</div>
@@ -341,7 +409,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               <div className="text-slate-500 uppercase font-semibold text-[10px]">Due Date</div>
               <div className="text-white font-medium mt-1 flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
-                {currentTask.dueDate || 'No deadline'}
+                {currentTask.dueDate || currentTask.deadline || 'No deadline'}
               </div>
             </div>
             <div>
@@ -415,7 +483,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </div>
 
               {/* Digital Countdown Display */}
-              {currentTask.status !== 'completed' && (
+              {currentTask.status !== 'completed' && currentTask.status !== 'not_done' && (
                 <div className="flex items-center gap-1.5 font-mono text-center self-stretch sm:self-auto justify-center bg-slate-950/70 p-2 rounded-xl border border-slate-800">
                   <div className="px-2 py-1 bg-slate-900 rounded-lg min-w-[42px]">
                     <div className="text-base font-black text-white">{deadlineInfo.days}</div>
@@ -450,6 +518,152 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               )}
             </div>
           )}
+
+          {/* ─── TIME-BASED EVALUATION & VERIFICATION CARD ────────────────────── */}
+          <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Timer className="w-4 h-4 text-amber-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                  Time-Based Evaluation & Verification
+                </h4>
+              </div>
+
+              {currentTask.completionStatus && (
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                    currentTask.completionStatus === 'on_time'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : currentTask.completionStatus === 'late'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                  }`}
+                >
+                  {currentTask.completionStatus === 'on_time' && '✅ Done (On-Time)'}
+                  {currentTask.completionStatus === 'late' && '⏰ Done (Late)'}
+                  {currentTask.completionStatus === 'not_done' && '❌ Not Done (Missed Deadline)'}
+                </span>
+              )}
+            </div>
+
+            {/* Existing Evaluation Record */}
+            {currentTask.timeMarkedAt && (
+              <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs space-y-1">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>
+                    Evaluated by: <strong className="text-slate-200">{currentTask.timeMarkedByName || 'Admin'}</strong>
+                  </span>
+                  <span>{new Date(currentTask.timeMarkedAt).toLocaleString()}</span>
+                </div>
+                <div className="text-slate-300">
+                  Awarded XP: <strong className="text-amber-400">+{currentTask.actualXpAwarded || 0} XP</strong>
+                </div>
+                {currentTask.timeMarkedNote && (
+                  <p className="text-slate-400 italic text-[11px] pt-1">
+                    "{currentTask.timeMarkedNote}"
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Quick Action Buttons for Admin and Manager */}
+            {isManagerOrAdmin && !showTimeEvalForm && (
+              <div className="pt-1 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-400 mr-1">Mark Time Status:</span>
+                <button
+                  type="button"
+                  onClick={() => handleOpenTimeEval('on_time')}
+                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Done (On-Time)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenTimeEval('late')}
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  Done (Late)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenTimeEval('not_done')}
+                  className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Not Done (Missed)
+                </button>
+              </div>
+            )}
+
+            {/* Inline Time Evaluation Form */}
+            {isManagerOrAdmin && showTimeEvalForm && (
+              <form onSubmit={handleConfirmTimeEvaluation} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-white">
+                  <span>
+                    Confirming:{' '}
+                    <span className={
+                      timeEvalChoice === 'on_time' ? 'text-emerald-400' :
+                      timeEvalChoice === 'late' ? 'text-amber-400' : 'text-rose-400'
+                    }>
+                      {timeEvalChoice === 'on_time' && 'Done (On-Time)'}
+                      {timeEvalChoice === 'late' && 'Done (Late / Overdue)'}
+                      {timeEvalChoice === 'not_done' && 'Not Done (Missed Deadline)'}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowTimeEvalForm(false)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {timeEvalChoice !== 'not_done' && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">XP to Award</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={timeEvalXp}
+                      onChange={(e) => setTimeEvalXp(Number(e.target.value))}
+                      className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">Feedback / Remarks</label>
+                  <textarea
+                    rows={2}
+                    value={timeEvalNotes}
+                    onChange={(e) => setTimeEvalNotes(e.target.value)}
+                    placeholder="Enter evaluation notes for the developer / manager..."
+                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTimeEvalForm(false)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Save Evaluation
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
 
           {/* Description */}
           <div>

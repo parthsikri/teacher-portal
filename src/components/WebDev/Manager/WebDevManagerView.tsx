@@ -28,6 +28,9 @@ import {
   UserPlus,
   UserMinus,
   Calendar,
+  Crown,
+  Clock,
+  Timer,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type {
@@ -87,6 +90,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
   const [taskProjectFilter, setTaskProjectFilter] = useState<string>('all');
   const [taskAssigneeFilter, setTaskAssigneeFilter] = useState<string>('all');
+  const [taskTimeFilter, setTaskTimeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
@@ -200,10 +204,22 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const totalAwardedXp = WebDevService.getXPLedger().reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   // Filtered Tasks
+  const myAdminTasks = tasks.filter((t) => t.assigneeId === currentUser.teacherId);
+
   const filteredTasks = tasks.filter((t) => {
     if (taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false;
     if (taskProjectFilter !== 'all' && t.projectId !== taskProjectFilter) return false;
-    if (taskAssigneeFilter !== 'all' && t.assigneeId !== taskAssigneeFilter) return false;
+    if (taskAssigneeFilter === 'assigned_to_me') {
+      if (t.assigneeId !== currentUser.teacherId) return false;
+    } else if (taskAssigneeFilter !== 'all' && t.assigneeId !== taskAssigneeFilter) {
+      return false;
+    }
+    if (taskTimeFilter !== 'all') {
+      if (taskTimeFilter === 'on_time' && t.completionStatus !== 'on_time') return false;
+      if (taskTimeFilter === 'late' && t.completionStatus !== 'late') return false;
+      if (taskTimeFilter === 'not_done' && (t.status !== 'not_done' && t.completionStatus !== 'not_done')) return false;
+      if (taskTimeFilter === 'pending' && (t.status === 'completed' || t.status === 'not_done')) return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -814,6 +830,43 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
         {/* ─── TAB 2: ALL TASKS & WORKLOAD ─────────────────────────────────── */}
         {activeTab === 'tasks' && (
           <div className="space-y-6">
+            {/* Admin-Assigned Deliverables Banner for Web Dev Manager */}
+            {myAdminTasks.length > 0 && (
+              <div className="bg-gradient-to-r from-purple-950/40 via-slate-900 to-slate-900 border border-purple-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>Admin-Assigned Deliverables ({myAdminTasks.length})</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        {myAdminTasks.filter((t) => t.status !== 'completed' && t.status !== 'not_done').length} Pending
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      Strategic tasks assigned directly to you by the Admin with XP stakes & time-based completion tracking.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTaskAssigneeFilter(
+                      taskAssigneeFilter === 'assigned_to_me' ? 'all' : 'assigned_to_me'
+                    )
+                  }
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    taskAssigneeFilter === 'assigned_to_me'
+                      ? 'bg-purple-500 text-white shadow-md shadow-purple-500/30'
+                      : 'bg-slate-800 text-purple-300 border border-purple-500/30 hover:bg-slate-700'
+                  }`}
+                >
+                  {taskAssigneeFilter === 'assigned_to_me' ? 'Show All Squad Tasks' : 'Filter My Admin Tasks'}
+                </button>
+              </div>
+            )}
+
             {/* Filter controls */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
               <div className="relative flex-1 max-w-md">
@@ -846,12 +899,25 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                   onChange={(e) => setTaskAssigneeFilter(e.target.value)}
                   className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-amber-500"
                 >
-                  <option value="all">All Developers</option>
+                  <option value="all">All Assignees</option>
+                  <option value="assigned_to_me">👑 Assigned to Me ({myAdminTasks.length})</option>
                   {developers.map((d) => (
                     <option key={d.teacherId} value={d.teacherId}>
-                      {d.name}
+                      {d.role === 'web_dev_manager' ? '👑 ' : ''}{d.name}
                     </option>
                   ))}
+                </select>
+
+                <select
+                  value={taskTimeFilter}
+                  onChange={(e) => setTaskTimeFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="all">⏱️ All Time Statuses</option>
+                  <option value="on_time">✅ Done (On-Time)</option>
+                  <option value="late">⏰ Done (Late)</option>
+                  <option value="not_done">❌ Not Done (Missed)</option>
+                  <option value="pending">⏳ Pending</option>
                 </select>
 
                 <select
@@ -864,6 +930,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                   <option value="review_requested">Under Review</option>
                   <option value="changes_requested">Changes Requested</option>
                   <option value="completed">Completed</option>
+                  <option value="not_done">Not Done / Missed</option>
                   <option value="blocked">Blocked</option>
                   <option value="todo">To Do</option>
                 </select>
@@ -892,7 +959,14 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                         {t.id}
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-white max-w-xs truncate">{t.title}</div>
+                        <div className="font-semibold text-white max-w-xs truncate flex items-center gap-1.5">
+                          <span>{t.title}</span>
+                          {t.assignedByRole === 'admin' && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Admin
+                            </span>
+                          )}
+                        </div>
                         {t.isBlocked && (
                           <div className="text-[10px] text-red-400 flex items-center gap-1 mt-0.5">
                             <AlertTriangle className="w-3 h-3" />
@@ -915,6 +989,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                       <td className="py-3.5 px-4">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                           t.status === 'completed' ? 'bg-emerald-500/20 text-emerald-300' :
+                          t.status === 'not_done' ? 'bg-rose-500/20 text-rose-300' :
                           t.status === 'review_requested' ? 'bg-amber-500/20 text-amber-300' :
                           t.status === 'changes_requested' ? 'bg-rose-500/20 text-rose-300' :
                           t.status === 'blocked' ? 'bg-red-500/20 text-red-300' :
@@ -923,9 +998,25 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                           {t.status.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-400">{t.dueDate || '—'}</td>
-                      <td className="py-3.5 px-4 text-right font-bold text-amber-400">
-                        +{t.xpReward} XP
+                      <td className="py-3.5 px-4">
+                        <div className="space-y-0.5">
+                          <div className="text-slate-400 text-xs">{t.dueDate || t.deadline || '—'}</div>
+                          {t.completionStatus && (
+                            <div className="text-[10px] font-semibold">
+                              {t.completionStatus === 'on_time' && <span className="text-emerald-400">✅ On-Time</span>}
+                              {t.completionStatus === 'late' && <span className="text-amber-400">⏰ Late</span>}
+                              {t.completionStatus === 'not_done' && <span className="text-rose-400">❌ Missed</span>}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="font-bold text-amber-400">+{t.xpReward} XP</div>
+                        {t.actualXpAwarded !== undefined && t.actualXpAwarded !== t.xpReward && (
+                          <div className="text-[10px] text-slate-400">
+                            Awarded: <strong className="text-emerald-300">+{t.actualXpAwarded} XP</strong>
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
