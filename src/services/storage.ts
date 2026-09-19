@@ -213,6 +213,9 @@ const INITIAL_USERS: User[] = [
 ];
 
 let syncDebounceTimer: any = null;
+// Tracks the last time users were written to localStorage (ms). importMasterState
+// uses this to avoid clobbering a more recent local write from a concurrent saveUsers().
+let lastLocalUserWriteMs = 0;
 
 function triggerBackgroundCloudSync() {
   if (typeof window === 'undefined') return;
@@ -333,6 +336,9 @@ export const StorageService = {
   saveUsers(users: User[]): void {
     const cleaned = users.filter((u) => !isHardcodedMockUser(u));
     localStorage.setItem(USERS_KEY, JSON.stringify(cleaned));
+    // Record the local write time so importMasterState won't overwrite it during
+    // an in-flight syncFromCloud (race-condition guard).
+    lastLocalUserWriteMs = Date.now();
     // User records are authentication records. Start their cloud write
     // immediately instead of waiting for the generic debounced sync, which can
     // be cancelled when an onboarding modal closes or the page is refreshed.
@@ -597,6 +603,9 @@ export const StorageService = {
       mustChangePassword: true,
     };
     filtered.push(created);
+    // Ensure no stale tombstone blocks this new PR intern from syncing
+    this.removeDeletedId(cleanId);
+    if (created.id) this.removeDeletedId(created.id);
     this.saveUsers(filtered);
     return created;
   },
@@ -4365,29 +4374,86 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.users) && state.users.length > 0) {
+      // LATE-READ: Re-read localStorage right before merging to capture any
+      // saveUsers() calls that occurred while this async syncFromCloud was in
+      // flight (race-condition guard). Raw snapshot preserves local passwords.
+      const localSnapshotRaw = localStorage.getItem(USERS_KEY);
+      const localSnapshot: User[] = localSnapshotRaw
+        ? (() => { try { return JSON.parse(localSnapshotRaw); } catch { return []; } })()
+        : [];
+
+      // Also grab the computed list (includes INITIAL_USERS not in raw storage)
       const existingUsers = this.getUsers();
+
       const userMap = new Map<string, User>();
-      existingUsers.forEach((u) => {
-        if (!deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id.toUpperCase()) && !isHardcodedMockUser(u)) {
+
+      // Seed from raw local snapshot FIRST to preserve local passwords
+      localSnapshot.forEach((u: User) => {
+        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) &&
+            !deletedIds.has((u.id || '').toUpperCase()) && !isHardcodedMockUser(u)) {
           userMap.set(u.teacherId.toUpperCase(), u);
         }
       });
+      // Include computed users not in raw snapshot (e.g. INITIAL_USERS)
+      existingUsers.forEach((u) => {
+        if (!userMap.has(u.teacherId.toUpperCase()) &&
+            !deletedIds.has(u.teacherId.toUpperCase()) &&
+            !deletedIds.has((u.id || '').toUpperCase()) &&
+            !isHardcodedMockUser(u)) {
+          userMap.set(u.teacherId.toUpperCase(), u);
+        }
+      });
+
       state.users.forEach((u: User) => {
-        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) && (!u.id || !deletedIds.has(u.id.toUpperCase())) && !isHardcodedMockUser(u)) {
+        if (u && u.teacherId && !deletedIds.has(u.teacherId.toUpperCase()) &&
+            (!u.id || !deletedIds.has(u.id.toUpperCase())) && !isHardcodedMockUser(u)) {
           const existing = userMap.get(u.teacherId.toUpperCase());
           const isExistingReal = Boolean(existing?.email && !String(existing.email).endsWith('@aew.com'));
           const isCloudReal = Boolean(u?.email && !String(u.email).endsWith('@aew.com'));
-          const resolvedEmail: string = (isCloudReal ? u.email : (isExistingReal ? existing?.email : (u.email || existing?.email || `${u.teacherId.toLowerCase()}@aew.com`))) || `${u.teacherId.toLowerCase()}@aew.com`;
+          const resolvedEmail: string =
+            (isCloudReal ? u.email : (isExistingReal ? existing?.email : (u.email || existing?.email || `${u.teacherId.toLowerCase()}@aew.com`))) ||
+            `${u.teacherId.toLowerCase()}@aew.com`;
+
+          // Preserve local password: sanitizeUser() strips passwords from cloud responses.
+          // Never overwrite a known local password with an absent/undefined value.
+          const cloudPassword = (u as any).password;
+          const resolvedPassword: string | undefined = cloudPassword || existing?.password;
 
           userMap.set(u.teacherId.toUpperCase(), {
             ...existing,
             ...u,
             email: resolvedEmail,
+            // Restore password if cloud response had it stripped
+            ...(resolvedPassword ? { password: resolvedPassword } : {}),
           });
         }
       });
-      const cleanUsers = Array.from(userMap.values()).filter((u) => !isHardcodedMockUser(u));
-      localStorage.setItem(USERS_KEY, JSON.stringify(cleanUsers));
+
+      // Stale-write guard: if saveUsers() was called in the last 3 s (while
+      // this async syncFromCloud was in flight), re-read localStorage one more
+      // time so we don't drop the just-added employee.
+      const isRecentLocalWrite = lastLocalUserWriteMs > 0 && (Date.now() - lastLocalUserWriteMs) < 3000;
+      if (isRecentLocalWrite) {
+        const freshRaw = localStorage.getItem(USERS_KEY);
+        const fresh: User[] = freshRaw
+          ? (() => { try { return JSON.parse(freshRaw); } catch { return []; } })()
+          : [];
+        fresh.forEach((u: User) => {
+          if (u && u.teacherId &&
+              !deletedIds.has(u.teacherId.toUpperCase()) &&
+              !deletedIds.has((u.id || '').toUpperCase()) &&
+              !isHardcodedMockUser(u)) {
+            const key = u.teacherId.toUpperCase();
+            if (!userMap.has(key)) {
+              // Employee was saved after the cloud fetch started — preserve them
+              userMap.set(key, u);
+            }
+          }
+        });
+      }
+
+      const finalUsers = Array.from(userMap.values()).filter((u) => !isHardcodedMockUser(u));
+      localStorage.setItem(USERS_KEY, JSON.stringify(finalUsers));
     }
 
     if (Array.isArray(state.assignedTopics)) {
