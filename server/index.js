@@ -154,7 +154,7 @@ async function getLatestPortalState() {
 async function persistPortalState(mergedData) {
   inMemoryStateCache = mergedData;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state`, {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state`, {
       method: 'POST',
       headers: {
         apikey: SUPABASE_KEY,
@@ -169,8 +169,14 @@ async function persistPortalState(mergedData) {
         updated_at: new Date().toISOString(),
       }),
     });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Cloud database rejected the update (${response.status})${detail ? `: ${detail}` : ''}`);
+    }
+    return true;
   } catch (upstreamErr) {
-    console.warn('[server] Failed to update Supabase, saved to local cache:', upstreamErr?.message);
+    console.warn('[server] Failed to update Supabase:', upstreamErr?.message);
+    return false;
   }
 }
 
@@ -282,6 +288,69 @@ app.post('/api/auth', async (req, res) => {
     });
   }
 
+  // Mandatory first-login password setup happens before a session exists. Verify
+  // the temporary password on the server, persist the replacement, then issue
+  // the first session token only after persistence succeeds.
+  if (action === 'first_login_change_password') {
+    const identifier = String(body.identifier || '').trim();
+    const temporaryPassword = String(body.temporaryPassword || '').trim();
+    const newPassword = String(body.newPassword || '').trim();
+
+    if (!identifier || !temporaryPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Temporary and new passwords are required.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+    }
+
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(`first-login-change:${ip}:${identifier.toLowerCase()}`, 5, 15 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ success: false, error: 'Too many password-change attempts. Please try again later.' });
+    }
+
+    const state = await getLatestPortalState();
+    const users = Array.isArray(state.users) ? state.users : [];
+    const query = identifier.toLowerCase();
+    const user = users.find((candidate) =>
+      (candidate.id || '').toLowerCase() === query ||
+      (candidate.teacherId || '').toLowerCase() === query ||
+      (candidate.username || '').toLowerCase() === query ||
+      (candidate.email || '').toLowerCase() === query
+    );
+
+    if (!user || user.isOffboarded || !user.mustChangePassword) {
+      return res.status(400).json({ success: false, error: 'This account is not eligible for first-login password setup.' });
+    }
+
+    const defaultPassword = user.role === 'admin' ? 'admin123'
+      : user.role === 'pr_head' ? 'head123'
+      : user.role === 'pr_intern' ? 'intern123'
+      : user.role === 'sales' ? 'sales123'
+      : user.role === 'web_dev_manager' || user.role === 'web_developer' ? 'dev123' : 'teach123';
+    const verification = verifyPassword(temporaryPassword, String(user.password || defaultPassword).trim());
+    if (!verification.valid) {
+      return res.status(401).json({ success: false, error: 'Temporary password is incorrect.' });
+    }
+    if (temporaryPassword === newPassword) {
+      return res.status(400).json({ success: false, error: 'New password must differ from the temporary password.' });
+    }
+
+    user.password = hashPassword(newPassword);
+    user.mustChangePassword = false;
+    user.lastPasswordChangedAt = new Date().toISOString();
+    state.updatedAt = new Date().toISOString();
+    if (!await persistPortalState(state)) {
+      return res.status(503).json({ success: false, error: 'Password could not be saved. Please try again.' });
+    }
+
+    return res.json({
+      success: true,
+      token: createSessionToken(user),
+      user: sanitizeUser(user),
+    });
+  }
+
   // ME
   if (action === 'me') {
     const auth = authenticateRequest(req);
@@ -339,7 +408,9 @@ app.post('/api/auth', async (req, res) => {
     targetUser.mustChangePassword = false;
     targetUser.lastPasswordChangedAt = new Date().toISOString();
     state.updatedAt = new Date().toISOString();
-    await persistPortalState(state);
+    if (!await persistPortalState(state)) {
+      return res.status(503).json({ success: false, error: 'Password could not be saved. Please try again.' });
+    }
 
     return res.json({ success: true, message: 'Password changed successfully.' });
   }
@@ -1219,7 +1290,10 @@ app.post('/api/cloud-sync', requireAuth, async (req, res) => {
 
     const currentCloudData = await getLatestPortalState();
     const mergedData = mergeMasterStates(currentCloudData, incomingData, req.user.role);
-    await persistPortalState(mergedData);
+    const persisted = await persistPortalState(mergedData);
+    if (!persisted) {
+      return res.status(503).json({ success: false, error: 'Cloud database could not save the update.' });
+    }
 
     return res.status(200).json({
       success: true,

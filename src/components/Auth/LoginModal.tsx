@@ -37,6 +37,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
   // Mandatory first-login password change state
   const [pendingUser, setPendingUser] = useState<User | null>(null);
+  // Kept only in component memory while the mandatory first-login flow is open.
+  // The server verifies this temporary password before accepting the replacement.
+  const [temporaryPassword, setTemporaryPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -186,6 +189,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     // 3. Mandatory First-Login Password Change Check
     if (authenticatedUser.mustChangePassword) {
       setPendingUser(authenticatedUser);
+      setTemporaryPassword(inputPass);
       setView('FORCE_CHANGE_PASSWORD');
       setIsAuthenticating(false);
       return;
@@ -243,6 +247,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
     setIsChangingPassword(true);
     try {
+      // A first-login user has no established session yet, so the regular
+      // authenticated change-password endpoint cannot be used here. Persist the
+      // change with the authentication service first, re-verifying the temporary
+      // password server-side, then mirror that confirmed change locally.
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'first_login_change_password',
+          identifier: pendingUser.teacherId || pendingUser.username || pendingUser.id,
+          temporaryPassword,
+          newPassword: cleanNew,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success || !data.user || !data.token) {
+        setErrorMsg(data.error || 'Unable to save your password securely. Please try again.');
+        setIsChangingPassword(false);
+        return;
+      }
+
       const res = await StorageService.forceSetUserPassword(pendingUser.id, cleanNew);
       if (!res.success || !res.user) {
         setErrorMsg(res.error || 'Failed to update password. Please try again.');
@@ -251,7 +276,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
       }
 
       // Password successfully changed — proceed to finalize login
-      finalizeLogin(res.user, `session_${Date.now()}_${res.user.id}`);
+      setTemporaryPassword('');
+      finalizeLogin({ ...res.user, ...data.user, password: cleanNew, mustChangePassword: false }, data.token);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error updating password.');
       setIsChangingPassword(false);

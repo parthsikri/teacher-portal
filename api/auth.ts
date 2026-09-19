@@ -126,6 +126,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
+  // ─── ACTION 1B: MANDATORY FIRST-LOGIN PASSWORD CHANGE ──────────────────────
+  // This is deliberately separate from the session-authenticated password-change
+  // action below: users flagged for first login must set a password before a
+  // session is established. The temporary password is verified server-side.
+  if (action === 'first_login_change_password') {
+    const identifier = String(body.identifier || '').trim();
+    const temporaryPassword = String(body.temporaryPassword || '').trim();
+    const newPassword = String(body.newPassword || '').trim();
+
+    if (!identifier || !temporaryPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Temporary and new passwords are required.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+    }
+
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(`first-login-change:${ip}:${identifier.toLowerCase()}`, 5, 15 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ success: false, error: 'Too many password-change attempts. Please try again later.' });
+    }
+
+    const state = await getCloudPortalState();
+    const users: any[] = Array.isArray(state.users) ? state.users : [];
+    const query = identifier.toLowerCase();
+    const user = users.find((candidate) =>
+      (candidate.id || '').toLowerCase() === query ||
+      (candidate.teacherId || '').toLowerCase() === query ||
+      (candidate.username || '').toLowerCase() === query ||
+      (candidate.email || '').toLowerCase() === query
+    );
+
+    if (!user || user.isOffboarded || !user.mustChangePassword) {
+      return res.status(400).json({ success: false, error: 'This account is not eligible for first-login password setup.' });
+    }
+
+    const defaultPassword = user.role === 'admin' ? 'admin123'
+      : user.role === 'pr_head' ? 'head123'
+      : user.role === 'pr_intern' ? 'intern123'
+      : user.role === 'web_dev_manager' || user.role === 'web_developer' ? 'dev123'
+      : user.role === 'sales' ? 'sales123' : 'teach123';
+    const verification = verifyPassword(temporaryPassword, String(user.password || defaultPassword).trim());
+    if (!verification.valid) {
+      return res.status(401).json({ success: false, error: 'Temporary password is incorrect.' });
+    }
+    if (temporaryPassword === newPassword) {
+      return res.status(400).json({ success: false, error: 'New password must differ from the temporary password.' });
+    }
+
+    user.password = hashPassword(newPassword);
+    user.mustChangePassword = false;
+    user.lastPasswordChangedAt = new Date().toISOString();
+    state.updatedAt = new Date().toISOString();
+    const saved = await saveCloudPortalState(state);
+    if (!saved) {
+      return res.status(503).json({ success: false, error: 'Password could not be saved. Please try again.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      token: createSessionToken(user),
+      user: sanitizeUser(user),
+    });
+  }
+
   // ─── ACTION 2: ME (VERIFY SESSION) ──────────────────────────────────────────
   if (action === 'me') {
     const auth = authenticateRequest(req);

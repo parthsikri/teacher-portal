@@ -821,7 +821,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Update Supabase PostgreSQL table
       try {
-        await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state`, {
+        const writeResult = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
@@ -836,8 +836,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             updated_at: new Date().toISOString(),
           }),
         });
+        if (!writeResult.ok) {
+          const detail = await writeResult.text().catch(() => '');
+          throw new Error(`Cloud database rejected the update (${writeResult.status})${detail ? `: ${detail}` : ''}`);
+        }
       } catch (upstreamErr) {
-        console.warn('Failed to update Supabase, saved to cache:', upstreamErr);
+        console.warn('Failed to update Supabase:', upstreamErr);
+        throw upstreamErr;
       }
 
       return res.status(200).json({

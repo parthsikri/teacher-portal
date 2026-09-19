@@ -333,6 +333,12 @@ export const StorageService = {
   saveUsers(users: User[]): void {
     const cleaned = users.filter((u) => !isHardcodedMockUser(u));
     localStorage.setItem(USERS_KEY, JSON.stringify(cleaned));
+    // User records are authentication records. Start their cloud write
+    // immediately instead of waiting for the generic debounced sync, which can
+    // be cancelled when an onboarding modal closes or the page is refreshed.
+    this.syncToCloud().catch((err) => {
+      console.warn('[CloudSync] Immediate user-roster sync error:', err);
+    });
     triggerBackgroundCloudSync();
   },
 
@@ -5066,7 +5072,9 @@ export const StorageService = {
         return false;
       }
 
-      return res.ok;
+      if (!res.ok) return false;
+      const json = await res.json().catch(() => null);
+      return Boolean(json?.success);
     } catch (err) {
       console.warn('[CloudSync] Sync push error:', err);
       return false;
