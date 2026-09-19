@@ -24,6 +24,16 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []),
   ]);
 
+  // Active users already in the current database must never be deleted by stale incoming tombstones
+  if (Array.isArray(current.users)) {
+    current.users.forEach((u: any) => {
+      if (u && !isHardcodedMockUser(u)) {
+        if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
+        if (u.id) deletedIds.delete(u.id.toUpperCase());
+      }
+    });
+  }
+
   // If incoming contains active users being added or updated by authorized callers,
   // ensure their IDs are not blocked by stale deletedIds in state.
   const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head';

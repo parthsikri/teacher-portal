@@ -354,80 +354,76 @@ export const StorageService = {
 
   getNextEmployeeId(role: UserRole): string {
     const users = this.getUsers();
+    const deletedIds = this.getDeletedIds();
+    const allKnownIds = [...users.map((u) => u.teacherId), ...deletedIds];
+
     if (role === 'teacher') {
-      const ids = users
-        .filter(u => u.role === 'teacher')
-        .map(u => {
-          const m = u.teacherId.match(/AEW-T-(\d+)/i);
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/AEW-T-(\d+)/i);
           return m ? parseInt(m[1], 10) : 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 100;
       return `AEW-T-${max + 1}`;
     }
     if (role === 'pr_head') {
-      const ids = users
-        .filter(u => u.role === 'pr_head')
-        .map(u => {
-          const m = u.teacherId.match(/AEW-PRH-(\d+)/i);
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/AEW-PRH-(\d+)/i);
           return m ? parseInt(m[1], 10) : 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 0;
       return `AEW-PRH-${String(max + 1).padStart(2, '0')}`;
     }
     if (role === 'pr_intern') {
-      const ids = users
-        .filter(u => u.role === 'pr_intern')
-        .map(u => {
-          const m = u.teacherId.match(/AEW-PR-(\d+)/i);
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/AEW-PR-(\d+)/i);
           return m ? parseInt(m[1], 10) : 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 0;
       return `AEW-PR-${String(max + 1).padStart(2, '0')}`;
     }
     if (role === 'web_developer') {
-      const ids = users
-        .filter(u => u.role === 'web_developer')
-        .map(u => {
-          const m = u.teacherId.match(/AEW-DEV-(\d+)/i);
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/AEW-DEV-(\d+)/i);
           return m ? parseInt(m[1], 10) : 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 0;
       return `AEW-DEV-${String(max + 1).padStart(2, '0')}`;
     }
     if (role === 'web_dev_manager') {
-      const ids = users
-        .filter(u => u.role === 'web_dev_manager')
-        .map(u => {
-          const m = u.teacherId.match(/AEW-WDM-(\d+)/i);
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/AEW-WDM-(\d+)/i);
           return m ? parseInt(m[1], 10) : 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 0;
       return `AEW-WDM-${String(max + 1).padStart(2, '0')}`;
     }
     if (role === 'sales') {
-      const ids = users
-        .filter(u => u.role === 'sales')
-        .map(u => {
-          const m = u.teacherId.match(/AEW-SALES-(\d+)/i);
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/AEW-SALES-(\d+)/i);
           return m ? parseInt(m[1], 10) : 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 0;
       return `AEW-SALES-${String(max + 1).padStart(2, '0')}`;
     }
     if (role === 'admin') {
-      const ids = users
-        .filter(u => u.role === 'admin')
-        .map(u => {
-          const m = u.teacherId.match(/ADMIN-(\d+)/i);
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/ADMIN-(\d+)/i);
           return m ? parseInt(m[1], 10) : 0;
         })
-        .filter(n => n > 0);
+        .filter((n) => n > 0);
       const max = ids.length > 0 ? Math.max(...ids) : 1;
       return `ADMIN-${String(max + 1).padStart(2, '0')}`;
     }
@@ -4107,6 +4103,23 @@ export const StorageService = {
       ...this.getDeletedIds(),
       ...(Array.isArray(state.deletedIds) ? state.deletedIds.map((id: string) => id.toUpperCase()) : []),
     ]);
+
+    // Active users from either incoming state or local storage must never be blocked by stale tombstones
+    if (Array.isArray(state.users)) {
+      state.users.forEach((u: any) => {
+        if (u) {
+          if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
+          if (u.id) deletedIds.delete(u.id.toUpperCase());
+        }
+      });
+    }
+    const currentLocalUsers = this.getUsers();
+    currentLocalUsers.forEach((u) => {
+      if (u) {
+        if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
+        if (u.id) deletedIds.delete(u.id.toUpperCase());
+      }
+    });
 
     if (deletedIds.size > 0) {
       localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(deletedIds)));
