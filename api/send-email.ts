@@ -15,7 +15,8 @@ export type NotificationEventType =
   | 'day_off_granted'
   | 'video_reuploaded'
   | 'test_dispatch'
-  | 'welcome_employee';
+  | 'welcome_employee'
+  | 'webdev_task_assigned';
 
 export interface EmailRequestBody {
   to: string | string[];
@@ -588,6 +589,60 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
         </p>
         `,
         `<a href="${PORTAL_URL}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 13px; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.4);">Open Teacher Portal →</a>`
+      );
+      return { subject, html };
+    }
+
+    case 'webdev_task_assigned': {
+      const subject = `🚀 New Task Assigned: "${data.taskTitle}" (+${data.xpReward || 0} XP)`;
+      const html = wrapContent(
+        `
+        <div style="background-color: #1e1b4b; border: 1px solid #6366f1; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+          <span style="color: #c7d2fe; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">👑 Web Development Task Directive</span>
+        </div>
+        <p style="font-size: 15px; color: #f8fafc; margin-top: 0;">
+          Hello <strong>${data.assigneeName || 'Web Dev Manager'}</strong>,
+        </p>
+        <p>
+          A new deliverable has been assigned to you by <strong>${data.assignedByName || 'Admin'}</strong>:
+        </p>
+        <div style="background-color: #1e293b; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 18px 0;">
+          <div style="font-size: 15px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">${data.taskTitle}</div>
+          <div style="color: #94a3b8; font-size: 13px; margin-bottom: 12px; white-space: pre-wrap;">${data.taskDescription || ''}</div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #cbd5e1;">
+            <tr>
+              <td style="padding: 4px 0; color: #64748b; width: 110px;">Project:</td>
+              <td style="padding: 4px 0; font-weight: 600; color: #f1f5f9;">${data.projectName || data.projectId || 'AEW Platform'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; color: #64748b;">Priority:</td>
+              <td style="padding: 4px 0; font-weight: 700; color: ${data.priority === 'critical' ? '#f87171' : data.priority === 'high' ? '#fbbf24' : '#60a5fa'}; text-transform: uppercase;">${data.priority || 'Medium'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; color: #64748b;">XP Reward:</td>
+              <td style="padding: 4px 0; font-weight: 700; color: #fbbf24;">+${data.xpReward || 0} XP</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; color: #64748b;">Deadline:</td>
+              <td style="padding: 4px 0; font-weight: 600; color: #f87171;">${data.deadline ? new Date(data.deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : (data.dueDate || 'Standard Sprint Cutoff')}</td>
+            </tr>
+            ${data.subtasks && data.subtasks.length > 0 ? `
+            <tr>
+              <td style="padding: 8px 0 4px 0; color: #64748b; vertical-align: top;">Checkpoints:</td>
+              <td style="padding: 8px 0 4px 0; color: #cbd5e1;">
+                <ul style="margin: 0; padding-left: 16px;">
+                  ${data.subtasks.map((st: string) => `<li style="margin-bottom: 3px;">${st}</li>`).join('')}
+                </ul>
+              </td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        <p style="font-size: 13px; color: #94a3b8; line-height: 1.6;">
+          ⏱️ <strong>Time-Based Evaluation:</strong> Deliver on or before the deadline to claim 100% XP (+ on-time bonus recognition). You can track and manage this task in the <strong>My Tasks</strong> section of your portal.
+        </p>
+        `,
+        `<a href="${PORTAL_URL}" style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #020617; font-weight: 800; font-size: 13px; padding: 12px 28px; border-radius: 8px; text-decoration: none; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">Open Web Dev Portal &rarr;</a>`
       );
       return { subject, html };
     }

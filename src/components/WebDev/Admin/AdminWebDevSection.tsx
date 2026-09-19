@@ -28,6 +28,7 @@ import type {
 import { WebDevService } from '../../../services/webDevService';
 import { StorageService } from '../../../services/storage';
 import { TaskDetailModal } from '../Common/TaskDetailModal';
+import { notificationService } from '../../../services/notificationService';
 
 interface AdminWebDevSectionProps {
   currentUser: User;
@@ -337,6 +338,25 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
       },
       { id: currentUser.teacherId, name: currentUser.name }
     );
+
+    // Dispatch automated email notification to assigned manager / developer
+    if (assignedUser && assignedUser.email) {
+      notificationService.notifyWebDevTaskAssigned({
+        assigneeEmail: assignedUser.email,
+        assigneeName: assignedUser.name,
+        assigneeRole: assignedUser.role,
+        taskTitle: assignTitle.trim(),
+        taskDescription: assignDescription.trim(),
+        projectName: projects.find((p) => p.id === assignProjectId)?.title || 'AEW Platform',
+        projectId: assignProjectId,
+        priority: assignPriority,
+        xpReward: Number(assignXp) || 300,
+        deadline: assignDeadline || undefined,
+        dueDate: assignDeadline || undefined,
+        assignedByName: currentUser.name || 'Operations Admin',
+        subtasks: assignSubtasks,
+      }).catch((err) => console.warn('[AdminWebDevSection] Failed to dispatch task assignment email:', err));
+    }
 
     try {
       confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });

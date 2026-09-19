@@ -362,6 +362,38 @@ class NotificationService {
       },
     });
   }
+
+  /**
+   * 12. 🚀 Task assigned to Web Dev Manager / Developer -> Email to Assignee
+   */
+  async notifyWebDevTaskAssigned(params: {
+    assigneeEmail: string;
+    assigneeName: string;
+    assigneeRole?: string;
+    taskTitle: string;
+    taskDescription?: string;
+    projectName?: string;
+    projectId?: string;
+    priority?: string;
+    xpReward?: number;
+    deadline?: string;
+    dueDate?: string;
+    assignedByName?: string;
+    subtasks?: string[];
+    [key: string]: any;
+  }): Promise<{ success: boolean; status: 'delivered' | 'failed' | 'simulated'; error?: string; messageId?: string; subject?: string }> {
+    if (!params.assigneeEmail) {
+      console.warn('[NotificationService] No assigneeEmail provided for task assignment notification.');
+      return { success: false, status: 'failed', error: 'No recipient email address provided.' };
+    }
+
+    const { assigneeEmail, ...rest } = params;
+    return this.dispatch({
+      to: assigneeEmail,
+      type: 'webdev_task_assigned',
+      data: rest,
+    });
+  }
 }
 
 export const notificationService = new NotificationService();

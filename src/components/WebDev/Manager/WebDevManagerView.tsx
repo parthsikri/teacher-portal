@@ -29,8 +29,10 @@ import {
   UserMinus,
   Calendar,
   Crown,
+  Clock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { notificationService } from '../../../services/notificationService';
 import type {
   User,
   WebDevTask,
@@ -57,6 +59,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   onPageChange,
 }) => {
   const activeTab:
+    | 'my_tasks'
     | 'review_desk'
     | 'tasks'
     | 'projects'
@@ -65,6 +68,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     | 'team'
     | 'leaderboard'
     | 'audit' = (() => {
+    if (currentPage === 'wdm_my_tasks') return 'my_tasks';
     if (currentPage === 'wdm_tasks') return 'tasks';
     if (currentPage === 'wdm_projects') return 'projects';
     if (currentPage === 'wdm_bounties') return 'bounties';
@@ -90,6 +94,10 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [taskAssigneeFilter, setTaskAssigneeFilter] = useState<string>('all');
   const [taskTimeFilter, setTaskTimeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // My Tasks state (Deliverables assigned to Manager by Admin)
+  const [myTasksSearch, setMyTasksSearch] = useState('');
+  const [myTasksFilter, setMyTasksFilter] = useState<'all' | 'in_progress' | 'review_requested' | 'completed' | 'blocked'>('all');
 
   // Modals state
   const [selectedTask, setSelectedTask] = useState<WebDevTask | null>(null);
@@ -203,6 +211,53 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
 
   // Filtered Tasks
   const myAdminTasks = tasks.filter((t) => t.assigneeId === currentUser.teacherId);
+  const myAdminActiveTasks = myAdminTasks.filter((t) => t.status !== 'completed' && t.status !== 'not_done');
+
+  const filteredMyTasks = myAdminTasks.filter((t) => {
+    if (myTasksFilter === 'in_progress' && t.status !== 'in_progress') return false;
+    if (myTasksFilter === 'review_requested' && t.status !== 'review_requested') return false;
+    if (myTasksFilter === 'completed' && t.status !== 'completed') return false;
+    if (myTasksFilter === 'blocked' && !t.isBlocked) return false;
+    if (myTasksSearch.trim()) {
+      const q = myTasksSearch.toLowerCase();
+      return (
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q) ||
+        (t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q)))
+      );
+    }
+    return true;
+  });
+
+  const handleToggleMySubtask = (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task || !task.subtasks) return;
+    const updatedSubtasks = task.subtasks.map((st) =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+    WebDevService.saveTask(
+      { ...task, subtasks: updatedSubtasks, updatedAt: new Date().toISOString() },
+      { id: currentUser.teacherId, name: currentUser.name }
+    );
+    loadData();
+  };
+
+  const handleToggleMyBlocker = (task: WebDevTask) => {
+    if (task.isBlocked) {
+      WebDevService.saveTask(
+        { ...task, isBlocked: false, blockerReason: undefined, updatedAt: new Date().toISOString() },
+        { id: currentUser.teacherId, name: currentUser.name }
+      );
+    } else {
+      const reason = prompt('Please specify the blocker or technical issue:');
+      if (!reason) return;
+      WebDevService.saveTask(
+        { ...task, isBlocked: true, blockerReason: reason, updatedAt: new Date().toISOString() },
+        { id: currentUser.teacherId, name: currentUser.name }
+      );
+    }
+    loadData();
+  };
 
   const filteredTasks = tasks.filter((t) => {
     if (taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false;
@@ -312,6 +367,25 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
       },
       { id: currentUser.teacherId, name: currentUser.name }
     );
+
+    // Dispatch email notification if assigned user has email
+    if (assignedUser && assignedUser.email) {
+      notificationService.notifyWebDevTaskAssigned({
+        assigneeEmail: assignedUser.email,
+        assigneeName: assignedUser.name,
+        assigneeRole: assignedUser.role,
+        taskTitle: newTaskTitle.trim(),
+        taskDescription: newTaskDesc.trim(),
+        projectName: projects.find((p) => p.id === newTaskProject)?.title || 'AEW Platform',
+        projectId: newTaskProject,
+        priority: newTaskPriority,
+        xpReward: Number(newTaskXp) || 150,
+        deadline: newTaskDue || undefined,
+        dueDate: newTaskDue || undefined,
+        assignedByName: `${currentUser.name} (Engineering Manager)`,
+        subtasks: newTaskSubtasks,
+      }).catch((err) => console.warn('[WebDevManagerView] Failed to dispatch task assignment email:', err));
+    }
 
     setShowCreateTaskModal(false);
     setNewTaskTitle('');
@@ -602,7 +676,27 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
           </div>
 
           {/* Attention Center KPI Tiles */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mt-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mt-8">
+            <div
+              onClick={() => onPageChange?.('wdm_my_tasks')}
+              className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                activeTab === 'my_tasks'
+                  ? 'bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/15 ring-1 ring-emerald-500/30'
+                  : myAdminActiveTasks.length > 0
+                  ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10 hover:border-emerald-500/50'
+                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold">
+                <span>My Tasks</span>
+                <CheckSquare className="w-4 h-4" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-white mt-1">
+                {myAdminActiveTasks.length}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Assigned by Admin</div>
+            </div>
+
             <div
               onClick={() => onPageChange?.('wdm_review')}
               className={`p-4 rounded-xl border transition-all cursor-pointer ${
@@ -688,6 +782,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
               <span className="text-slate-400 font-medium">Operations Center</span>
               <span className="text-slate-600">/</span>
               <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-amber-300 font-semibold flex items-center gap-1.5">
+                {activeTab === 'my_tasks' && <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />}
                 {activeTab === 'review_desk' && <Shield className="w-3.5 h-3.5 text-amber-400" />}
                 {activeTab === 'tasks' && <CheckSquare className="w-3.5 h-3.5 text-blue-400" />}
                 {activeTab === 'projects' && <Layers className="w-3.5 h-3.5 text-indigo-400" />}
@@ -696,6 +791,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 {activeTab === 'team' && <Users className="w-3.5 h-3.5 text-purple-400" />}
                 {activeTab === 'leaderboard' && <Trophy className="w-3.5 h-3.5 text-yellow-400" />}
                 {activeTab === 'audit' && <FileText className="w-3.5 h-3.5 text-slate-400" />}
+                {activeTab === 'my_tasks' && 'My Tasks & Admin Deliverables'}
                 {activeTab === 'review_desk' && 'Review Desk & PR Approvals'}
                 {activeTab === 'tasks' && 'All Tasks & Workload Command Center'}
                 {activeTab === 'projects' && 'Projects & Roadmap Milestones'}
@@ -716,6 +812,340 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
 
       {/* ─── MAIN CONTENT BODY ──────────────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* ─── TAB 0: MY TASKS (ADMIN DELIVERABLES FOR WEB DEV MANAGER) ────────── */}
+        {activeTab === 'my_tasks' && (
+          <div className="space-y-6">
+            {/* Header / Intro Banner */}
+            <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-indigo-950/30 border border-emerald-500/30 rounded-2xl p-6 shadow-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                      <Crown className="w-3 h-3 text-amber-400" />
+                      Executive Deliverables
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">Assigned by Operations Admin</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2 mt-2">
+                    <CheckSquare className="w-6 h-6 text-emerald-400" />
+                    My Assigned Deliverables & Tasks ({myAdminTasks.length})
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                    High-priority software architecture directives, core feature builds, and engineering milestones assigned directly to you by the Admin. Complete deliverables on time to claim 100% XP stakes and punctuality bonuses.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <div className="text-xs text-slate-400 font-medium">Total Assigned XP</div>
+                    <div className="text-xl sm:text-2xl font-black text-amber-400 flex items-center justify-end gap-1">
+                      <Sparkles className="w-4 h-4" />
+                      {myAdminTasks.reduce((sum, t) => sum + (t.xpReward || 0), 0)} XP
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Summary Counters */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-slate-800/80">
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">In Progress</div>
+                  <div className="text-lg font-black text-blue-400 mt-0.5">
+                    {myAdminTasks.filter((t) => t.status === 'in_progress').length}
+                  </div>
+                </div>
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Under Review</div>
+                  <div className="text-lg font-black text-amber-400 mt-0.5">
+                    {myAdminTasks.filter((t) => t.status === 'review_requested').length}
+                  </div>
+                </div>
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Completed On-Time</div>
+                  <div className="text-lg font-black text-emerald-400 mt-0.5">
+                    {myAdminTasks.filter((t) => t.status === 'completed' && t.completionStatus === 'on_time').length}
+                  </div>
+                </div>
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Blocked / Need Help</div>
+                  <div className="text-lg font-black text-rose-400 mt-0.5">
+                    {myAdminTasks.filter((t) => t.isBlocked).length}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  value={myTasksSearch}
+                  onChange={(e) => setMyTasksSearch(e.target.value)}
+                  placeholder="Search my deliverables, tags, subtasks..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'all', label: `All (${myAdminTasks.length})` },
+                  { id: 'in_progress', label: `In Progress (${myAdminTasks.filter((t) => t.status === 'in_progress').length})` },
+                  { id: 'review_requested', label: `Under Review (${myAdminTasks.filter((t) => t.status === 'review_requested').length})` },
+                  { id: 'completed', label: `Completed (${myAdminTasks.filter((t) => t.status === 'completed').length})` },
+                  { id: 'blocked', label: `Blocked (${myAdminTasks.filter((t) => t.isBlocked).length})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setMyTasksFilter(tab.id as any)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                      myTasksFilter === tab.id
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Deliverables List */}
+            {filteredMyTasks.length === 0 ? (
+              <div className="text-center py-16 bg-slate-900/40 rounded-2xl border border-slate-800/80 p-8 space-y-3">
+                <CheckSquare className="w-12 h-12 text-slate-600 mx-auto" />
+                <h3 className="text-base font-semibold text-slate-300">
+                  {myAdminTasks.length === 0 ? 'No Deliverables Assigned Yet' : 'No tasks match current filter'}
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  {myAdminTasks.length === 0
+                    ? 'When Operations Admin assigns technical architecture deliverables, milestones, or leadership tasks to you, they will appear here with XP bounties and deadline tracking.'
+                    : 'Try clearing the search query or switching to the "All" tab to view all assigned deliverables.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredMyTasks.map((t) => {
+                  const completedSub = (t.subtasks || []).filter((s) => s.completed).length;
+                  const totalSub = (t.subtasks || []).length;
+                  const percent = totalSub > 0 ? Math.round((completedSub / totalSub) * 100) : 0;
+                  const isOverdue = t.deadline && new Date(t.deadline).getTime() < Date.now() && t.status !== 'completed';
+
+                  return (
+                    <div
+                      key={t.id}
+                      className={`group bg-slate-900/80 hover:bg-slate-900 border rounded-2xl p-5 shadow-lg transition-all flex flex-col justify-between space-y-4 ${
+                        t.isBlocked
+                          ? 'border-rose-500/40 shadow-rose-950/20'
+                          : isOverdue
+                          ? 'border-amber-500/40 shadow-amber-950/20'
+                          : t.status === 'completed'
+                          ? 'border-emerald-500/30'
+                          : 'border-slate-800 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        {/* Card Top Row */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
+                              {t.id}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 uppercase font-semibold">
+                              {t.type}
+                            </span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                                t.priority === 'critical'
+                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse'
+                                  : t.priority === 'high'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                              }`}
+                            >
+                              {t.priority}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="flex items-center gap-1 text-xs font-bold text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                              <Sparkles className="w-3.5 h-3.5" />
+                              +{t.xpReward} XP
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Title & Description */}
+                        <div>
+                          <h3
+                            onClick={() => setSelectedTask(t)}
+                            className="text-sm font-bold text-white hover:text-emerald-300 cursor-pointer transition-colors leading-snug"
+                          >
+                            {t.title}
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                            {t.description || 'No description provided.'}
+                          </p>
+                        </div>
+
+                        {/* Assigner & Project info */}
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
+                          <span className="flex items-center gap-1">
+                            <Crown className="w-3 h-3 text-amber-400" />
+                            <span>Assigned by: <strong className="text-slate-300">{t.assignedByName || 'Admin'}</strong></span>
+                          </span>
+                          <span className="text-slate-600">•</span>
+                          <span>Project: <strong className="text-slate-300">{projects.find((p) => p.id === t.projectId)?.title || t.projectId || 'AEW Platform'}</strong></span>
+                        </div>
+
+                        {/* Deadline & Time Evaluation Status */}
+                        <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-slate-400">Deadline:</span>
+                            <span className={`font-semibold ${isOverdue ? 'text-rose-400 font-bold' : 'text-slate-200'}`}>
+                              {t.deadline ? new Date(t.deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'No hard cutoff'}
+                            </span>
+                          </div>
+
+                          {t.completionStatus === 'on_time' && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Delivered On-Time (+100% XP)
+                            </span>
+                          )}
+                          {t.completionStatus === 'late' && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Delivered Late
+                            </span>
+                          )}
+                          {t.completionStatus === 'not_done' && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              Missed Deadline
+                            </span>
+                          )}
+                          {!t.completionStatus && isOverdue && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse">
+                              Overdue
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Subtasks checklist (Interactive) */}
+                        {t.subtasks && t.subtasks.length > 0 && (
+                          <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                            <div className="flex items-center justify-between text-[11px] text-slate-400">
+                              <span>Checkpoints ({completedSub}/{totalSub})</span>
+                              <span className="font-mono text-emerald-400 font-bold">{percent}%</span>
+                            </div>
+                            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
+                                style={{ width: `${percent}%` }}
+                              />
+                            </div>
+                            <div className="space-y-1 pt-1 max-h-28 overflow-y-auto pr-1 scrollbar-thin">
+                              {t.subtasks.map((st) => (
+                                <div
+                                  key={st.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleMySubtask(t.id, st.id);
+                                  }}
+                                  className="flex items-center gap-2 text-xs py-1 px-1.5 rounded hover:bg-slate-800/60 cursor-pointer transition-colors"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={st.completed}
+                                    readOnly
+                                    className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 pointer-events-none"
+                                  />
+                                  <span className={`text-[11px] select-none ${st.completed ? 'line-through text-slate-500' : 'text-slate-300'}`}>
+                                    {st.title}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Blocker alert if active */}
+                        {t.isBlocked && (
+                          <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold">Active Blocker:</span> {t.blockerReason || 'Technical obstruction reported.'}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card Action Footer */}
+                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleMyBlocker(t);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
+                              t.isBlocked
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'
+                                : 'bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700/60'
+                            }`}
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            {t.isBlocked ? 'Clear Blocker' : 'Report Blocker'}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {t.status === 'in_progress' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTask(t);
+                              }}
+                              className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+                            >
+                              <GitPullRequest className="w-3.5 h-3.5" />
+                              Submit Work
+                            </button>
+                          )}
+                          {t.status === 'review_requested' && (
+                            <span className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              Under Review
+                            </span>
+                          )}
+                          {t.status === 'completed' && (
+                            <span className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Completed
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTask(t)}
+                            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            Details & Discussion &rarr;
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ─── TAB 1: REVIEW DESK ───────────────────────────────────────────── */}
         {activeTab === 'review_desk' && (
           <div className="space-y-6">

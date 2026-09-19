@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
+import { WebDevService } from '../services/webDevService';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, FileCheck, Key, Lock
+  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, FileCheck, Key, Lock,
+  CheckSquare, Shield, ListTodo, Briefcase, Target, Trophy, PhoneCall
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
 
@@ -71,6 +73,23 @@ export const Navbar: React.FC<NavbarProps> = ({
     : null;
 
   const teacherWalletInfo = currentUser?.role === 'teacher' ? StorageService.getTimeWalletInfo(currentUser.teacherId) : null;
+
+  // Web Dev badges
+  const wdmMyActiveTasks = currentUser?.role === 'web_dev_manager'
+    ? WebDevService.getTasks({ assigneeId: currentUser.teacherId }).filter((t) => t.status !== 'completed' && t.status !== 'not_done').length
+    : 0;
+
+  const wdmPendingReviews = currentUser?.role === 'web_dev_manager'
+    ? WebDevService.getTasks({ status: 'review_requested' }).length
+    : 0;
+
+  const wdmOpenBounties = (currentUser?.role === 'web_dev_manager' || currentUser?.role === 'web_developer')
+    ? WebDevService.getBounties().filter((b) => b.status === 'open').length
+    : 0;
+
+  const devActiveTasks = currentUser?.role === 'web_developer'
+    ? WebDevService.getTasks({ assigneeId: currentUser.teacherId }).filter((t) => t.status !== 'completed').length
+    : 0;
 
   // Teacher Navigation Links
   const teacherNavItems: NavItem[] = [
@@ -159,8 +178,68 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'pr_earnings', label: 'Earnings', icon: Layers },
   ];
 
+  // Web Dev Manager Navigation Links
+  const wdmNavItems: NavItem[] = [
+    { 
+      id: 'wdm_my_tasks', 
+      label: 'My Tasks', 
+      icon: CheckSquare,
+      badge: wdmMyActiveTasks > 0 ? `${wdmMyActiveTasks}` : undefined,
+      badgeColor: 'bg-emerald-500 text-white font-bold',
+    },
+    { 
+      id: 'wdm_review', 
+      label: 'Review Desk', 
+      icon: Shield,
+      badge: wdmPendingReviews > 0 ? `${wdmPendingReviews}` : undefined,
+      badgeColor: 'bg-rose-500 text-white font-bold',
+    },
+    { id: 'wdm_tasks', label: 'All Tasks', icon: ListTodo },
+    { id: 'wdm_projects', label: 'Projects', icon: Briefcase },
+    { 
+      id: 'wdm_bounties', 
+      label: 'Bounties', 
+      icon: Target,
+      badge: wdmOpenBounties > 0 ? `${wdmOpenBounties}` : undefined,
+      badgeColor: 'bg-amber-500 text-slate-950 font-bold',
+    },
+    { id: 'wdm_team', label: 'Team', icon: Users },
+    { id: 'wdm_leaderboard', label: 'Leaderboard', icon: Trophy },
+  ];
+
+  // Web Developer Navigation Links
+  const devNavItems: NavItem[] = [
+    { 
+      id: 'dev_tasks', 
+      label: 'My Tasks', 
+      icon: ListTodo,
+      badge: devActiveTasks > 0 ? `${devActiveTasks}` : undefined,
+      badgeColor: 'bg-indigo-500 text-white font-bold',
+    },
+    { id: 'dev_projects', label: 'Projects', icon: Briefcase },
+    { 
+      id: 'dev_bounties', 
+      label: 'Bounties', 
+      icon: Target,
+      badge: wdmOpenBounties > 0 ? `${wdmOpenBounties}` : undefined,
+      badgeColor: 'bg-amber-500 text-slate-950 font-bold',
+    },
+    { id: 'dev_leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: 'dev_rewards', label: 'Awards', icon: Award },
+  ];
+
+  const salesNavItems: NavItem[] = [
+    { id: 'sales_crm', label: 'Sales CRM Desk', icon: PhoneCall },
+  ];
+
   const currentNavItems = currentUser?.role === 'admin' 
     ? adminNavItems 
+    : currentUser?.role === 'web_dev_manager'
+    ? wdmNavItems
+    : currentUser?.role === 'web_developer'
+    ? devNavItems
+    : currentUser?.role === 'sales'
+    ? salesNavItems
     : currentUser?.role === 'pr_intern'
     ? prNavItems
     : teacherNavItems;

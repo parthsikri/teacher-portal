@@ -286,6 +286,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   // Web Dev counts & badges
+  const wdmMyActiveTasks = currentUser.role === 'web_dev_manager'
+    ? WebDevService.getTasks({ assigneeId: currentUser.teacherId }).filter((t) => t.status !== 'completed' && t.status !== 'not_done').length
+    : 0;
   const wdmPendingReviews = currentUser.role === 'web_dev_manager'
     ? WebDevService.getTasks({ status: 'review_requested' }).length
     : 0;
@@ -298,6 +301,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Web Dev Manager Navigation Links
   const wdmNavItems: NavItem[] = [
+    { 
+      id: 'wdm_my_tasks', 
+      label: 'My Tasks', 
+      icon: CheckCircle2,
+      badge: wdmMyActiveTasks > 0 ? `${wdmMyActiveTasks} Active` : undefined,
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30',
+    },
     { 
       id: 'wdm_review', 
       label: 'Review Desk', 
