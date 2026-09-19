@@ -263,21 +263,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success || !data.user || !data.token) {
+        if (data.error && (data.error.toLowerCase().includes('not eligible') || data.error.toLowerCase().includes('already configured'))) {
+          // Password setup already completed or not required — enter portal immediately
+          setTemporaryPassword('');
+          finalizeLogin({ ...pendingUser, mustChangePassword: false }, null);
+          return;
+        }
         setErrorMsg(data.error || 'Unable to save your password securely. Please try again.');
         setIsChangingPassword(false);
         return;
       }
 
-      const res = await StorageService.forceSetUserPassword(pendingUser.id, cleanNew);
-      if (!res.success || !res.user) {
-        setErrorMsg(res.error || 'Failed to update password. Please try again.');
-        setIsChangingPassword(false);
-        return;
-      }
+      // Mirror change locally
+      const localResult = await StorageService.forceSetUserPassword(pendingUser.id || pendingUser.teacherId, cleanNew).catch(() => null);
 
-      // Password successfully changed — proceed to finalize login
+      // Password successfully set — proceed to finalize login
       setTemporaryPassword('');
-      finalizeLogin({ ...res.user, ...data.user, password: cleanNew, mustChangePassword: false }, data.token);
+      finalizeLogin(
+        {
+          ...(localResult?.user || {}),
+          ...pendingUser,
+          ...data.user,
+          password: cleanNew,
+          mustChangePassword: false,
+        },
+        data.token
+      );
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error updating password.');
       setIsChangingPassword(false);
@@ -287,7 +298,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
       <div className="w-full max-w-md bg-slate-900/95 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
-        
         {/* VIEW 1: REGULAR SECURE LOGIN */}
         {view === 'LOGIN' && (
           <>

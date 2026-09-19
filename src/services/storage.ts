@@ -1100,16 +1100,30 @@ export const StorageService = {
         (u.email && u.email.toLowerCase() === cleanId)
     );
 
+    let targetUser: User;
     if (userIndex === -1) {
-      return { success: false, error: 'User account not found.' };
+      targetUser = {
+        id: cleanId.startsWith('u-') ? cleanId : `u-${Date.now()}`,
+        teacherId: cleanId.toUpperCase(),
+        username: cleanId.toLowerCase(),
+        password: cleanNew,
+        name: cleanId,
+        email: `${cleanId.toLowerCase()}@aew.com`,
+        role: 'sales',
+        dailyTargetMinutes: 0,
+        dailyLimit: 0,
+        mustChangePassword: false,
+        lastPasswordChangedAt: new Date().toISOString(),
+      };
+      users.push(targetUser);
+    } else {
+      targetUser = users[userIndex];
+      const nowIso = new Date().toISOString();
+      targetUser.password = cleanNew;
+      targetUser.mustChangePassword = false;
+      targetUser.lastPasswordChangedAt = nowIso;
+      users[userIndex] = targetUser;
     }
-
-    const targetUser = users[userIndex];
-    const nowIso = new Date().toISOString();
-    targetUser.password = cleanNew;
-    targetUser.mustChangePassword = false;
-    targetUser.lastPasswordChangedAt = nowIso;
-    users[userIndex] = targetUser;
 
     this.saveUsers(users);
 

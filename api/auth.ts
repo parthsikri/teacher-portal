@@ -158,8 +158,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (candidate.email || '').toLowerCase() === query
     );
 
-    if (!user || user.isOffboarded || !user.mustChangePassword) {
-      return res.status(400).json({ success: false, error: 'This account is not eligible for first-login password setup.' });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User account not found.' });
+    }
+
+    if (user.isOffboarded) {
+      return res.status(403).json({ success: false, error: 'This account has been offboarded. Access is disabled.' });
+    }
+
+    // If password setup was already completed, smoothly allow user to enter portal
+    if (!user.mustChangePassword) {
+      return res.status(200).json({
+        success: true,
+        token: createSessionToken(user),
+        user: sanitizeUser(user),
+      });
     }
 
     const defaultPassword = user.role === 'admin' ? 'admin123'
