@@ -119,6 +119,26 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
     };
   }, []);
 
+  // Helper for cleanly formatting task deadline
+  const formatTaskDeadlineDisplay = (deadline?: string, dueDate?: string) => {
+    const val = (deadline || dueDate || '').trim();
+    if (!val) return 'No deadline';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split('-');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${d} ${months[parseInt(m, 10) - 1]} ${y} (EOD)`;
+    }
+    const dt = new Date(val);
+    if (isNaN(dt.getTime())) return val;
+    return dt.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   // Helper for computing time & deadline status
   const getTimeStatusInfo = (task: WebDevTask) => {
     if (task.completionStatus === 'on_time') {
@@ -169,7 +189,9 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
       };
     }
 
-    const dTime = new Date(dVal).getTime();
+    const dTime = /^\d{4}-\d{2}-\d{2}$/.test(dVal)
+      ? new Date(`${dVal}T23:59:59`).getTime()
+      : new Date(dVal).getTime();
     const now = new Date().getTime();
     const diffHours = Math.round((dTime - now) / (1000 * 60 * 60));
 
@@ -221,7 +243,10 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
       if (filterTimeStatus === 'overdue') {
         const dVal = t.deadline || t.dueDate;
         if (!dVal || t.status === 'completed' || t.status === 'not_done') return false;
-        if (new Date(dVal).getTime() >= new Date().getTime()) return false;
+        const dTime = /^\d{4}-\d{2}-\d{2}$/.test(dVal)
+          ? new Date(`${dVal}T23:59:59`).getTime()
+          : new Date(dVal).getTime();
+        if (dTime >= new Date().getTime()) return false;
       }
     }
 
@@ -821,17 +846,10 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
                           <td className="py-3.5 px-4">
                             <div className="space-y-1">
                               <div className="text-slate-400 flex items-center gap-1 font-mono text-[11px]">
-                                <Clock className="w-3 h-3 text-slate-500" />
-                                {t.deadline || t.dueDate ? (
-                                  new Date(t.deadline || t.dueDate || '').toLocaleString(undefined, {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
-                                ) : (
-                                  <span className="text-slate-600">No deadline</span>
-                                )}
+                                <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                                <span className={t.deadline || t.dueDate ? 'text-slate-300 font-medium' : 'text-slate-600'}>
+                                  {formatTaskDeadlineDisplay(t.deadline, t.dueDate)}
+                                </span>
                               </div>
                               <div className="flex items-center gap-1">
                                 <span
@@ -1319,9 +1337,7 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
                 <span>
                   Deadline:{' '}
                   <strong>
-                    {timeEvalTask.deadline || timeEvalTask.dueDate
-                      ? new Date(timeEvalTask.deadline || timeEvalTask.dueDate || '').toLocaleString()
-                      : 'Not set'}
+                    {formatTaskDeadlineDisplay(timeEvalTask.deadline, timeEvalTask.dueDate)}
                   </strong>
                 </span>
               </div>
@@ -1331,8 +1347,11 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
             {(() => {
               const dVal = timeEvalTask.deadline || timeEvalTask.dueDate;
               if (!dVal) return null;
-              const isPast = new Date().getTime() > new Date(dVal).getTime();
-              const diffH = Math.round(Math.abs(new Date().getTime() - new Date(dVal).getTime()) / (1000 * 60 * 60));
+              const dTime = /^\d{4}-\d{2}-\d{2}$/.test(dVal)
+                ? new Date(`${dVal}T23:59:59`).getTime()
+                : new Date(dVal).getTime();
+              const isPast = new Date().getTime() > dTime;
+              const diffH = Math.round(Math.abs(new Date().getTime() - dTime) / (1000 * 60 * 60));
               return (
                 <div
                   className={`p-3 rounded-xl border flex items-center gap-2 text-xs ${

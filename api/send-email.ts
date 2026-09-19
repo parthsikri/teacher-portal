@@ -38,6 +38,59 @@ const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
 const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'Academic Operations <onboarding@resend.dev>').trim();
 
 /**
+ * Accurately formats a deadline or cutoff in Indian Standard Time (IST)
+ * regardless of whether the incoming string is:
+ * 1. An HTML5 datetime-local string without timezone offset ("YYYY-MM-DDTHH:mm")
+ * 2. An HTML5 date-only string ("YYYY-MM-DD")
+ * 3. A full ISO-8601 string with UTC indicator or offset ("YYYY-MM-DDTHH:mm:ss.sssZ" or "+05:30")
+ * 4. A human-readable text string
+ */
+function formatEmailDeadline(deadline?: string, dueDate?: string): string {
+  const raw = String(deadline || dueDate || '').trim();
+  if (!raw) return 'Standard Sprint Cutoff';
+
+  // 1. Check if it's a date-only string like "YYYY-MM-DD"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m, d] = raw.split('-');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthName = months[parseInt(m, 10) - 1] || m;
+    return `${d} ${monthName} ${y} (End of Day, 11:59 PM IST)`;
+  }
+
+  // 2. Check if it's a datetime-local string without timezone offset (e.g. "YYYY-MM-DDTHH:mm" or "YYYY-MM-DDTHH:mm:ss")
+  // Since portal operations, managers, and faculty work in India (IST, UTC+5:30),
+  // a datetime string without offset like "2026-09-20T18:00" explicitly represents 6:00 PM IST.
+  // In a UTC server environment (Vercel iad1), parsing without offset inappropriately treats it as UTC,
+  // which shifts the displayed time by +5:30 when converted to Asia/Kolkata.
+  let isoCandidate = raw;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(raw)) {
+    isoCandidate = (raw.length === 16 ? `${raw}:00` : raw) + '+05:30';
+  }
+
+  const dt = new Date(isoCandidate);
+  if (isNaN(dt.getTime())) {
+    return raw;
+  }
+
+  const datePart = dt.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const timePart = dt.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  return `${datePart} at ${timePart.toUpperCase()} IST`;
+}
+
+/**
  * Generate formatted HTML email template based on notification event type
  */
 function buildEmailTemplate(type: NotificationEventType, data: Record<string, any>): { subject: string; html: string } {
@@ -192,11 +245,11 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
             </tr>
             <tr>
               <td style="color: #94a3b8; padding: 6px 0;">Valid From:</td>
-              <td style="color: #cbd5e1; padding: 6px 0;">${data.startWindow || 'Immediate'}</td>
+              <td style="color: #cbd5e1; padding: 6px 0;">${data.startWindow ? formatEmailDeadline(data.startWindow) : 'Immediate'}</td>
             </tr>
             <tr>
               <td style="color: #94a3b8; padding: 6px 0;">Valid Until:</td>
-              <td style="color: #fbbf24; font-weight: 700; padding: 6px 0;">${data.endWindow || 'Specified Window'}</td>
+              <td style="color: #fbbf24; font-weight: 700; padding: 6px 0;">${data.endWindow ? formatEmailDeadline(data.endWindow) : 'Specified Window'}</td>
             </tr>
             ${data.topicsCovered ? `
             <tr>
@@ -624,7 +677,7 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
             </tr>
             <tr>
               <td style="padding: 4px 0; color: #64748b;">Deadline:</td>
-              <td style="padding: 4px 0; font-weight: 600; color: #f87171;">${data.deadline ? new Date(data.deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : (data.dueDate || 'Standard Sprint Cutoff')}</td>
+              <td style="padding: 4px 0; font-weight: 700; color: #f87171;">${formatEmailDeadline(data.deadline, data.dueDate)}</td>
             </tr>
             ${data.subtasks && data.subtasks.length > 0 ? `
             <tr>

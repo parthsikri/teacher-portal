@@ -52,9 +52,31 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const calculateDeadlineRemaining = (dueDate?: string) => {
-    if (!dueDate) return null;
-    const targetMs = new Date(dueDate.includes('T') ? dueDate : `${dueDate}T23:59:59`).getTime();
+  const formatTaskDeadlineDisplay = (deadline?: string, dueDate?: string) => {
+    const val = (deadline || dueDate || '').trim();
+    if (!val) return 'No deadline';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split('-');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${d} ${months[parseInt(m, 10) - 1]} ${y} (EOD)`;
+    }
+    const dt = new Date(val);
+    if (isNaN(dt.getTime())) return val;
+    return dt.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const calculateDeadlineRemaining = (deadline?: string, dueDate?: string) => {
+    const raw = (deadline || dueDate || '').trim();
+    if (!raw) return null;
+    const targetMs = new Date(raw.includes('T') ? raw : `${raw}T23:59:59`).getTime();
     if (isNaN(targetMs)) return null;
 
     const diff = targetMs - now;
@@ -76,7 +98,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     };
   };
 
-  const deadlineInfo = calculateDeadlineRemaining(currentTask.dueDate);
+  const deadlineInfo = calculateDeadlineRemaining(currentTask.deadline, currentTask.dueDate);
 
   // Blocker reporting state
   const [showBlockerInput, setShowBlockerInput] = useState(false);
@@ -407,9 +429,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </div>
             <div>
               <div className="text-slate-500 uppercase font-semibold text-[10px]">Due Date</div>
-              <div className="text-white font-medium mt-1 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                {currentTask.dueDate || currentTask.deadline || 'No deadline'}
+              <div className="text-white font-medium mt-1 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="font-mono text-xs">
+                  {formatTaskDeadlineDisplay(currentTask.deadline, currentTask.dueDate)}
+                </span>
               </div>
             </div>
             <div>

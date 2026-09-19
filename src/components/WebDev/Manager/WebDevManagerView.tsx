@@ -211,6 +211,37 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     };
   }, []);
 
+  // Helper for cleanly formatting task deadline in Indian Standard Time (IST)
+  const formatTaskDeadlineDisplay = (deadline?: string, dueDate?: string) => {
+    const val = (deadline || dueDate || '').trim();
+    if (!val) return 'No hard cutoff';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split('-');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${d} ${months[parseInt(m, 10) - 1]} ${y} (EOD)`;
+    }
+    const dt = new Date(val);
+    if (isNaN(dt.getTime())) return val;
+    return dt.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  // Quick deadline setter for Task creation modal
+  const setQuickNewTaskDue = (hoursFromNow: number) => {
+    const target = new Date();
+    target.setHours(target.getHours() + hoursFromNow);
+    const tzOffset = target.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(target.getTime() - tzOffset).toISOString().slice(0, 16);
+    setNewTaskDue(localISOTime);
+  };
+
   // Attention Center KPIs
   const pendingReviews = tasks.filter((t) => t.status === 'review_requested');
   const blockedTasks = tasks.filter((t) => t.isBlocked);
@@ -939,7 +970,13 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                   const completedSub = (t.subtasks || []).filter((s) => s.completed).length;
                   const totalSub = (t.subtasks || []).length;
                   const percent = totalSub > 0 ? Math.round((completedSub / totalSub) * 100) : 0;
-                  const isOverdue = t.deadline && new Date(t.deadline).getTime() < Date.now() && t.status !== 'completed';
+                  const dVal = t.deadline || t.dueDate;
+                  const dTime = dVal
+                    ? /^\d{4}-\d{2}-\d{2}$/.test(dVal)
+                      ? new Date(`${dVal}T23:59:59`).getTime()
+                      : new Date(dVal).getTime()
+                    : 0;
+                  const isOverdue = Boolean(dTime && dTime < Date.now() && t.status !== 'completed' && t.status !== 'not_done');
 
                   return (
                     <div
@@ -1011,10 +1048,10 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                         {/* Deadline & Time Evaluation Status */}
                         <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
                           <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span className="text-slate-400">Deadline:</span>
-                            <span className={`font-semibold ${isOverdue ? 'text-rose-400 font-bold' : 'text-slate-200'}`}>
-                              {t.deadline ? new Date(t.deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'No hard cutoff'}
+                            <span className={`font-semibold font-mono ${isOverdue ? 'text-rose-400 font-bold' : 'text-slate-200'}`}>
+                              {formatTaskDeadlineDisplay(t.deadline, t.dueDate)}
                             </span>
                           </div>
 
@@ -1437,7 +1474,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="space-y-0.5">
-                          <div className="text-slate-400 text-xs">{t.dueDate || t.deadline || '—'}</div>
+                          <div className="text-slate-300 text-xs font-mono">{formatTaskDeadlineDisplay(t.deadline, t.dueDate)}</div>
                           {t.completionStatus && (
                             <div className="text-[10px] font-semibold">
                               {t.completionStatus === 'on_time' && <span className="text-emerald-400">✅ On-Time</span>}
@@ -2348,13 +2385,46 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Due Date</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-300">Target Deadline / Cutoff</label>
+                    <span className="text-[10px] text-slate-400">Strict evaluation</span>
+                  </div>
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={newTaskDue}
                     onChange={(e) => setNewTaskDue(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
                   />
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setQuickNewTaskDue(8)}
+                      className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px]"
+                    >
+                      Today (+8h)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickNewTaskDue(24)}
+                      className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px]"
+                    >
+                      Tomorrow (+24h)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickNewTaskDue(72)}
+                      className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px]"
+                    >
+                      3 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickNewTaskDue(168)}
+                      className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px]"
+                    >
+                      1 Week
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2771,7 +2841,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-medium text-amber-300">
                             <Calendar className="w-3 h-3 text-amber-400" />
-                            {ms.deadline}
+                            {formatTaskDeadlineDisplay(ms.deadline)}
                           </span>
                           <button
                             type="button"
