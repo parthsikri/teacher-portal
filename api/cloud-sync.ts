@@ -397,6 +397,209 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     });
   }
 
+  // 16. Merge Sales Leads
+  const salesLeadMap = new Map<string, any>();
+  if (Array.isArray(current.salesLeads)) {
+    current.salesLeads.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) salesLeadMap.set(l.id, l);
+    });
+  }
+  if (Array.isArray(incoming.salesLeads)) {
+    incoming.salesLeads.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) {
+        const existing = salesLeadMap.get(l.id);
+        if (!existing) {
+          salesLeadMap.set(l.id, l);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = l.updatedAt ? new Date(l.updatedAt).getTime() : 0;
+          salesLeadMap.set(l.id, inTime >= exTime ? { ...existing, ...l } : { ...l, ...existing });
+        }
+      }
+    });
+  }
+
+  // 17. Merge Web Dev Projects
+  const webDevProjectMap = new Map<string, any>();
+  if (Array.isArray(current.webDevProjects)) {
+    current.webDevProjects.forEach((p: any) => {
+      if (p && p.id && !deletedIds.has(p.id.toUpperCase())) webDevProjectMap.set(p.id, p);
+    });
+  }
+  if (Array.isArray(incoming.webDevProjects)) {
+    incoming.webDevProjects.forEach((p: any) => {
+      if (p && p.id && !deletedIds.has(p.id.toUpperCase())) {
+        const existing = webDevProjectMap.get(p.id);
+        if (!existing) {
+          webDevProjectMap.set(p.id, p);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+          webDevProjectMap.set(p.id, inTime >= exTime ? { ...existing, ...p } : { ...p, ...existing });
+        }
+      }
+    });
+  }
+
+  // 18. Merge Web Dev Milestones
+  const webDevMilestoneMap = new Map<string, any>();
+  if (Array.isArray(current.webDevMilestones)) {
+    current.webDevMilestones.forEach((m: any) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) webDevMilestoneMap.set(m.id, m);
+    });
+  }
+  if (Array.isArray(incoming.webDevMilestones)) {
+    incoming.webDevMilestones.forEach((m: any) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) {
+        webDevMilestoneMap.set(m.id, {
+          ...webDevMilestoneMap.get(m.id),
+          ...m,
+        });
+      }
+    });
+  }
+
+  // 19. Merge Web Dev Tasks (All deliverables: Admin, Manager & Dev)
+  const webDevTaskMap = new Map<string, any>();
+  if (Array.isArray(current.webDevTasks)) {
+    current.webDevTasks.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) webDevTaskMap.set(t.id, t);
+    });
+  }
+  if (Array.isArray(incoming.webDevTasks)) {
+    incoming.webDevTasks.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) {
+        const existing = webDevTaskMap.get(t.id);
+        if (!existing) {
+          webDevTaskMap.set(t.id, t);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+
+          const base = inTime >= exTime ? { ...existing, ...t } : { ...t, ...existing };
+          const mergedSubtasks = (t.subtasks && t.subtasks.length > 0)
+            ? t.subtasks
+            : (existing.subtasks || []);
+
+          const exComments = existing.comments || [];
+          const inComments = t.comments || [];
+          const commentMap = new Map<string, any>();
+          exComments.forEach((c: any) => c && c.id && commentMap.set(c.id, c));
+          inComments.forEach((c: any) => c && c.id && commentMap.set(c.id, { ...commentMap.get(c.id), ...c }));
+
+          webDevTaskMap.set(t.id, {
+            ...base,
+            subtasks: mergedSubtasks,
+            comments: Array.from(commentMap.values()),
+          });
+        }
+      }
+    });
+  }
+
+  // 20. Merge Web Dev Bounties
+  const webDevBountyMap = new Map<string, any>();
+  if (Array.isArray(current.webDevBounties)) {
+    current.webDevBounties.forEach((b: any) => {
+      if (b && b.id && !deletedIds.has(b.id.toUpperCase())) webDevBountyMap.set(b.id, b);
+    });
+  }
+  if (Array.isArray(incoming.webDevBounties)) {
+    incoming.webDevBounties.forEach((b: any) => {
+      if (b && b.id && !deletedIds.has(b.id.toUpperCase())) {
+        webDevBountyMap.set(b.id, {
+          ...webDevBountyMap.get(b.id),
+          ...b,
+        });
+      }
+    });
+  }
+
+  // 21. Merge Web Dev XP Ledger
+  const webDevXpLedgerMap = new Map<string, any>();
+  if (Array.isArray(current.webDevXpLedger)) {
+    current.webDevXpLedger.forEach((tx: any) => {
+      if (tx && tx.id) webDevXpLedgerMap.set(tx.id, tx);
+    });
+  }
+  if (Array.isArray(incoming.webDevXpLedger)) {
+    incoming.webDevXpLedger.forEach((tx: any) => {
+      if (tx && tx.id) {
+        webDevXpLedgerMap.set(tx.id, tx);
+      }
+    });
+  }
+
+  // 22. Merge Web Dev Fulfillments
+  const webDevFulfillmentMap = new Map<string, any>();
+  if (Array.isArray(current.webDevFulfillments)) {
+    current.webDevFulfillments.forEach((f: any) => {
+      if (f && f.id && !deletedIds.has(f.id.toUpperCase())) webDevFulfillmentMap.set(f.id, f);
+    });
+  }
+  if (Array.isArray(incoming.webDevFulfillments)) {
+    incoming.webDevFulfillments.forEach((f: any) => {
+      if (f && f.id && !deletedIds.has(f.id.toUpperCase())) {
+        webDevFulfillmentMap.set(f.id, {
+          ...webDevFulfillmentMap.get(f.id),
+          ...f,
+        });
+      }
+    });
+  }
+
+  // 23. Merge Web Dev Kudos
+  const webDevKudosMap = new Map<string, any>();
+  if (Array.isArray(current.webDevKudos)) {
+    current.webDevKudos.forEach((k: any) => {
+      if (k && k.id) webDevKudosMap.set(k.id, k);
+    });
+  }
+  if (Array.isArray(incoming.webDevKudos)) {
+    incoming.webDevKudos.forEach((k: any) => {
+      if (k && k.id) {
+        webDevKudosMap.set(k.id, k);
+      }
+    });
+  }
+
+  // 24. Merge Web Dev Audit Logs
+  const webDevAuditLogMap = new Map<string, any>();
+  if (Array.isArray(current.webDevAuditLogs)) {
+    current.webDevAuditLogs.forEach((log: any) => {
+      if (log && log.id) webDevAuditLogMap.set(log.id, log);
+    });
+  }
+  if (Array.isArray(incoming.webDevAuditLogs)) {
+    incoming.webDevAuditLogs.forEach((log: any) => {
+      if (log && log.id) {
+        webDevAuditLogMap.set(log.id, log);
+      }
+    });
+  }
+
+  // 25. Merge Offer Letters
+  const offerLetterMap = new Map<string, any>();
+  if (Array.isArray(current.offerLetters)) {
+    current.offerLetters.forEach((ol: any) => {
+      if (ol && ol.id && !deletedIds.has(ol.id.toUpperCase())) offerLetterMap.set(ol.id, ol);
+    });
+  }
+  if (Array.isArray(incoming.offerLetters)) {
+    incoming.offerLetters.forEach((ol: any) => {
+      if (ol && ol.id && !deletedIds.has(ol.id.toUpperCase())) {
+        const existing = offerLetterMap.get(ol.id);
+        if (!existing) {
+          offerLetterMap.set(ol.id, ol);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = ol.updatedAt ? new Date(ol.updatedAt).getTime() : 0;
+          offerLetterMap.set(ol.id, inTime >= exTime ? { ...existing, ...ol } : { ...ol, ...existing });
+        }
+      }
+    });
+  }
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -414,6 +617,17 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     prLeads: Array.from(prLeadMap.values()),
     prMous: Array.from(prMouMap.values()),
     prColleges: Array.from(prCollegeMap.values()),
+    salesLeads: Array.from(salesLeadMap.values()),
+    crmPermissions: { ...(current.crmPermissions || {}), ...(incoming.crmPermissions || {}) },
+    webDevProjects: Array.from(webDevProjectMap.values()),
+    webDevMilestones: Array.from(webDevMilestoneMap.values()),
+    webDevTasks: Array.from(webDevTaskMap.values()),
+    webDevBounties: Array.from(webDevBountyMap.values()),
+    webDevXpLedger: Array.from(webDevXpLedgerMap.values()),
+    webDevFulfillments: Array.from(webDevFulfillmentMap.values()),
+    webDevKudos: Array.from(webDevKudosMap.values()),
+    webDevAuditLogs: Array.from(webDevAuditLogMap.values()).slice(-500),
+    offerLetters: Array.from(offerLetterMap.values()),
     emailConfig: mergedEmailConfig,
     emailLogs: mergedEmailLogs,
   };

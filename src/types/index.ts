@@ -333,6 +333,7 @@ export interface PrTask {
   awardedPoints?: number;
   awardedStars?: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type PrLeadStage = 

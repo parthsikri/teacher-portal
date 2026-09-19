@@ -136,6 +136,13 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
   useEffect(() => {
     reloadData();
+    const handleSync = () => reloadData();
+    window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, [refreshTrigger]);
 
   // Aggregate Key Metrics

@@ -385,6 +385,7 @@ export const WebDevService = {
   _save<T>(key: string, data: T[]): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(key, JSON.stringify(data));
+    StorageService.triggerBackgroundCloudSync();
   },
 
   getManagerId(): string {
@@ -448,8 +449,7 @@ export const WebDevService = {
         this.saveMilestone({
           ...m,
           projectId: updated.id,
-          orderIndex: m.orderIndex || idx + 1,
-          status: m.status || 'pending',
+          order: m.order !== undefined ? m.order : idx + 1,
         });
       });
     }
@@ -461,6 +461,7 @@ export const WebDevService = {
     const list = this.getProjects();
     const filtered = list.filter((p) => p.id !== id);
     if (filtered.length !== list.length) {
+      StorageService.addDeletedId(id);
       this._save(PROJECTS_KEY, filtered);
       this.logAudit({
         action: 'PROJECT_DELETED',
@@ -505,6 +506,7 @@ export const WebDevService = {
     const list = this.getMilestones();
     const filtered = list.filter((m) => m.id !== id);
     if (filtered.length !== list.length) {
+      StorageService.addDeletedId(id);
       this._save(MILESTONES_KEY, filtered);
       return true;
     }
@@ -573,6 +575,7 @@ export const WebDevService = {
     const list = this.getTasks();
     const filtered = list.filter((t) => t.id !== id);
     if (filtered.length !== list.length) {
+      StorageService.addDeletedId(id);
       this._save(TASKS_KEY, filtered);
       this.logAudit({
         action: 'TASK_DELETED',
@@ -1065,6 +1068,7 @@ export const WebDevService = {
     const list = this.getBounties();
     const filtered = list.filter((b) => b.id !== id);
     if (filtered.length !== list.length) {
+      StorageService.addDeletedId(id);
       this._save(BOUNTIES_KEY, filtered);
       return true;
     }
@@ -1516,6 +1520,7 @@ export const WebDevService = {
     const target = list.find((r) => r.id === rewardId);
     if (!target) return false;
 
+    StorageService.addDeletedId(rewardId);
     list = list.filter((r) => r.id !== rewardId);
     this._save(REWARDS_KEY, list);
 

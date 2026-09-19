@@ -200,6 +200,15 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
 
   useEffect(() => {
     loadData();
+    const handleSync = () => loadData();
+    window.addEventListener('aew_webdev_tasks_synced', handleSync);
+    window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('aew_webdev_tasks_synced', handleSync);
+      window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, []);
 
   // Attention Center KPIs

@@ -4064,36 +4064,12 @@ export const StorageService = {
       webDevFulfillments: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_fulfillments_v2') || '[]') : [],
       webDevKudos: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_kudos_v2') || '[]') : [],
       webDevAuditLogs: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_audit_logs_v2') || '[]') : [],
+      offerLetters: this.getOfferLetters(),
     };
   },
 
   importMasterState(state: any): void {
     if (!state || typeof state !== 'object') return;
-
-    if (Array.isArray(state.webDevProjects) && state.webDevProjects.length > 0) {
-      localStorage.setItem('aew_webdev_projects_v2', JSON.stringify(state.webDevProjects));
-    }
-    if (Array.isArray(state.webDevMilestones) && state.webDevMilestones.length > 0) {
-      localStorage.setItem('aew_webdev_milestones_v2', JSON.stringify(state.webDevMilestones));
-    }
-    if (Array.isArray(state.webDevTasks) && state.webDevTasks.length > 0) {
-      localStorage.setItem('aew_webdev_tasks_v2', JSON.stringify(state.webDevTasks));
-    }
-    if (Array.isArray(state.webDevBounties) && state.webDevBounties.length > 0) {
-      localStorage.setItem('aew_webdev_bounties_v2', JSON.stringify(state.webDevBounties));
-    }
-    if (Array.isArray(state.webDevXpLedger) && state.webDevXpLedger.length > 0) {
-      localStorage.setItem('aew_webdev_xp_ledger_v2', JSON.stringify(state.webDevXpLedger));
-    }
-    if (Array.isArray(state.webDevFulfillments) && state.webDevFulfillments.length > 0) {
-      localStorage.setItem('aew_webdev_fulfillments_v2', JSON.stringify(state.webDevFulfillments));
-    }
-    if (Array.isArray(state.webDevKudos) && state.webDevKudos.length > 0) {
-      localStorage.setItem('aew_webdev_kudos_v2', JSON.stringify(state.webDevKudos));
-    }
-    if (Array.isArray(state.webDevAuditLogs) && state.webDevAuditLogs.length > 0) {
-      localStorage.setItem('aew_webdev_audit_logs_v2', JSON.stringify(state.webDevAuditLogs));
-    }
 
     const deletedIds = new Set<string>([
       ...this.getDeletedIds(),
@@ -4102,6 +4078,169 @@ export const StorageService = {
 
     if (deletedIds.size > 0) {
       localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(deletedIds)));
+    }
+
+    // Smart merge webDevProjects
+    if (Array.isArray(state.webDevProjects)) {
+      const localProjRaw = localStorage.getItem('aew_webdev_projects_v2');
+      const localProjects: any[] = localProjRaw ? JSON.parse(localProjRaw) : [];
+      const projMap = new Map<string, any>();
+      localProjects.forEach((p) => {
+        if (p && p.id && !deletedIds.has(p.id.toUpperCase())) projMap.set(p.id, p);
+      });
+      state.webDevProjects.forEach((cloudProj: any) => {
+        if (!cloudProj || !cloudProj.id || deletedIds.has(cloudProj.id.toUpperCase())) return;
+        const local = projMap.get(cloudProj.id);
+        if (!local) {
+          projMap.set(cloudProj.id, cloudProj);
+        } else {
+          const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+          const cloudTime = cloudProj.updatedAt ? new Date(cloudProj.updatedAt).getTime() : 0;
+          projMap.set(cloudProj.id, cloudTime >= localTime ? { ...local, ...cloudProj } : { ...cloudProj, ...local });
+        }
+      });
+      localStorage.setItem('aew_webdev_projects_v2', JSON.stringify(Array.from(projMap.values()).filter((p) => !deletedIds.has(p.id.toUpperCase()))));
+    }
+
+    // Smart merge webDevMilestones
+    if (Array.isArray(state.webDevMilestones)) {
+      const localRaw = localStorage.getItem('aew_webdev_milestones_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((m) => {
+        if (m && m.id && !deletedIds.has(m.id.toUpperCase())) itemMap.set(m.id, m);
+      });
+      state.webDevMilestones.forEach((cloudItem: any) => {
+        if (cloudItem && cloudItem.id && !deletedIds.has(cloudItem.id.toUpperCase())) {
+          const local = itemMap.get(cloudItem.id);
+          if (!local) {
+            itemMap.set(cloudItem.id, cloudItem);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudItem.updatedAt ? new Date(cloudItem.updatedAt).getTime() : 0;
+            itemMap.set(cloudItem.id, cloudTime >= localTime ? { ...local, ...cloudItem } : { ...cloudItem, ...local });
+          }
+        }
+      });
+      localStorage.setItem('aew_webdev_milestones_v2', JSON.stringify(Array.from(itemMap.values())));
+    }
+
+    // Smart merge webDevTasks (all dev, manager & admin deliverables)
+    if (Array.isArray(state.webDevTasks)) {
+      const localTasksRaw = localStorage.getItem('aew_webdev_tasks_v2');
+      const localTasks: any[] = localTasksRaw ? JSON.parse(localTasksRaw) : [];
+      const localMap = new Map<string, any>();
+      localTasks.forEach((t) => {
+        if (t && t.id && !deletedIds.has(t.id.toUpperCase())) {
+          localMap.set(t.id, t);
+        }
+      });
+
+      state.webDevTasks.forEach((cloudTask: any) => {
+        if (!cloudTask || !cloudTask.id || deletedIds.has(cloudTask.id.toUpperCase())) return;
+        const local = localMap.get(cloudTask.id);
+        if (!local) {
+          localMap.set(cloudTask.id, cloudTask);
+        } else {
+          const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+          const cloudTime = cloudTask.updatedAt ? new Date(cloudTask.updatedAt).getTime() : 0;
+
+          const winner = cloudTime >= localTime ? cloudTask : local;
+          const loser = cloudTime >= localTime ? local : cloudTask;
+
+          // Merge subtasks de-duplicating by id
+          const subtaskMap = new Map<string, any>();
+          (loser.subtasks || []).forEach((s: any) => { if (s && s.id) subtaskMap.set(s.id, s); });
+          (winner.subtasks || []).forEach((s: any) => { if (s && s.id) subtaskMap.set(s.id, s); });
+
+          // Merge comments de-duplicating by id
+          const commentMap = new Map<string, any>();
+          (loser.comments || []).forEach((c: any) => { if (c && c.id) commentMap.set(c.id, c); });
+          (winner.comments || []).forEach((c: any) => { if (c && c.id) commentMap.set(c.id, c); });
+
+          const mergedComments = Array.from(commentMap.values()).sort(
+            (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+          );
+
+          const mergedTask = {
+            ...winner,
+            subtasks: Array.from(subtaskMap.values()),
+            comments: mergedComments,
+          };
+
+          localMap.set(cloudTask.id, mergedTask);
+        }
+      });
+
+      const finalTasks = Array.from(localMap.values()).filter((t) => !deletedIds.has(t.id.toUpperCase()));
+      localStorage.setItem('aew_webdev_tasks_v2', JSON.stringify(finalTasks));
+    }
+
+    // Smart merge webDevBounties
+    if (Array.isArray(state.webDevBounties)) {
+      const localRaw = localStorage.getItem('aew_webdev_bounties_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((b) => {
+        if (b && b.id && !deletedIds.has(b.id.toUpperCase())) itemMap.set(b.id, b);
+      });
+      state.webDevBounties.forEach((cloudItem: any) => {
+        if (cloudItem && cloudItem.id && !deletedIds.has(cloudItem.id.toUpperCase())) {
+          const local = itemMap.get(cloudItem.id);
+          if (!local) itemMap.set(cloudItem.id, cloudItem);
+          else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudItem.updatedAt ? new Date(cloudItem.updatedAt).getTime() : 0;
+            itemMap.set(cloudItem.id, cloudTime >= localTime ? { ...local, ...cloudItem } : { ...cloudItem, ...local });
+          }
+        }
+      });
+      localStorage.setItem('aew_webdev_bounties_v2', JSON.stringify(Array.from(itemMap.values())));
+    }
+
+    // Smart merge webDevXpLedger
+    if (Array.isArray(state.webDevXpLedger)) {
+      const localRaw = localStorage.getItem('aew_webdev_xp_ledger_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((x) => { if (x && x.id) itemMap.set(x.id, x); });
+      state.webDevXpLedger.forEach((x: any) => { if (x && x.id) itemMap.set(x.id, x); });
+      localStorage.setItem('aew_webdev_xp_ledger_v2', JSON.stringify(Array.from(itemMap.values())));
+    }
+
+    // Smart merge webDevFulfillments
+    if (Array.isArray(state.webDevFulfillments)) {
+      const localRaw = localStorage.getItem('aew_webdev_fulfillments_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((f) => { if (f && f.id && !deletedIds.has(f.id.toUpperCase())) itemMap.set(f.id, f); });
+      state.webDevFulfillments.forEach((f: any) => {
+        if (f && f.id && !deletedIds.has(f.id.toUpperCase())) itemMap.set(f.id, f);
+      });
+      localStorage.setItem('aew_webdev_fulfillments_v2', JSON.stringify(Array.from(itemMap.values())));
+    }
+
+    // Smart merge webDevKudos
+    if (Array.isArray(state.webDevKudos)) {
+      const localRaw = localStorage.getItem('aew_webdev_kudos_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((k) => { if (k && k.id) itemMap.set(k.id, k); });
+      state.webDevKudos.forEach((k: any) => { if (k && k.id) itemMap.set(k.id, k); });
+      localStorage.setItem('aew_webdev_kudos_v2', JSON.stringify(Array.from(itemMap.values())));
+    }
+
+    // Smart merge webDevAuditLogs
+    if (Array.isArray(state.webDevAuditLogs)) {
+      const localRaw = localStorage.getItem('aew_webdev_audit_logs_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((a) => { if (a && a.id) itemMap.set(a.id, a); });
+      state.webDevAuditLogs.forEach((a: any) => { if (a && a.id) itemMap.set(a.id, a); });
+      const sorted = Array.from(itemMap.values())
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .slice(0, 300);
+      localStorage.setItem('aew_webdev_audit_logs_v2', JSON.stringify(sorted));
     }
 
     // Smart merge emailConfig: Never overwrite valid local credentials with empty cloud object
@@ -4369,8 +4508,26 @@ export const StorageService = {
       localStorage.setItem(DAY_OFF_GRANTS_KEY, JSON.stringify(mergedGrants));
     }
 
+    // Smart merge PR Tasks
     if (Array.isArray(state.prTasks)) {
-      localStorage.setItem(PR_TASKS_KEY, JSON.stringify(state.prTasks));
+      const localTasks = this.getPrTasks();
+      const prMap = new Map<string, PrTask>();
+      localTasks.forEach((t) => {
+        if (!deletedIds.has(t.id.toUpperCase())) prMap.set(t.id, t);
+      });
+      state.prTasks.forEach((cloudTask: PrTask) => {
+        if (cloudTask && cloudTask.id && !deletedIds.has(cloudTask.id.toUpperCase())) {
+          const local = prMap.get(cloudTask.id);
+          if (!local) {
+            prMap.set(cloudTask.id, cloudTask);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudTask.updatedAt ? new Date(cloudTask.updatedAt).getTime() : 0;
+            prMap.set(cloudTask.id, cloudTime >= localTime ? { ...local, ...cloudTask } : { ...cloudTask, ...local });
+          }
+        }
+      });
+      localStorage.setItem(PR_TASKS_KEY, JSON.stringify(Array.from(prMap.values())));
     }
 
     if (Array.isArray(state.prLeads)) {
@@ -4385,12 +4542,59 @@ export const StorageService = {
       localStorage.setItem(PR_COLLEGES_KEY, JSON.stringify(state.prColleges));
     }
 
+    // Smart merge Sales Leads
     if (Array.isArray(state.salesLeads)) {
-      localStorage.setItem(SALES_LEADS_KEY, JSON.stringify(state.salesLeads));
+      const localLeads = this.getSalesLeads();
+      const leadMap = new Map<string, SalesLead>();
+      localLeads.forEach((l) => {
+        if (!deletedIds.has(l.id.toUpperCase())) leadMap.set(l.id, l);
+      });
+      state.salesLeads.forEach((cloudLead: SalesLead) => {
+        if (cloudLead && cloudLead.id && !deletedIds.has(cloudLead.id.toUpperCase())) {
+          const local = leadMap.get(cloudLead.id);
+          if (!local) {
+            leadMap.set(cloudLead.id, cloudLead);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudLead.updatedAt ? new Date(cloudLead.updatedAt).getTime() : 0;
+            leadMap.set(cloudLead.id, cloudTime >= localTime ? { ...local, ...cloudLead } : { ...cloudLead, ...local });
+          }
+        }
+      });
+      localStorage.setItem(SALES_LEADS_KEY, JSON.stringify(Array.from(leadMap.values())));
+    }
+
+    // Smart merge Offer Letters
+    if (Array.isArray(state.offerLetters)) {
+      const localOffers = this.getOfferLetters();
+      const offerMap = new Map<string, OfferLetter>();
+      localOffers.forEach((o) => {
+        if (!deletedIds.has(o.id.toUpperCase())) offerMap.set(o.id, o);
+      });
+      state.offerLetters.forEach((cloudOffer: OfferLetter) => {
+        if (cloudOffer && cloudOffer.id && !deletedIds.has(cloudOffer.id.toUpperCase())) {
+          const local = offerMap.get(cloudOffer.id);
+          if (!local) {
+            offerMap.set(cloudOffer.id, cloudOffer);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudOffer.updatedAt ? new Date(cloudOffer.updatedAt).getTime() : 0;
+            offerMap.set(cloudOffer.id, cloudTime >= localTime ? { ...local, ...cloudOffer } : { ...cloudOffer, ...local });
+          }
+        }
+      });
+      localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(Array.from(offerMap.values())));
     }
 
     if (state.crmPermissions && typeof state.crmPermissions === 'object') {
       localStorage.setItem(CRM_PERMISSIONS_KEY, JSON.stringify(state.crmPermissions));
+    }
+
+    // Dispatch global broadcast event so open pages/tabs/components refresh without needing full reload
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aew_webdev_tasks_synced'));
+      window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
+      window.dispatchEvent(new Event('storage'));
     }
   },
 
@@ -4748,6 +4952,10 @@ export const StorageService = {
       console.warn('[CloudSync] Sync push error:', err);
       return false;
     }
+  },
+
+  triggerBackgroundCloudSync(): void {
+    triggerBackgroundCloudSync();
   },
 
   initCloudSync(onUpdate?: () => void): () => void {
