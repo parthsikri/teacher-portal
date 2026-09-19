@@ -98,6 +98,18 @@ const DEFAULT_STATE = {
   prColleges: [],
   salesLeads: [],
   crmPermissions: {},
+  webDevProjects: [],
+  webDevMilestones: [],
+  webDevTasks: [],
+  webDevBounties: [],
+  webDevXpLedger: [],
+  webDevFulfillments: [],
+  webDevKudos: [],
+  webDevAuditLogs: [],
+  webDevRewards: [],
+  webDevUserAchievements: [],
+  webDevNotifications: [],
+  offerLetters: [],
   emailConfig: {
     provider: 'smtp',
     smtpHost: 'smtp.gmail.com',
@@ -475,7 +487,25 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id) => id.toUpperCase()) : []),
   ]);
 
-  // 1. Users — ONLY ADMIN CAN MUTATE
+  // If incoming contains active users being added or updated by authorized callers,
+  // ensure their IDs are not blocked by stale deletedIds in state.
+  const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head';
+  if (canMutateUsers && Array.isArray(incoming.users)) {
+    incoming.users.forEach((u) => {
+      if (u) {
+        const canMutateThisRole =
+          callerRole === 'admin' ||
+          (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
+          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head'));
+        if (canMutateThisRole) {
+          if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
+          if (u.id) deletedIds.delete(u.id.toUpperCase());
+        }
+      }
+    });
+  }
+
+  // 1. Merge Users — AUTHORIZED: Admin, Web Dev Lead, PR Head
   const userMap = new Map();
   if (Array.isArray(current.users)) {
     current.users.forEach((u) => {
@@ -485,13 +515,20 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  if (callerRole === 'admin' && Array.isArray(incoming.users)) {
+  if (canMutateUsers && Array.isArray(incoming.users)) {
     incoming.users.forEach((u) => {
       if (u && u.teacherId && !isHardcodedMockUser(u) && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id?.toUpperCase())) {
+        const allowed =
+          callerRole === 'admin' ||
+          (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
+          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head'));
+
+        if (!allowed) return;
+
         const existing = userMap.get(u.teacherId.toUpperCase());
         const isExistingRealEmail = existing?.email && !String(existing.email).endsWith('@aew.com');
         const isIncomingRealEmail = u?.email && !String(u.email).endsWith('@aew.com');
-        const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing.email : (u.email || existing?.email));
+        const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing?.email : (u.email || existing?.email));
 
         let passwordToStore = existing?.password;
         if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
@@ -513,7 +550,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     userMap.set('ADMIN-01', DEFAULT_STATE.users[0]);
   }
 
-  // 2. Topics
+  // 2. Merge Assigned Topics
   const topicMap = new Map();
   if (Array.isArray(current.assignedTopics)) {
     current.assignedTopics.forEach((t) => {
@@ -552,7 +589,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 3. Lectures
+  // 3. Merge Lectures
   const lectureMap = new Map();
   if (Array.isArray(current.lectures)) {
     current.lectures.forEach((l) => {
@@ -599,7 +636,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 4. References
+  // 4. Merge Subject References
   const refMap = new Map();
   const getRefKey = (r) => {
     if (r && r.id) return String(r.id);
@@ -632,7 +669,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 5. Commitments
+  // 5. Merge Daily Commitments
   const commitmentMap = new Map();
   if (Array.isArray(current.dailyCommitments)) {
     current.dailyCommitments.forEach((c) => {
@@ -652,7 +689,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 6. PPT Requests
+  // 6. Merge PPT Requests
   const pptMap = new Map();
   if (Array.isArray(current.pptRequests)) {
     current.pptRequests.forEach((p) => {
@@ -670,7 +707,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 7. Extensions
+  // 7. Merge Extensions
   const extMap = new Map();
   if (Array.isArray(current.extensions)) {
     current.extensions.forEach((e) => {
@@ -688,7 +725,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 8. Wallet Transactions
+  // 8. Merge Wallet Transactions
   const walletMap = new Map();
   if (Array.isArray(current.walletTransactions)) {
     current.walletTransactions.forEach((w) => {
@@ -706,7 +743,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 9. Day Off Grants
+  // 9. Merge Day Off Grants
   const dayOffMap = new Map();
   if (Array.isArray(current.dayOffGrants)) {
     current.dayOffGrants.forEach((g) => {
@@ -724,7 +761,7 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     });
   }
 
-  // 10. Email Configuration — ONLY ADMIN CAN MUTATE
+  // 10. Merge Email Configuration — PRIVILEGED: ONLY ADMIN CAN MUTATE
   const curConfig = current.emailConfig || {};
   let mergedEmailConfig = curConfig;
   if (callerRole === 'admin') {
@@ -755,26 +792,98 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     }
   }
 
-  // 11. Email Logs
-  const logMap = new Map();
+  // 11. Merge Email Logs
+  const emailLogMap = new Map();
   if (Array.isArray(current.emailLogs)) {
-    current.emailLogs.forEach((l) => {
-      if (l && l.id) logMap.set(l.id, l);
+    current.emailLogs.forEach((log) => {
+      if (log && log.id && !deletedIds.has(log.id.toUpperCase())) emailLogMap.set(log.id, log);
     });
   }
   if (Array.isArray(incoming.emailLogs)) {
-    incoming.emailLogs.forEach((l) => {
-      if (l && l.id) {
-        const ex = logMap.get(l.id);
-        logMap.set(l.id, ex ? { ...ex, ...l } : l);
+    incoming.emailLogs.forEach((log) => {
+      if (log && log.id && !deletedIds.has(log.id.toUpperCase())) {
+        emailLogMap.set(log.id, {
+          ...emailLogMap.get(log.id),
+          ...log,
+        });
       }
     });
   }
-  const mergedEmailLogs = Array.from(logMap.values())
-    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
-    .slice(0, 200);
+  const mergedEmailLogs = Array.from(emailLogMap.values()).slice(-200);
 
-  // 12. Sales Leads & CRM Entries
+  // 12. Merge PR Tasks
+  const prTaskMap = new Map();
+  if (Array.isArray(current.prTasks)) {
+    current.prTasks.forEach((t) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) prTaskMap.set(t.id, t);
+    });
+  }
+  if (Array.isArray(incoming.prTasks)) {
+    incoming.prTasks.forEach((t) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) {
+        prTaskMap.set(t.id, {
+          ...prTaskMap.get(t.id),
+          ...t,
+        });
+      }
+    });
+  }
+
+  // 13. Merge PR Leads
+  const prLeadMap = new Map();
+  if (Array.isArray(current.prLeads)) {
+    current.prLeads.forEach((l) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) prLeadMap.set(l.id, l);
+    });
+  }
+  if (Array.isArray(incoming.prLeads)) {
+    incoming.prLeads.forEach((l) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) {
+        prLeadMap.set(l.id, {
+          ...prLeadMap.get(l.id),
+          ...l,
+        });
+      }
+    });
+  }
+
+  // 14. Merge PR MOUs
+  const prMouMap = new Map();
+  if (Array.isArray(current.prMous)) {
+    current.prMous.forEach((m) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) prMouMap.set(m.id, m);
+    });
+  }
+  if (Array.isArray(incoming.prMous)) {
+    incoming.prMous.forEach((m) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) {
+        prMouMap.set(m.id, {
+          ...prMouMap.get(m.id),
+          ...m,
+        });
+      }
+    });
+  }
+
+  // 15. Merge PR Colleges
+  const prCollegeMap = new Map();
+  if (Array.isArray(current.prColleges)) {
+    current.prColleges.forEach((c) => {
+      if (c && c.id && !deletedIds.has(c.id.toUpperCase())) prCollegeMap.set(c.id, c);
+    });
+  }
+  if (Array.isArray(incoming.prColleges)) {
+    incoming.prColleges.forEach((c) => {
+      if (c && c.id && !deletedIds.has(c.id.toUpperCase())) {
+        prCollegeMap.set(c.id, {
+          ...prCollegeMap.get(c.id),
+          ...c,
+        });
+      }
+    });
+  }
+
+  // 16. Merge Sales Leads
   const salesLeadMap = new Map();
   if (Array.isArray(current.salesLeads)) {
     current.salesLeads.forEach((l) => {
@@ -788,27 +897,254 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
         if (!existing) {
           salesLeadMap.set(l.id, l);
         } else {
-          const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const incomingTime = l.updatedAt ? new Date(l.updatedAt).getTime() : 0;
-          // Merge activity logs
-          const existingLogs = Array.isArray(existing.activityLogs) ? existing.activityLogs : [];
-          const incomingLogs = Array.isArray(l.activityLogs) ? l.activityLogs : [];
-          const logMap = new Map();
-          [...existingLogs, ...incomingLogs].forEach((log) => {
-            if (log && log.id) logMap.set(log.id, log);
-          });
-          const mergedLogs = Array.from(logMap.values())
-            .sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime());
-
-          const base = incomingTime >= existingTime ? { ...existing, ...l } : { ...l, ...existing };
-          base.activityLogs = mergedLogs;
-          salesLeadMap.set(l.id, base);
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = l.updatedAt ? new Date(l.updatedAt).getTime() : 0;
+          salesLeadMap.set(l.id, inTime >= exTime ? { ...existing, ...l } : { ...l, ...existing });
         }
       }
     });
   }
 
-  // 13. CRM Access Permissions
+  // 17. Merge Web Dev Projects
+  const webDevProjectMap = new Map();
+  if (Array.isArray(current.webDevProjects)) {
+    current.webDevProjects.forEach((p) => {
+      if (p && p.id && !deletedIds.has(p.id.toUpperCase())) webDevProjectMap.set(p.id, p);
+    });
+  }
+  if (Array.isArray(incoming.webDevProjects)) {
+    incoming.webDevProjects.forEach((p) => {
+      if (p && p.id && !deletedIds.has(p.id.toUpperCase())) {
+        const existing = webDevProjectMap.get(p.id);
+        if (!existing) {
+          webDevProjectMap.set(p.id, p);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = p.updatedAt ? new Date(p.updatedAt).getTime() : 0;
+          webDevProjectMap.set(p.id, inTime >= exTime ? { ...existing, ...p } : { ...p, ...existing });
+        }
+      }
+    });
+  }
+
+  // 18. Merge Web Dev Milestones
+  const webDevMilestoneMap = new Map();
+  if (Array.isArray(current.webDevMilestones)) {
+    current.webDevMilestones.forEach((m) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) webDevMilestoneMap.set(m.id, m);
+    });
+  }
+  if (Array.isArray(incoming.webDevMilestones)) {
+    incoming.webDevMilestones.forEach((m) => {
+      if (m && m.id && !deletedIds.has(m.id.toUpperCase())) {
+        webDevMilestoneMap.set(m.id, {
+          ...webDevMilestoneMap.get(m.id),
+          ...m,
+        });
+      }
+    });
+  }
+
+  // 19. Merge Web Dev Tasks
+  const webDevTaskMap = new Map();
+  if (Array.isArray(current.webDevTasks)) {
+    current.webDevTasks.forEach((t) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) webDevTaskMap.set(t.id, t);
+    });
+  }
+  if (Array.isArray(incoming.webDevTasks)) {
+    incoming.webDevTasks.forEach((t) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) {
+        const existing = webDevTaskMap.get(t.id);
+        if (!existing) {
+          webDevTaskMap.set(t.id, t);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+
+          const base = inTime >= exTime ? { ...existing, ...t } : { ...t, ...existing };
+          const mergedSubtasks = (t.subtasks && t.subtasks.length > 0)
+            ? t.subtasks
+            : (existing.subtasks || []);
+
+          const exComments = existing.comments || [];
+          const inComments = t.comments || [];
+          const commentMap = new Map();
+          exComments.forEach((c) => c && c.id && commentMap.set(c.id, c));
+          inComments.forEach((c) => c && c.id && commentMap.set(c.id, { ...commentMap.get(c.id), ...c }));
+
+          webDevTaskMap.set(t.id, {
+            ...base,
+            subtasks: mergedSubtasks,
+            comments: Array.from(commentMap.values()),
+          });
+        }
+      }
+    });
+  }
+
+  // 20. Merge Web Dev Bounties
+  const webDevBountyMap = new Map();
+  if (Array.isArray(current.webDevBounties)) {
+    current.webDevBounties.forEach((b) => {
+      if (b && b.id && !deletedIds.has(b.id.toUpperCase())) webDevBountyMap.set(b.id, b);
+    });
+  }
+  if (Array.isArray(incoming.webDevBounties)) {
+    incoming.webDevBounties.forEach((b) => {
+      if (b && b.id && !deletedIds.has(b.id.toUpperCase())) {
+        webDevBountyMap.set(b.id, {
+          ...webDevBountyMap.get(b.id),
+          ...b,
+        });
+      }
+    });
+  }
+
+  // 21. Merge Web Dev XP Ledger
+  const webDevXpLedgerMap = new Map();
+  if (Array.isArray(current.webDevXpLedger)) {
+    current.webDevXpLedger.forEach((tx) => {
+      if (tx && tx.id) webDevXpLedgerMap.set(tx.id, tx);
+    });
+  }
+  if (Array.isArray(incoming.webDevXpLedger)) {
+    incoming.webDevXpLedger.forEach((tx) => {
+      if (tx && tx.id) {
+        webDevXpLedgerMap.set(tx.id, tx);
+      }
+    });
+  }
+
+  // 22. Merge Web Dev Fulfillments
+  const webDevFulfillmentMap = new Map();
+  if (Array.isArray(current.webDevFulfillments)) {
+    current.webDevFulfillments.forEach((f) => {
+      if (f && f.id && !deletedIds.has(f.id.toUpperCase())) webDevFulfillmentMap.set(f.id, f);
+    });
+  }
+  if (Array.isArray(incoming.webDevFulfillments)) {
+    incoming.webDevFulfillments.forEach((f) => {
+      if (f && f.id && !deletedIds.has(f.id.toUpperCase())) {
+        webDevFulfillmentMap.set(f.id, {
+          ...webDevFulfillmentMap.get(f.id),
+          ...f,
+        });
+      }
+    });
+  }
+
+  // 23. Merge Web Dev Kudos
+  const webDevKudosMap = new Map();
+  if (Array.isArray(current.webDevKudos)) {
+    current.webDevKudos.forEach((k) => {
+      if (k && k.id) webDevKudosMap.set(k.id, k);
+    });
+  }
+  if (Array.isArray(incoming.webDevKudos)) {
+    incoming.webDevKudos.forEach((k) => {
+      if (k && k.id) {
+        webDevKudosMap.set(k.id, k);
+      }
+    });
+  }
+
+  // 24. Merge Web Dev Audit Logs
+  const webDevAuditLogMap = new Map();
+  if (Array.isArray(current.webDevAuditLogs)) {
+    current.webDevAuditLogs.forEach((log) => {
+      if (log && log.id) webDevAuditLogMap.set(log.id, log);
+    });
+  }
+  if (Array.isArray(incoming.webDevAuditLogs)) {
+    incoming.webDevAuditLogs.forEach((log) => {
+      if (log && log.id) {
+        webDevAuditLogMap.set(log.id, log);
+      }
+    });
+  }
+
+  // 25. Merge Offer Letters
+  const offerLetterMap = new Map();
+  if (Array.isArray(current.offerLetters)) {
+    current.offerLetters.forEach((ol) => {
+      if (ol && ol.id && !deletedIds.has(ol.id.toUpperCase())) offerLetterMap.set(ol.id, ol);
+    });
+  }
+  if (Array.isArray(incoming.offerLetters)) {
+    incoming.offerLetters.forEach((ol) => {
+      if (ol && ol.id && !deletedIds.has(ol.id.toUpperCase())) {
+        const existing = offerLetterMap.get(ol.id);
+        if (!existing) {
+          offerLetterMap.set(ol.id, ol);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = ol.updatedAt ? new Date(ol.updatedAt).getTime() : 0;
+          offerLetterMap.set(ol.id, inTime >= exTime ? { ...existing, ...ol } : { ...ol, ...existing });
+        }
+      }
+    });
+  }
+
+  // 26. Merge Web Dev Rewards
+  const rewardMap = new Map();
+  if (Array.isArray(current.webDevRewards)) {
+    current.webDevRewards.forEach((r) => {
+      if (r && r.id && !deletedIds.has(r.id.toUpperCase())) rewardMap.set(r.id, r);
+    });
+  }
+  if (Array.isArray(incoming.webDevRewards)) {
+    incoming.webDevRewards.forEach((r) => {
+      if (r && r.id && !deletedIds.has(r.id.toUpperCase())) {
+        const existing = rewardMap.get(r.id);
+        if (!existing) {
+          rewardMap.set(r.id, r);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+          rewardMap.set(r.id, inTime >= exTime ? { ...existing, ...r } : { ...r, ...existing });
+        }
+      }
+    });
+  }
+
+  // 27. Merge Web Dev User Achievements
+  const userAchMap = new Map();
+  if (Array.isArray(current.webDevUserAchievements)) {
+    current.webDevUserAchievements.forEach((ua) => {
+      if (ua && ua.id) userAchMap.set(ua.id, ua);
+    });
+  }
+  if (Array.isArray(incoming.webDevUserAchievements)) {
+    incoming.webDevUserAchievements.forEach((ua) => {
+      if (ua && ua.id) {
+        userAchMap.set(ua.id, ua);
+      }
+    });
+  }
+
+  // 28. Merge Web Dev Notifications
+  const notifMap = new Map();
+  if (Array.isArray(current.webDevNotifications)) {
+    current.webDevNotifications.forEach((n) => {
+      if (n && n.id) notifMap.set(n.id, n);
+    });
+  }
+  if (Array.isArray(incoming.webDevNotifications)) {
+    incoming.webDevNotifications.forEach((n) => {
+      if (n && n.id) {
+        const existing = notifMap.get(n.id);
+        const isRead = Boolean(existing?.read || n.read);
+        notifMap.set(n.id, {
+          ...existing,
+          ...n,
+          read: isRead,
+        });
+      }
+    });
+  }
+
+  // 29. CRM Access Permissions
   const mergedCrmPermissions = {
     ...(current.crmPermissions || {}),
     ...(incoming.crmPermissions || {}),
@@ -827,8 +1163,26 @@ function mergeMasterStates(current, incoming, callerRole = 'admin') {
     extensions: Array.from(extMap.values()),
     walletTransactions: Array.from(walletMap.values()),
     dayOffGrants: Array.from(dayOffMap.values()),
+    prTasks: Array.from(prTaskMap.values()),
+    prLeads: Array.from(prLeadMap.values()),
+    prMous: Array.from(prMouMap.values()),
+    prColleges: Array.from(prCollegeMap.values()),
     salesLeads: Array.from(salesLeadMap.values()),
     crmPermissions: mergedCrmPermissions,
+    webDevProjects: Array.from(webDevProjectMap.values()),
+    webDevMilestones: Array.from(webDevMilestoneMap.values()),
+    webDevTasks: Array.from(webDevTaskMap.values()),
+    webDevBounties: Array.from(webDevBountyMap.values()),
+    webDevXpLedger: Array.from(webDevXpLedgerMap.values()),
+    webDevFulfillments: Array.from(webDevFulfillmentMap.values()),
+    webDevKudos: Array.from(webDevKudosMap.values()),
+    webDevAuditLogs: Array.from(webDevAuditLogMap.values()).slice(-500),
+    webDevRewards: Array.from(rewardMap.values()),
+    webDevUserAchievements: Array.from(userAchMap.values()),
+    webDevNotifications: Array.from(notifMap.values())
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      .slice(0, 200),
+    offerLetters: Array.from(offerLetterMap.values()),
     emailConfig: mergedEmailConfig,
     emailLogs: mergedEmailLogs,
   };

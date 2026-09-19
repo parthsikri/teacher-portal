@@ -797,7 +797,13 @@ export const StorageService = {
       return { success: false, error: 'You cannot delete your own active session account.' };
     }
 
-    this.addDeletedId(cleanId);
+    const userToDelete = this.getUsers().find((u) => u.id === identifier || u.teacherId.toUpperCase() === cleanId);
+    if (userToDelete) {
+      this.addDeletedId(userToDelete.teacherId);
+      if (userToDelete.id) this.addDeletedId(userToDelete.id);
+    } else {
+      this.addDeletedId(cleanId);
+    }
     const users = this.getUsers().filter((u) => u.id !== identifier && u.teacherId.toUpperCase() !== cleanId);
     this.saveUsers(users);
     return { success: true };
@@ -3682,6 +3688,7 @@ export const StorageService = {
   },
 
   deletePrTask(taskId: string): void {
+    this.addDeletedId(taskId);
     const tasks = this.getPrTasks().filter((t) => t.id !== taskId);
     this.savePrTasks(tasks);
   },
@@ -3769,6 +3776,7 @@ export const StorageService = {
   },
 
   deletePrLead(id: string): void {
+    this.addDeletedId(id);
     const leads = this.getPrLeads().filter((l) => l.id !== id);
     this.savePrLeads(leads);
   },
@@ -3824,6 +3832,7 @@ export const StorageService = {
   },
 
   deletePrMou(id: string): void {
+    this.addDeletedId(id);
     const list = this.getPrMous().filter((m) => m.id !== id);
     this.savePrMous(list);
   },
@@ -3874,6 +3883,7 @@ export const StorageService = {
   },
 
   deletePrCollege(id: string): void {
+    this.addDeletedId(id);
     const list = this.getPrColleges().filter((c) => c.id !== id);
     this.savePrColleges(list);
   },
@@ -3926,6 +3936,7 @@ export const StorageService = {
   },
 
   deleteSalesLead(id: string): void {
+    this.addDeletedId(id);
     const list = this.getSalesLeads().filter((l) => l.id !== id);
     this.saveSalesLeads(list);
   },
@@ -4067,6 +4078,9 @@ export const StorageService = {
       webDevFulfillments: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_fulfillments_v2') || '[]') : [],
       webDevKudos: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_kudos_v2') || '[]') : [],
       webDevAuditLogs: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_audit_logs_v2') || '[]') : [],
+      webDevRewards: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_rewards_v2') || '[]') : [],
+      webDevUserAchievements: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_user_achievements_v2') || '[]') : [],
+      webDevNotifications: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_notifications_v2') || '[]') : [],
       offerLetters: this.getOfferLetters(),
     };
   },
@@ -4244,6 +4258,71 @@ export const StorageService = {
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
         .slice(0, 300);
       localStorage.setItem('aew_webdev_audit_logs_v2', JSON.stringify(sorted));
+    }
+
+    // Smart merge webDevRewards
+    if (Array.isArray(state.webDevRewards)) {
+      const localRaw = localStorage.getItem('aew_webdev_rewards_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((r) => {
+        if (r && r.id && !deletedIds.has(r.id.toUpperCase())) itemMap.set(r.id, r);
+      });
+      state.webDevRewards.forEach((cloudItem: any) => {
+        if (cloudItem && cloudItem.id && !deletedIds.has(cloudItem.id.toUpperCase())) {
+          const local = itemMap.get(cloudItem.id);
+          if (!local) {
+            itemMap.set(cloudItem.id, cloudItem);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudItem.updatedAt ? new Date(cloudItem.updatedAt).getTime() : 0;
+            itemMap.set(cloudItem.id, cloudTime >= localTime ? { ...local, ...cloudItem } : { ...cloudItem, ...local });
+          }
+        }
+      });
+      localStorage.setItem('aew_webdev_rewards_v2', JSON.stringify(Array.from(itemMap.values())));
+    }
+
+    // Smart merge webDevUserAchievements
+    if (Array.isArray(state.webDevUserAchievements)) {
+      const localRaw = localStorage.getItem('aew_webdev_user_achievements_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((ua) => {
+        if (ua && ua.id) itemMap.set(ua.id, ua);
+      });
+      state.webDevUserAchievements.forEach((ua: any) => {
+        if (ua && ua.id) {
+          const existing = itemMap.get(ua.id);
+          itemMap.set(ua.id, existing ? { ...existing, ...ua } : ua);
+        }
+      });
+      localStorage.setItem('aew_webdev_user_achievements_v2', JSON.stringify(Array.from(itemMap.values())));
+    }
+
+    // Smart merge webDevNotifications
+    if (Array.isArray(state.webDevNotifications)) {
+      const localRaw = localStorage.getItem('aew_webdev_notifications_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((n) => {
+        if (n && n.id) itemMap.set(n.id, n);
+      });
+      state.webDevNotifications.forEach((n: any) => {
+        if (n && n.id) {
+          const existing = itemMap.get(n.id);
+          const isRead = Boolean(existing?.read || n.read);
+          itemMap.set(n.id, {
+            ...existing,
+            ...n,
+            read: isRead,
+          });
+        }
+      });
+      const sortedNotifs = Array.from(itemMap.values())
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .slice(0, 100);
+      localStorage.setItem('aew_webdev_notifications_v2', JSON.stringify(sortedNotifs));
     }
 
     // Smart merge emailConfig: Never overwrite valid local credentials with empty cloud object
@@ -4534,15 +4613,52 @@ export const StorageService = {
     }
 
     if (Array.isArray(state.prLeads)) {
-      localStorage.setItem(PR_LEADS_KEY, JSON.stringify(state.prLeads));
+      const localLeads = this.getPrLeads();
+      const leadMap = new Map<string, PrLead>();
+      localLeads.forEach((l) => {
+        if (!deletedIds.has(l.id.toUpperCase())) leadMap.set(l.id, l);
+      });
+      state.prLeads.forEach((cloudLead: PrLead) => {
+        if (cloudLead && cloudLead.id && !deletedIds.has(cloudLead.id.toUpperCase())) {
+          const local = leadMap.get(cloudLead.id);
+          if (!local) {
+            leadMap.set(cloudLead.id, cloudLead);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudLead.updatedAt ? new Date(cloudLead.updatedAt).getTime() : 0;
+            leadMap.set(cloudLead.id, cloudTime >= localTime ? { ...local, ...cloudLead } : { ...cloudLead, ...local });
+          }
+        }
+      });
+      localStorage.setItem(PR_LEADS_KEY, JSON.stringify(Array.from(leadMap.values())));
     }
 
     if (Array.isArray(state.prMous)) {
-      localStorage.setItem(PR_MOUS_KEY, JSON.stringify(state.prMous));
+      const localMous = this.getPrMous();
+      const mouMap = new Map<string, PrMouRequest>();
+      localMous.forEach((m) => {
+        if (!deletedIds.has(m.id.toUpperCase())) mouMap.set(m.id, m);
+      });
+      state.prMous.forEach((cloudMou: PrMouRequest) => {
+        if (cloudMou && cloudMou.id && !deletedIds.has(cloudMou.id.toUpperCase())) {
+          mouMap.set(cloudMou.id, cloudMou);
+        }
+      });
+      localStorage.setItem(PR_MOUS_KEY, JSON.stringify(Array.from(mouMap.values())));
     }
 
     if (Array.isArray(state.prColleges)) {
-      localStorage.setItem(PR_COLLEGES_KEY, JSON.stringify(state.prColleges));
+      const localColleges = this.getPrColleges();
+      const colMap = new Map<string, PrCollege>();
+      localColleges.forEach((c) => {
+        if (!deletedIds.has(c.id.toUpperCase())) colMap.set(c.id, c);
+      });
+      state.prColleges.forEach((cloudCol: PrCollege) => {
+        if (cloudCol && cloudCol.id && !deletedIds.has(cloudCol.id.toUpperCase())) {
+          colMap.set(cloudCol.id, cloudCol);
+        }
+      });
+      localStorage.setItem(PR_COLLEGES_KEY, JSON.stringify(Array.from(colMap.values())));
     }
 
     // Smart merge Sales Leads
@@ -5024,6 +5140,7 @@ export const StorageService = {
 
     try {
       localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(nextList));
+      triggerBackgroundCloudSync();
     } catch (e) {
       console.error('[Storage] Error saving offer letter:', e);
     }
@@ -5031,10 +5148,12 @@ export const StorageService = {
   },
 
   deleteOfferLetter(id: string): void {
+    this.addDeletedId(id);
     const list = this.getOfferLetters();
     const nextList = list.filter(l => l.id !== id);
     try {
       localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(nextList));
+      triggerBackgroundCloudSync();
     } catch (e) {
       console.error('[Storage] Error deleting offer letter:', e);
     }
@@ -5048,6 +5167,7 @@ export const StorageService = {
       letter.updatedAt = new Date().toISOString();
       try {
         localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(list));
+        triggerBackgroundCloudSync();
       } catch (e) {
         console.error('[Storage] Error updating offer letter status:', e);
       }

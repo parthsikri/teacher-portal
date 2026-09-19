@@ -625,6 +625,64 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     });
   }
 
+  // 26. Merge Web Dev Rewards
+  const rewardMap = new Map<string, any>();
+  if (Array.isArray(current.webDevRewards)) {
+    current.webDevRewards.forEach((r: any) => {
+      if (r && r.id && !deletedIds.has(r.id.toUpperCase())) rewardMap.set(r.id, r);
+    });
+  }
+  if (Array.isArray(incoming.webDevRewards)) {
+    incoming.webDevRewards.forEach((r: any) => {
+      if (r && r.id && !deletedIds.has(r.id.toUpperCase())) {
+        const existing = rewardMap.get(r.id);
+        if (!existing) {
+          rewardMap.set(r.id, r);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+          rewardMap.set(r.id, inTime >= exTime ? { ...existing, ...r } : { ...r, ...existing });
+        }
+      }
+    });
+  }
+
+  // 27. Merge Web Dev User Achievements
+  const userAchMap = new Map<string, any>();
+  if (Array.isArray(current.webDevUserAchievements)) {
+    current.webDevUserAchievements.forEach((ua: any) => {
+      if (ua && ua.id) userAchMap.set(ua.id, ua);
+    });
+  }
+  if (Array.isArray(incoming.webDevUserAchievements)) {
+    incoming.webDevUserAchievements.forEach((ua: any) => {
+      if (ua && ua.id) {
+        userAchMap.set(ua.id, ua);
+      }
+    });
+  }
+
+  // 28. Merge Web Dev Notifications
+  const notifMap = new Map<string, any>();
+  if (Array.isArray(current.webDevNotifications)) {
+    current.webDevNotifications.forEach((n: any) => {
+      if (n && n.id) notifMap.set(n.id, n);
+    });
+  }
+  if (Array.isArray(incoming.webDevNotifications)) {
+    incoming.webDevNotifications.forEach((n: any) => {
+      if (n && n.id) {
+        const existing = notifMap.get(n.id);
+        const isRead = Boolean(existing?.read || n.read);
+        notifMap.set(n.id, {
+          ...existing,
+          ...n,
+          read: isRead,
+        });
+      }
+    });
+  }
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -652,6 +710,11 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     webDevFulfillments: Array.from(webDevFulfillmentMap.values()),
     webDevKudos: Array.from(webDevKudosMap.values()),
     webDevAuditLogs: Array.from(webDevAuditLogMap.values()).slice(-500),
+    webDevRewards: Array.from(rewardMap.values()),
+    webDevUserAchievements: Array.from(userAchMap.values()),
+    webDevNotifications: Array.from(notifMap.values())
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      .slice(0, 200),
     offerLetters: Array.from(offerLetterMap.values()),
     emailConfig: mergedEmailConfig,
     emailLogs: mergedEmailLogs,

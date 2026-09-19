@@ -50,6 +50,9 @@ export const DEFAULT_STATE: any = {
   webDevFulfillments: [],
   webDevKudos: [],
   webDevAuditLogs: [],
+  webDevRewards: [],
+  webDevUserAchievements: [],
+  webDevNotifications: [],
   offerLetters: [],
   emailConfig: {
     provider: 'smtp',
