@@ -1100,6 +1100,7 @@ export const StorageService = {
         (u.email && u.email.toLowerCase() === cleanId)
     );
 
+    const nowIso = new Date().toISOString();
     let targetUser: User;
     if (userIndex === -1) {
       targetUser = {
@@ -1109,16 +1110,17 @@ export const StorageService = {
         password: cleanNew,
         name: cleanId,
         email: `${cleanId.toLowerCase()}@aew.com`,
+        department: 'Operations & Academic Growth',
+        subject: 'General Operations',
         role: 'sales',
         dailyTargetMinutes: 0,
         dailyLimit: 0,
         mustChangePassword: false,
-        lastPasswordChangedAt: new Date().toISOString(),
+        lastPasswordChangedAt: nowIso,
       };
       users.push(targetUser);
     } else {
       targetUser = users[userIndex];
-      const nowIso = new Date().toISOString();
       targetUser.password = cleanNew;
       targetUser.mustChangePassword = false;
       targetUser.lastPasswordChangedAt = nowIso;
