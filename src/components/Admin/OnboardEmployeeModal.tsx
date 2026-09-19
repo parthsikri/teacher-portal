@@ -153,6 +153,7 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
   const [createdUserSuccess, setCreatedUserSuccess] = useState<User | null>(null);
   const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'syncing' | 'synced' | 'error' | null>(null);
   const [emailDispatchResult, setEmailDispatchResult] = useState<{
     success: boolean;
     status: string;
@@ -353,6 +354,16 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
 
     // Automatically dispatch welcome email with credentials
     sendWelcomeEmail(createdUser, password.trim());
+
+    // Explicit cloud sync
+    setCloudSyncStatus('syncing');
+    StorageService.syncToCloud()
+      .then((ok) => {
+        setCloudSyncStatus(ok ? 'synced' : 'error');
+      })
+      .catch(() => {
+        setCloudSyncStatus('error');
+      });
   };
 
   const handleCopyCredentials = () => {
@@ -375,6 +386,7 @@ Portal URL: ${window.location.origin}`;
     setCreatedUserSuccess(null);
     setEmailDispatchResult(null);
     setEmailSending(false);
+    setCloudSyncStatus(null);
     onClose();
   };
 
@@ -548,6 +560,35 @@ Portal URL: ${window.location.origin}`;
                   </button>
                 </div>
               )}
+            </div>
+
+            {/* Cloud Database Persistence Status */}
+            <div className="max-w-md mx-auto">
+              {cloudSyncStatus === 'syncing' ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
+                  <span>Syncing employee profile to Supabase Cloud Database...</span>
+                </div>
+              ) : cloudSyncStatus === 'synced' ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>Profile stored & synchronized with Supabase Cloud DB ✓</span>
+                </div>
+              ) : cloudSyncStatus === 'error' ? (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                  <span>⚠️ Cloud sync pending (persisted in local state)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCloudSyncStatus('syncing');
+                      StorageService.syncToCloud().then((ok) => setCloudSyncStatus(ok ? 'synced' : 'error'));
+                    }}
+                    className="underline text-[10px] font-bold text-amber-300 hover:text-amber-100 cursor-pointer"
+                  >
+                    Retry Sync
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">

@@ -125,6 +125,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // PR Intern Navigation Links
   const prNavItems = [
     { id: 'pr_dashboard', label: 'Mission Control & Tier', icon: Award },
+    ...(currentUser.role === 'pr_head'
+      ? [{ id: 'pr_team', label: 'PR Team & Ambassadors', icon: Users }]
+      : []),
     { 
       id: 'pr_tasks', 
       label: 'Assigned Tasks', 

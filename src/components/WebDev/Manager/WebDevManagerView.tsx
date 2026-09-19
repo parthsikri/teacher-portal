@@ -30,6 +30,12 @@ import {
   Calendar,
   Crown,
   Clock,
+  Copy,
+  Check,
+  Loader2,
+  Mail,
+  Send,
+  RefreshCw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { notificationService } from '../../../services/notificationService';
@@ -163,6 +169,19 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newDevPassword, setNewDevPassword] = useState('dev123');
   const [newDevTitle, setNewDevTitle] = useState('Web Developer');
   const [newDevSkills, setNewDevSkills] = useState('');
+  const [newDevRole, setNewDevRole] = useState<'web_developer' | 'web_dev_manager'>('web_developer');
+  const [newDevPhone, setNewDevPhone] = useState('');
+  const [createdDevSuccess, setCreatedDevSuccess] = useState<User | null>(null);
+  const [devCopiedSuccess, setDevCopiedSuccess] = useState(false);
+  const [devEmailSending, setDevEmailSending] = useState(false);
+  const [devCloudSyncStatus, setDevCloudSyncStatus] = useState<'syncing' | 'synced' | 'error' | null>(null);
+  const [devEmailDispatchResult, setDevEmailDispatchResult] = useState<{
+    success: boolean;
+    status: string;
+    error?: string;
+  } | null>(null);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [manualSyncMsg, setManualSyncMsg] = useState<string | null>(null);
 
   // Leaderboard State
   const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'monthly' | 'all_time'>('all_time');
@@ -519,11 +538,66 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     loadData();
   };
 
-  // Handle Add Developer to Team
-  const handleAddDeveloperSubmit = (e: React.FormEvent) => {
+  const handleManualCloudSync = async () => {
+    setIsManualSyncing(true);
+    setManualSyncMsg('Syncing...');
+    try {
+      const ok = await StorageService.syncToCloud();
+      if (ok) {
+        setManualSyncMsg('Synced to Cloud ✓');
+        loadData();
+      } else {
+        setManualSyncMsg('Sync Failed');
+      }
+    } catch {
+      setManualSyncMsg('Sync Error');
+    } finally {
+      setIsManualSyncing(false);
+      setTimeout(() => setManualSyncMsg(null), 3000);
+    }
+  };
+
+  const handleSendDevWelcomeEmail = async (user: User, plainPassword?: string) => {
+    const targetEmail = (user.email || '').trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setDevEmailDispatchResult({
+        success: false,
+        status: 'failed',
+        error: 'No valid email address provided for this developer profile.',
+      });
+      return;
+    }
+
+    setDevEmailSending(true);
+    try {
+      const res = await notificationService.notifyEmployeeWelcome({
+        employeeEmail: targetEmail,
+        employeeName: user.name,
+        employeeId: user.teacherId,
+        role: user.role,
+        department: user.department,
+        subject: user.subject,
+        username: user.username || user.teacherId.toLowerCase(),
+        password: plainPassword || user.password,
+        joiningDate: user.joiningDate,
+        webDevTitle: user.webDevTitle,
+      });
+      setDevEmailDispatchResult(res);
+    } catch (err: any) {
+      setDevEmailDispatchResult({
+        success: false,
+        status: 'failed',
+        error: err?.message || 'Error communicating with notification server',
+      });
+    } finally {
+      setDevEmailSending(false);
+    }
+  };
+
+  const handleAddDeveloperSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDevName.trim() || !newDevUsername.trim() || !newDevEmail.trim()) {
-      alert('Please fill in Developer Name, Email, and Username.');
+    if (!newDevName.trim() || !newDevEmail.trim()) {
+      alert('Please fill in Developer Name and Work Email.');
       return;
     }
 
@@ -533,17 +607,22 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
       .filter(Boolean);
 
     try {
-      WebDevService.addDeveloperToTeam(
+      const plainPassword = newDevPassword.trim() || 'dev123';
+      const created = WebDevService.addDeveloperToTeam(
         {
           name: newDevName.trim(),
           email: newDevEmail.trim(),
           username: newDevUsername.trim(),
-          password: newDevPassword.trim() || 'code123',
-          webDevTitle: newDevTitle.trim() || 'Frontend Developer',
+          password: plainPassword,
+          webDevTitle: newDevTitle.trim() || (newDevRole === 'web_dev_manager' ? 'Lead Architect' : 'Web Developer'),
           skills: skillsArr,
+          role: newDevRole,
+          phone: newDevPhone.trim() || undefined,
         },
         { id: currentUser.teacherId, name: currentUser.name }
       );
+
+      setCreatedDevSuccess(created);
 
       try {
         confetti({ particleCount: 60, spread: 70 });
@@ -551,17 +630,53 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
         // ignore
       }
 
-      setShowAddDevModal(false);
       setNewDevName('');
       setNewDevEmail('');
       setNewDevUsername('');
       setNewDevPassword('dev123');
       setNewDevTitle('Web Developer');
       setNewDevSkills('');
+      setNewDevPhone('');
       loadData();
+
+      // Dispatch welcome email with credentials
+      handleSendDevWelcomeEmail(created, plainPassword);
+
+      // Explicit Supabase cloud sync
+      setDevCloudSyncStatus('syncing');
+      StorageService.syncToCloud()
+        .then((ok) => {
+          setDevCloudSyncStatus(ok ? 'synced' : 'error');
+        })
+        .catch(() => {
+          setDevCloudSyncStatus('error');
+        });
     } catch (err: any) {
       alert(err.message || 'Failed to add developer.');
     }
+  };
+
+  const handleCopyDevCredentials = () => {
+    if (!createdDevSuccess) return;
+    const text = `AEW Portal Login Credentials:
+Name: ${createdDevSuccess.name}
+Role: ${createdDevSuccess.role.toUpperCase()} (${createdDevSuccess.webDevTitle || createdDevSuccess.department})
+Employee ID: ${createdDevSuccess.teacherId}
+Username: ${createdDevSuccess.username}
+Password: ${createdDevSuccess.password}
+Portal URL: ${window.location.origin}`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      setDevCopiedSuccess(true);
+      setTimeout(() => setDevCopiedSuccess(false), 2500);
+    });
+  };
+
+  const handleCloseAddDevModal = () => {
+    setShowAddDevModal(false);
+    setCreatedDevSuccess(null);
+    setDevEmailDispatchResult(null);
+    setDevCloudSyncStatus(null);
   };
 
   // Handle Remove Developer from Team
@@ -1865,13 +1980,25 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowAddDevModal(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-purple-950 self-start sm:self-auto"
-              >
-                <UserPlus className="w-4 h-4" />
-                Add Developer to Squad
-              </button>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={handleManualCloudSync}
+                  disabled={isManualSyncing}
+                  className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-2 cursor-pointer transition-all shadow"
+                  title="Synchronize engineering roster with cloud database"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isManualSyncing ? 'animate-spin' : ''}`} />
+                  <span>{manualSyncMsg || 'Sync to Cloud'}</span>
+                </button>
+                <button
+                  onClick={() => setShowAddDevModal(true)}
+                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-purple-950"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Add Developer to Squad
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3003,121 +3130,350 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
       {/* ─── MODAL: ADD DEVELOPER TO SQUAD ──────────────────────────────────── */}
       {showAddDevModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl my-8">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-purple-400" />
-                Add Developer to Engineering Squad
-              </h3>
-              <button
-                onClick={() => setShowAddDevModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddDeveloperSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl my-8">
+            {createdDevSuccess ? (
+              <div className="text-center space-y-4 py-2">
+                <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-950">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newDevName}
-                    onChange={(e) => setNewDevName(e.target.value)}
-                    placeholder="e.g. Arjun Mehta"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
+                  <h3 className="text-lg font-bold text-white">Developer Provisioned & Onboarded!</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Engineering profile generated and ready for immediate portal access.
+                  </p>
                 </div>
 
+                {/* Credential Card */}
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-left font-mono text-xs space-y-2.5 shadow-inner">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-slate-400 font-sans font-bold text-[11px] uppercase tracking-wider">
+                      🔑 Login Credentials
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase">
+                      {createdDevSuccess.role === 'web_dev_manager' ? 'Lead Architect' : 'Web Developer'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <span className="text-slate-500">Employee ID:</span>
+                    <span className="col-span-2 text-purple-300 font-bold select-all">{createdDevSuccess.teacherId}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <span className="text-slate-500">Full Name:</span>
+                    <span className="col-span-2 text-white font-sans font-medium">{createdDevSuccess.name}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <span className="text-slate-500">Username:</span>
+                    <span className="col-span-2 text-indigo-300 font-bold select-all">{createdDevSuccess.username}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <span className="text-slate-500">Password:</span>
+                    <span className="col-span-2 text-emerald-300 font-bold select-all">{createdDevSuccess.password}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <span className="text-slate-500">Work Email:</span>
+                    <span className="col-span-2 text-slate-300 truncate">{createdDevSuccess.email}</span>
+                  </div>
+                </div>
+
+                {/* Welcome Email Status */}
+                <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 text-left space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                    <span className="flex items-center gap-1.5 uppercase tracking-wider text-slate-300">
+                      <Mail className="w-3.5 h-3.5 text-purple-400" /> Welcome Email Dispatch
+                    </span>
+                    <span className="text-purple-300/80 font-mono text-[10px] truncate max-w-[180px]">
+                      {createdDevSuccess.email}
+                    </span>
+                  </div>
+
+                  {devEmailSending ? (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
+                      <span>Dispatching official credentials email...</span>
+                    </div>
+                  ) : devEmailDispatchResult?.success ? (
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>Welcome email with login credentials delivered!</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSendDevWelcomeEmail(createdDevSuccess, createdDevSuccess.password)}
+                        className="text-[10px] font-bold text-emerald-400 hover:text-emerald-200 underline cursor-pointer"
+                      >
+                        Resend
+                      </button>
+                    </div>
+                  ) : devEmailDispatchResult && !devEmailDispatchResult.success ? (
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px]">⚠️ Dispatch Notice</span>
+                        <button
+                          type="button"
+                          onClick={() => handleSendDevWelcomeEmail(createdDevSuccess, createdDevSuccess.password)}
+                          className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 text-[10px] font-bold cursor-pointer"
+                        >
+                          Retry Email
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-amber-300/80">
+                        {devEmailDispatchResult.error || 'Check SMTP configuration or recipient address.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 text-xs">
+                      <span>Ready to dispatch welcome email</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSendDevWelcomeEmail(createdDevSuccess, createdDevSuccess.password)}
+                        className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Send className="w-3 h-3" /> Send Mail
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cloud Database Sync Status */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Work Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={newDevEmail}
-                    onChange={(e) => setNewDevEmail(e.target.value)}
-                    placeholder="arjun@aew.edu"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
+                  {devCloudSyncStatus === 'syncing' ? (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
+                      <span>Syncing developer record to Supabase Cloud Database...</span>
+                    </div>
+                  ) : devCloudSyncStatus === 'synced' ? (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>Developer stored & synced to Supabase Cloud DB ✓</span>
+                    </div>
+                  ) : devCloudSyncStatus === 'error' ? (
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                      <span>⚠️ Cloud sync pending (saved in local store)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDevCloudSyncStatus('syncing');
+                          StorageService.syncToCloud().then((ok) => setDevCloudSyncStatus(ok ? 'synced' : 'error'));
+                        }}
+                        className="underline text-[10px] font-bold text-amber-300 hover:text-amber-100 cursor-pointer"
+                      >
+                        Retry Sync
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyDevCredentials}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow"
+                  >
+                    {devCopiedSuccess ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" /> Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 text-purple-400" /> Copy Credentials
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseAddDevModal}
+                    className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+                  >
+                    Done & View Squad
+                  </button>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Username *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newDevUsername}
-                    onChange={(e) => setNewDevUsername(e.target.value)}
-                    placeholder="arjun.m"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                  />
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <UserPlus className="w-5 h-5 text-purple-400" />
+                    Add Developer to Engineering Squad
+                  </h3>
+                  <button
+                    onClick={() => setShowAddDevModal(false)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Temporary Password *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newDevPassword}
-                    onChange={(e) => setNewDevPassword(e.target.value)}
-                    placeholder="code123"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                  />
-                </div>
-              </div>
+                <form onSubmit={handleAddDeveloperSubmit} className="space-y-4">
+                  {/* Role Selection */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">Department Role *</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewDevRole('web_developer');
+                          if (newDevTitle === 'Lead Software Architect & Manager') setNewDevTitle('Web Developer');
+                        }}
+                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 cursor-pointer transition-all ${
+                          newDevRole === 'web_developer'
+                            ? 'bg-purple-600/20 border-purple-500 text-white font-bold'
+                            : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Code2 className="w-4 h-4 text-purple-400 shrink-0" />
+                        <div>
+                          <div className="text-xs">Web Developer</div>
+                          <div className="text-[10px] text-slate-400">Sprint tasks & bounties</div>
+                        </div>
+                      </button>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Engineering Specialization / Title</label>
-                <input
-                  type="text"
-                  value={newDevTitle}
-                  onChange={(e) => setNewDevTitle(e.target.value)}
-                  placeholder="e.g. Frontend Specialist, Full-Stack Engineer, DevOps"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewDevRole('web_dev_manager');
+                          setNewDevTitle('Lead Software Architect & Manager');
+                        }}
+                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 cursor-pointer transition-all ${
+                          newDevRole === 'web_dev_manager'
+                            ? 'bg-purple-600/20 border-purple-500 text-white font-bold'
+                            : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div>
+                          <div className="text-xs">Lead Architect</div>
+                          <div className="text-[10px] text-slate-400">Full engineering desk</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Tech Stack Skills (comma-separated)</label>
-                <input
-                  type="text"
-                  value={newDevSkills}
-                  onChange={(e) => setNewDevSkills(e.target.value)}
-                  placeholder="React, TypeScript, GraphQL, Tailwind"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newDevName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewDevName(val);
+                          if (!newDevUsername || newDevUsername === newDevName.toLowerCase().replace(/[^a-z0-9]/g, '_')) {
+                            const suggested = val.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+                            setNewDevUsername(suggested);
+                            if (!newDevEmail || newDevEmail.includes('@aew.com')) {
+                              setNewDevEmail(`${suggested}@aew.com`);
+                            }
+                          }
+                        }}
+                        placeholder="e.g. Arjun Mehta"
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
 
-              <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-400 space-y-1">
-                <div className="font-semibold text-slate-300 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-purple-400" />
-                  Squad Onboarding Details
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  New developers will be automatically granted the <span className="text-purple-300 font-mono">web_developer</span> role, Level 1 apprentice rank, and can log in immediately using the credentials provided.
-                </p>
-              </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Work Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={newDevEmail}
+                        onChange={(e) => setNewDevEmail(e.target.value)}
+                        placeholder="arjun@aew.com"
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowAddDevModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-950"
-                >
-                  Onboard Developer
-                </button>
-              </div>
-            </form>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Portal Username *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newDevUsername}
+                        onChange={(e) => setNewDevUsername(e.target.value)}
+                        placeholder="arjun.m"
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Initial Password *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newDevPassword}
+                        onChange={(e) => setNewDevPassword(e.target.value)}
+                        placeholder="dev123"
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Specialization / Title</label>
+                      <input
+                        type="text"
+                        value={newDevTitle}
+                        onChange={(e) => setNewDevTitle(e.target.value)}
+                        placeholder="e.g. Frontend Specialist, Full-Stack Engineer"
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Contact Phone (Optional)</label>
+                      <input
+                        type="tel"
+                        value={newDevPhone}
+                        onChange={(e) => setNewDevPhone(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Tech Stack Skills (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={newDevSkills}
+                      onChange={(e) => setNewDevSkills(e.target.value)}
+                      placeholder="React, TypeScript, Tailwind, Node.js"
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-400 space-y-1">
+                    <div className="font-semibold text-slate-300 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-purple-400" />
+                      Automatic Credentials Dispatch & Cloud Sync
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Upon onboarding, the developer will be automatically registered in Supabase Cloud DB, assigned the next sequential employee ID, and sent a formal welcome email with portal credentials.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddDevModal(false)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-950 cursor-pointer"
+                    >
+                      Onboard Developer
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}

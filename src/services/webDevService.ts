@@ -1803,34 +1803,29 @@ export const WebDevService = {
       webDevTitle?: string;
       skills?: string[];
       role?: 'web_developer' | 'web_dev_manager';
+      phone?: string;
     },
     manager: { id: string; name: string }
   ): User {
-    const allUsers = StorageService.getUsers();
-    const cleanId = `AEW-DEV-${Date.now().toString().slice(-4)}`;
-    const cleanUsername = (devData.username || devData.email.split('@')[0] || `dev_${Date.now().toString().slice(-4)}`).toLowerCase().replace(/\s+/g, '_');
+    const role = devData.role || 'web_developer';
+    const cleanId = StorageService.getNextEmployeeId(role);
+    const cleanUsername = (devData.username || devData.email.split('@')[0] || cleanId.toLowerCase()).toLowerCase().replace(/\s+/g, '_');
     
-    const newDev: User = {
-      id: `u-${cleanId.toLowerCase()}`,
-      teacherId: cleanId,
+    const newDev = StorageService.onboardEmployee({
       name: devData.name.trim(),
       email: devData.email.trim(),
       username: cleanUsername,
       password: devData.password || 'dev123',
-      role: devData.role || 'web_developer',
+      role,
+      teacherId: cleanId,
       department: 'Engineering & Product',
-      subject: devData.webDevTitle?.trim() || (devData.role === 'web_dev_manager' ? 'Software Architecture' : 'Web Development'),
-      dailyTargetMinutes: 0,
-      dailyLimit: 0,
-      webDevTitle: devData.webDevTitle?.trim() || (devData.role === 'web_dev_manager' ? 'Dev Architect' : 'Web Developer'),
+      subject: devData.webDevTitle?.trim() || (role === 'web_dev_manager' ? 'Software Architecture' : 'Web Development'),
+      webDevTitle: devData.webDevTitle?.trim() || (role === 'web_dev_manager' ? 'Dev Architect' : 'Web Developer'),
       webDevXp: 0,
       webDevLevel: 1,
       skills: devData.skills && devData.skills.length > 0 ? devData.skills : [],
-      createdAt: new Date().toISOString(),
-    };
-
-    allUsers.push(newDev);
-    StorageService.saveUsers(allUsers);
+      phone: devData.phone?.trim() || undefined,
+    });
 
     this.logAudit({
       action: 'DEVELOPER_ADDED',
@@ -1853,12 +1848,15 @@ export const WebDevService = {
     }
 
     const allUsers = StorageService.getUsers();
-    const targetDev = allUsers.find((u) => u.teacherId === developerId);
+    const targetDev = allUsers.find((u) => u.teacherId === developerId || u.id === developerId);
     if (!targetDev) {
       return { success: false, error: 'Developer not found.' };
     }
 
-    const updatedUsers = allUsers.filter((u) => u.teacherId !== developerId);
+    StorageService.addDeletedId(targetDev.teacherId);
+    if (targetDev.id) StorageService.addDeletedId(targetDev.id);
+
+    const updatedUsers = allUsers.filter((u) => u.teacherId !== targetDev.teacherId && u.id !== targetDev.id);
     StorageService.saveUsers(updatedUsers);
 
     // Unassign tasks assigned to this developer so tasks aren't orphaned

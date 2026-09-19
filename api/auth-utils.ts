@@ -198,7 +198,7 @@ export interface SessionPayload {
   sub: string;           // User ID
   teacherId: string;     // Teacher ID or ADMIN-01 or AEW-PR-01 or AEW-DEV-01
   username?: string;
-  role: 'admin' | 'teacher' | 'pr_intern' | 'web_dev_manager' | 'web_developer';
+  role: 'admin' | 'teacher' | 'pr_intern' | 'pr_head' | 'web_dev_manager' | 'web_developer' | 'sales';
   name?: string;
   iat: number;
   exp: number;
@@ -211,7 +211,7 @@ export function createSessionToken(user: { id: string; teacherId: string; userna
     sub: user.id,
     teacherId: user.teacherId,
     username: user.username,
-    role: user.role as 'admin' | 'teacher' | 'pr_intern' | 'web_dev_manager' | 'web_developer',
+    role: user.role as any,
     name: user.name,
     iat: now,
     exp: now + 14 * 24 * 3600, // 14 days expiration
@@ -308,14 +308,7 @@ export const HARDCODED_MOCK_USERNAMES = new Set([
   'developer_neha',
 ]);
 
-export const HARDCODED_MOCK_TEACHER_IDS = new Set([
-  'AEW-PR-01',
-  'AEW-PR-02',
-  'AEW-PRH-01',
-  'AEW-WDM-01',
-  'AEW-DEV-01',
-  'AEW-DEV-02',
-]);
+export const HARDCODED_MOCK_TEACHER_IDS = new Set<string>([]);
 
 export function isHardcodedMockUser(u: { teacherId?: string; id?: string; username?: string } | null | undefined): boolean {
   if (!u) return false;
@@ -336,11 +329,6 @@ export function isHardcodedMockUser(u: { teacherId?: string; id?: string; userna
     return false;
   }
 
-  // Any custom account created through onboarding (timestamp ID u-17...) is a real account
-  if (uid.startsWith('u-17') && uname !== 'teacher_101' && uname !== 'teacher_102' && uname !== 'teacher_103') {
-    return false;
-  }
-
   // Exact mock user ID from old seeds
   if (HARDCODED_MOCK_USER_IDS.has(uid)) {
     return true;
@@ -351,13 +339,8 @@ export function isHardcodedMockUser(u: { teacherId?: string; id?: string; userna
     return true;
   }
 
-  // Exact mock employee ID for non-teachers
-  if (HARDCODED_MOCK_TEACHER_IDS.has(tid)) {
-    return true;
-  }
-
-  // Mock test teacher AEW-T-101 (only if legacy test/seed, preserving any user-created with timestamp ID like u-17...)
-  if (tid === 'AEW-T-101' && (uid === 'u-test-teacher' || uid === 'u-t101' || uname === 'teacher_101' || !uid.startsWith('u-17'))) {
+  // Mock test teacher AEW-T-101 (only if legacy test/seed)
+  if (tid === 'AEW-T-101' && (uid === 'u-test-teacher' || uid === 'u-t101' || uname === 'teacher_101')) {
     return true;
   }
 

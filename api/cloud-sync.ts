@@ -24,7 +24,25 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []),
   ]);
 
-  // 1. Merge Users — PRIVILEGED: ONLY ADMIN CAN MUTATE USERS
+  // If incoming contains active users being added or updated by authorized callers,
+  // ensure their IDs are not blocked by stale deletedIds in state.
+  const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head';
+  if (canMutateUsers && Array.isArray(incoming.users)) {
+    incoming.users.forEach((u: any) => {
+      if (u) {
+        const canMutateThisRole =
+          callerRole === 'admin' ||
+          (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
+          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head'));
+        if (canMutateThisRole) {
+          if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
+          if (u.id) deletedIds.delete(u.id.toUpperCase());
+        }
+      }
+    });
+  }
+
+  // 1. Merge Users — AUTHORIZED: Admin, Web Dev Lead, PR Head
   const userMap = new Map<string, any>();
   if (Array.isArray(current.users)) {
     current.users.forEach((u: any) => {
@@ -34,9 +52,16 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     });
   }
 
-  if (callerRole === 'admin' && Array.isArray(incoming.users)) {
+  if (canMutateUsers && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
       if (u && u.teacherId && !isHardcodedMockUser(u) && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id?.toUpperCase())) {
+        const allowed =
+          callerRole === 'admin' ||
+          (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
+          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head'));
+
+        if (!allowed) return;
+
         const existing = userMap.get(u.teacherId.toUpperCase());
         const isExistingRealEmail = existing?.email && !String(existing.email).endsWith('@aew.com');
         const isIncomingRealEmail = u?.email && !String(u.email).endsWith('@aew.com');
@@ -44,7 +69,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
 
         let passwordToStore = existing?.password;
         if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
-          // If a new password is provided by admin, hash it if not already scrypt
+          // If a new password is provided, hash it if not already scrypt
           passwordToStore = u.password.startsWith('scrypt:') ? u.password : hashPassword(u.password.trim());
         }
 

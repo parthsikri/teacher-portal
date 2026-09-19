@@ -464,6 +464,7 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
       const roleTitleMap: Record<string, string> = {
         teacher: 'Faculty / Subject Matter Expert',
         pr_intern: 'PR & Campus Outreach Intern',
+        pr_head: 'Head of Public Relations & Strategic Partnerships',
         web_developer: data.webDevTitle || 'Software Engineer (Web Development)',
         web_dev_manager: data.webDevTitle || 'Lead Software Architect & Manager',
         sales: data.crmRole === 'sales_manager' ? 'Sales Manager (Course Admissions)' : 'Sales Representative (Admissions)',
@@ -480,7 +481,7 @@ function buildEmailTemplate(type: NotificationEventType, data: Record<string, an
           <li style="margin-bottom: 6px;">Request professional 16:9 widescreen PYQ slides directly from the Content Studio.</li>
           <li>Upload your recorded lecture video links (YouTube Unlisted or Google Drive) for quality auditing.</li>
         `;
-      } else if (role === 'pr_intern') {
+      } else if (role === 'pr_intern' || role === 'pr_head') {
         roleSpecificGuidance = `
           <li style="margin-bottom: 6px;">Access your PR Ambassador & Sponsorship dashboard.</li>
           <li style="margin-bottom: 6px;">Track college partnerships, fest sponsorships, and official MoUs.</li>

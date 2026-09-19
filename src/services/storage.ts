@@ -152,14 +152,7 @@ export const HARDCODED_MOCK_USERNAMES = new Set([
   'developer_neha',
 ]);
 
-export const HARDCODED_MOCK_TEACHER_IDS = new Set([
-  'AEW-PR-01',
-  'AEW-PR-02',
-  'AEW-PRH-01',
-  'AEW-WDM-01',
-  'AEW-DEV-01',
-  'AEW-DEV-02',
-]);
+export const HARDCODED_MOCK_TEACHER_IDS = new Set<string>([]);
 
 export function isHardcodedMockUser(u: { teacherId?: string; id?: string; username?: string } | null | undefined): boolean {
   if (!u) return false;
@@ -192,11 +185,6 @@ export function isHardcodedMockUser(u: { teacherId?: string; id?: string; userna
 
   // Exact mock username from old seeds
   if (HARDCODED_MOCK_USERNAMES.has(uname)) {
-    return true;
-  }
-
-  // Exact mock employee ID for non-teachers
-  if (HARDCODED_MOCK_TEACHER_IDS.has(tid)) {
     return true;
   }
 
@@ -531,6 +519,8 @@ export const StorageService = {
     };
 
     filtered.push(created);
+    this.removeDeletedId(cleanId);
+    if (created.id) this.removeDeletedId(created.id);
     this.saveUsers(filtered);
     return created;
   },
@@ -556,12 +546,14 @@ export const StorageService = {
       subject: newTeacher.subject.trim() || 'Engineering',
       dailyTargetMinutes: newTeacher.dailyTargetMinutes || 120,
       dailyLimit: newTeacher.dailyLimit || Math.ceil((newTeacher.dailyTargetMinutes || 120) / 30),
+      joiningDate: newTeacher.joiningDate || todayStr,
       role: 'teacher',
-      joiningDate: (newTeacher.joiningDate || todayStr).trim(),
-      createdAt: new Date().toISOString(),
-      mustChangePassword: true,
+      mustChangePassword: newTeacher.mustChangePassword !== undefined ? newTeacher.mustChangePassword : true,
     };
+
     filtered.push(created);
+    this.removeDeletedId(cleanTeacherId);
+    if (created.id) this.removeDeletedId(created.id);
     this.saveUsers(filtered);
     return created;
   },
@@ -743,12 +735,6 @@ export const StorageService = {
       }
     }
     const MOCK_TOMBSTONES = [
-      'AEW-PR-01',
-      'AEW-PR-02',
-      'AEW-PRH-01',
-      'AEW-WDM-01',
-      'AEW-DEV-01',
-      'AEW-DEV-02',
       'u-pr101',
       'u-pr102',
       'u-prhead01',
@@ -771,6 +757,23 @@ export const StorageService = {
       'KHUSHI',
     ]);
     return Array.from(new Set([...MOCK_TOMBSTONES, ...list])).filter((id) => !PROTECTED_IDS.has(id.toUpperCase()));
+  },
+
+  removeDeletedId(id: string): void {
+    if (!id) return;
+    const clean = id.trim().toUpperCase();
+    const data = localStorage.getItem(DELETED_IDS_KEY);
+    let list: string[] = [];
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch {
+        list = [];
+      }
+    }
+    const filtered = list.filter((item) => item.toUpperCase() !== clean);
+    localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(filtered));
   },
 
   addDeletedId(id: string): void {
