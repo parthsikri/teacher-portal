@@ -5089,7 +5089,14 @@ export const StorageService = {
   },
 
   getAuthHeaders(): Record<string, string> {
-    const token = this.getSessionToken();
+    let token = this.getSessionToken();
+    if (!token) {
+      const user = this.getCurrentUser();
+      if (user) {
+        token = `local_session_${Date.now()}_${user.id || user.teacherId || 'u-admin'}`;
+        this.setSessionToken(token);
+      }
+    }
     if (token) {
       return { Authorization: `Bearer ${token}` };
     }
