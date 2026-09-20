@@ -53,6 +53,7 @@ export const DEFAULT_STATE: any = {
   webDevRewards: [],
   webDevUserAchievements: [],
   webDevNotifications: [],
+  webDevChallenges: [],
   offerLetters: [],
   emailConfig: {
     provider: 'smtp',

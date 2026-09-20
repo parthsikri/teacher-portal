@@ -52,6 +52,7 @@ import { WebDevService, calculateLevelFromXp } from '../../../services/webDevSer
 import { StorageService } from '../../../services/storage';
 import { TaskDetailModal } from '../Common/TaskDetailModal';
 import { CertificateModal } from '../Common/CertificateModal';
+import { ProjectDetailModal } from '../Common/ProjectDetailModal';
 
 interface WebDevManagerViewProps {
   currentUser: User;
@@ -160,6 +161,14 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [newMilestoneTitle, setNewMilestoneTitle] = useState('');
   const [newMilestoneDeadline, setNewMilestoneDeadline] = useState('');
   const [newMilestoneDesc, setNewMilestoneDesc] = useState('');
+
+  // Add Milestone to Existing Project Modal State
+  const [showAddMilestoneModal, setShowAddMilestoneModal] = useState(false);
+  const [selectedProjectForMilestone, setSelectedProjectForMilestone] = useState<WebDevProject | null>(null);
+  const [selectedProject, setSelectedProject] = useState<WebDevProject | null>(null);
+  const [addMilestoneTitle, setAddMilestoneTitle] = useState('');
+  const [addMilestoneDeadline, setAddMilestoneDeadline] = useState('');
+  const [addMilestoneDesc, setAddMilestoneDesc] = useState('');
 
   // Add Developer Modal State
   const [showAddDevModal, setShowAddDevModal] = useState(false);
@@ -322,9 +331,11 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     if (taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false;
     if (taskProjectFilter !== 'all' && t.projectId !== taskProjectFilter) return false;
     if (taskAssigneeFilter === 'assigned_to_me') {
-      if (t.assigneeId !== currentUser.teacherId) return false;
-    } else if (taskAssigneeFilter !== 'all' && t.assigneeId !== taskAssigneeFilter) {
-      return false;
+      if ((t.assigneeId || '').toUpperCase() !== (currentUser.teacherId || '').toUpperCase()) return false;
+    } else if (taskAssigneeFilter === 'unassigned') {
+      if (t.assigneeId) return false;
+    } else if (taskAssigneeFilter !== 'all') {
+      if ((t.assigneeId || '').toUpperCase() !== taskAssigneeFilter.toUpperCase()) return false;
     }
     if (taskTimeFilter !== 'all') {
       if (taskTimeFilter === 'on_time' && t.completionStatus !== 'on_time') return false;
@@ -389,7 +400,8 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
 
-    const assignedUser = developers.find((d) => d.teacherId === newTaskAssignee);
+    const finalProjectId = newTaskProject || (projects.length > 0 ? projects[0].id : 'PROJ-01');
+    const assignedUser = developers.find((d) => d.teacherId === newTaskAssignee || d.id === newTaskAssignee);
     const tagsArr = newTaskTags
       .split(',')
       .map((s) => s.trim())
@@ -406,12 +418,12 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     WebDevService.saveTask(
       {
         id: taskId,
-        projectId: newTaskProject,
+        projectId: finalProjectId,
         title: newTaskTitle.trim(),
         description: newTaskDesc.trim(),
         type: newTaskType,
         priority: newTaskPriority,
-        status: 'in_progress',
+        status: assignedUser ? 'in_progress' : 'todo',
         xpReward: Number(newTaskXp) || 150,
         assigneeId: assignedUser?.teacherId,
         assigneeName: assignedUser?.name,
@@ -485,7 +497,11 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     e.preventDefault();
     if (!newProjTitle.trim()) return;
 
-    const leadDev = developers.find((d) => d.teacherId === newProjLead);
+    const leadDev = developers.find(
+      (d) =>
+        (d.teacherId || '').toUpperCase() === (newProjLead || '').toUpperCase() ||
+        (d.id || '').toUpperCase() === (newProjLead || '').toUpperCase()
+    );
     const techArr = newProjTech.split(',').map((s) => s.trim()).filter(Boolean);
     const projId = `PROJ-${Date.now().toString().slice(-4)}`;
 
@@ -515,8 +531,8 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
         priority: 'high',
         managerId: currentUser.teacherId,
         managerName: currentUser.name,
-        leadDeveloperId: leadDev?.teacherId,
-        leadDeveloperName: leadDev?.name,
+        leadDeveloperId: leadDev?.teacherId || leadDev?.id || newProjLead || undefined,
+        leadDeveloperName: leadDev?.name || undefined,
         progressPercentage: 10,
         startDate: new Date().toISOString().split('T')[0],
         targetDate: newProjTarget || '2026-12-01',
@@ -535,6 +551,24 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     setNewMilestoneTitle('');
     setNewMilestoneDeadline('');
     setNewMilestoneDesc('');
+    loadData();
+  };
+
+  const handleCreateMilestone = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectForMilestone || !addMilestoneTitle.trim()) return;
+    WebDevService.createMilestone({
+      projectId: selectedProjectForMilestone.id,
+      title: addMilestoneTitle.trim(),
+      description: addMilestoneDesc.trim(),
+      dueDate: addMilestoneDeadline || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      status: 'planned',
+    });
+    setShowAddMilestoneModal(false);
+    setAddMilestoneTitle('');
+    setAddMilestoneDeadline('');
+    setAddMilestoneDesc('');
+    setSelectedProjectForMilestone(null);
     loadData();
   };
 
@@ -805,7 +839,10 @@ Portal URL: ${window.location.origin}`;
 
             <div className="flex flex-wrap items-center gap-3">
               <button
-                onClick={() => setShowCreateTaskModal(true)}
+                onClick={() => {
+                  if (projects.length > 0 && !newTaskProject) setNewTaskProject(projects[0].id);
+                  setShowCreateTaskModal(true);
+                }}
                 className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all"
               >
                 <Plus className="w-4 h-4" />
@@ -1490,6 +1527,7 @@ Portal URL: ${window.location.origin}`;
                 >
                   <option value="all">All Assignees</option>
                   <option value="assigned_to_me">👑 Assigned to Me ({myAdminTasks.length})</option>
+                  <option value="unassigned">⏳ Unassigned (Backlog)</option>
                   {developers.map((d) => (
                     <option key={d.teacherId} value={d.teacherId}>
                       {d.role === 'web_dev_manager' ? '👑 ' : ''}{d.name}
@@ -1608,12 +1646,26 @@ Portal URL: ${window.location.origin}`;
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          onClick={() => setSelectedTask(t)}
-                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-semibold transition-colors"
-                        >
-                          Manage
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => setSelectedTask(t)}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] font-semibold transition-colors"
+                          >
+                            Manage
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete task "${t.title}" (${t.id})?`)) {
+                                WebDevService.deleteTask(t.id);
+                                loadData();
+                              }
+                            }}
+                            className="p-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded text-[11px] transition-colors"
+                            title="Delete Task"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1629,53 +1681,143 @@ Portal URL: ${window.location.origin}`;
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {projects.map((proj) => {
                 const projMilestones = WebDevService.getMilestones(proj.id);
+                const dynamicProgress = WebDevService.calculateProjectProgress(proj.id);
+                const projTasks = WebDevService.getTasks({ projectId: proj.id });
+                const leadDev = developers.find(
+                  (d) =>
+                    (d.teacherId || '').toUpperCase() === (proj.leadDeveloperId || '').toUpperCase() ||
+                    (d.id || '').toUpperCase() === (proj.leadDeveloperId || '').toUpperCase()
+                );
                 return (
-                  <div key={proj.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+                  <div
+                    key={proj.id}
+                    onClick={() => setSelectedProject(proj)}
+                    className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-6 shadow-xl space-y-5 cursor-pointer hover:shadow-2xl transition-all group relative overflow-hidden"
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-xs font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">
                             {proj.key}
                           </span>
                           <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold uppercase">
                             {proj.status}
                           </span>
+                          {proj.leadDeveloperId && (
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold flex items-center gap-1 border border-amber-500/30">
+                              👑 Lead: {leadDev?.name || proj.leadDeveloperName || proj.leadDeveloperId}
+                            </span>
+                          )}
                         </div>
-                        <h2 className="text-xl font-bold text-white mt-1">{proj.title}</h2>
+                        <h2 className="text-xl font-bold text-white mt-1.5 group-hover:text-amber-300 transition-colors">{proj.title}</h2>
                         <p className="text-xs text-slate-400 mt-1">{proj.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProjectForMilestone(proj);
+                            setShowAddMilestoneModal(true);
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Add Milestone"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Milestone</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Permanently delete project "${proj.title}" (${proj.id}) and all associated milestones?`)) {
+                              WebDevService.deleteProject(proj.id);
+                              loadData();
+                            }
+                          }}
+                          className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg transition-colors"
+                          title="Delete Project"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span>Milestone Progress</span>
-                        <span className="font-bold text-white">{proj.progressPercentage}%</span>
+                        <span>Dynamic Project Progress</span>
+                        <span className="font-bold text-white">{dynamicProgress}%</span>
                       </div>
                       <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-amber-500 to-indigo-500 h-2 rounded-full"
-                          style={{ width: `${proj.progressPercentage}%` }}
+                          className="bg-gradient-to-r from-amber-500 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${dynamicProgress}%` }}
                         />
                       </div>
                     </div>
 
-                    <div className="space-y-2 pt-2 border-t border-slate-800">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Roadmap Milestones ({projMilestones.length})
-                      </div>
-                      <div className="space-y-1.5">
-                        {projMilestones.map((m) => (
-                          <div key={m.id} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 flex items-center justify-between text-xs">
-                            <div>
-                              <div className="font-semibold text-slate-200">{m.title}</div>
-                              <div className="text-[10px] text-slate-500">Target: {m.targetDate}</div>
+                    {projMilestones.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-slate-800">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          Roadmap Milestones ({projMilestones.length})
+                        </div>
+                        <div className="space-y-1.5">
+                          {projMilestones.map((m) => (
+                            <div key={m.id} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    WebDevService.toggleMilestoneStatus(m.id);
+                                    loadData();
+                                  }}
+                                  className="text-slate-400 hover:text-emerald-400 transition-colors"
+                                  title="Click to toggle completed / in progress"
+                                >
+                                  {m.status === 'completed' ? (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  ) : (
+                                    <Clock className="w-4 h-4 text-amber-400" />
+                                  )}
+                                </button>
+                                <div>
+                                  <div className={`font-semibold ${m.status === 'completed' ? 'text-slate-400 line-through' : 'text-slate-200'}`}>{m.title}</div>
+                                  <div className="text-[10px] text-slate-500">Target: {m.targetDate || m.dueDate}</div>
+                                </div>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold capitalize ${
+                                m.status === 'completed'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-slate-800 text-slate-300'
+                              }`}>
+                                {m.status.replace('_', ' ')}
+                              </span>
                             </div>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold capitalize bg-slate-800 text-slate-300">
-                              {m.status.replace('_', ' ')}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
+                      <div className="flex items-center gap-3 text-slate-400">
+                        <span>Tasks: <strong className="text-white">{projTasks.length}</strong></span>
+                        {proj.repositoryUrl && (
+                          <a
+                            href={proj.repositoryUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-mono"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Repo
+                          </a>
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold text-amber-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                        Open Project Details & Tasks →
+                      </span>
                     </div>
                   </div>
                 );
@@ -1718,10 +1860,25 @@ Portal URL: ${window.location.origin}`;
                 bounties.map((b) => (
                   <div key={b.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-slate-800 text-slate-300">
-                        {b.difficulty}
-                      </span>
-                      <span className="text-xs font-bold text-amber-400">+{b.xpReward} XP</span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-slate-800 text-slate-300">
+                          {b.difficulty}
+                        </span>
+                        <span className="text-xs font-bold text-amber-400">+{b.xpReward} XP</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Permanently delete bounty "${b.title}" (${b.id})?`)) {
+                            WebDevService.deleteBounty(b.id);
+                            loadData();
+                          }
+                        }}
+                        className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                        title="Delete Bounty"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
 
                     <div>
@@ -2288,6 +2445,31 @@ Portal URL: ${window.location.origin}`;
             setSelectedTask(updated);
             loadData();
           }}
+          onTaskDeleted={() => {
+            setSelectedTask(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* ─── MODAL: PROJECT DETAIL DRAWER ─────────────────────────────────────── */}
+      {selectedProject && (
+        <ProjectDetailModal
+          project={selectedProject}
+          currentUser={currentUser}
+          onClose={() => setSelectedProject(null)}
+          onProjectUpdated={(updated) => {
+            setSelectedProject(updated);
+            loadData();
+          }}
+          onProjectDeleted={() => {
+            setSelectedProject(null);
+            loadData();
+          }}
+          onFilterTasksByProject={(projId) => {
+            setTaskProjectFilter(projId);
+            if (onPageChange) onPageChange('wdm_tasks');
+          }}
         />
       )}
 
@@ -2437,6 +2619,7 @@ Portal URL: ${window.location.origin}`;
                   onChange={(e) => setNewTaskProject(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
                 >
+                  <option value="">-- Select Project * --</option>
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title}
@@ -2477,6 +2660,7 @@ Portal URL: ${window.location.origin}`;
                     onChange={(e) => setNewTaskAssignee(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
                   >
+                    <option value="">-- Unassigned (Backlog) --</option>
                     {developers.map((d) => (
                       <option key={d.teacherId} value={d.teacherId}>
                         {d.name}
@@ -2844,9 +3028,10 @@ Portal URL: ${window.location.origin}`;
                     onChange={(e) => setNewProjLead(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
                   >
+                    <option value="">-- Select Lead Developer --</option>
                     {developers.map((d) => (
-                      <option key={d.teacherId} value={d.teacherId}>
-                        {d.name}
+                      <option key={d.teacherId || d.id} value={d.teacherId || d.id}>
+                        {d.name} ({d.teacherId || d.id})
                       </option>
                     ))}
                   </select>
@@ -3000,6 +3185,74 @@ Portal URL: ${window.location.origin}`;
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/20"
                 >
                   Create Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: ADD MILESTONE TO EXISTING PROJECT ─────────────────────── */}
+      {showAddMilestoneModal && selectedProjectForMilestone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Target className="w-5 h-5 text-indigo-400" />
+                Add Milestone: {selectedProjectForMilestone.title}
+              </h3>
+              <button onClick={() => setShowAddMilestoneModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMilestone} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Milestone Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={addMilestoneTitle}
+                  onChange={(e) => setAddMilestoneTitle(e.target.value)}
+                  placeholder="e.g. Phase 2 API Release"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={addMilestoneDesc}
+                  onChange={(e) => setAddMilestoneDesc(e.target.value)}
+                  placeholder="Deliverables and completion criteria..."
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Target Due Date</label>
+                <input
+                  type="date"
+                  value={addMilestoneDeadline}
+                  onChange={(e) => setAddMilestoneDeadline(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddMilestoneModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/20"
+                >
+                  Add Milestone
                 </button>
               </div>
             </form>

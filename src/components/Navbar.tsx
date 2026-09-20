@@ -250,7 +250,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         
         {/* Brand Logo */}
         <div 
-          onClick={() => onPageChange(currentUser?.role === 'admin' ? 'admin_dashboard' : 'dashboard')}
+          onClick={() => {
+            if (!currentUser) return onPageChange('dashboard');
+            if (currentUser.role === 'admin') return onPageChange('admin_dashboard');
+            if (currentUser.role === 'web_dev_manager') return onPageChange('wdm_review');
+            if (currentUser.role === 'web_developer') return onPageChange('dev_tasks');
+            if (currentUser.role === 'sales') return onPageChange('sales_crm');
+            if (currentUser.role === 'pr_intern' || currentUser.role === 'pr_head') return onPageChange('pr_dashboard');
+            return onPageChange('dashboard');
+          }}
           className="flex items-center gap-3 cursor-pointer shrink-0 group"
         >
           <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-amber-400 flex items-center justify-center font-black text-slate-950 text-sm shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">

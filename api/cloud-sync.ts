@@ -693,6 +693,47 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     });
   }
 
+  // 29. Merge Web Dev Challenges
+  const challengeMap = new Map<string, any>();
+  if (Array.isArray(current.webDevChallenges)) {
+    current.webDevChallenges.forEach((c: any) => {
+      if (c && c.id && !deletedIds.has(c.id.toUpperCase())) challengeMap.set(c.id, c);
+    });
+  }
+  if (Array.isArray(incoming.webDevChallenges)) {
+    incoming.webDevChallenges.forEach((c: any) => {
+      if (c && c.id && !deletedIds.has(c.id.toUpperCase())) {
+        const existing = challengeMap.get(c.id);
+        if (!existing) {
+          challengeMap.set(c.id, c);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = c.updatedAt ? new Date(c.updatedAt).getTime() : 0;
+          challengeMap.set(c.id, inTime >= exTime ? { ...existing, ...c } : { ...c, ...existing });
+        }
+      }
+    });
+  }
+
+  // 30. CRM Access Permissions
+  const mergedCrmPermissions = {
+    ...(current.crmPermissions || {}),
+    ...(incoming.crmPermissions || {}),
+  };
+
+  // 31. Merge Email Config & Email Logs
+  const mergedEmailConfig = {
+    ...(current.emailConfig || {}),
+    ...(incoming.emailConfig || {}),
+  };
+  const emailLogMap = new Map<string, any>();
+  if (Array.isArray(current.emailLogs)) {
+    current.emailLogs.forEach((l: any) => { if (l && l.id) emailLogMap.set(l.id, l); });
+  }
+  if (Array.isArray(incoming.emailLogs)) {
+    incoming.emailLogs.forEach((l: any) => { if (l && l.id) emailLogMap.set(l.id, l); });
+  }
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -711,7 +752,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     prMous: Array.from(prMouMap.values()),
     prColleges: Array.from(prCollegeMap.values()),
     salesLeads: Array.from(salesLeadMap.values()),
-    crmPermissions: { ...(current.crmPermissions || {}), ...(incoming.crmPermissions || {}) },
+    crmPermissions: mergedCrmPermissions,
     webDevProjects: Array.from(webDevProjectMap.values()),
     webDevMilestones: Array.from(webDevMilestoneMap.values()),
     webDevTasks: Array.from(webDevTaskMap.values()),
@@ -725,14 +766,14 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     webDevNotifications: Array.from(notifMap.values())
       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
       .slice(0, 200),
+    webDevChallenges: Array.from(challengeMap.values()),
     offerLetters: Array.from(offerLetterMap.values()),
     emailConfig: mergedEmailConfig,
-    emailLogs: mergedEmailLogs,
+    emailLogs: Array.from(emailLogMap.values()).slice(-500),
   };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Apply strict dynamic CORS
   if (applyCors(req, res)) {
     return;
   }
@@ -755,7 +796,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!rl.allowed) {
       return res.status(429).json({ success: false, error: 'Too many sync requests. Please wait a moment.' });
     }
-
     try {
       const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
         headers: {

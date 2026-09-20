@@ -1535,6 +1535,10 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
             setSelectedTask(updated);
             loadData();
           }}
+          onTaskDeleted={() => {
+            setSelectedTask(null);
+            loadData();
+          }}
         />
       )}
     </div>

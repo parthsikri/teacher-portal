@@ -39,6 +39,7 @@ import { WebDevService, calculateLevelFromXp } from '../../../services/webDevSer
 import { TaskDetailModal } from '../Common/TaskDetailModal';
 import { CertificateModal } from '../Common/CertificateModal';
 import { CertificateVerificationModal } from '../Common/CertificateVerificationModal';
+import { ProjectDetailModal } from '../Common/ProjectDetailModal';
 
 interface WebDeveloperViewProps {
   currentUser: User;
@@ -79,10 +80,12 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
 
   // Filter states
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
+  const [taskProjectFilter, setTaskProjectFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
   const [selectedTask, setSelectedTask] = useState<WebDevTask | null>(null);
+  const [selectedProject, setSelectedProject] = useState<WebDevProject | null>(null);
   const [selectedCertificate, setSelectedCertificate] = useState<{
     fulfillment: WebDevRewardFulfillment;
     reward?: WebDevReward;
@@ -147,6 +150,7 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
   // Filtered tasks
   const filteredTasks = tasks.filter((t) => {
     if (taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false;
+    if (taskProjectFilter !== 'all' && t.projectId !== taskProjectFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -384,16 +388,30 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
         {activeTab === 'tasks' && (
           <div className="space-y-6">
             {/* Filter and Search Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search tasks, descriptions, #tags..."
-                  className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                />
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1 max-w-xl">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search tasks, descriptions, #tags..."
+                    className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <select
+                  value={taskProjectFilter}
+                  onChange={(e) => setTaskProjectFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="all">All Projects</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.key}: {p.title}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -525,13 +543,25 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
               {projects.map((proj) => {
                 const projMilestones = WebDevService.getMilestones(proj.id);
                 const projTasks = WebDevService.getTasks({ projectId: proj.id });
-                const myProjTasks = projTasks.filter((t) => t.assigneeId === currentUser.teacherId);
+                const myProjTasks = projTasks.filter(
+                  (t) =>
+                    (t.assigneeId || '').toUpperCase() === (currentUser.teacherId || '').toUpperCase() ||
+                    (t.assigneeId || '').toUpperCase() === (currentUser.id || '').toUpperCase()
+                );
+                const dynamicProgress = WebDevService.calculateProjectProgress(proj.id);
+                const isLead =
+                  (proj.leadDeveloperId || '').toUpperCase() === (currentUser.teacherId || '').toUpperCase() ||
+                  (proj.leadDeveloperId || '').toUpperCase() === (currentUser.id || '').toUpperCase();
 
                 return (
-                  <div key={proj.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+                  <div
+                    key={proj.id}
+                    onClick={() => setSelectedProject(proj)}
+                    className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-6 shadow-xl space-y-5 cursor-pointer hover:shadow-2xl transition-all group relative overflow-hidden"
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-xs font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">
                             {proj.key}
                           </span>
@@ -542,8 +572,18 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
                           }`}>
                             {proj.status.replace('_', ' ')}
                           </span>
+                          {isLead && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                              👑 You are Project Lead
+                            </span>
+                          )}
+                          {!isLead && proj.leadDeveloperName && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
+                              👑 Lead: {proj.leadDeveloperName}
+                            </span>
+                          )}
                         </div>
-                        <h2 className="text-xl font-bold text-white mt-1.5">{proj.title}</h2>
+                        <h2 className="text-xl font-bold text-white mt-1.5 group-hover:text-amber-300 transition-colors">{proj.title}</h2>
                         <p className="text-xs text-slate-400 mt-1 leading-relaxed">{proj.description}</p>
                       </div>
                     </div>
@@ -551,25 +591,27 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
                     {/* Progress */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span>Overall Project Milestone Completion</span>
-                        <span className="font-bold text-white">{proj.progressPercentage}%</span>
+                        <span>Overall Project Completion</span>
+                        <span className="font-bold text-white">{dynamicProgress}%</span>
                       </div>
                       <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-amber-500 to-indigo-500 h-2 rounded-full"
-                          style={{ width: `${proj.progressPercentage}%` }}
+                          className="bg-gradient-to-r from-amber-500 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${dynamicProgress}%` }}
                         />
                       </div>
                     </div>
 
                     {/* Tech Stack */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {proj.techStack.map((tech) => (
-                        <span key={tech} className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px] font-mono">
-                          {tech}
-                        </span>
-                      ))}
-                    </div>
+                    {proj.techStack && proj.techStack.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {proj.techStack.map((tech) => (
+                          <span key={tech} className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px] font-mono">
+                            {tech}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Milestones list */}
                     {projMilestones.length > 0 && (
@@ -598,20 +640,28 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
                     )}
 
                     {/* Footer links */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-slate-400">
-                      <span>My Assigned Tasks: <strong className="text-amber-300">{myProjTasks.length}</strong></span>
-                      {proj.repositoryUrl && (
-                        <a
-                          href={proj.repositoryUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium"
-                        >
-                          <GitBranch className="w-3.5 h-3.5" />
-                          Repository
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs text-slate-400">
+                      <div className="flex items-center gap-3">
+                        <span>My Tasks: <strong className="text-amber-300">{myProjTasks.length}</strong></span>
+                        <span className="text-slate-600">|</span>
+                        <span>Total: <strong className="text-white">{projTasks.length}</strong></span>
+                        {proj.repositoryUrl && (
+                          <a
+                            href={proj.repositoryUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium ml-1"
+                          >
+                            <GitBranch className="w-3.5 h-3.5" />
+                            Repo
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold text-amber-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                        Explore Project & Tasks →
+                      </span>
                     </div>
                   </div>
                 );
@@ -1256,6 +1306,31 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
           onTaskUpdated={(updated) => {
             setSelectedTask(updated);
             loadData();
+          }}
+          onTaskDeleted={() => {
+            setSelectedTask(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* ─── MODAL: PROJECT DETAIL DRAWER ─────────────────────────────────────── */}
+      {selectedProject && (
+        <ProjectDetailModal
+          project={selectedProject}
+          currentUser={currentUser}
+          onClose={() => setSelectedProject(null)}
+          onProjectUpdated={(updated) => {
+            setSelectedProject(updated);
+            loadData();
+          }}
+          onProjectDeleted={() => {
+            setSelectedProject(null);
+            loadData();
+          }}
+          onFilterTasksByProject={(projId) => {
+            setTaskProjectFilter(projId);
+            if (onPageChange) onPageChange('dev_tasks');
           }}
         />
       )}

@@ -54,20 +54,146 @@ const OLD_V1_KEYS = [
 // ─── DEFAULT SEED DATA (CLEAN FOR PRODUCTION) ──────────────────────────────────
 const SEED_PROJECTS: WebDevProject[] = [];
 const SEED_MILESTONES: WebDevMilestone[] = [];
-
 const SEED_TASKS: WebDevTask[] = [];
-
 const SEED_BOUNTIES: WebDevBounty[] = [];
 
-const SEED_ACHIEVEMENTS: WebDevAchievement[] = [];
+const SEED_ACHIEVEMENTS: WebDevAchievement[] = [
+  {
+    id: 'ACH-FIRST-PR',
+    key: 'FIRST_PR',
+    title: 'First Pull Request',
+    description: 'Submit your first engineering solution or PR for review',
+    iconName: 'GitPullRequest',
+    xpBonus: 50,
+    category: 'sprint',
+  },
+  {
+    id: 'ACH-BUG-SLAYER',
+    key: 'BUG_SLAYER',
+    title: 'Bug Slayer',
+    description: 'Successfully resolve and close 3 bugfix tasks with zero regressions',
+    iconName: 'ShieldCheck',
+    xpBonus: 100,
+    category: 'quality',
+  },
+  {
+    id: 'ACH-BOUNTY-HUNTER',
+    key: 'BOUNTY_HUNTER',
+    title: 'Bounty Hunter',
+    description: 'Claim, solve, and complete 2 open engineering bounties',
+    iconName: 'Target',
+    xpBonus: 150,
+    category: 'bounty',
+  },
+  {
+    id: 'ACH-SPRINT-LEGEND',
+    key: 'SPRINT_LEGEND',
+    title: 'Sprint Legend',
+    description: 'Accumulate over 1,500 total XP through high-velocity deliveries',
+    iconName: 'Trophy',
+    xpBonus: 250,
+    category: 'leadership',
+  },
+];
+
 const SEED_USER_ACHIEVEMENTS: WebDevUserAchievement[] = [];
 
-const SEED_REWARDS: WebDevReward[] = [];
+const SEED_REWARDS: WebDevReward[] = [
+  {
+    id: 'REW-CERT-LVL1',
+    title: 'Junior Web Developer Certificate',
+    description: 'Official credential verifying foundational competence in frontend UI development, task delivery, and Git workflow.',
+    type: 'certificate',
+    category: 'certificate',
+    xpThreshold: 500,
+    icon: 'Award',
+    iconName: 'Award',
+    isActive: true,
+    status: 'active',
+    approvalRequired: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'REW-CERT-LVL2',
+    title: 'Full Stack Developer Credential',
+    description: 'Conferred for demonstrable mastery of full-stack engineering, clean APIs, resilient state management, and reliable delivery.',
+    type: 'certificate',
+    category: 'certificate',
+    xpThreshold: 1200,
+    icon: 'ShieldCheck',
+    iconName: 'ShieldCheck',
+    isActive: true,
+    status: 'active',
+    approvalRequired: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'REW-CERT-LVL3',
+    title: 'Senior Web Architect Fellowship',
+    description: 'Prestigious fellowship recognition for leading complex modules, zero-defect refactoring, and outstanding mentorship.',
+    type: 'certificate',
+    category: 'certificate',
+    xpThreshold: 2200,
+    icon: 'Crown',
+    iconName: 'Crown',
+    isActive: true,
+    status: 'active',
+    approvalRequired: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'REW-SWAG-PACK',
+    title: 'AEW Engineering Swag & Hoodie Pack',
+    description: 'Exclusive custom embroidered Apna Engineering Wallah Developer Hoodie, mechanical keyboard accessories, and tech stickers.',
+    type: 'swag',
+    category: 'swag',
+    xpThreshold: 3000,
+    icon: 'Gift',
+    iconName: 'Gift',
+    isActive: true,
+    status: 'active',
+    approvalRequired: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'REW-CERT-LVL4',
+    title: 'Principal Staff Engineer Laureate',
+    description: 'Highest honor in the AEW Engineering Division awarded for organizational-wide system architecture and transformative engineering impact.',
+    type: 'certificate',
+    category: 'certificate',
+    xpThreshold: 3500,
+    icon: 'Trophy',
+    iconName: 'Trophy',
+    isActive: true,
+    status: 'active',
+    approvalRequired: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+];
 
 const SEED_FULFILLMENTS: WebDevRewardFulfillment[] = [];
-
 const SEED_XP_LEDGER: WebDevXPTransaction[] = [];
-const SEED_CHALLENGES: WebDevTeamChallenge[] = [];
+
+const SEED_CHALLENGES: WebDevTeamChallenge[] = [
+  {
+    id: 'CHAL-SPRINT-01',
+    title: 'Sprint 1: Zero-Defect Architecture & Platform Velocity',
+    description: 'Combined engineering goal for the squad to deliver core platform modules, squash open bugs, and close technical debt with automated tests.',
+    goalXp: 3000,
+    currentXp: 0,
+    startDate: '2026-09-01',
+    endDate: '2026-10-15',
+    rewardDescription: 'Team Engineering Excellence Trophy + Leadership Dinner & Swag Kits',
+    status: 'active',
+    createdAt: '2026-09-01T00:00:00.000Z',
+  },
+];
+
 const SEED_KUDOS: WebDevKudos[] = [];
 const SEED_AUDIT_LOGS: WebDevAuditLog[] = [];
 
@@ -117,42 +243,15 @@ export function calculateLevelFromXp(xp: number): { level: number; title: string
   }
 }
 
-// ─── MOCK DETECTION HELPERS ──────────────────────────────────────────────────
+// ─── MOCK DETECTION HELPERS (Targeted only at legacy hardcoded test strings) ──────────────────────
 export function isMockBounty(b: any): boolean {
   if (!b) return false;
   const id = String(b.id || '').toUpperCase();
-  const title = String(b.title || '').toLowerCase();
-  const desc = String(b.description || '').toLowerCase();
   const claimedByName = String(b.claimedByName || '').toLowerCase();
-  const claimedById = String(b.claimedById || '').toUpperCase();
 
-  if (
-    id.startsWith('BOUNTY-0') ||
-    id.startsWith('PREV-BOUNTY-') ||
-    id === 'BOUNTY-1' ||
-    id === 'BOUNTY-2' ||
-    id === 'BOUNTY-3' ||
-    id === 'BOUNTY-4'
-  ) return true;
-  if (claimedById === 'AEW-DEV-01' || claimedById === 'AEW-DEV-02') return true;
-  if (claimedByName.includes('aarav') || claimedByName.includes('neha') || claimedByName.includes('vikramaditya')) return true;
-  if (
-    title.includes('monaco') ||
-    title.includes('playwright') ||
-    title.includes('sanitize') ||
-    title.includes('keyboard shortcut') ||
-    title.includes('bundle size') ||
-    title.includes('lecture video player') ||
-    title.includes('optimize mobile viewport') ||
-    title.includes('fix memory leak') ||
-    title.includes('accessibility audit')
-  ) return true;
-  if (
-    desc.includes('monaco') ||
-    desc.includes('playwright') ||
-    desc.includes('dompurify') ||
-    desc.includes('youtube-like')
-  ) return true;
+  // Only filter explicitly prefixed legacy test items
+  if (id.startsWith('PREV-BOUNTY-') || id === 'MOCK-BOUNTY-01') return true;
+  if (claimedByName.includes('aarav sharma test') || claimedByName.includes('neha gupta test')) return true;
   return false;
 }
 
@@ -160,24 +259,12 @@ export function isMockTask(t: any): boolean {
   if (!t) return false;
   const id = String(t.id || '').toUpperCase();
   const title = String(t.title || '').toLowerCase();
-  const assigneeId = String(t.assigneeId || '').toUpperCase();
   const assigneeName = String(t.assigneeName || '').toLowerCase();
-  const reviewerName = String(t.reviewerName || '').toLowerCase();
-  const reviewerId = String(t.reviewerId || '').toUpperCase();
 
-  if (
-    id.startsWith('DEV-TASK-10') ||
-    id.startsWith('PREV-TASK-') ||
-    id === 'DEV-TASK-101' ||
-    id === 'DEV-TASK-102' ||
-    id === 'DEV-TASK-103' ||
-    id === 'DEV-TASK-104' ||
-    id === 'DEV-TASK-105'
-  ) return true;
-  if (assigneeId === 'AEW-DEV-01' || assigneeId === 'AEW-DEV-02' || reviewerId === 'AEW-WDM-01') return true;
-  if (assigneeName.includes('aarav') || assigneeName.includes('neha')) return true;
-  if (reviewerName.includes('vikramaditya')) return true;
-  if (title.includes('real-time lecture chat') || title.includes('database indexing') || title.includes('refactor global state')) return true;
+  // Only filter explicitly prefixed legacy test items
+  if (id.startsWith('PREV-TASK-') || id === 'MOCK-TASK-01') return true;
+  if (assigneeName === 'aarav sharma test' || assigneeName === 'neha gupta test') return true;
+  if (title === 'legacy database indexing mock test 2025') return true;
   return false;
 }
 
@@ -185,29 +272,18 @@ export function isMockProject(p: any): boolean {
   if (!p) return false;
   const id = String(p.id || '').toUpperCase();
   const title = String(p.title || '').toLowerCase();
-  const mgr = String(p.managerName || '').toLowerCase();
 
-  if (
-    id.startsWith('PROJ-0') ||
-    id.startsWith('PROJ-1') ||
-    id.startsWith('PROJ-2') ||
-    id === 'PROJ-01' ||
-    id === 'PROJ-02' ||
-    id === 'PROJ-03'
-  ) return true;
-  if (
-    title.includes('apna engg wallah 2.0') ||
-    title.includes('student portal') ||
-    title.includes('video processing pipeline') ||
-    title.includes('live streaming engine')
-  ) return true;
-  if (mgr.includes('vikramaditya')) return true;
+  // Only filter explicitly prefixed legacy test items
+  if (id.startsWith('PREV-PROJ-') || id === 'MOCK-PROJ-01') return true;
+  if (title === 'legacy test project 2025') return true;
   return false;
 }
 
-// ─── LEGACY MOCK DATA PURGE HELPER ──────────────────────────────────────────
+// ─── LEGACY MOCK DATA PURGE HELPER (One-time migration guard) ──────────────────────────
+let hasPurgedOnce = false;
 export function purgeLegacyWebDevMockData(): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || hasPurgedOnce) return;
+  hasPurgedOnce = true;
   try {
     // 1. Wipe all old _v1 mock storage keys from user's browser
     OLD_V1_KEYS.forEach((k) => {
@@ -231,135 +307,12 @@ export function purgeLegacyWebDevMockData(): void {
     } catch {
       // ignore
     }
-
-    // 2. Purge mock tasks
-    const tasksRaw = localStorage.getItem(TASKS_KEY);
-    if (tasksRaw) {
-      const parsed = JSON.parse(tasksRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((t: any) => !isMockTask(t));
-        localStorage.setItem(TASKS_KEY, JSON.stringify(cleaned));
-      }
-    }
-
-    // 3. Purge mock projects
-    const projRaw = localStorage.getItem(PROJECTS_KEY);
-    if (projRaw) {
-      const parsed = JSON.parse(projRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((p: any) => !isMockProject(p));
-        localStorage.setItem(PROJECTS_KEY, JSON.stringify(cleaned));
-      }
-    }
-
-    // 4. Purge mock bounties (including BOUNTY-01, BOUNTY-02, BOUNTY-03, BOUNTY-04)
-    const bntRaw = localStorage.getItem(BOUNTIES_KEY);
-    if (bntRaw) {
-      const parsed = JSON.parse(bntRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((b: any) => !isMockBounty(b));
-        localStorage.setItem(BOUNTIES_KEY, JSON.stringify(cleaned));
-      }
-    }
-
-    // 5. Purge mock XP Ledger
-    const xpRaw = localStorage.getItem(XP_LEDGER_KEY);
-    if (xpRaw) {
-      const parsed = JSON.parse(xpRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((tx: any) => {
-          if (!tx) return false;
-          const id = String(tx.id || '').toUpperCase();
-          const uid = String(tx.userId || '').toUpperCase();
-          const uname = String(tx.userName || '').toLowerCase();
-          const aname = String(tx.awardedByName || '').toLowerCase();
-          if (id.startsWith('TX-0') || id.startsWith('TX-1')) return false;
-          if (uid === 'AEW-DEV-01' || uid === 'AEW-DEV-02' || uid === 'DEVELOPER_AARAV' || uid === 'DEVELOPER_NEHA') return false;
-          if (uname.includes('aarav') || uname.includes('neha')) return false;
-          if (aname.includes('vikramaditya')) return false;
-          return true;
-        });
-        localStorage.setItem(XP_LEDGER_KEY, JSON.stringify(cleaned));
-      }
-    }
-
-    // 6. Purge mock Audit Logs
-    const auditRaw = localStorage.getItem(AUDIT_LOGS_KEY);
-    if (auditRaw) {
-      const parsed = JSON.parse(auditRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((l: any) => {
-          if (!l) return false;
-          const id = String(l.id || '').toUpperCase();
-          const user = String(l.performedByUserName || '').toLowerCase();
-          const uid = String(l.performedByUserId || '').toUpperCase();
-          const details = String(l.details || '').toLowerCase();
-          if (id.startsWith('AUD-0')) return false;
-          if (user.includes('vikramaditya') || uid === 'AEW-WDM-01') return false;
-          if (details.includes('database indexing') || details.includes('refactor global state') || details.includes('aarav') || details.includes('wd-2026-99431')) return false;
-          return true;
-        });
-        localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify(cleaned));
-      }
-    }
-
-    // 7. Purge mock Fulfillments
-    const fulRaw = localStorage.getItem(FULFILLMENTS_KEY);
-    if (fulRaw) {
-      const parsed = JSON.parse(fulRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((f: any) => {
-          if (!f) return false;
-          const id = String(f.id || '').toUpperCase();
-          const uid = String(f.userId || '').toUpperCase();
-          const uname = String(f.userName || '').toLowerCase();
-          if (id.startsWith('FUL-0')) return false;
-          if (uid === 'AEW-DEV-01' || uname.includes('aarav') || f.verificationCode === 'WD-2026-99431') return false;
-          return true;
-        });
-        localStorage.setItem(FULFILLMENTS_KEY, JSON.stringify(cleaned));
-      }
-    }
-
-    // 8. Purge mock Team Challenges
-    const chalRaw = localStorage.getItem(CHALLENGES_KEY);
-    if (chalRaw) {
-      const parsed = JSON.parse(chalRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((c: any) => {
-          if (!c) return false;
-          const id = String(c.id || '').toUpperCase();
-          const title = String(c.title || '').toLowerCase();
-          if (id.startsWith('CHAL-0') || id === 'CHAL-01' || title.includes('technical debt blitz') || c.currentXp === 2530) return false;
-          return true;
-        });
-        localStorage.setItem(CHALLENGES_KEY, JSON.stringify(cleaned));
-      }
-    }
-
-    // 9. Purge mock Kudos
-    const kudosRaw = localStorage.getItem(KUDOS_KEY);
-    if (kudosRaw) {
-      const parsed = JSON.parse(kudosRaw);
-      if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((k: any) => {
-          if (!k) return false;
-          const id = String(k.id || '').toUpperCase();
-          const from = String(k.fromUserName || '').toLowerCase();
-          const to = String(k.toUserName || '').toLowerCase();
-          if (id.startsWith('KUDOS-0') || id === 'KUDOS-01') return false;
-          if (from.includes('aarav') || to.includes('neha')) return false;
-          return true;
-        });
-        localStorage.setItem(KUDOS_KEY, JSON.stringify(cleaned));
-      }
-    }
   } catch {
     // ignore
   }
 }
 
-// Automatically trigger purge when module is evaluated in the browser
+// Safely invoke one-time legacy cleanup
 purgeLegacyWebDevMockData();
 
 // ─── SERVICE IMPLEMENTATION ───────────────────────────────────────────────────
@@ -367,7 +320,6 @@ export const WebDevService = {
   // ─── STORAGE HELPERS ───────────────────────────────────────────────────────
   _load<T>(key: string, seed: T[]): T[] {
     if (typeof window === 'undefined') return seed;
-    purgeLegacyWebDevMockData();
     const raw = localStorage.getItem(key);
     if (!raw) {
       localStorage.setItem(key, JSON.stringify(seed));
@@ -405,6 +357,52 @@ export const WebDevService = {
 
   getProjectById(id: string): WebDevProject | undefined {
     return this.getProjects().find((p) => p.id === id);
+  },
+
+  calculateProjectProgress(projectId: string): number {
+    const tasks = this.getTasks({ projectId });
+    if (tasks.length === 0) return 0;
+    const completed = tasks.filter((t) => t.status === 'completed').length;
+    return Math.round((completed / tasks.length) * 100);
+  },
+
+  recalculateProjectAndMilestoneProgress(projectId: string, milestoneId?: string): void {
+    if (projectId) {
+      const proj = this.getProjectById(projectId);
+      if (proj) {
+        const pct = this.calculateProjectProgress(projectId);
+        proj.progressPercentage = pct;
+        if (pct === 100 && proj.status !== 'completed') {
+          proj.status = 'completed';
+        } else if (pct > 0 && proj.status === 'planning') {
+          proj.status = 'in_progress';
+        }
+        const list = this.getProjects();
+        const idx = list.findIndex((p) => p.id === projectId);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], progressPercentage: pct, status: proj.status, updatedAt: new Date().toISOString() };
+          this._save(PROJECTS_KEY, list);
+        }
+      }
+    }
+
+    if (milestoneId) {
+      const milestones = this.getMilestones();
+      const milestone = milestones.find((m) => m.id === milestoneId);
+      if (milestone) {
+        const milestoneTasks = this.getTasks().filter((t) => t.milestoneId === milestoneId);
+        if (milestoneTasks.length > 0) {
+          const completedCount = milestoneTasks.filter((t) => t.status === 'completed').length;
+          milestone.progressPercentage = Math.round((completedCount / milestoneTasks.length) * 100);
+          if (completedCount === milestoneTasks.length) {
+            milestone.status = 'completed';
+          } else if (completedCount > 0) {
+            milestone.status = 'in_progress';
+          }
+          this.saveMilestone(milestone);
+        }
+      }
+    }
   },
 
   saveProject(project: WebDevProject, performedBy?: { id: string; name: string }): WebDevProject {
@@ -522,7 +520,21 @@ export const WebDevService = {
   }): WebDevTask[] {
     let list = this._load<WebDevTask>(TASKS_KEY, SEED_TASKS).filter((t) => !isMockTask(t));
     if (filter?.projectId) list = list.filter((t) => t.projectId === filter.projectId);
-    if (filter?.assigneeId) list = list.filter((t) => t.assigneeId === filter.assigneeId);
+    if (filter?.assigneeId) {
+      const cleanFilterId = filter.assigneeId.trim().toUpperCase();
+      const matchedUser = StorageService.getUsers().find(
+        (u) => u.teacherId.toUpperCase() === cleanFilterId || (u.id && u.id.toUpperCase() === cleanFilterId)
+      );
+      const validIds = new Set<string>([cleanFilterId]);
+      if (matchedUser) {
+        validIds.add(matchedUser.teacherId.toUpperCase());
+        if (matchedUser.id) validIds.add(matchedUser.id.toUpperCase());
+      }
+      list = list.filter((t) => {
+        const cleanAssigneeId = (t.assigneeId || '').trim().toUpperCase();
+        return validIds.has(cleanAssigneeId);
+      });
+    }
     if (filter?.status) list = list.filter((t) => t.status === filter.status);
     if (filter?.priority) list = list.filter((t) => t.priority === filter.priority);
     return list;
@@ -571,12 +583,27 @@ export const WebDevService = {
     return updated;
   },
 
+  updateTask(taskId: string, updates: Partial<WebDevTask>, performedBy?: { id: string; name: string }): WebDevTask | null {
+    const task = this.getTaskById(taskId);
+    if (!task) return null;
+    const updated: WebDevTask = {
+      ...task,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    return this.saveTask(updated, performedBy);
+  },
+
   deleteTask(id: string, performedBy?: { id: string; name: string }): boolean {
     const list = this.getTasks();
+    const taskToDelete = list.find((t) => t.id === id);
     const filtered = list.filter((t) => t.id !== id);
     if (filtered.length !== list.length) {
       StorageService.addDeletedId(id);
       this._save(TASKS_KEY, filtered);
+      if (taskToDelete?.projectId) {
+        this.recalculateProjectAndMilestoneProgress(taskToDelete.projectId);
+      }
       this.logAudit({
         action: 'TASK_DELETED',
         entityType: 'task',
@@ -833,6 +860,11 @@ export const WebDevService = {
       details: `Approved "${task.title}" for ${task.assigneeName || 'developer'}. Base: ${baseReward} XP, Bonus: ${cleanBonus} XP`,
     });
 
+    // Recalculate project and milestone progress
+    if (task.projectId) {
+      this.recalculateProjectAndMilestoneProgress(task.projectId, task.milestoneId);
+    }
+
     return { task, totalXpAwarded: totalAwarded };
   },
 
@@ -1029,6 +1061,11 @@ export const WebDevService = {
       details: `${statusLabel} for "${task.title}" (${task.assigneeName || 'developer'}). Awarded: +${task.actualXpAwarded} XP`,
     });
 
+    // Recalculate project and milestone progress
+    if (task.projectId) {
+      this.recalculateProjectAndMilestoneProgress(task.projectId, task.milestoneId);
+    }
+
     return task;
   },
 
@@ -1192,7 +1229,10 @@ export const WebDevService = {
 
     // Synchronize user in StorageService
     const users = StorageService.getUsers();
-    const user = users.find((u) => u.teacherId.toUpperCase() === tx.userId.toUpperCase() || u.id === tx.userId);
+    const cleanUserId = (tx.userId || '').trim().toUpperCase();
+    const user = users.find(
+      (u) => u.teacherId.toUpperCase() === cleanUserId || (u.id && u.id.toUpperCase() === cleanUserId)
+    );
     if (user) {
       const currentXp = (user.webDevXp || 0) + tx.amount;
       const levelInfo = calculateLevelFromXp(currentXp);
@@ -1200,6 +1240,27 @@ export const WebDevService = {
       user.webDevLevel = levelInfo.level;
       user.webDevTitle = levelInfo.title;
       StorageService.saveUsers(users);
+
+      // CRITICAL: Update CURRENT_USER_KEY if currently logged-in user so UI updates immediately
+      const currentUser = StorageService.getCurrentUser();
+      if (
+        currentUser &&
+        (currentUser.id === user.id ||
+          currentUser.teacherId.toUpperCase() === user.teacherId.toUpperCase())
+      ) {
+        StorageService.setCurrentUser({
+          ...currentUser,
+          webDevXp: currentXp,
+          webDevLevel: levelInfo.level,
+          webDevTitle: levelInfo.title,
+        });
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aew_webdev_tasks_synced'));
+        window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
+        window.dispatchEvent(new Event('storage'));
+      }
     }
 
     return newTx;
@@ -1663,6 +1724,36 @@ export const WebDevService = {
     return this._load<WebDevTeamChallenge>(CHALLENGES_KEY, SEED_CHALLENGES);
   },
 
+  saveChallenge(challenge: WebDevTeamChallenge): WebDevTeamChallenge {
+    const list = this.getChallenges();
+    const idx = list.findIndex((c) => c.id === challenge.id);
+    let updated: WebDevTeamChallenge;
+    if (idx >= 0) {
+      updated = { ...list[idx], ...challenge };
+      list[idx] = updated;
+    } else {
+      updated = {
+        ...challenge,
+        id: challenge.id || `CHAL-${Date.now().toString().slice(-4)}`,
+        createdAt: new Date().toISOString(),
+      };
+      list.push(updated);
+    }
+    this._save(CHALLENGES_KEY, list);
+    return updated;
+  },
+
+  deleteChallenge(id: string): boolean {
+    const list = this.getChallenges();
+    const filtered = list.filter((c) => c.id !== id);
+    if (filtered.length !== list.length) {
+      StorageService.addDeletedId(id);
+      this._save(CHALLENGES_KEY, filtered);
+      return true;
+    }
+    return false;
+  },
+
   getKudos(): WebDevKudos[] {
     return this._load<WebDevKudos>(KUDOS_KEY, SEED_KUDOS);
   },
@@ -1886,5 +1977,52 @@ export const WebDevService = {
     });
 
     return { success: true };
+  },
+
+  createMilestone(milestoneData: Partial<WebDevMilestone> & { projectId: string; title: string }): WebDevMilestone {
+    const list = this.getMilestones();
+    const targetDateStr = milestoneData.targetDate || milestoneData.deadline || milestoneData.dueDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+    const newMilestone: WebDevMilestone = {
+      id: `MS-${Date.now().toString().slice(-6)}`,
+      projectId: milestoneData.projectId,
+      title: milestoneData.title.trim(),
+      description: milestoneData.description?.trim() || '',
+      status: milestoneData.status || 'pending',
+      progress: milestoneData.status === 'completed' ? 100 : (milestoneData.progress || 0),
+      progressPercentage: milestoneData.status === 'completed' ? 100 : (milestoneData.progressPercentage || 0),
+      targetDate: targetDateStr,
+      deadline: targetDateStr,
+      dueDate: targetDateStr,
+      deliverables: milestoneData.deliverables || [],
+      tasksTotal: 0,
+      tasksCompleted: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    list.push(newMilestone);
+    this._save(MILESTONES_KEY, list);
+    this.recalculateProjectAndMilestoneProgress(milestoneData.projectId);
+
+    return newMilestone;
+  },
+
+  toggleMilestoneStatus(milestoneId: string): WebDevMilestone | null {
+    const list = this.getMilestones();
+    const milestone = list.find((m) => m.id === milestoneId);
+    if (!milestone) return null;
+
+    const nextStatus = milestone.status === 'completed' ? 'in_progress' : 'completed';
+    milestone.status = nextStatus;
+    milestone.progress = nextStatus === 'completed' ? 100 : 50;
+    milestone.progressPercentage = nextStatus === 'completed' ? 100 : 50;
+    milestone.updatedAt = new Date().toISOString();
+
+    this._save(MILESTONES_KEY, list);
+    if (milestone.projectId) {
+      this.recalculateProjectAndMilestoneProgress(milestone.projectId);
+    }
+
+    return milestone;
   },
 };

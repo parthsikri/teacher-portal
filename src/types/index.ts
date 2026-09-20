@@ -491,12 +491,17 @@ export interface WebDevMilestone {
   description?: string;
   targetDate?: string;
   deadline?: string;
+  dueDate?: string;
+  deliverables?: string[];
+  tasksTotal?: number;
+  tasksCompleted?: number;
   order?: number;
   orderIndex?: number;
   status: WebDevMilestoneStatus | string;
   progress?: number;
   progressPercentage?: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type WebDevTaskType = 
@@ -723,8 +728,10 @@ export interface WebDevAchievement {
   title?: string;
   name?: string;
   description: string;
-  icon: string;
-  badgeColor: string;
+  icon?: string;
+  iconName?: string;
+  badgeColor?: string;
+  category?: string;
   xpBonus?: number;
   rewardXpBonus?: number;
   criteriaDescription?: string;
@@ -833,6 +840,8 @@ export interface WebDevTeamChallenge {
   status: 'active' | 'completed' | 'expired';
   rewardDescription?: string;
   contributors?: { developerId: string; developerName: string; count: number }[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface WebDevKudos {

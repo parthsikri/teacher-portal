@@ -4108,6 +4108,7 @@ export const StorageService = {
       webDevRewards: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_rewards_v2') || '[]') : [],
       webDevUserAchievements: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_user_achievements_v2') || '[]') : [],
       webDevNotifications: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_notifications_v2') || '[]') : [],
+      webDevChallenges: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_challenges_v2') || '[]') : [],
       offerLetters: this.getOfferLetters(),
     };
   },
@@ -4367,6 +4368,26 @@ export const StorageService = {
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
         .slice(0, 100);
       localStorage.setItem('aew_webdev_notifications_v2', JSON.stringify(sortedNotifs));
+    }
+
+    // Smart merge webDevChallenges
+    if (Array.isArray(state.webDevChallenges)) {
+      const localRaw = localStorage.getItem('aew_webdev_challenges_v2');
+      const localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+      const itemMap = new Map<string, any>();
+      localList.forEach((c) => {
+        if (c && c.id && !deletedIds.has(c.id.toUpperCase())) itemMap.set(c.id, c);
+      });
+      state.webDevChallenges.forEach((cloudItem: any) => {
+        if (cloudItem && cloudItem.id && !deletedIds.has(cloudItem.id.toUpperCase())) {
+          const local = itemMap.get(cloudItem.id);
+          if (!local) itemMap.set(cloudItem.id, cloudItem);
+          else {
+            itemMap.set(cloudItem.id, { ...local, ...cloudItem });
+          }
+        }
+      });
+      localStorage.setItem('aew_webdev_challenges_v2', JSON.stringify(Array.from(itemMap.values())));
     }
 
     // Smart merge emailConfig: Never overwrite valid local credentials with empty cloud object

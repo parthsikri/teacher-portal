@@ -20,16 +20,21 @@ import {
   Timer,
   Crown,
   Check,
+  Edit3,
+  Trash2,
+  Save,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { WebDevTask, User } from '../../../types';
 import { WebDevService } from '../../../services/webDevService';
+import { StorageService } from '../../../services/storage';
 
 interface TaskDetailModalProps {
   task: WebDevTask;
   currentUser: User;
   onClose: () => void;
   onTaskUpdated: (updatedTask: WebDevTask) => void;
+  onTaskDeleted?: (taskId: string) => void;
 }
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
@@ -37,6 +42,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   currentUser,
   onClose,
   onTaskUpdated,
+  onTaskDeleted,
 }) => {
   const [currentTask, setCurrentTask] = useState<WebDevTask>(task);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -123,7 +129,63 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [timeEvalNotes, setTimeEvalNotes] = useState('');
 
   const isManagerOrAdmin = currentUser.role === 'web_dev_manager' || currentUser.role === 'admin';
-  const isAssignee = currentTask.assigneeId === currentUser.teacherId;
+  const cleanAssignee = (currentTask.assigneeId || '').trim().toUpperCase();
+  const isAssignee = Boolean(
+    cleanAssignee &&
+    (cleanAssignee === (currentUser.teacherId || '').trim().toUpperCase() ||
+     cleanAssignee === (currentUser.id || '').trim().toUpperCase())
+  );
+
+  // Edit Task State for Managers / Admins
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [editTitle, setEditTitle] = useState(currentTask.title);
+  const [editDescription, setEditDescription] = useState(currentTask.description);
+  const [editPriority, setEditPriority] = useState(currentTask.priority);
+  const [editStatus, setEditStatus] = useState(currentTask.status);
+  const [editAssigneeId, setEditAssigneeId] = useState(currentTask.assigneeId || '');
+  const [editXpReward, setEditXpReward] = useState(currentTask.xpReward || 200);
+  const [editDueDate, setEditDueDate] = useState(currentTask.dueDate || currentTask.deadline || '');
+  const [editEstHours, setEditEstHours] = useState(currentTask.estimatedHours || 4);
+
+  const squadMembers = StorageService.getUsers().filter(
+    (u) => u.role === 'web_developer' || u.role === 'web_dev_manager'
+  );
+
+  const handleSaveTaskEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const assignedUser = squadMembers.find(
+      (u) => u.teacherId?.toUpperCase() === editAssigneeId.toUpperCase() || u.id?.toUpperCase() === editAssigneeId.toUpperCase()
+    );
+    const updates: Partial<WebDevTask> = {
+      title: editTitle.trim(),
+      description: editDescription.trim(),
+      priority: editPriority as any,
+      status: editStatus as any,
+      assigneeId: assignedUser ? assignedUser.teacherId : (editAssigneeId ? editAssigneeId : undefined),
+      assigneeName: assignedUser ? assignedUser.name : undefined,
+      assigneeRole: assignedUser ? (assignedUser.role as any) : undefined,
+      xpReward: Number(editXpReward) || 200,
+      dueDate: editDueDate,
+      deadline: editDueDate,
+      estimatedHours: Number(editEstHours) || 1,
+    };
+    const updated = WebDevService.updateTask(currentTask.id, updates);
+    if (updated) {
+      setCurrentTask(updated);
+      onTaskUpdated(updated);
+      setIsEditingTask(false);
+    }
+  };
+
+  const handleDeleteTask = () => {
+    if (window.confirm(`Are you sure you want to permanently delete task "${currentTask.title}" (${currentTask.id})? This action cannot be undone.`)) {
+      WebDevService.deleteTask(currentTask.id);
+      if (onTaskDeleted) {
+        onTaskDeleted(currentTask.id);
+      }
+      onClose();
+    }
+  };
 
   const handleOpenTimeEval = (choice: 'on_time' | 'late' | 'not_done') => {
     setTimeEvalChoice(choice);
@@ -366,16 +428,184 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </h1>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-full transition-colors flex-shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isManagerOrAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTask(!isEditingTask)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                    isEditingTask
+                      ? 'bg-amber-500 text-slate-950 font-bold'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                  title="Edit Task Details"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>{isEditingTask ? 'Close Edit' : 'Edit'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteTask}
+                  className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg transition-colors"
+                  title="Delete Task"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Body */}
         <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          {/* Manager Edit Form */}
+          {isEditingTask && (
+            <form onSubmit={handleSaveTaskEdit} className="p-5 bg-slate-950 border border-amber-500/50 rounded-2xl space-y-4 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                  <Edit3 className="w-4 h-4" />
+                  <span>Edit Task Details ({currentTask.id})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTask(false)}
+                  className="text-slate-400 hover:text-white text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Task Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Description *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Assignee</label>
+                  <select
+                    value={editAssigneeId}
+                    onChange={(e) => setEditAssigneeId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">-- Unassigned --</option>
+                    {squadMembers.map((m) => (
+                      <option key={m.teacherId || m.id} value={m.teacherId || m.id}>
+                        {m.name} ({m.teacherId}) - {m.role === 'web_dev_manager' ? 'Lead' : 'Developer'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Priority</label>
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="todo">To Do</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="review_requested">Review Requested</option>
+                    <option value="changes_requested">Changes Requested</option>
+                    <option value="completed">Completed</option>
+                    <option value="blocked">Blocked</option>
+                    <option value="not_done">Not Done</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">XP Reward</label>
+                  <input
+                    type="number"
+                    min="10"
+                    value={editXpReward}
+                    onChange={(e) => setEditXpReward(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Due Date / Deadline</label>
+                  <input
+                    type="date"
+                    value={editDueDate}
+                    onChange={(e) => setEditDueDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Est. Hours</label>
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={editEstHours}
+                    onChange={(e) => setEditEstHours(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTask(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          )}
           {/* Blocker Alert Banner */}
           {currentTask.isBlocked && (
             <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-4 flex items-start justify-between gap-3 text-red-200">
