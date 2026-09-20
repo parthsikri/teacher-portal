@@ -721,19 +721,6 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     ...(incoming.crmPermissions || {}),
   };
 
-  // 31. Merge Email Config & Email Logs
-  const mergedEmailConfig = {
-    ...(current.emailConfig || {}),
-    ...(incoming.emailConfig || {}),
-  };
-  const emailLogMap = new Map<string, any>();
-  if (Array.isArray(current.emailLogs)) {
-    current.emailLogs.forEach((l: any) => { if (l && l.id) emailLogMap.set(l.id, l); });
-  }
-  if (Array.isArray(incoming.emailLogs)) {
-    incoming.emailLogs.forEach((l: any) => { if (l && l.id) emailLogMap.set(l.id, l); });
-  }
-
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
