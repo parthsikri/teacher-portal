@@ -225,7 +225,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     const allLogs = WebDevService.getAuditLogs();
     const allChallenges = WebDevService.getChallenges();
     const devs = StorageService.getUsers().filter(
-      (u) => u.role === 'web_developer' || u.role === 'web_dev_manager'
+      (u) => (u.role === 'web_developer' || u.role === 'web_dev_manager') && !u.isOffboarded
     );
 
     setTasks(allTasks);

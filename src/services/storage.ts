@@ -4148,31 +4148,49 @@ export const StorageService = {
   importMasterState(state: any): void {
     if (!state || typeof state !== 'object') return;
 
+    const stateDeletedSet = new Set<string>(
+      Array.isArray(state.deletedIds) ? state.deletedIds.map((id: string) => id.toUpperCase()) : []
+    );
+    const localDeletedList = this.getDeletedIds().map((id: string) => id.toUpperCase());
     const deletedIds = new Set<string>([
-      ...this.getDeletedIds(),
-      ...(Array.isArray(state.deletedIds) ? state.deletedIds.map((id: string) => id.toUpperCase()) : []),
+      ...localDeletedList,
+      ...stateDeletedSet,
     ]);
 
-    // Active users from either incoming state or local storage must never be blocked by stale tombstones
+    // Protected accounts that must NEVER be in deletedIds
+    const PROTECTED_ACCOUNTS = new Set([
+      'ADMIN-01',
+      'ADMIN',
+      'U-ADMIN',
+      'AEW-T-102',
+      'AEW-T-103',
+      'U-1787383338021',
+      'U-1787387463369',
+      'BHUMI',
+      'KHUSHI',
+    ]);
+    PROTECTED_ACCOUNTS.forEach((pId) => deletedIds.delete(pId));
+
+    // If incoming cloud state has active users that are NOT in state.deletedIds,
+    // clear any stale local tombstones for those specific users so they reflect immediately.
     if (Array.isArray(state.users)) {
       state.users.forEach((u: any) => {
-        if (u) {
-          if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
-          if (u.id) deletedIds.delete(u.id.toUpperCase());
+        if (u && !isHardcodedMockUser(u)) {
+          const tid = (u.teacherId || '').toUpperCase();
+          const uid = (u.id || '').toUpperCase();
+          if (tid && !stateDeletedSet.has(tid)) {
+            deletedIds.delete(tid);
+            this.removeDeletedId(tid);
+          }
+          if (uid && !stateDeletedSet.has(uid)) {
+            deletedIds.delete(uid);
+            this.removeDeletedId(uid);
+          }
         }
       });
     }
-    const currentLocalUsers = this.getUsers();
-    currentLocalUsers.forEach((u) => {
-      if (u) {
-        if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
-        if (u.id) deletedIds.delete(u.id.toUpperCase());
-      }
-    });
 
-    if (deletedIds.size > 0) {
-      localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(deletedIds)));
-    }
+    localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(deletedIds)));
 
     // Smart merge webDevProjects
     if (Array.isArray(state.webDevProjects)) {
@@ -4865,6 +4883,7 @@ export const StorageService = {
 
     // Dispatch global broadcast event so open pages/tabs/components refresh without needing full reload
     if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aew_users_updated'));
       window.dispatchEvent(new CustomEvent('aew_webdev_tasks_synced'));
       window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
       window.dispatchEvent(new Event('storage'));

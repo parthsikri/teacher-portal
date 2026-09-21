@@ -83,7 +83,7 @@ export const AdminWebDevSection: React.FC<AdminWebDevSectionProps> = ({
     const allTasks = WebDevService.getTasks();
     const allProjects = WebDevService.getProjects();
     const allDevs = StorageService.getUsers().filter(
-      (u) => u.role === 'web_developer' || u.role === 'web_dev_manager'
+      (u) => (u.role === 'web_developer' || u.role === 'web_dev_manager') && !u.isOffboarded
     );
     const allLogs = WebDevService.getAuditLogs();
     const allFul = WebDevService.getRewardFulfillments();

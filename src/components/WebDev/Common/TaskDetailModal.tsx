@@ -148,7 +148,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [editEstHours, setEditEstHours] = useState(currentTask.estimatedHours || 4);
 
   const squadMembers = StorageService.getUsers().filter(
-    (u) => u.role === 'web_developer' || u.role === 'web_dev_manager'
+    (u) => (u.role === 'web_developer' || u.role === 'web_dev_manager') && !u.isOffboarded
   );
 
   const handleSaveTaskEdit = (e: React.FormEvent) => {

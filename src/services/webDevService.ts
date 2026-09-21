@@ -17,6 +17,7 @@ import type {
   WebDevNotification,
   WebDevLeaderboardEntry,
   User,
+  UserRole,
 } from '../types';
 import { StorageService } from './storage';
 
@@ -462,13 +463,27 @@ export const WebDevService = {
     if (filtered.length !== list.length) {
       StorageService.addDeletedId(id);
       this._save(PROJECTS_KEY, filtered);
+
+      // Clean up and tombstone all milestones associated with this project
+      const milestones = this.getMilestones();
+      const remainingMilestones = milestones.filter((m) => {
+        if (m.projectId === id) {
+          StorageService.addDeletedId(m.id);
+          return false;
+        }
+        return true;
+      });
+      if (remainingMilestones.length !== milestones.length) {
+        this._save(MILESTONES_KEY, remainingMilestones);
+      }
+
       this.logAudit({
         action: 'PROJECT_DELETED',
         entityType: 'project',
         entityId: id,
         performedByUserId: performedBy?.id || 'SYSTEM',
         performedByUserName: performedBy?.name || 'System',
-        details: `Deleted project: ${id}`,
+        details: `Deleted project: ${id} and cleaned up associated milestones`,
       });
       return true;
     }
@@ -777,7 +792,7 @@ export const WebDevService = {
   // Manager or Admin reviews task: Approve (with bonus XP)
   approveTaskSubmission(
     taskId: string,
-    reviewer: { id: string; name: string },
+    reviewer: { id: string; name: string; role?: string },
     feedback: string,
     bonusXp: number = 0
   ): { task: WebDevTask; totalXpAwarded: number } | null {
@@ -800,13 +815,20 @@ export const WebDevService = {
     task.status = 'completed';
     task.completedAt = now;
 
-    // Add manager review comment
+    // Resolve reviewer role (admin vs web_dev_manager)
+    const reviewerUser = StorageService.getUsers().find(
+      (u) => (u.teacherId && u.teacherId.toUpperCase() === (reviewer.id || '').toUpperCase()) ||
+             (u.id && u.id.toUpperCase() === (reviewer.id || '').toUpperCase())
+    );
+    const resolvedRole = (reviewer.role || reviewerUser?.role || 'web_dev_manager') as UserRole;
+
+    // Add review comment
     const comm: WebDevComment = {
       id: `comm-appr-${Date.now()}`,
       taskId,
       authorId: reviewer.id,
       authorName: reviewer.name,
-      authorRole: 'web_dev_manager',
+      authorRole: resolvedRole,
       content: `🎉 Submission Approved!\nFeedback: ${feedback}\nAwarded: ${baseReward} XP${cleanBonus > 0 ? ` + ${cleanBonus} Bonus XP` : ''}`,
       createdAt: now,
     };
@@ -872,7 +894,7 @@ export const WebDevService = {
   // Manager or Admin requests changes
   requestChangesTaskSubmission(
     taskId: string,
-    reviewer: { id: string; name: string },
+    reviewer: { id: string; name: string; role?: string },
     feedback: string
   ): WebDevTask | null {
     const task = this.getTaskById(taskId);
@@ -888,12 +910,18 @@ export const WebDevService = {
 
     task.status = 'changes_requested';
 
+    const reviewerUser = StorageService.getUsers().find(
+      (u) => (u.teacherId && u.teacherId.toUpperCase() === (reviewer.id || '').toUpperCase()) ||
+             (u.id && u.id.toUpperCase() === (reviewer.id || '').toUpperCase())
+    );
+    const resolvedRole = (reviewer.role || reviewerUser?.role || 'web_dev_manager') as UserRole;
+
     const comm: WebDevComment = {
       id: `comm-cr-${Date.now()}`,
       taskId,
       authorId: reviewer.id,
       authorName: reviewer.name,
-      authorRole: 'web_dev_manager',
+      authorRole: resolvedRole,
       content: `📝 Changes Requested:\n${feedback}`,
       createdAt: now,
     };
@@ -926,7 +954,7 @@ export const WebDevService = {
   // Manager or Admin rejects submission
   rejectTaskSubmission(
     taskId: string,
-    reviewer: { id: string; name: string },
+    reviewer: { id: string; name: string; role?: string },
     feedback: string
   ): WebDevTask | null {
     const task = this.getTaskById(taskId);
@@ -942,12 +970,18 @@ export const WebDevService = {
 
     task.status = 'in_progress';
 
+    const reviewerUser = StorageService.getUsers().find(
+      (u) => (u.teacherId && u.teacherId.toUpperCase() === (reviewer.id || '').toUpperCase()) ||
+             (u.id && u.id.toUpperCase() === (reviewer.id || '').toUpperCase())
+    );
+    const resolvedRole = (reviewer.role || reviewerUser?.role || 'web_dev_manager') as UserRole;
+
     const comm: WebDevComment = {
       id: `comm-rej-${Date.now()}`,
       taskId,
       authorId: reviewer.id,
       authorName: reviewer.name,
-      authorRole: 'web_dev_manager',
+      authorRole: resolvedRole,
       content: `❌ Submission Rejected:\n${feedback}`,
       createdAt: now,
     };
@@ -1266,7 +1300,18 @@ export const WebDevService = {
   // ─── XP & LEDGER ───────────────────────────────────────────────────────────
   getXPLedger(userId?: string): WebDevXPTransaction[] {
     const all = this._load<WebDevXPTransaction>(XP_LEDGER_KEY, SEED_XP_LEDGER);
-    if (userId) return all.filter((tx) => tx.userId === userId);
+    if (userId) {
+      const clean = userId.trim().toUpperCase();
+      const matched = StorageService.getUsers().find(
+        (u) => u.teacherId.toUpperCase() === clean || (u.id && u.id.toUpperCase() === clean)
+      );
+      const validIds = new Set<string>([clean]);
+      if (matched) {
+        validIds.add(matched.teacherId.toUpperCase());
+        if (matched.id) validIds.add(matched.id.toUpperCase());
+      }
+      return all.filter((tx) => validIds.has((tx.userId || '').trim().toUpperCase()));
+    }
     return all.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   },
 
@@ -1371,7 +1416,12 @@ export const WebDevService = {
 
   getUserTotalXP(userId: string): number {
     const txs = this.getXPLedger(userId);
-    return txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const ledgerTotal = txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    const clean = (userId || '').trim().toUpperCase();
+    const user = StorageService.getUsers().find(
+      (u) => u.teacherId.toUpperCase() === clean || (u.id && u.id.toUpperCase() === clean)
+    );
+    return Math.max(ledgerTotal, user?.webDevXp || 0);
   },
 
   // ─── LEADERBOARDS ──────────────────────────────────────────────────────────
@@ -1473,10 +1523,18 @@ export const WebDevService = {
       }
     });
 
-    // Count completed tasks and bounties for devs
+    // Count completed tasks and bounties for devs with resilient ID lookup
+    const userIdToTeacherIdMap = new Map<string, string>();
+    allUsers.forEach((u) => {
+      const tid = u.teacherId.toUpperCase();
+      userIdToTeacherIdMap.set(tid, tid);
+      if (u.id) userIdToTeacherIdMap.set(u.id.toUpperCase(), tid);
+    });
+
     allTasks.forEach((t) => {
       if (t.status === 'completed' && t.assigneeId) {
-        const stat = entriesMap.get(t.assigneeId.toUpperCase());
+        const canonicalId = userIdToTeacherIdMap.get(t.assigneeId.toUpperCase()) || t.assigneeId.toUpperCase();
+        const stat = entriesMap.get(canonicalId);
         if (stat) {
           stat.tasksCompleted = (stat.tasksCompleted || 0) + 1;
         }
@@ -1485,7 +1543,8 @@ export const WebDevService = {
 
     allBounties.forEach((b) => {
       if (b.status === 'completed' && b.claimedById) {
-        const stat = entriesMap.get(b.claimedById.toUpperCase());
+        const canonicalId = userIdToTeacherIdMap.get(b.claimedById.toUpperCase()) || b.claimedById.toUpperCase();
+        const stat = entriesMap.get(canonicalId);
         if (stat) {
           stat.bountiesCompleted = (stat.bountiesCompleted || 0) + 1;
         }
@@ -2185,8 +2244,10 @@ export const WebDevService = {
       ) {
         t.assigneeId = undefined;
         t.assigneeName = undefined;
-        if (t.status === 'in_progress') {
+        t.assigneeRole = undefined;
+        if (t.status !== 'completed') {
           t.status = 'todo';
+          t.isBlocked = false;
         }
         unassignedCount++;
       }
@@ -2196,13 +2257,33 @@ export const WebDevService = {
       this._save(TASKS_KEY, allTasks);
     }
 
+    // Release any bounties claimed by this developer back to open
+    const allBounties = this.getBounties();
+    let releasedBountiesCount = 0;
+    allBounties.forEach((b) => {
+      const claimedUpper = (b.claimedById || '').trim().toUpperCase();
+      if (
+        b.status === 'claimed' &&
+        (claimedUpper === targetTeacherId || (targetUid && claimedUpper === targetUid) || claimedUpper === cleanDevUpper)
+      ) {
+        b.claimedById = undefined;
+        b.claimedByName = undefined;
+        b.claimedAt = undefined;
+        b.status = 'open';
+        releasedBountiesCount++;
+      }
+    });
+    if (releasedBountiesCount > 0) {
+      this._save(BOUNTIES_KEY, allBounties);
+    }
+
     this.logAudit({
       action: 'DEVELOPER_REMOVED',
       entityType: 'user',
       entityId: targetDev.teacherId,
       performedByUserId: manager.id,
       performedByUserName: manager.name,
-      details: `Removed developer ${targetDev.name} (${targetDev.email || targetDev.teacherId}) from squad. ${unassignedCount} active tasks unassigned.`,
+      details: `Removed developer ${targetDev.name} (${targetDev.email || targetDev.teacherId}) from squad. ${unassignedCount} active tasks unassigned, ${releasedBountiesCount} claimed bounties reopened.`,
     });
 
     if (typeof window !== 'undefined') {

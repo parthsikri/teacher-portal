@@ -24,18 +24,25 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []),
   ]);
 
-  // Active users already in the current database must never be deleted by stale incoming tombstones
-  if (Array.isArray(current.users)) {
-    current.users.forEach((u: any) => {
-      if (u && !isHardcodedMockUser(u)) {
-        if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
-        if (u.id) deletedIds.delete(u.id.toUpperCase());
-      }
-    });
-  }
+  // Protected accounts that must NEVER be tombstoned or deleted
+  const PROTECTED_ACCOUNTS = new Set([
+    'ADMIN-01',
+    'ADMIN',
+    'U-ADMIN',
+    'AEW-T-102',
+    'AEW-T-103',
+    'U-1787383338021',
+    'U-1787387463369',
+    'BHUMI',
+    'KHUSHI',
+  ]);
+  PROTECTED_ACCOUNTS.forEach((pId) => deletedIds.delete(pId));
 
   // If incoming contains active users being added or updated by authorized callers,
-  // ensure their IDs are not blocked by stale deletedIds in state.
+  // ensure their IDs are not blocked by stale deletedIds in state, UNLESS they are explicitly in incoming.deletedIds.
+  const incomingDeletedSet = new Set<string>(
+    Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []
+  );
   const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head';
   if (canMutateUsers && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
@@ -45,8 +52,11 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
           (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
           (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head'));
         if (canMutateThisRole) {
-          if (u.teacherId) deletedIds.delete(u.teacherId.toUpperCase());
-          if (u.id) deletedIds.delete(u.id.toUpperCase());
+          const tid = u.teacherId ? u.teacherId.toUpperCase() : '';
+          const uid = u.id ? u.id.toUpperCase() : '';
+          // Only clear tombstone if the caller did NOT tombstone this user in this request
+          if (tid && !incomingDeletedSet.has(tid)) deletedIds.delete(tid);
+          if (uid && !incomingDeletedSet.has(uid)) deletedIds.delete(uid);
         }
       }
     });
