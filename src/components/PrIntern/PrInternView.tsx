@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { notificationService } from '../../services/notificationService';
+import { PrPathwayView } from './PrPathwayView';
 
 interface PrInternViewProps {
   intern: User;
@@ -30,6 +31,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const [mous, setMous] = useState<PrMouRequest[]>(() => StorageService.getPrMous());
   const [colleges, setColleges] = useState<PrCollege[]>(() => StorageService.getPrColleges());
   const [currentUser, setCurrentUser] = useState<User>(() => StorageService.getCurrentUser() || intern);
+  const [dashboardMode, setDashboardMode] = useState<'pathway' | 'cockpit'>('pathway');
 
   // Modals & form state
   const [showTaskSubmitModal, setShowTaskSubmitModal] = useState<PrTask | null>(null);
@@ -490,7 +492,7 @@ Portal URL: ${window.location.origin}`;
       {/* ─── TAB NAVIGATION BAR ─── */}
       <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3 overflow-x-auto text-xs no-scrollbar">
         {[
-          { id: 'pr_dashboard', label: 'Mission Control & Tier', icon: Award },
+          { id: 'pr_dashboard', label: '🌟 Pathway & Operations', icon: Award },
           ...(currentUser.role === 'pr_head'
             ? [{ id: 'pr_team', label: `PR Team & Ambassadors (${prMembers.length})`, icon: Users }]
             : []),
@@ -524,9 +526,65 @@ Portal URL: ${window.location.origin}`;
       {/* ─────────────────────────────────────────────────────────────────── */}
       {currentPage === 'pr_dashboard' && (
         <div className="space-y-6">
-          
-          {/* TIER HERO CARD */}
-          <div className={`p-6 md:p-8 rounded-3xl border relative overflow-hidden shadow-2xl transition-all ${
+
+          {/* Sub-view mode switcher */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 bg-slate-900/90 border border-slate-800 rounded-2xl backdrop-blur-sm shadow-xl">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-950/90 rounded-xl border border-slate-800/80 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setDashboardMode('pathway')}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  dashboardMode === 'pathway'
+                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-indigo-600/40 ring-1 ring-white/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                <span>🌟 Interactive Career Pathway</span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                  Live XP & Altitude
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDashboardMode('cockpit')}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  dashboardMode === 'cockpit'
+                    ? 'bg-slate-800 text-white shadow-md border border-slate-700 font-extrabold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <span>📊 Revenue & Operations Cockpit</span>
+              </button>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 px-3 font-medium">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-slate-300 font-semibold">Tier Altitude Engine Active</span>
+            </div>
+          </div>
+
+          {dashboardMode === 'pathway' ? (
+            <PrPathwayView
+              intern={currentUser}
+              onRefreshUser={() => {
+                const freshUsers = StorageService.getUsers();
+                setAllUsers(freshUsers);
+                const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase());
+                if (freshUser) setCurrentUser(freshUser);
+                setTasks(StorageService.getPrTasks());
+              }}
+              onPageChange={onPageChange}
+            />
+          ) : (
+            <>
+              {/* TIER HERO CARD */}
+              <div className={`p-6 md:p-8 rounded-3xl border relative overflow-hidden shadow-2xl transition-all ${
             currentTier === 'Premium'
               ? 'bg-gradient-to-br from-purple-950/60 via-slate-900 to-slate-950 border-purple-500/30'
               : currentTier === 'Gold'
@@ -776,6 +834,8 @@ Portal URL: ${window.location.origin}`;
             </div>
 
           </div>
+            </>
+          )}
         </div>
       )}
 
