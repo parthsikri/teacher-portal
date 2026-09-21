@@ -824,6 +824,9 @@ export interface WebDevRewardFulfillment {
   publicUrl?: string;
   linkedInPostUrl?: string;
   fulfillmentNotes?: string;
+  rejectionReason?: string;
+  rejectedAt?: string;
+  rejectedBy?: string;
 }
 
 export interface WebDevTeamChallenge {

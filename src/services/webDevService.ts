@@ -338,6 +338,7 @@ export const WebDevService = {
     if (typeof window === 'undefined') return;
     localStorage.setItem(key, JSON.stringify(data));
     StorageService.triggerBackgroundCloudSync();
+    window.dispatchEvent(new CustomEvent('aew_webdev_tasks_synced'));
   },
 
   getManagerId(): string {
@@ -647,8 +648,8 @@ export const WebDevService = {
     return task;
   },
 
-  // Developer resolves blocker
-  resolveTaskBlocker(taskId: string, resolvedBy: { id: string; name: string }): WebDevTask | null {
+  // Developer or manager resolves blocker
+  resolveTaskBlocker(taskId: string, resolvedBy: { id: string; name: string; role?: string }): WebDevTask | null {
     const task = this.getTaskById(taskId);
     if (!task) return null;
     task.isBlocked = false;
@@ -659,7 +660,7 @@ export const WebDevService = {
       taskId,
       authorId: resolvedBy.id,
       authorName: resolvedBy.name,
-      authorRole: 'web_dev_manager',
+      authorRole: (resolvedBy.role as any) || 'web_developer',
       content: `✅ Blocker resolved by ${resolvedBy.name}. Resuming work.`,
       createdAt: new Date().toISOString(),
     };
@@ -1136,7 +1137,23 @@ export const WebDevService = {
   submitBounty(bountyId: string, developer: { id: string; name: string }, submissionUrl: string): WebDevBounty | null {
     const list = this.getBounties();
     const bounty = list.find((b) => b.id === bountyId);
-    if (!bounty || bounty.claimedById !== developer.id) return null;
+    if (!bounty) return null;
+
+    // Resilient ID match against claimedById (checking teacherId and id case-insensitively)
+    const cleanClaimed = (bounty.claimedById || '').trim().toUpperCase();
+    const cleanDev = (developer.id || '').trim().toUpperCase();
+    const matchedUser = StorageService.getUsers().find(
+      (u) =>
+        (u.teacherId && u.teacherId.toUpperCase() === cleanDev) ||
+        (u.id && u.id.toUpperCase() === cleanDev)
+    );
+    const validDevIds = new Set<string>([cleanDev]);
+    if (matchedUser) {
+      if (matchedUser.teacherId) validDevIds.add(matchedUser.teacherId.toUpperCase());
+      if (matchedUser.id) validDevIds.add(matchedUser.id.toUpperCase());
+    }
+
+    if (!cleanClaimed || !validDevIds.has(cleanClaimed)) return null;
 
     bounty.status = 'submitted';
     bounty.submissionUrl = submissionUrl;
@@ -1190,6 +1207,58 @@ export const WebDevService = {
     });
 
     this.checkAndUnlockAchievements(bounty.claimedById);
+
+    return bounty;
+  },
+
+  rejectBounty(
+    bountyId: string,
+    reviewer: { id: string; name: string },
+    feedback: string,
+    reopenForAnyone: boolean = false
+  ): WebDevBounty | null {
+    const list = this.getBounties();
+    const bounty = list.find((b) => b.id === bountyId);
+    if (!bounty) return null;
+
+    const previousClaimantId = bounty.claimedById;
+    const previousClaimantName = bounty.claimedByName;
+    const now = new Date().toISOString();
+
+    if (reopenForAnyone) {
+      bounty.status = 'open';
+      bounty.claimedById = undefined;
+      bounty.claimedByName = undefined;
+      bounty.claimedAt = undefined;
+      bounty.submissionUrl = undefined;
+      bounty.submittedAt = undefined;
+    } else {
+      bounty.status = 'assigned';
+    }
+
+    bounty.reviewedById = reviewer.id;
+    bounty.reviewedByName = reviewer.name;
+    bounty.reviewedAt = now;
+    bounty.feedback = feedback;
+    this._save(BOUNTIES_KEY, list);
+
+    if (previousClaimantId) {
+      this.createNotification({
+        userId: previousClaimantId,
+        title: `Bounty Rework Requested: ${bounty.title}`,
+        message: `${reviewer.name} reviewed your submission for "${bounty.title}": "${feedback}". ${reopenForAnyone ? 'The bounty has been reopened for the team.' : 'Please update your solution and resubmit.'}`,
+        type: 'warning',
+      });
+    }
+
+    this.logAudit({
+      action: 'BOUNTY_REJECTED',
+      entityType: 'bounty',
+      entityId: bounty.id,
+      performedByUserId: reviewer.id,
+      performedByUserName: reviewer.name,
+      details: `Requested revisions/rejected submission for "${bounty.title}" by ${previousClaimantName || previousClaimantId || 'developer'}. Feedback: "${feedback}". Reopened: ${reopenForAnyone}`,
+    });
 
     return bounty;
   },
@@ -1261,6 +1330,40 @@ export const WebDevService = {
         window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
         window.dispatchEvent(new Event('storage'));
       }
+    }
+
+    // Automatically advance active team sprint challenges
+    try {
+      const challenges = this.getChallenges();
+      let challengesUpdated = false;
+      const nowIso = new Date().toISOString().split('T')[0];
+
+      challenges.forEach((ch) => {
+        const isNotExpired = !ch.endDate || ch.endDate >= nowIso;
+        if (ch.status !== 'completed' && isNotExpired) {
+          const currentXp = Number(ch.currentXp || 0);
+          const goalXp = Number(ch.goalXp || 1);
+          const newXp = currentXp + tx.amount;
+          ch.currentXp = newXp;
+          challengesUpdated = true;
+
+          if (newXp >= goalXp) {
+            ch.status = 'completed';
+            this.createNotification({
+              userId: this.getManagerId(),
+              title: `🎉 Team Sprint Challenge Completed: ${ch.title}`,
+              message: `The squad reached ${goalXp.toLocaleString()} XP! Reward: ${ch.rewardDescription || 'Sprint Glory'}`,
+              type: 'success',
+            });
+          }
+        }
+      });
+
+      if (challengesUpdated) {
+        this._save(CHALLENGES_KEY, challenges);
+      }
+    } catch (err) {
+      console.warn('Could not auto-advance challenges:', err);
     }
 
     return newTx;
@@ -1609,31 +1712,46 @@ export const WebDevService = {
     const reward = rewards.find((r) => r.id === rewardId);
     if (!reward) return { error: 'Reward not found' };
 
-    const totalXp = this.getUserTotalXP(user.teacherId);
+    const totalXp = this.getUserTotalXP(user.teacherId || user.id || '');
     if (totalXp < reward.xpThreshold) {
       return { error: `Insufficient XP. You have ${totalXp} XP, but this reward requires ${reward.xpThreshold} XP.` };
     }
 
     const fulfillments = this.getRewardFulfillments();
+    const cleanUserId = (user.teacherId || user.id || '').toUpperCase();
     const existing = fulfillments.find(
-      (f) => f.rewardId === rewardId && (f.userId || '').toUpperCase() === user.teacherId.toUpperCase()
+      (f) => f.rewardId === rewardId && (f.userId || '').toUpperCase() === cleanUserId
     );
     if (existing && existing.status !== 'rejected') {
       return { error: 'You have already requested or received this reward.' };
     }
 
-    const newFulfillment: WebDevRewardFulfillment = {
-      id: `FUL-${Date.now().toString().slice(-6)}`,
-      rewardId,
-      userId: user.teacherId,
-      userName: user.name,
-      userEmail: user.email || `${user.teacherId.toLowerCase()}@aew.com`,
-      userTitle: user.webDevTitle || 'Web Developer',
-      status: 'pending',
-      requestedAt: new Date().toISOString(),
-    };
+    let resultFulfillment: WebDevRewardFulfillment;
+    if (existing && existing.status === 'rejected') {
+      existing.status = 'pending';
+      existing.requestedAt = new Date().toISOString();
+      existing.rejectionReason = undefined;
+      existing.rejectedAt = undefined;
+      existing.rejectedBy = undefined;
+      existing.fulfilledAt = undefined;
+      existing.fulfilledBy = undefined;
+      resultFulfillment = existing;
+    } else {
+      resultFulfillment = {
+        id: `FUL-${Date.now().toString().slice(-6)}`,
+        rewardId,
+        rewardTitle: reward.title,
+        rewardType: reward.type as any,
+        userId: user.teacherId || user.id || '',
+        userName: user.name,
+        userEmail: user.email || `${(user.teacherId || user.id || 'dev').toLowerCase()}@aew.com`,
+        userTitle: user.webDevTitle || 'Web Developer',
+        status: 'pending',
+        requestedAt: new Date().toISOString(),
+      };
+      fulfillments.push(resultFulfillment);
+    }
 
-    fulfillments.push(newFulfillment);
     this._save(FULFILLMENTS_KEY, fulfillments);
 
     this.createNotification({
@@ -1643,7 +1761,7 @@ export const WebDevService = {
       type: 'info',
     });
 
-    return newFulfillment;
+    return resultFulfillment;
   },
 
   fulfillReward(
@@ -1687,6 +1805,47 @@ export const WebDevService = {
       performedByUserId: manager.id,
       performedByUserName: manager.name,
       details: `Fulfilled reward "${reward?.title}" for ${ful.userName} (${ful.userId})${ful.verificationCode ? ` [Code: ${ful.verificationCode}]` : ''}`,
+    });
+
+    return ful;
+  },
+
+  rejectRewardFulfillment(
+    fulfillmentId: string,
+    manager: { id: string; name: string },
+    reason?: string
+  ): WebDevRewardFulfillment | null {
+    const list = this.getRewardFulfillments();
+    const ful = list.find((f) => f.id === fulfillmentId);
+    if (!ful) return null;
+
+    const reward = this.getRewards().find((r) => r.id === ful.rewardId);
+    const nowIso = new Date().toISOString();
+
+    ful.status = 'rejected';
+    ful.rejectionReason = reason || 'Requirements not verified or threshold conditions pending.';
+    ful.rejectedAt = nowIso;
+    ful.rejectedBy = manager.id;
+
+    this._save(FULFILLMENTS_KEY, list);
+
+    if (ful.userId) {
+      this.createNotification({
+        userId: ful.userId,
+        title: `Reward Request Rejected: ${reward?.title || 'Reward'}`,
+        message: `Your request for "${reward?.title || 'Reward'}" was rejected by ${manager.name}. Reason: "${ful.rejectionReason}"`,
+        type: 'warning',
+        link: '/rewards',
+      });
+    }
+
+    this.logAudit({
+      action: 'REWARD_REJECTED',
+      entityType: 'reward',
+      entityId: ful.id,
+      performedByUserId: manager.id,
+      performedByUserName: manager.name,
+      details: `Rejected reward request "${reward?.title}" for ${ful.userName} (${ful.userId}). Reason: "${ful.rejectionReason}"`,
     });
 
     return ful;
@@ -1766,6 +1925,37 @@ export const WebDevService = {
     message: string;
     xpAmount?: number;
   }): WebDevKudos {
+    const cleanFrom = (kudos.fromUserId || '').trim().toUpperCase();
+    const cleanTo = (kudos.toUserId || '').trim().toUpperCase();
+    if (!cleanTo) {
+      throw new Error('Please select a recipient for kudos.');
+    }
+    if (cleanFrom && cleanTo && cleanFrom === cleanTo) {
+      throw new Error('You cannot send kudos to yourself.');
+    }
+
+    const allUsers = StorageService.getUsers();
+    const fromUser = allUsers.find(
+      (u) =>
+        (u.teacherId && u.teacherId.toUpperCase() === cleanFrom) ||
+        (u.id && u.id.toUpperCase() === cleanFrom)
+    );
+    const toUser = allUsers.find(
+      (u) =>
+        (u.teacherId && u.teacherId.toUpperCase() === cleanTo) ||
+        (u.id && u.id.toUpperCase() === cleanTo)
+    );
+    if (
+      fromUser &&
+      toUser &&
+      (fromUser.id === toUser.id ||
+        (fromUser.teacherId &&
+          toUser.teacherId &&
+          fromUser.teacherId.toUpperCase() === toUser.teacherId.toUpperCase()))
+    ) {
+      throw new Error('You cannot send kudos to yourself.');
+    }
+
     const list = this.getKudos();
     const xp = kudos.xpAmount || 25;
     const newKudos: WebDevKudos = {
@@ -1927,6 +2117,13 @@ export const WebDevService = {
       details: `Added new developer ${devData.name} (${cleanUsername}) with title "${newDev.webDevTitle}" to the team`,
     });
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aew_users_updated', { detail: { user: newDev } }));
+      window.dispatchEvent(new CustomEvent('aew_webdev_tasks_synced'));
+      window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
     return newDev;
   },
 
@@ -1934,27 +2131,58 @@ export const WebDevService = {
     developerId: string,
     manager: { id: string; name: string }
   ): { success: boolean; error?: string } {
-    if (developerId === manager.id) {
-      return { success: false, error: 'You cannot remove yourself from the engineering squad.' };
-    }
+    const cleanDevId = (developerId || '').trim();
+    const cleanDevUpper = cleanDevId.toUpperCase();
+    const cleanMgrId = (manager.id || '').trim().toUpperCase();
 
     const allUsers = StorageService.getUsers();
-    const targetDev = allUsers.find((u) => u.teacherId === developerId || u.id === developerId);
+    const targetDev = allUsers.find(
+      (u) =>
+        (u.teacherId && u.teacherId.trim().toUpperCase() === cleanDevUpper) ||
+        (u.id && u.id.trim().toUpperCase() === cleanDevUpper) ||
+        (u.username && u.username.trim().toLowerCase() === cleanDevId.toLowerCase())
+    );
+
     if (!targetDev) {
       return { success: false, error: 'Developer not found.' };
     }
 
-    StorageService.addDeletedId(targetDev.teacherId);
-    if (targetDev.id) StorageService.addDeletedId(targetDev.id);
+    if (targetDev.role === 'admin' || targetDev.teacherId.toUpperCase().startsWith('ADMIN')) {
+      return { success: false, error: 'Primary Administrator account cannot be deleted.' };
+    }
 
-    const updatedUsers = allUsers.filter((u) => u.teacherId !== targetDev.teacherId && u.id !== targetDev.id);
-    StorageService.saveUsers(updatedUsers);
+    // Check if manager is attempting to remove themselves
+    const current = StorageService.getCurrentUser();
+    const isSelf =
+      (current && (current.teacherId.toUpperCase() === targetDev.teacherId.toUpperCase() || (current.id && targetDev.id && current.id.toUpperCase() === targetDev.id.toUpperCase()))) ||
+      (cleanMgrId && (targetDev.teacherId.toUpperCase() === cleanMgrId || (targetDev.id && targetDev.id.toUpperCase() === cleanMgrId)));
+
+    if (isSelf) {
+      return { success: false, error: 'You cannot remove yourself from the engineering squad.' };
+    }
+
+    // Perform removal via StorageService.deleteEmployee (handles tombstones, cloud sync & roster update)
+    const deleteRes = StorageService.deleteEmployee(targetDev.teacherId);
+    if (!deleteRes.success) {
+      return deleteRes;
+    }
 
     // Unassign tasks assigned to this developer so tasks aren't orphaned
+    const targetTeacherId = targetDev.teacherId.toUpperCase();
+    const targetUid = targetDev.id ? targetDev.id.toUpperCase() : '';
+    const targetUsername = targetDev.username ? targetDev.username.toLowerCase() : '';
+
     const allTasks = this.getTasks();
     let unassignedCount = 0;
     allTasks.forEach((t) => {
-      if (t.assigneeId === developerId) {
+      const assigneeUpper = (t.assigneeId || '').trim().toUpperCase();
+      const assigneeLower = (t.assigneeName || '').trim().toLowerCase();
+      if (
+        assigneeUpper === targetTeacherId ||
+        (targetUid && assigneeUpper === targetUid) ||
+        assigneeUpper === cleanDevUpper ||
+        (targetUsername && assigneeLower === targetUsername)
+      ) {
         t.assigneeId = undefined;
         t.assigneeName = undefined;
         if (t.status === 'in_progress') {
@@ -1963,6 +2191,7 @@ export const WebDevService = {
         unassignedCount++;
       }
     });
+
     if (unassignedCount > 0) {
       this._save(TASKS_KEY, allTasks);
     }
@@ -1970,11 +2199,18 @@ export const WebDevService = {
     this.logAudit({
       action: 'DEVELOPER_REMOVED',
       entityType: 'user',
-      entityId: developerId,
+      entityId: targetDev.teacherId,
       performedByUserId: manager.id,
       performedByUserName: manager.name,
-      details: `Removed developer ${targetDev.name} (${targetDev.email}) from squad. ${unassignedCount} active tasks unassigned.`,
+      details: `Removed developer ${targetDev.name} (${targetDev.email || targetDev.teacherId}) from squad. ${unassignedCount} active tasks unassigned.`,
     });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aew_users_updated'));
+      window.dispatchEvent(new CustomEvent('aew_webdev_tasks_synced'));
+      window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
+      window.dispatchEvent(new Event('storage'));
+    }
 
     return { success: true };
   },

@@ -126,10 +126,12 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
     const handleSync = () => loadData();
     window.addEventListener('aew_webdev_tasks_synced', handleSync);
     window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('aew_users_updated', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('aew_webdev_tasks_synced', handleSync);
       window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('aew_users_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
   }, [currentUser.teacherId]);
@@ -167,28 +169,41 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
     e.preventDefault();
     if (!kudosRecipientId || !kudosMessage.trim()) return;
 
-    const users = WebDevService.getLeaderboard('all_time');
-    const recipient = users.find((u) => u.userId === kudosRecipientId);
-    if (!recipient) return;
+    const myTeacherId = (currentUser.teacherId || '').trim().toUpperCase();
+    const myId = (currentUser.id || '').trim().toUpperCase();
+    const targetId = (kudosRecipientId || '').trim().toUpperCase();
 
-    WebDevService.sendKudos({
-      fromUserId: currentUser.teacherId,
-      fromUserName: currentUser.name,
-      toUserId: recipient.userId,
-      toUserName: recipient.userName,
-      message: kudosMessage.trim(),
-    });
-
-    try {
-      confetti({ particleCount: 60, spread: 70 });
-    } catch {
-      // ignore
+    if (targetId && (targetId === myTeacherId || targetId === myId)) {
+      alert('You cannot send kudos to yourself.');
+      return;
     }
 
-    setShowKudosModal(false);
-    setKudosRecipientId('');
-    setKudosMessage('');
-    loadData();
+    const users = WebDevService.getLeaderboard('all_time');
+    const recipient = users.find((u) => (u.userId || '').toUpperCase() === targetId);
+    if (!recipient) return;
+
+    try {
+      WebDevService.sendKudos({
+        fromUserId: currentUser.teacherId || currentUser.id || '',
+        fromUserName: currentUser.name,
+        toUserId: recipient.userId,
+        toUserName: recipient.userName,
+        message: kudosMessage.trim(),
+      });
+
+      try {
+        confetti({ particleCount: 60, spread: 70 });
+      } catch {
+        // ignore
+      }
+
+      setShowKudosModal(false);
+      setKudosRecipientId('');
+      setKudosMessage('');
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Could not send kudos.');
+    }
   };
 
   // Handle Claim Bounty
@@ -350,33 +365,44 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
             </div>
           )}
 
-          {/* Executive Sub-Header / Current Workspace Context */}
-          <div className="pt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/60 mt-6">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400 font-medium">Developer Workspace</span>
-              <span className="text-slate-600">/</span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-amber-300 font-semibold flex items-center gap-1.5">
-                {activeTab === 'tasks' && <CheckSquare className="w-3.5 h-3.5 text-amber-400" />}
-                {activeTab === 'projects' && <Layers className="w-3.5 h-3.5 text-blue-400" />}
-                {activeTab === 'bounties' && <Target className="w-3.5 h-3.5 text-emerald-400" />}
-                {activeTab === 'leaderboard' && <Trophy className="w-3.5 h-3.5 text-amber-400" />}
-                {activeTab === 'achievements' && <Award className="w-3.5 h-3.5 text-purple-400" />}
-                {activeTab === 'rewards' && <Gift className="w-3.5 h-3.5 text-pink-400" />}
-                {activeTab === 'ledger' && <FileText className="w-3.5 h-3.5 text-indigo-400" />}
-                {activeTab === 'team' && <Heart className="w-3.5 h-3.5 text-red-400" />}
-                {activeTab === 'tasks' && 'My Active Work & Backlog'}
-                {activeTab === 'projects' && 'Projects & Milestones'}
-                {activeTab === 'bounties' && 'Open Engineering Bounties'}
-                {activeTab === 'leaderboard' && 'Organization Leaderboard'}
-                {activeTab === 'achievements' && 'Milestones & Badges'}
-                {activeTab === 'rewards' && 'Certificates & Swag'}
-                {activeTab === 'ledger' && 'XP Ledger & Audit Log'}
-                {activeTab === 'team' && 'Challenges & Kudos'}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs text-slate-400">
-              <span className="hidden sm:inline">Use the <strong>left sidebar</strong> to switch between work modules</span>
+          {/* Quick Module Navigation Bar */}
+          <div className="pt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/60 mt-6">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+              {[
+                { id: 'dev_tasks', tab: 'tasks', label: 'My Tasks', icon: CheckSquare, badge: tasks.filter((t) => t.status === 'in_progress').length },
+                { id: 'dev_projects', tab: 'projects', label: 'Projects', icon: Layers, badge: projects.length },
+                { id: 'dev_bounties', tab: 'bounties', label: 'Bounties', icon: Target, badge: bounties.filter((b) => b.status === 'open').length },
+                { id: 'dev_leaderboard', tab: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+                { id: 'dev_achievements', tab: 'achievements', label: 'Badges', icon: Award },
+                { id: 'dev_rewards', tab: 'rewards', label: 'Rewards & Certs', icon: Gift },
+                { id: 'dev_ledger', tab: 'ledger', label: 'XP Ledger', icon: FileText },
+                { id: 'dev_team', tab: 'team', label: 'Challenges & Kudos', icon: Heart, badge: challenges.length },
+              ].map((m) => {
+                const Icon = m.icon;
+                const isActive = activeTab === m.tab;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onPageChange?.(m.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                        : 'bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
+                    <span>{m.label}</span>
+                    {m.badge !== undefined && m.badge > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                        isActive ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300'
+                      }`}>
+                        {m.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -696,7 +722,10 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
                 </div>
               ) : (
                 bounties.map((bounty) => {
-                  const isClaimedByMe = bounty.claimedById === currentUser.teacherId;
+                  const cleanClaimed = (bounty.claimedById || '').trim().toUpperCase();
+                  const myTeacherId = (currentUser.teacherId || '').trim().toUpperCase();
+                  const myId = (currentUser.id || '').trim().toUpperCase();
+                  const isClaimedByMe = Boolean(cleanClaimed && (cleanClaimed === myTeacherId || cleanClaimed === myId));
                   const isOpen = bounty.status === 'open';
 
                   return (
@@ -1372,7 +1401,12 @@ export const WebDeveloperView: React.FC<WebDeveloperViewProps> = ({
                 >
                   <option value="">-- Choose Developer --</option>
                   {leaderboardData
-                    .filter((u) => u.userId !== currentUser.teacherId)
+                    .filter((u) => {
+                      const cleanU = (u.userId || '').trim().toUpperCase();
+                      const myTeacherId = (currentUser.teacherId || '').trim().toUpperCase();
+                      const myId = (currentUser.id || '').trim().toUpperCase();
+                      return cleanU !== myTeacherId && cleanU !== myId;
+                    })
                     .map((u) => (
                       <option key={u.userId} value={u.userId}>
                         {u.userName} ({u.userTitle})

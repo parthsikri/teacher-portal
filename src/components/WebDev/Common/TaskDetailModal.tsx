@@ -207,7 +207,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       xpAwarded: timeEvalChoice === 'not_done' ? 0 : timeEvalXp,
       notes: timeEvalNotes,
       evaluator: {
-        id: currentUser.teacherId,
+        id: currentUser.teacherId || currentUser.id || '',
         name: currentUser.name,
         role: currentUser.role,
       },
@@ -251,7 +251,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     e.preventDefault();
     if (!commentContent.trim()) return;
     const updated = WebDevService.addTaskComment(currentTask.id, {
-      authorId: currentUser.teacherId,
+      authorId: currentUser.teacherId || currentUser.id || '',
       authorName: currentUser.name,
       authorRole: currentUser.role,
       content: commentContent.trim(),
@@ -266,8 +266,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   // Report Blocker
   const handleReportBlocker = () => {
     if (!blockerReason.trim()) return;
+    const currentUserId = currentUser.teacherId || currentUser.id || '';
     const updated = WebDevService.reportTaskBlocker(currentTask.id, blockerReason.trim(), {
-      id: currentUser.teacherId,
+      id: currentUserId,
       name: currentUser.name,
     });
     if (updated) {
@@ -280,9 +281,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   // Resolve Blocker
   const handleResolveBlocker = () => {
+    const currentUserId = currentUser.teacherId || currentUser.id || '';
     const updated = WebDevService.resolveTaskBlocker(currentTask.id, {
-      id: currentUser.teacherId,
+      id: currentUserId,
       name: currentUser.name,
+      role: currentUser.role,
     });
     if (updated) {
       setCurrentTask({ ...updated });
@@ -297,8 +300,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       alert('Please provide a short summary of work completed.');
       return;
     }
+    const currentUserId = currentUser.teacherId || currentUser.id || '';
     const updated = WebDevService.submitTaskForReview(currentTask.id, {
-      developerId: currentUser.teacherId,
+      developerId: currentUserId,
       developerName: currentUser.name,
       summary: submitSummary.trim(),
       githubPrUrl: prUrl.trim() || undefined,
@@ -324,10 +328,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       return;
     }
 
+    const reviewerId = currentUser.teacherId || currentUser.id || '';
     if (reviewAction === 'approve') {
       const res = WebDevService.approveTaskSubmission(
         currentTask.id,
-        { id: currentUser.teacherId, name: currentUser.name },
+        { id: reviewerId, name: currentUser.name },
         reviewFeedback.trim(),
         bonusXp
       );
@@ -343,7 +348,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     } else if (reviewAction === 'changes') {
       const res = WebDevService.requestChangesTaskSubmission(
         currentTask.id,
-        { id: currentUser.teacherId, name: currentUser.name },
+        { id: reviewerId, name: currentUser.name },
         reviewFeedback.trim()
       );
       if (res) {
@@ -353,7 +358,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     } else if (reviewAction === 'reject') {
       const res = WebDevService.rejectTaskSubmission(
         currentTask.id,
-        { id: currentUser.teacherId, name: currentUser.name },
+        { id: reviewerId, name: currentUser.name },
         reviewFeedback.trim()
       );
       if (res) {

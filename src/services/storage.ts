@@ -346,6 +346,14 @@ export const StorageService = {
       console.warn('[CloudSync] Immediate user-roster sync error:', err);
     });
     triggerBackgroundCloudSync();
+
+    // Broadcast local changes immediately so all components/windows update without delay
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aew_users_updated', { detail: { users: cleaned } }));
+      window.dispatchEvent(new CustomEvent('aew_webdev_tasks_synced'));
+      window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
+      window.dispatchEvent(new Event('storage'));
+    }
   },
 
   getTeachers(): User[] {
@@ -808,14 +816,38 @@ export const StorageService = {
       return { success: false, error: 'You cannot delete your own active session account.' };
     }
 
-    const userToDelete = this.getUsers().find((u) => u.id === identifier || u.teacherId.toUpperCase() === cleanId);
+    const allCurrentUsers = this.getUsers();
+    const userToDelete = allCurrentUsers.find(
+      (u) =>
+        (u.id && u.id.toUpperCase() === cleanId) ||
+        (u.teacherId && u.teacherId.toUpperCase() === cleanId) ||
+        (u.username && u.username.toLowerCase() === (identifier || '').trim().toLowerCase())
+    );
+
     if (userToDelete) {
+      if (userToDelete.role === 'admin' || userToDelete.teacherId.toUpperCase().startsWith('ADMIN')) {
+        return { success: false, error: 'Primary Administrator account cannot be deleted.' };
+      }
       this.addDeletedId(userToDelete.teacherId);
       if (userToDelete.id) this.addDeletedId(userToDelete.id);
     } else {
       this.addDeletedId(cleanId);
     }
-    const users = this.getUsers().filter((u) => u.id !== identifier && u.teacherId.toUpperCase() !== cleanId);
+
+    const targetTeacherId = (userToDelete?.teacherId || cleanId).toUpperCase();
+    const targetUid = (userToDelete?.id || identifier || '').toUpperCase();
+    const targetUname = (userToDelete?.username || '').toLowerCase();
+
+    const users = this.getUsers().filter((u) => {
+      const uTeacherId = (u.teacherId || '').toUpperCase();
+      const uId = (u.id || '').toUpperCase();
+      const uName = (u.username || '').toLowerCase();
+      if (uTeacherId === targetTeacherId) return false;
+      if (targetUid && uId === targetUid) return false;
+      if (targetUname && uName === targetUname) return false;
+      return true;
+    });
+
     this.saveUsers(users);
     return { success: true };
   },

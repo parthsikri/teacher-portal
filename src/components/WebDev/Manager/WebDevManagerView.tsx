@@ -47,6 +47,7 @@ import type {
   WebDevReward,
   WebDevRewardFulfillment,
   WebDevAuditLog,
+  WebDevTeamChallenge,
 } from '../../../types';
 import { WebDevService, calculateLevelFromXp } from '../../../services/webDevService';
 import { StorageService } from '../../../services/storage';
@@ -206,6 +207,15 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
   const [rewardFormIcon, setRewardFormIcon] = useState('🏆');
   const [rewardFormPerk, setRewardFormPerk] = useState('');
 
+  // Team Challenges Management State
+  const [challenges, setChallenges] = useState<WebDevTeamChallenge[]>([]);
+  const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
+  const [chalTitle, setChalTitle] = useState('');
+  const [chalDesc, setChalDesc] = useState('');
+  const [chalGoalXp, setChalGoalXp] = useState(5000);
+  const [chalReward, setChalReward] = useState('Team Swag & Recognition');
+  const [chalEndDate, setChalEndDate] = useState('');
+
   const loadData = () => {
     const allTasks = WebDevService.getTasks();
     const allProjects = WebDevService.getProjects();
@@ -213,6 +223,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     const allRewards = WebDevService.getRewards();
     const allFulfillments = WebDevService.getRewardFulfillments();
     const allLogs = WebDevService.getAuditLogs();
+    const allChallenges = WebDevService.getChallenges();
     const devs = StorageService.getUsers().filter(
       (u) => u.role === 'web_developer' || u.role === 'web_dev_manager'
     );
@@ -223,6 +234,7 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     setRewards(allRewards);
     setFulfillments(allFulfillments);
     setAuditLogs(allLogs);
+    setChallenges(allChallenges);
     setDevelopers(devs);
   };
 
@@ -231,10 +243,12 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     const handleSync = () => loadData();
     window.addEventListener('aew_webdev_tasks_synced', handleSync);
     window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('aew_users_updated', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('aew_webdev_tasks_synced', handleSync);
       window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('aew_users_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
   }, []);
@@ -492,6 +506,38 @@ export const WebDevManagerView: React.FC<WebDevManagerViewProps> = ({
     loadData();
   };
 
+  // Handle Create Challenge
+  const handleCreateChallenge = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chalTitle.trim()) return;
+
+    WebDevService.saveChallenge({
+      id: `CHAL-${Date.now().toString().slice(-4)}`,
+      title: chalTitle.trim(),
+      description: chalDesc.trim(),
+      goalXp: Number(chalGoalXp) || 5000,
+      currentXp: 0,
+      rewardDescription: chalReward.trim() || 'Team Recognition & Bonus XP',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: chalEndDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      status: 'active',
+    });
+
+    setShowCreateChallengeModal(false);
+    setChalTitle('');
+    setChalDesc('');
+    setChalReward('Team Swag & Recognition');
+    loadData();
+  };
+
+  // Handle Delete Challenge
+  const handleDeleteChallenge = (id: string, title: string) => {
+    if (window.confirm(`Are you sure you want to delete the sprint challenge "${title}"?`)) {
+      WebDevService.deleteChallenge(id);
+      loadData();
+    }
+  };
+
   // Handle Create Project
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -715,7 +761,12 @@ Portal URL: ${window.location.origin}`;
 
   // Handle Remove Developer from Team
   const handleRemoveDeveloper = (devId: string, devName: string) => {
-    if (devId === currentUser.teacherId) {
+    if (!devId) return;
+    const cleanDevId = devId.trim().toUpperCase();
+    const cleanCurTeacherId = (currentUser.teacherId || '').trim().toUpperCase();
+    const cleanCurUserId = (currentUser.id || '').trim().toUpperCase();
+
+    if (cleanDevId === cleanCurTeacherId || (cleanCurUserId && cleanDevId === cleanCurUserId)) {
       alert('You cannot remove yourself from the engineering squad.');
       return;
     }
@@ -726,11 +777,13 @@ Portal URL: ${window.location.origin}`;
 
     try {
       const res = WebDevService.removeDeveloperFromTeam(devId, {
-        id: currentUser.teacherId,
+        id: currentUser.teacherId || currentUser.id,
         name: currentUser.name,
       });
       if (res.success) {
         loadData();
+        // Background push to cloud
+        StorageService.syncToCloud().catch(() => {});
       } else {
         alert(res.error || 'Failed to remove developer.');
       }
@@ -1906,19 +1959,45 @@ Portal URL: ${window.location.origin}`;
                         >
                           {b.submissionUrl}
                         </a>
-                        <button
-                          onClick={() => {
-                            WebDevService.approveBounty(
-                              b.id,
-                              { id: currentUser.teacherId, name: currentUser.name },
-                              'Excellent solution! High performance and test coverage verified.'
-                            );
-                            loadData();
-                          }}
-                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs"
-                        >
-                          Approve Bounty & Award {b.xpReward} XP
-                        </button>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              WebDevService.approveBounty(
+                                b.id,
+                                { id: currentUser.teacherId, name: currentUser.name },
+                                'Excellent solution! High performance and test coverage verified.'
+                              );
+                              loadData();
+                            }}
+                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors"
+                          >
+                            Approve & Award {b.xpReward} XP
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const feedback = prompt(
+                                `Enter revision feedback or rejection reason for ${b.claimedByName || 'developer'}:`,
+                                'Please update tests and resolve feedback before resubmitting.'
+                              );
+                              if (feedback === null) return;
+                              const reopen = window.confirm(
+                                'Reopen this bounty for ALL developers?\n\nClick "OK" to reopen for anyone, or "Cancel" to keep it assigned to this developer to rework.'
+                              );
+                              WebDevService.rejectBounty(
+                                b.id,
+                                { id: currentUser.teacherId, name: currentUser.name },
+                                feedback.trim() || 'Submission rejected by reviewer.',
+                                reopen
+                              );
+                              loadData();
+                            }}
+                            className="px-3 py-1.5 bg-rose-600/80 hover:bg-rose-500 text-white font-semibold rounded-lg text-xs transition-colors"
+                          >
+                            Reject / Rework
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2079,7 +2158,9 @@ Portal URL: ${window.location.origin}`;
                             <span className="text-2xl">{r?.icon || '📜'}</span>
                             <h4 className="text-sm font-bold text-white">{r?.title || 'Reward'}</h4>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              isPending ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                              isPending ? 'bg-amber-500/20 text-amber-300' :
+                              f.status === 'rejected' ? 'bg-rose-500/20 text-rose-300' :
+                              'bg-emerald-500/20 text-emerald-300'
                             }`}>
                               {f.status}
                             </span>
@@ -2087,6 +2168,11 @@ Portal URL: ${window.location.origin}`;
                           <p className="text-xs text-slate-400">
                             Recipient: <strong className="text-white">{f.userName}</strong> ({f.userTitle}) • Requested: {f.requestedAt ? new Date(f.requestedAt).toLocaleDateString() : 'Recent'}
                           </p>
+                          {f.rejectionReason && (
+                            <p className="text-[11px] text-rose-300/90 italic mt-1">
+                              Rejection note: {f.rejectionReason}
+                            </p>
+                          )}
                           {f.verificationCode && (
                             <div className="text-xs text-amber-400 font-mono flex items-center gap-1.5 mt-1">
                               <ShieldCheck className="w-3.5 h-3.5" />
@@ -2097,15 +2183,39 @@ Portal URL: ${window.location.origin}`;
 
                         <div className="flex items-center gap-2">
                           {isPending ? (
-                            <button
-                              onClick={() => handleFulfillReward(f.id)}
-                              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950 flex items-center gap-1.5"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              Issue Verified Certificate
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleFulfillReward(f.id)}
+                                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950 flex items-center gap-1.5 transition-all"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                Issue Verified Certificate
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const reason = prompt(
+                                    `Reason for rejecting ${f.userName}'s claim for "${r?.title || 'this reward'}":`,
+                                    'Requirements or XP threshold verification incomplete.'
+                                  );
+                                  if (reason === null) return;
+                                  WebDevService.rejectRewardFulfillment(
+                                    f.id,
+                                    { id: currentUser.teacherId, name: currentUser.name },
+                                    reason.trim() || undefined
+                                  );
+                                  loadData();
+                                }}
+                                className="px-3 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 font-semibold rounded-xl text-xs transition-colors flex items-center gap-1"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Reject
+                              </button>
+                            </>
                           ) : (
                             <button
+                              type="button"
                               onClick={() => setSelectedCertificate({ fulfillment: f, reward: r })}
                               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"
                             >
@@ -2160,12 +2270,18 @@ Portal URL: ${window.location.origin}`;
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {developers.map((dev) => {
-                const devTasks = tasks.filter((t) => t.assigneeId === dev.teacherId);
+                const devTasks = tasks.filter(
+                  (t) =>
+                    (t.assigneeId && t.assigneeId.toUpperCase() === dev.teacherId.toUpperCase()) ||
+                    (dev.id && t.assigneeId && t.assigneeId.toUpperCase() === dev.id.toUpperCase())
+                );
                 const devActiveTasks = devTasks.filter((t) => t.status === 'in_progress');
                 const devBlocked = devTasks.filter((t) => t.isBlocked);
                 const devXp = WebDevService.getUserTotalXP(dev.teacherId);
                 const lvl = calculateLevelFromXp(devXp);
-                const isSelf = dev.teacherId === currentUser.teacherId;
+                const isSelf =
+                  (currentUser.teacherId && dev.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase()) ||
+                  (currentUser.id && dev.id && dev.id.toUpperCase() === currentUser.id.toUpperCase());
 
                 return (
                   <div key={dev.teacherId} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 relative flex flex-col justify-between">
@@ -2195,7 +2311,7 @@ Portal URL: ${window.location.origin}`;
                           <button
                             type="button"
                             onClick={() => handleRemoveDeveloper(dev.teacherId, dev.name)}
-                            className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg transition-colors"
+                            className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                             title={`Remove ${dev.name} from Squad`}
                           >
                             <UserMinus className="w-4 h-4" />
@@ -2230,9 +2346,121 @@ Portal URL: ${window.location.origin}`;
                         </div>
                       )}
                     </div>
+
+                    {!isSelf && (
+                      <div className="pt-3 mt-2 border-t border-slate-800/80 flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Squad Member</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDeveloper(dev.teacherId, dev.name)}
+                          className="px-2.5 py-1 text-[11px] text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+                          title={`Remove ${dev.name} from Squad`}
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                          Remove Member
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
+            </div>
+
+            {/* ─── SPRINT TEAM CHALLENGES DESK ──────────────────────────── */}
+            <div className="pt-6 border-t border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Target className="w-5 h-5 text-indigo-400" />
+                    Sprint Team Challenges Desk ({challenges.length})
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Set shared squad milestones, hackathons, and collective delivery goals that reward everyone
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateChallengeModal(true)}
+                  className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-indigo-950 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Team Challenge
+                </button>
+              </div>
+
+              {challenges.length === 0 ? (
+                <div className="p-8 text-center bg-slate-900/40 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                  No sprint challenges active. Click &quot;Add Team Challenge&quot; to motivate the engineering squad with collective targets.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {challenges.map((c) => {
+                    const curXp = c.currentXp || 0;
+                    const gXp = c.goalXp || 1;
+                    const pct = Math.min(100, Math.round((curXp / gXp) * 100));
+                    const isDone = c.status === 'completed' || curXp >= gXp;
+
+                    return (
+                      <div
+                        key={c.id}
+                        className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 flex flex-col justify-between"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-indigo-500/20 text-indigo-300">
+                              Sprint Challenge
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                                isDone ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                              }`}>
+                                {isDone ? 'Completed' : 'Active'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteChallenge(c.id, c.title)}
+                                className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                                title="Delete Challenge"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="text-base font-bold text-white">{c.title}</h4>
+                            <p className="text-xs text-slate-400 mt-1 leading-relaxed">{c.description}</p>
+                          </div>
+
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-400 font-medium">Sprint XP Progress</span>
+                              <span className="font-bold text-amber-300">
+                                {curXp.toLocaleString()} / {gXp.toLocaleString()} XP ({pct}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="bg-gradient-to-r from-purple-500 to-indigo-400 h-2 rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-800 text-xs flex items-center justify-between text-slate-400">
+                          <div className="truncate max-w-[220px]">
+                            Reward: <strong className="text-slate-200">{c.rewardDescription}</strong>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-500">
+                            {c.endDate ? `Ends: ${c.endDate}` : 'No deadline'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -3727,6 +3955,103 @@ Portal URL: ${window.location.origin}`;
                 </form>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: CREATE SPRINT TEAM CHALLENGE ─────────────────────────── */}
+      {showCreateChallengeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Target className="w-5 h-5 text-indigo-400" />
+                Create Sprint Team Challenge
+              </h3>
+              <button
+                onClick={() => setShowCreateChallengeModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateChallenge} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Challenge Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={chalTitle}
+                  onChange={(e) => setChalTitle(e.target.value)}
+                  placeholder="e.g. Q4 Sprint Bug-Bash & Zero Blockers"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Description *</label>
+                <textarea
+                  rows={2}
+                  required
+                  value={chalDesc}
+                  onChange={(e) => setChalDesc(e.target.value)}
+                  placeholder="Goal criteria and how engineers contribute..."
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Target XP Goal *</label>
+                  <input
+                    type="number"
+                    min={100}
+                    required
+                    value={chalGoalXp}
+                    onChange={(e) => setChalGoalXp(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={chalEndDate}
+                    onChange={(e) => setChalEndDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Squad Reward Description</label>
+                <input
+                  type="text"
+                  value={chalReward}
+                  onChange={(e) => setChalReward(e.target.value)}
+                  placeholder="e.g. Team Swag & Recognition (+100 Bonus XP each)"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateChallengeModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/20 cursor-pointer"
+                >
+                  Publish Challenge
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

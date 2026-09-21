@@ -406,11 +406,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
     };
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('focus', handleStorageChange);
+    window.addEventListener('aew_users_updated', handleStorageChange);
+    window.addEventListener('aew_cloud_data_synced', handleStorageChange);
+    window.addEventListener('aew_webdev_tasks_synced', handleStorageChange);
     const interval = setInterval(refreshState, 2500);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleStorageChange);
+      window.removeEventListener('aew_users_updated', handleStorageChange);
+      window.removeEventListener('aew_cloud_data_synced', handleStorageChange);
+      window.removeEventListener('aew_webdev_tasks_synced', handleStorageChange);
       clearInterval(interval);
     };
   }, []);
