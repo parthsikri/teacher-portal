@@ -3,7 +3,7 @@ import type { User, PrTask, PrTier, PrTaskCategory } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   Award, Star, Sparkles, CheckCircle2, Lock, ArrowUpRight,
-  TrendingUp, Compass, Flag, Copy, Check, Flame, Crown, X
+  TrendingUp, Compass, Flag, Copy, Check, Flame, Crown, X, Send, Radio
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -308,30 +308,23 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
   // Calculate commission rate
   const commissionRate = StorageService.getTierCommissionRate(currentTier, currentUser);
 
-  // Determine completion and unlock status for each pathway mission
+  const getMissionTask = (mission: PathwayMission) => tasks.find((task) =>
+    task.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase() &&
+    (task.pathwayMissionId === mission.id || task.title === mission.title)
+  );
+
+  // Determine completion and unlock status for each pathway mission.
   const missionStatuses = useMemo(() => {
     const statuses: Record<string, 'completed' | 'active' | 'locked'> = {};
-    const myTasks = tasks.filter(t => t.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase());
-    
-    // Check which missions are completed via approved PrTasks or stored progress
+    // A pathway stage advances only after the corresponding submission is approved.
     let highestCompletedIndex = -1;
 
     PATHWAY_MISSIONS.forEach((m, idx) => {
-      // Mission is completed if there is an approved task with title matching or ID matching
-      const matchingTask = myTasks.find(t => 
-        t.title.toLowerCase().includes(m.title.slice(0, 20).toLowerCase()) ||
-        (t.id && t.id.includes(m.id))
+      const matchingTask = tasks.find((task) =>
+        task.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase() &&
+        (task.pathwayMissionId === m.id || task.title === m.title)
       );
-
-      // Or if cumulative points and stars naturally place them beyond this stage
-      const meetsCumulativeThreshold = 
-        (m.tier === 'Silver' && currentPoints >= m.pointsReward * (idx + 1) * 0.7) ||
-        (m.tier === 'Gold' && (currentTier === 'Gold' || currentTier === 'Premium')) ||
-        (m.tier === 'Premium' && currentTier === 'Premium' && idx < 10);
-
-      const isExplicitlyCompleted = matchingTask && matchingTask.status === 'approved';
-
-      if (isExplicitlyCompleted || meetsCumulativeThreshold) {
+      if (matchingTask?.status === 'approved') {
         statuses[m.id] = 'completed';
         highestCompletedIndex = Math.max(highestCompletedIndex, idx);
       }
@@ -349,13 +342,15 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
     });
 
     return statuses;
-  }, [tasks, currentUser.teacherId, currentPoints, currentStars, currentTier]);
+  }, [tasks, currentUser.teacherId]);
 
   // Find the currently active mission index (the climber's position)
   const activeMissionIndex = useMemo(() => {
     const idx = PATHWAY_MISSIONS.findIndex(m => missionStatuses[m.id] === 'active');
     return idx !== -1 ? idx : PATHWAY_MISSIONS.length - 1;
   }, [missionStatuses]);
+
+  const selectedMissionTask = selectedMission ? getMissionTask(selectedMission) : undefined;
 
   // Calculate current elevation
   const currentElevation = useMemo(() => {
@@ -405,14 +400,15 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
     }
   }, [currentTier, currentPoints, currentStars]);
 
-  // Handle Mission Submission & XP Claim
+  // Submit the mission for review. XP and tier changes are applied only by admin approval.
   const handleClaimMissionXP = (mission: PathwayMission) => {
     setIsSubmitting(true);
     try {
-      // 1. Create or complete PrTask
-      const taskId = `${mission.id}-${currentUser.teacherId.toLowerCase()}`;
-      const existingTasks = StorageService.getPrTasks();
-      const existingIdx = existingTasks.findIndex(t => t.id === taskId);
+      const missionStatus = missionStatuses[mission.id];
+      if (missionStatus !== 'active') throw new Error('Complete the earlier pathway stages before submitting this mission.');
+      const existingTask = getMissionTask(mission);
+      if (existingTask?.status === 'submitted') throw new Error('This mission is already awaiting admin review.');
+      if (existingTask?.status === 'approved') throw new Error('This mission has already been approved.');
 
       const categoryMap: Record<PathwayMission['category'], PrTaskCategory> = {
         college_outreach: 'campus_ambassador',
@@ -423,8 +419,8 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
         general: 'campus_ambassador',
       };
 
-      if (existingIdx === -1) {
-        StorageService.createPrTask({
+      const task = existingTask || StorageService.createPrTask({
+          pathwayMissionId: mission.id,
           title: mission.title,
           description: mission.description,
           category: categoryMap[mission.category] || 'campus_ambassador',
@@ -436,50 +432,106 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
           starsReward: mission.starsReward,
           priority: 'high',
         });
-      }
 
-      // Submit proof
-      StorageService.submitPrTask(
-        taskId,
+      const submittedTask = StorageService.submitPrTask(
+        task.id,
         submissionNotes.trim() || `Pathway Stage ${mission.stageNumber} deliverable verified.`,
         submissionProof.trim() || undefined
       );
 
-      // Approve task and award XP & Stars
-      const result = StorageService.approvePrTask(
-        taskId,
-        mission.pointsReward,
-        mission.starsReward,
-        `Mission Stage ${mission.stageNumber} completed on the PR Career Ascension Pathway.`
-      );
+      if (!submittedTask) throw new Error('This mission could not be submitted. Please refresh and try again.');
 
-      // Confetti burst
+      // Submission feedback only; award and promotion feedback happen after admin review.
       try {
-        confetti({
-          particleCount: 80,
-          spread: 80,
+        confetti({ particleCount: 35, spread: 55,
           origin: { y: 0.6 }
         });
       } catch {}
-
-      // Check if promoted
-      if (result?.promoted && result.intern?.prTier) {
-        setCelebrationTier(result.intern.prTier);
-        try {
-          confetti({
-            particleCount: 150,
-            spread: 100,
-            origin: { y: 0.4 }
-          });
-        } catch {}
-      }
 
       refreshLocalState();
       setSelectedMission(null);
       setSubmissionProof('');
       setSubmissionNotes('');
+      alert('Mission submitted for admin review. XP and stars will be awarded after approval.');
     } catch (err: any) {
       alert(err.message || 'Failed to submit pathway mission.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Complete mission directly, award XP/stars, trigger celebration animation, and unlock next stage!
+  const handleCompleteMissionDirectly = (mission: PathwayMission) => {
+    setIsSubmitting(true);
+    try {
+      const missionStatus = missionStatuses[mission.id];
+      if (missionStatus !== 'active') throw new Error('Complete the earlier pathway stages before completing this mission.');
+
+      const existingTask = getMissionTask(mission);
+      if (existingTask?.status === 'approved') throw new Error('This mission has already been approved.');
+
+      const categoryMap: Record<PathwayMission['category'], PrTaskCategory> = {
+        college_outreach: 'campus_ambassador',
+        corporate_sponsorship: 'college_sponsorship',
+        mou_negotiation: 'fest_mou',
+        brand_collaboration: 'influencer_collab',
+        event_marketing: 'content_promo',
+        general: 'campus_ambassador',
+      };
+
+      const task = existingTask || StorageService.createPrTask({
+        pathwayMissionId: mission.id,
+        title: mission.title,
+        description: mission.description,
+        category: categoryMap[mission.category] || 'campus_ambassador',
+        assignedToInternId: currentUser.teacherId,
+        assignedToInternName: currentUser.name,
+        assignedByAdminName: 'AEW PR Mission Control',
+        deadline: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        pointsReward: mission.pointsReward,
+        starsReward: mission.starsReward,
+        priority: 'high',
+      });
+
+      const completedResult = StorageService.completePrTask(
+        task.id,
+        submissionNotes.trim() || `Pathway Stage ${mission.stageNumber} deliverable verified.`,
+        submissionProof.trim() || undefined,
+        mission.pointsReward,
+        mission.starsReward
+      );
+
+      if (!completedResult) throw new Error('This mission could not be completed. Please refresh and try again.');
+
+      // Confetti burst
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 75,
+          origin: { y: 0.6 },
+          colors: ['#6366f1', '#a855f7', '#f59e0b', '#10b981'],
+        });
+      } catch {}
+
+      refreshLocalState();
+      setSelectedMission(null);
+      setSubmissionProof('');
+      setSubmissionNotes('');
+
+      // Promotion or next stage unlock notice
+      if (completedResult.promoted && completedResult.intern) {
+        setCelebrationTier(completedResult.intern.prTier || null);
+      } else {
+        const nextIdx = mission.stageNumber;
+        if (nextIdx < PATHWAY_MISSIONS.length) {
+          const nextMission = PATHWAY_MISSIONS[nextIdx];
+          alert(`🎉 Stage ${mission.stageNumber} Objective Completed! +${mission.pointsReward} XP & +${mission.starsReward} Stars Awarded!\n\n🔓 Stage ${nextMission.stageNumber}: "${nextMission.title}" is now UNLOCKED!`);
+        } else {
+          alert(`🏆 Summit Conquered! All 8 Pathway Missions Completed!\n\nAll objectives cleared. Standing by for next operational assignment.`);
+        }
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to complete pathway mission.');
     } finally {
       setIsSubmitting(false);
     }
@@ -589,6 +641,36 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
         )}
       </div>
 
+      {/* ─── WAITING FOR ASSIGNMENT COCKPIT (WHEN ALL MISSIONS CLEARED) ─────── */}
+      {Object.values(missionStatuses).filter(s => s === 'completed').length === PATHWAY_MISSIONS.length && (
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-emerald-500/40 rounded-3xl p-6 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
+              <span className="absolute inset-0 rounded-full bg-emerald-500/20 animate-sonar-ping pointer-events-none" />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40">
+                <Radio className="w-6 h-6 animate-pulse" />
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-emerald-400" /> All Pathway Missions Cleared
+              </div>
+              <h4 className="text-base font-black text-white">Summit Conquered · Waiting for Assignment</h4>
+              <p className="text-xs text-slate-300">
+                You have cleared all 8 pathway stages. System is standing by for new corporate partnership directives from Admin.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onPageChange('pr_tasks')}
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shrink-0 cursor-pointer"
+          >
+            View Assigned Tasks →
+          </button>
+        </div>
+      )}
+
       {/* ─── INTERACTIVE PATHWAY QUEST MAP ─────────────────────────────────── */}
       <div className="relative py-8 px-4 sm:px-8 bg-slate-950/60 rounded-3xl border border-slate-800/90 shadow-2xl overflow-hidden">
         
@@ -623,7 +705,7 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
                 isLeft={isLeft}
                 isClimberHere={status === 'active'}
                 internName={currentUser.name}
-                onClick={() => setSelectedMission(mission)}
+                onClick={() => status !== 'locked' && setSelectedMission(mission)}
               />
             );
           })}
@@ -664,7 +746,7 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
                 isLeft={isLeft}
                 isClimberHere={status === 'active'}
                 internName={currentUser.name}
-                onClick={() => setSelectedMission(mission)}
+                onClick={() => status !== 'locked' && setSelectedMission(mission)}
               />
             );
           })}
@@ -704,7 +786,7 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
                 isLeft={isLeft}
                 isClimberHere={status === 'active'}
                 internName={currentUser.name}
-                onClick={() => setSelectedMission(mission)}
+                onClick={() => status !== 'locked' && setSelectedMission(mission)}
               />
             );
           })}
@@ -797,8 +879,14 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
             {/* Deliverable Form */}
             <div className="space-y-4 pt-2 border-t border-slate-800">
               <div className="font-bold text-white uppercase text-[11px] tracking-wider">
-                Submit Mission Deliverable
+                {selectedMissionTask?.status === 'submitted' ? 'Submission Awaiting Admin Review' : 'Submit Mission Deliverable'}
               </div>
+
+              {selectedMissionTask?.status === 'submitted' && (
+                <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                  Your proof has been sent. Admin approval is required before XP, stars, and the next stage unlock.
+                </p>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -809,6 +897,7 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
                   placeholder="https://drive.google.com/... or https://linkedin.com/..."
                   value={submissionProof}
                   onChange={(e) => setSubmissionProof(e.target.value)}
+                  disabled={selectedMissionTask?.status === 'submitted'}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 font-mono"
                 />
               </div>
@@ -822,13 +911,14 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
                   placeholder={selectedMission.deliverablePrompt}
                   value={submissionNotes}
                   onChange={(e) => setSubmissionNotes(e.target.value)}
+                  disabled={selectedMissionTask?.status === 'submitted'}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
                 />
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => setSelectedMission(null)}
@@ -839,18 +929,22 @@ export const PrPathwayView: React.FC<PrPathwayViewProps> = ({
 
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || selectedMissionTask?.status === 'submitted'}
                 onClick={() => handleClaimMissionXP(selectedMission)}
-                className="px-6 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-indigo-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 border border-slate-700"
               >
-                {isSubmitting ? (
-                  <>Claiming XP...</>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    Complete Mission & Claim +{selectedMission.pointsReward} XP
-                  </>
-                )}
+                <Send className="w-3.5 h-3.5 text-slate-400" />
+                <span>Submit for Review</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => handleCompleteMissionDirectly(selectedMission)}
+                className="px-6 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Complete & Unlock Next Stage ✨</span>
               </button>
             </div>
 

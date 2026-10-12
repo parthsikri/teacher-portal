@@ -51,7 +51,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
   // Sub-tabs: reviews | roster | tasks | mous | leads
   const [activeSubTab, setActiveSubTab] = useState<'reviews' | 'roster' | 'tasks' | 'mous' | 'leads'>('reviews');
   const [searchQuery, setSearchQuery] = useState('');
-  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'open' | 'submitted' | 'approved' | 'revision_requested'>('all');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'open' | 'submitted' | 'approved' | 'completed' | 'revision_requested'>('all');
 
   // Modals state
   const [showAssignTaskModal, setShowAssignTaskModal] = useState(false);
@@ -138,9 +138,13 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
     reloadData();
     const handleSync = () => reloadData();
     window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('aew_pr_tasks_updated', handleSync);
+    window.addEventListener('aew_users_updated', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('aew_pr_tasks_updated', handleSync);
+      window.removeEventListener('aew_users_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
   }, [refreshTrigger]);
@@ -257,8 +261,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
     if (!newInternName.trim() || !newInternUsername.trim()) return;
 
     // Generate next PR Intern ID
-    const count = interns.length + 1;
-    const nextId = `AEW-PR-${String(count).padStart(2, '0')}`;
+    const nextId = StorageService.getNextEmployeeId('pr_intern');
 
     StorageService.addPrIntern({
       teacherId: nextId,
@@ -292,7 +295,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
     const prevStars = rewardingIntern.prStars || 0;
     const newPoints = prevPoints + Number(bonusPoints);
     const newStars = prevStars + Number(bonusStars);
-    const newTier = StorageService.calculateTierFromPointsAndStars(newPoints, newStars);
+    const newTier = StorageService.getPrTierAfterRewards(rewardingIntern.prTier || 'Silver', newPoints, newStars);
     const promoted = rewardingIntern.prTier !== newTier && (newTier === 'Gold' || newTier === 'Premium');
 
     StorageService.updateUser(rewardingIntern.id, {
@@ -826,9 +829,10 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                 className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="all">All Statuses</option>
-                <option value="open">Open / In Progress</option>
+                <option value="open">Open / Pending</option>
                 <option value="submitted">Submitted (Needs Review)</option>
                 <option value="approved">Approved & Rewarded</option>
+                <option value="completed">Completed Directly</option>
                 <option value="revision_requested">Revision Requested</option>
               </select>
 
@@ -843,7 +847,11 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {tasks
-              .filter((t) => (taskStatusFilter === 'all' ? true : t.status === taskStatusFilter))
+              .filter((t) => {
+                if (taskStatusFilter === 'all') return true;
+                if (taskStatusFilter === 'open') return t.status === 'pending' || (t.status as string) === 'open';
+                return t.status === taskStatusFilter;
+              })
               .filter((t) =>
                 searchQuery
                   ? t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -868,7 +876,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                       </span>
 
                       <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                        task.status === 'approved'
+                        task.status === 'approved' || task.status === 'completed'
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                           : task.status === 'submitted'
                           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -876,7 +884,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                           ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                           : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                       }`}>
-                        {task.status.replace('_', ' ')}
+                        {task.status === 'completed' ? 'Completed ✓' : task.status.replace('_', ' ')}
                       </span>
                     </div>
 
@@ -913,7 +921,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                       </button>
                     ) : (
                       <span className="text-[11px] text-slate-500 font-medium">
-                        {task.status === 'approved' ? `Awarded: ⭐ ${task.awardedStars || task.starsReward} & 🎖️ ${task.awardedPoints || task.pointsReward} pts` : 'In progress by intern'}
+                        {task.status === 'approved' || task.status === 'completed' ? `Awarded: ⭐ ${task.awardedStars || task.starsReward} & 🎖️ ${task.awardedPoints || task.pointsReward} pts` : 'In progress by intern'}
                       </span>
                     )}
 

@@ -308,12 +308,14 @@ export interface EmailLogItem {
 
 // ─── PR INTERNS DOMAIN TYPES ────────────────────────────────────────────────
 
-export type PrTaskStatus = 'pending' | 'submitted' | 'approved' | 'revision_requested';
+export type PrTaskStatus = 'pending' | 'submitted' | 'approved' | 'revision_requested' | 'completed';
 export type PrTaskPriority = 'urgent' | 'high' | 'medium' | 'normal';
 export type PrTaskCategory = 'college_sponsorship' | 'fest_mou' | 'influencer_collab' | 'campus_ambassador' | 'content_promo';
 
 export interface PrTask {
   id: string;
+  /** Stable link for tasks created from the guided PR career pathway. */
+  pathwayMissionId?: string;
   title: string;
   description: string;
   category?: PrTaskCategory;

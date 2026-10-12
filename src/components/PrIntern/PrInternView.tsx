@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import type { User, PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage } from '../../types';
+import type { User, PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage, PrTaskCategory, PrTaskPriority } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   Award, Star, DollarSign, TrendingUp, FileText, CheckCircle2,
   Send, Plus, Building2, Phone, Mail,
   ExternalLink, Copy, Check, Printer, ShieldCheck, ChevronRight,
   Search, ArrowUpRight, Sparkles, HelpCircle, Briefcase,
-  Users, UserPlus, Loader2, RefreshCw, Crown, X, Trash2
+  Users, UserPlus, Loader2, RefreshCw, Crown, X, Trash2,
+  Lock, Unlock, Radio, Zap, Flame, ArrowRight, Clock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { notificationService } from '../../services/notificationService';
@@ -98,16 +99,45 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const [isPrManualSyncing, setIsPrManualSyncing] = useState(false);
   const [prManualSyncMsg, setPrManualSyncMsg] = useState<string | null>(null);
 
+  // PR Sequential Task Mode & Unlock States
+  const [sequentialMode, setSequentialMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('aew_pr_sequential_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [recentlyCompletedTaskId, setRecentlyCompletedTaskId] = useState<string | null>(null);
+  const [recentlyUnlockedTaskId, setRecentlyUnlockedTaskId] = useState<string | null>(null);
+  const [shakingTaskId, setShakingTaskId] = useState<string | null>(null);
+  const [unlockCelebration, setUnlockCelebration] = useState<{
+    type: 'unlocked' | 'waiting_for_assignment';
+    taskTitle: string;
+    stars: number;
+    points: number;
+  } | null>(null);
+
   // Re-sync on external trigger or storage updates
   React.useEffect(() => {
-    setTasks(StorageService.getPrTasks());
-    setLeads(StorageService.getPrLeads());
-    setMous(StorageService.getPrMous());
-    setColleges(StorageService.getPrColleges());
-    const freshUsers = StorageService.getUsers();
-    setAllUsers(freshUsers);
-    const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase());
-    if (freshUser) setCurrentUser(freshUser);
+    const handleSync = () => {
+      setTasks(StorageService.getPrTasks());
+      setLeads(StorageService.getPrLeads());
+      setMous(StorageService.getPrMous());
+      setColleges(StorageService.getPrColleges());
+      const freshUsers = StorageService.getUsers();
+      setAllUsers(freshUsers);
+      const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase());
+      if (freshUser) setCurrentUser(freshUser);
+    };
+
+    handleSync();
+    window.addEventListener('aew_pr_tasks_updated', handleSync);
+    window.addEventListener('aew_users_updated', handleSync);
+    window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('aew_pr_tasks_updated', handleSync);
+      window.removeEventListener('aew_users_updated', handleSync);
+      window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, [refreshTrigger, intern.teacherId]);
 
   const prMembers = useMemo(() => {
@@ -334,6 +364,205 @@ Portal URL: ${window.location.origin}`;
     return t.status === taskFilterStatus;
   });
 
+  // Sequential Tasks Computation
+  const sequentialData = useMemo(() => {
+    // Sort tasks stably by createdAt (earliest created is stage 1, next is stage 2, etc.)
+    const sorted = [...myTasks].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    // Find the first task that is NOT completed/approved
+    const firstIncompleteIdx = sorted.findIndex(
+      (t) => t.status !== 'approved' && t.status !== 'completed'
+    );
+
+    const statuses: Record<string, 'completed' | 'active' | 'locked'> = {};
+    sorted.forEach((t, idx) => {
+      if (firstIncompleteIdx === -1) {
+        statuses[t.id] = 'completed';
+      } else if (idx < firstIncompleteIdx) {
+        statuses[t.id] = 'completed';
+      } else if (idx === firstIncompleteIdx) {
+        statuses[t.id] = 'active';
+      } else {
+        statuses[t.id] = 'locked';
+      }
+    });
+
+    const activeTask = firstIncompleteIdx !== -1 ? sorted[firstIncompleteIdx] : null;
+    const isAllCompleted = sorted.length > 0 && firstIncompleteIdx === -1;
+    const completedCount = sorted.filter((t) => t.status === 'approved' || t.status === 'completed').length;
+
+    return {
+      sorted,
+      statuses,
+      activeTask,
+      isAllCompleted,
+      completedCount,
+      totalCount: sorted.length,
+    };
+  }, [myTasks]);
+
+  const handleToggleSequentialMode = (enabled: boolean) => {
+    setSequentialMode(enabled);
+    localStorage.setItem('aew_pr_sequential_mode', String(enabled));
+  };
+
+  const handleLockedTaskClick = (taskId: string) => {
+    setShakingTaskId(taskId);
+    setTimeout(() => setShakingTaskId(null), 600);
+  };
+
+  // Handle direct task completion + unlock animation
+  const handleCompleteTask = (taskToComplete: PrTask, notes?: string, proof?: string) => {
+    setIsSubmittingTask(true);
+    const result = StorageService.completePrTask(
+      taskToComplete.id,
+      notes || submissionNotes || 'Task objective completed and deliverable verified.',
+      proof || submissionProofUrl || undefined,
+      taskToComplete.pointsReward,
+      taskToComplete.starsReward
+    );
+
+    if (result) {
+      // 1. Trigger Confetti
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 75,
+          origin: { y: 0.6 },
+          colors: ['#6366f1', '#a855f7', '#f59e0b', '#10b981', '#ec4899'],
+        });
+      } catch {}
+
+      // 2. Mark completed task for celebration animation
+      setRecentlyCompletedTaskId(taskToComplete.id);
+      setTimeout(() => setRecentlyCompletedTaskId(null), 3000);
+
+      // 3. Find next sequential pending task to unlock
+      const freshTasks = StorageService.getPrTasks();
+      const myFreshTasks = freshTasks.filter(
+        (t) => t.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase()
+      );
+      const sorted = [...myFreshTasks].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      const nextPending = sorted.find(
+        (t) => t.id !== taskToComplete.id && t.status !== 'approved' && t.status !== 'completed'
+      );
+
+      if (nextPending) {
+        setRecentlyUnlockedTaskId(nextPending.id);
+        setUnlockCelebration({
+          type: 'unlocked',
+          taskTitle: nextPending.title,
+          stars: nextPending.starsReward,
+          points: nextPending.pointsReward,
+        });
+
+        // Secondary confetti burst for the unlock
+        setTimeout(() => {
+          try {
+            confetti({
+              particleCount: 45,
+              spread: 60,
+              origin: { y: 0.5 },
+              colors: ['#eab308', '#6366f1'],
+            });
+          } catch {}
+        }, 450);
+
+        setTimeout(() => {
+          setRecentlyUnlockedTaskId(null);
+        }, 4500);
+      } else {
+        // No next task remaining -> Waiting for assignment!
+        setUnlockCelebration({
+          type: 'waiting_for_assignment',
+          taskTitle: taskToComplete.title,
+          stars: taskToComplete.starsReward,
+          points: taskToComplete.pointsReward,
+        });
+      }
+
+      setTasks(freshTasks);
+      const freshUsers = StorageService.getUsers();
+      setAllUsers(freshUsers);
+      const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase());
+      if (freshUser) setCurrentUser(freshUser);
+
+      // Close modal & reset inputs
+      setShowTaskSubmitModal(null);
+      setSubmissionNotes('');
+      setSubmissionProofUrl('');
+    }
+    setIsSubmittingTask(false);
+  };
+
+  const handleCreateDemoTask = () => {
+    const demoOptions = [
+      {
+        title: 'Lead Outreach Sprint: Target Top 5 EdTech & Dev Brand Sponsors',
+        description: 'Curate contact details for 5 corporate brand sponsorship managers and dispatch AEW National Tech Summit proposal kits.',
+        category: 'college_sponsorship' as PrTaskCategory,
+        starsReward: 3,
+        pointsReward: 50,
+        priority: 'high' as PrTaskPriority,
+      },
+      {
+        title: 'Draft Official Corporate Sponsorship MoU Framework (₹75k+)',
+        description: 'Generate standard AEW sponsorship agreement terms, establish corporate branding clauses, and submit draft for seal.',
+        category: 'fest_mou' as PrTaskCategory,
+        starsReward: 4,
+        pointsReward: 75,
+        priority: 'urgent' as PrTaskPriority,
+      },
+      {
+        title: 'Campus Ambassador Guild Recruitment & Outreach Campaign',
+        description: 'Coordinate with student technical clubs across 3 partner colleges for hackathon attendee promotions.',
+        category: 'campus_ambassador' as PrTaskCategory,
+        starsReward: 2,
+        pointsReward: 35,
+        priority: 'medium' as PrTaskPriority,
+      },
+      {
+        title: 'Influencer & Tech Community Co-Branding Coordination',
+        description: 'Reach out to 2 tech creator channels for hackathon registration promo shoutouts and webinar alignment.',
+        category: 'influencer_collab' as PrTaskCategory,
+        starsReward: 3,
+        pointsReward: 45,
+        priority: 'normal' as PrTaskPriority,
+      },
+    ];
+
+    const pick = demoOptions[Math.floor(Math.random() * demoOptions.length)];
+    const newTask = StorageService.createPrTask({
+      title: `${pick.title} (#${Math.floor(Math.random() * 900 + 100)})`,
+      description: pick.description,
+      category: pick.category,
+      assignedToInternId: currentUser.teacherId,
+      assignedToInternName: currentUser.name,
+      assignedByAdminName: 'AEW PR Mission Control',
+      starsReward: pick.starsReward,
+      pointsReward: pick.pointsReward,
+      deadline: new Date(Date.now() + 6 * 86400000).toISOString().split('T')[0],
+      priority: pick.priority,
+    });
+
+    setTasks(StorageService.getPrTasks());
+    setRecentlyUnlockedTaskId(newTask.id);
+    setUnlockCelebration({
+      type: 'unlocked',
+      taskTitle: newTask.title,
+      stars: newTask.starsReward,
+      points: newTask.pointsReward,
+    });
+    try {
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } });
+    } catch {}
+    setTimeout(() => setRecentlyUnlockedTaskId(null), 4000);
+  };
+
   // Handle task submission
   const handleSubmitTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -349,6 +578,9 @@ Portal URL: ${window.location.origin}`;
       setShowTaskSubmitModal(null);
       setSubmissionNotes('');
       setSubmissionProofUrl('');
+      try {
+        confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
+      } catch {}
     }
     setIsSubmittingTask(false);
   };
@@ -844,156 +1076,516 @@ Portal URL: ${window.location.origin}`;
       {/* ─────────────────────────────────────────────────────────────────── */}
       {currentPage === 'pr_tasks' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
-                <CheckCircle2 className="w-6 h-6 text-indigo-400" /> Assigned Tasks & Star Bounties
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Tasks assigned directly by Academic Operations Admin. Complete them and submit proof to earn Stars ⭐ and Points 🎖️.
+          {/* Header & Controls */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 bg-slate-900/90 border border-slate-800 rounded-3xl shadow-xl backdrop-blur-sm">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
+                  <CheckCircle2 className="w-6 h-6 text-indigo-400" /> Assigned Directives & Star Bounties
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  {myTasks.length} Total
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Official PR deliverables assigned by Academic Operations Admin. Complete objectives to unlock stars ⭐, points 🎖️, and subsequent directives.
               </p>
             </div>
 
-            {/* Filter pills */}
-            <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs">
-              {['all', 'pending', 'submitted', 'approved', 'revision_requested'].map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setTaskFilterStatus(st)}
-                  className={`px-3 py-1.5 rounded-xl capitalize font-bold transition-all cursor-pointer ${
-                    taskFilterStatus === st
-                      ? 'bg-indigo-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {st.replace('_', ' ')}
-                </button>
-              ))}
+            {/* Action Controls & Sequential Mode Toggle */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Sequential Mode Switch Option */}
+              <button
+                type="button"
+                onClick={() => handleToggleSequentialMode(!sequentialMode)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 border transition-all cursor-pointer shadow-md ${
+                  sequentialMode
+                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white border-indigo-400/50 shadow-indigo-600/30 ring-2 ring-indigo-500/20'
+                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                }`}
+                title="Toggle sequential task unlock flow with unlock animations"
+              >
+                <Zap className={`w-3.5 h-3.5 ${sequentialMode ? 'text-amber-300 fill-amber-300 animate-pulse' : 'text-slate-400'}`} />
+                <span>Sequential Unlock Flow:</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-extrabold ${
+                  sequentialMode ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-slate-700 text-slate-400'
+                }`}>
+                  {sequentialMode ? 'ON' : 'OFF'}
+                </span>
+              </button>
+
+              {/* Demo / Test Assignment Button */}
+              <button
+                type="button"
+                onClick={handleCreateDemoTask}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                title="Assign a test PR directive to test the unlock animation flow"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>+ Add Test Directive</span>
+              </button>
+
+              {/* Classic Filter pills if sequential mode is OFF */}
+              {!sequentialMode && (
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                  {['all', 'pending', 'submitted', 'approved', 'revision_requested'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setTaskFilterStatus(st)}
+                      className={`px-2.5 py-1 rounded-lg capitalize font-bold transition-all cursor-pointer text-[11px] ${
+                        taskFilterStatus === st
+                          ? 'bg-indigo-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {st.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {filteredTasks.length === 0 ? (
-            <div className="p-16 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
-              <CheckCircle2 className="w-10 h-10 text-slate-600 mx-auto" />
-              <div className="font-bold text-slate-300 text-base">No tasks found</div>
-              <p className="text-xs text-slate-500">You are all caught up on tasks in this category!</p>
+          {/* Floating Celebration & Unlock Announcement Toast */}
+          {unlockCelebration && (
+            <div className={`p-4 rounded-2xl border shadow-2xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 relative overflow-hidden ${
+              unlockCelebration.type === 'unlocked'
+                ? 'bg-gradient-to-r from-slate-900 via-indigo-950/80 to-purple-950/60 border-indigo-500/50 text-white'
+                : 'bg-gradient-to-r from-slate-900 via-emerald-950/80 to-teal-950/60 border-emerald-500/50 text-white'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
+                  unlockCelebration.type === 'unlocked'
+                    ? 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-indigo-600/40 ring-2 ring-indigo-400/30'
+                    : 'bg-gradient-to-tr from-emerald-600 to-teal-600 text-white shadow-emerald-600/40 ring-2 ring-emerald-400/30'
+                }`}>
+                  {unlockCelebration.type === 'unlocked' ? (
+                    <Unlock className="w-5 h-5 text-amber-300 animate-bounce" />
+                  ) : (
+                    <Radio className="w-5 h-5 text-emerald-300 animate-pulse" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-[11px] font-mono uppercase tracking-wider font-extrabold text-amber-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    {unlockCelebration.type === 'unlocked' ? '🔓 Next Directive Unlocked & Ready!' : '📡 Mission Queue Clear'}
+                  </div>
+                  <div className="text-sm font-black text-white">
+                    {unlockCelebration.type === 'unlocked' ? (
+                      <span>{unlockCelebration.taskTitle} <strong className="text-amber-300 font-mono text-xs">(+{unlockCelebration.stars} ⭐, +{unlockCelebration.points} 🎖️)</strong></span>
+                    ) : (
+                      <span>All current directives completed! Standing by for next assignment.</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setUnlockCelebration(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredTasks.map((t) => {
-                const isPending = t.status === 'pending';
-                const isSubmitted = t.status === 'submitted';
-                const isApproved = t.status === 'approved';
-                const isRevision = t.status === 'revision_requested';
+          )}
 
-                return (
-                  <div
-                    key={t.id}
-                    className={`bg-slate-900 border rounded-3xl p-6 space-y-4 shadow-xl transition-all flex flex-col justify-between ${
-                      isApproved
-                        ? 'border-emerald-500/30'
-                        : isRevision
-                        ? 'border-rose-500/40'
-                        : isSubmitted
-                        ? 'border-amber-500/30'
-                        : 'border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="space-y-3">
-                      {/* Bounties & Priority */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1 font-mono">
-                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                            +{t.starsReward} Stars
-                          </span>
-                          <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center gap-1 font-mono">
-                            <TrendingUp className="w-3.5 h-3.5" />
-                            +{t.pointsReward} Pts
-                          </span>
-                        </div>
+          {/* ───────────────────────────────────────────────────────────── */}
+          {/* MODE A: SEQUENTIAL UNLOCK PROGRESSION (ANIMATED FLOW)        */}
+          {/* ───────────────────────────────────────────────────────────── */}
+          {sequentialMode ? (
+            <div className="space-y-6">
+              {/* Overall Progress Meter */}
+              {sequentialData.totalCount > 0 && (
+                <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-purple-400" />
+                      Sequential Directive Progress
+                    </span>
+                    <span className="font-mono text-slate-400">
+                      <strong className="text-emerald-400">{sequentialData.completedCount}</strong> of{' '}
+                      <strong className="text-white">{sequentialData.totalCount}</strong> Completed (
+                      {Math.round((sequentialData.completedCount / Math.max(1, sequentialData.totalCount)) * 100)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800">
+                    <div
+                      className="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-2.5 rounded-full transition-all duration-500 shadow-md shadow-indigo-500/50"
+                      style={{
+                        width: `${Math.round((sequentialData.completedCount / Math.max(1, sequentialData.totalCount)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                          isApproved
-                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                            : isSubmitted
-                            ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                            : isRevision
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
-                            : 'bg-slate-800 text-slate-300'
-                        }`}>
-                          {t.status.replace('_', ' ')}
-                        </span>
-                      </div>
+              {/* IF ALL COMPLETED OR NO TASKS -> WAITING FOR ASSIGNMENT COCKPIT */}
+              {sequentialData.isAllCompleted || sequentialData.totalCount === 0 ? (
+                <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-indigo-950/40 border border-slate-800 rounded-3xl p-10 md:p-14 text-center space-y-6 shadow-2xl">
+                  {/* Subtle Background Glow */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-500/10 blur-3xl rounded-full pointer-events-none" />
 
-                      <h3 className="font-extrabold text-base text-slate-100">{t.title}</h3>
-                      <p className="text-xs text-slate-300 leading-relaxed">{t.description}</p>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                        <span>Deadline: <strong className="text-slate-200">{t.deadline}</strong></span>
-                        <span>Assigned by: <strong className="text-slate-300">{t.assignedByAdminName}</strong></span>
-                      </div>
-
-                      {/* Notes / Proof info */}
-                      {t.submissionNotes && (
-                        <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1 text-xs">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Your Submission:</span>
-                          <p className="text-slate-300">{t.submissionNotes}</p>
-                          {t.submissionProofUrl && (
-                            <a
-                              href={t.submissionProofUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-indigo-400 hover:text-indigo-300 text-[11px] inline-flex items-center gap-1 font-semibold mt-1"
-                            >
-                              <ExternalLink className="w-3 h-3" /> View Submitted Proof Link
-                            </a>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Admin remarks */}
-                      {t.adminRemarks && (
-                        <div className={`p-3 rounded-2xl border text-xs space-y-0.5 ${
-                          isApproved
-                            ? 'bg-emerald-950/30 border-emerald-500/20 text-emerald-300'
-                            : 'bg-rose-950/30 border-rose-500/30 text-rose-300'
-                        }`}>
-                          <strong className="text-[10px] uppercase font-bold tracking-wider block">Admin Feedback:</strong>
-                          <p>{t.adminRemarks}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action button */}
-                    <div className="pt-4 border-t border-slate-800/80">
-                      {isPending || isRevision ? (
-                        <button
-                          onClick={() => {
-                            setShowTaskSubmitModal(t);
-                            setSubmissionNotes(t.submissionNotes || '');
-                            setSubmissionProofUrl(t.submissionProofUrl || '');
-                          }}
-                          className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/20"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          {isRevision ? 'Submit Revised Work' : 'Submit Task Proof & Notes'}
-                        </button>
-                      ) : isSubmitted ? (
-                        <div className="text-center text-xs text-amber-400/90 font-medium py-1">
-                          ⏳ Waiting for Admin review & Star/Point allocation
-                        </div>
-                      ) : (
-                        <div className="text-center text-xs text-emerald-400 font-bold py-1 flex items-center justify-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4" />
-                          +{t.awardedStars || t.starsReward} Stars & +{t.awardedPoints || t.pointsReward} Points Awarded!
-                        </div>
-                      )}
+                  {/* Sonar Radar Pulse Beacon */}
+                  <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+                    <span className="absolute inset-0 rounded-full bg-indigo-500/25 animate-sonar-ping pointer-events-none" />
+                    <span className="absolute inset-2 rounded-full bg-purple-500/30 animate-ping pointer-events-none" />
+                    <div className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 border border-indigo-300/40 flex items-center justify-center shadow-2xl shadow-indigo-600/50 z-10">
+                      <Radio className="w-9 h-9 text-white animate-pulse" />
                     </div>
                   </div>
-                );
-              })}
+
+                  <div className="space-y-2 max-w-lg mx-auto relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>{sequentialData.totalCount === 0 ? 'Desk Ready · Awaiting Directives' : 'All Objectives Completed ✓'}</span>
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                      Waiting for Assignment
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {sequentialData.totalCount === 0
+                        ? 'You currently have no tasks assigned to your PR intern profile. PR Mission Control will allocate your outreach directives shortly.'
+                        : 'Outstanding performance! You have finished every assigned PR directive in your queue. The system is actively waiting for Academic Operations to assign your next mission.'}
+                    </p>
+                  </div>
+
+                  {/* Live Radar Listening Indicator */}
+                  <div className="p-3 max-w-md mx-auto rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-center gap-2.5 text-xs text-slate-400 font-mono relative z-10">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+                    <span>Real-time channel active · Listening for Admin assignments</span>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2 relative z-10">
+                    <button
+                      type="button"
+                      onClick={handleCreateDemoTask}
+                      className="px-6 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 text-white font-black text-xs rounded-2xl shadow-xl shadow-indigo-600/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>Simulate New Assignment (Test Unlock Flow)</span>
+                    </button>
+                    {sequentialData.completedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSequentialMode(false)}
+                        className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-2xl border border-slate-700/60 transition-all cursor-pointer"
+                      >
+                        <span>📜 Review Completed Directives ({sequentialData.completedCount})</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* SEQUENTIAL TASK LIST */
+                <div className="space-y-4">
+                  {sequentialData.sorted.map((t, idx) => {
+                    const status = sequentialData.statuses[t.id];
+                    const isCompleted = status === 'completed';
+                    const isActive = status === 'active';
+                    const isLocked = status === 'locked';
+                    const isNewlyUnlocked = recentlyUnlockedTaskId === t.id;
+                    const isRecentlyCelebrated = recentlyCompletedTaskId === t.id;
+                    const isShaking = shakingTaskId === t.id;
+
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => isLocked && handleLockedTaskClick(t.id)}
+                        className={`rounded-3xl p-6 transition-all duration-300 relative border flex flex-col justify-between ${
+                          isShaking ? 'animate-lock-shake' : ''
+                        } ${
+                          isRecentlyCelebrated ? 'animate-complete-celebration border-emerald-400 shadow-2xl shadow-emerald-500/20' : ''
+                        } ${
+                          isNewlyUnlocked
+                            ? 'animate-unlock-flash ring-4 ring-indigo-500/40 border-amber-400 shadow-2xl shadow-indigo-600/30'
+                            : ''
+                        } ${
+                          isActive
+                            ? 'bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border-indigo-500/60 ring-2 ring-indigo-500/20 shadow-xl'
+                            : isCompleted
+                            ? 'bg-slate-900/80 border-emerald-500/30'
+                            : 'bg-slate-950/60 border-slate-800/80 opacity-75 cursor-pointer hover:border-slate-700'
+                        }`}
+                      >
+                        {/* Newly Unlocked Banner Overlay */}
+                        {isNewlyUnlocked && (
+                          <div className="absolute -top-3.5 left-6 z-20 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-amber-500/30 animate-bounce">
+                            <Sparkles className="w-3 h-3 text-slate-950" />
+                            Next Directive Unlocked!
+                          </div>
+                        )}
+
+                        <div className="space-y-3.5">
+                          {/* Header: Stage Badge, Bounties, Status */}
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              {/* Stage Number Pill */}
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${
+                                isActive
+                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                  : isCompleted
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}>
+                                Stage {idx + 1}
+                              </span>
+
+                              {/* Bounty Pill */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                  +{t.starsReward} Stars
+                                </span>
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-purple-500/15 border border-purple-500/30 text-purple-300 flex items-center gap-1">
+                                  <TrendingUp className="w-3 h-3" />
+                                  +{t.pointsReward} Pts
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Status State Badge */}
+                            <div>
+                              {isCompleted ? (
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Completed & Verified ✓
+                                </span>
+                              ) : isActive ? (
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 animate-pulse">
+                                  <Flame className="w-3.5 h-3.5 text-amber-400" /> Active Objective
+                                </span>
+                              ) : (
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-800/80 text-slate-400 border border-slate-700 flex items-center gap-1">
+                                  <Lock className="w-3.5 h-3.5 text-slate-500" /> Locked Directive
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Directive Title & Description */}
+                          <div>
+                            <h3 className={`text-base font-extrabold tracking-tight ${
+                              isActive ? 'text-white' : isCompleted ? 'text-slate-200' : 'text-slate-400'
+                            }`}>
+                              {t.title}
+                            </h3>
+                            <p className={`text-xs mt-1 leading-relaxed ${
+                              isActive ? 'text-slate-300' : isCompleted ? 'text-slate-400' : 'text-slate-500'
+                            }`}>
+                              {t.description}
+                            </p>
+                          </div>
+
+                          {/* Metadata Details */}
+                          <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-1">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              Deadline: <strong className={isActive ? 'text-amber-300' : 'text-slate-300'}>{t.deadline}</strong>
+                            </span>
+                            <span>Assigned by: <strong className="text-slate-300">{t.assignedByAdminName || 'AEW Mission Control'}</strong></span>
+                          </div>
+
+                          {/* Locked Notice Banner */}
+                          {isLocked && (
+                            <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800/80 flex items-center justify-between gap-2 text-xs text-slate-400">
+                              <span className="flex items-center gap-2">
+                                <Lock className="w-4 h-4 text-slate-500 shrink-0" />
+                                <span>Locked Directive · Complete <strong>Stage {idx}</strong> above to unlock.</span>
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">Sequential Mode</span>
+                            </div>
+                          )}
+
+                          {/* Completed Submissions / Proof Preview */}
+                          {t.submissionNotes && (
+                            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-1 text-xs">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Submission Notes:</span>
+                              <p className="text-slate-300">{t.submissionNotes}</p>
+                              {t.submissionProofUrl && (
+                                <a
+                                  href={t.submissionProofUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-indigo-400 hover:text-indigo-300 text-[11px] inline-flex items-center gap-1 font-semibold mt-1"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> View Submitted Proof Link
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Footer on Active Card */}
+                        {isActive && (
+                          <div className="pt-4 mt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowTaskSubmitModal(t);
+                                setSubmissionNotes(t.submissionNotes || '');
+                                setSubmissionProofUrl(t.submissionProofUrl || '');
+                              }}
+                              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-700/80 shadow"
+                            >
+                              <Send className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>Submit Proof & Notes</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCompleteTask(t)}
+                              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 text-white font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95"
+                            >
+                              <Sparkles className="w-4 h-4 text-amber-300" />
+                              <span>Complete & Unlock Next Task</span>
+                              <ArrowRight className="w-3.5 h-3.5 text-amber-300" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+          ) : (
+            /* ───────────────────────────────────────────────────────────── */
+            /* MODE B: STANDARD GRID VIEW                                   */
+            /* ───────────────────────────────────────────────────────────── */
+            filteredTasks.length === 0 ? (
+              <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-indigo-950/40 border border-slate-800 rounded-3xl p-10 md:p-14 text-center space-y-6 shadow-2xl">
+                <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                  <span className="absolute inset-0 rounded-full bg-indigo-500/20 animate-sonar-ping pointer-events-none" />
+                  <div className="relative w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-600/40">
+                    <Radio className="w-8 h-8 text-white animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-1.5 max-w-md mx-auto">
+                  <h3 className="text-xl font-bold text-white">Waiting for Assignment</h3>
+                  <p className="text-xs text-slate-400">
+                    No tasks currently found in this category. System is listening for new admin assignments.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateDemoTask}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all"
+                >
+                  + Add Test Directive
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredTasks.map((t) => {
+                  const isPending = t.status === 'pending';
+                  const isSubmitted = t.status === 'submitted';
+                  const isApproved = t.status === 'approved' || t.status === 'completed';
+                  const isRevision = t.status === 'revision_requested';
+
+                  return (
+                    <div
+                      key={t.id}
+                      className={`bg-slate-900 border rounded-3xl p-6 space-y-4 shadow-xl transition-all flex flex-col justify-between ${
+                        isApproved
+                          ? 'border-emerald-500/30'
+                          : isRevision
+                          ? 'border-rose-500/40'
+                          : isSubmitted
+                          ? 'border-amber-500/30'
+                          : 'border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1 font-mono">
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                              +{t.starsReward} Stars
+                            </span>
+                            <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center gap-1 font-mono">
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              +{t.pointsReward} Pts
+                            </span>
+                          </div>
+
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                            isApproved
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : isSubmitted
+                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              : isRevision
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                              : 'bg-slate-800 text-slate-300'
+                          }`}>
+                            {t.status.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        <h3 className="font-extrabold text-base text-slate-100">{t.title}</h3>
+                        <p className="text-xs text-slate-300 leading-relaxed">{t.description}</p>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                          <span>Deadline: <strong className="text-slate-200">{t.deadline}</strong></span>
+                          <span>Assigned by: <strong className="text-slate-300">{t.assignedByAdminName}</strong></span>
+                        </div>
+
+                        {t.submissionNotes && (
+                          <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1 text-xs">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Your Submission:</span>
+                            <p className="text-slate-300">{t.submissionNotes}</p>
+                            {t.submissionProofUrl && (
+                              <a
+                                href={t.submissionProofUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-400 hover:text-indigo-300 text-[11px] inline-flex items-center gap-1 font-semibold mt-1"
+                              >
+                                <ExternalLink className="w-3 h-3" /> View Submitted Proof Link
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row gap-2">
+                        {isPending || isRevision ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                setShowTaskSubmitModal(t);
+                                setSubmissionNotes(t.submissionNotes || '');
+                                setSubmissionProofUrl(t.submissionProofUrl || '');
+                              }}
+                              className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700/60"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Submit Proof</span>
+                            </button>
+                            <button
+                              onClick={() => handleCompleteTask(t)}
+                              className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/30"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                              <span>Complete & Unlock Next ✨</span>
+                            </button>
+                          </>
+                        ) : isSubmitted ? (
+                          <div className="w-full text-center text-xs text-amber-400/90 font-medium py-1">
+                            ⏳ Waiting for Admin review & Star/Point allocation
+                          </div>
+                        ) : (
+                          <div className="w-full text-center text-xs text-emerald-400 font-bold py-1 flex items-center justify-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4" />
+                            +{t.awardedStars || t.starsReward} Stars & +{t.awardedPoints || t.pointsReward} Points Awarded!
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
       )}
@@ -1495,31 +2087,50 @@ Portal URL: ${window.location.origin}`;
         </div>
       )}
       {showTaskSubmitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-in fade-in">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3 gap-3">
               <div>
-                <h3 className="font-bold text-base text-slate-100">Submit Task for Admin Review</h3>
-                <p className="text-xs text-slate-400">{showTaskSubmitModal.title}</p>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    PR Directive
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Deadline: {showTaskSubmitModal.deadline}
+                  </span>
+                </div>
+                <h3 className="font-extrabold text-base text-slate-100 mt-1">{showTaskSubmitModal.title}</h3>
+                <p className="text-xs text-slate-400 line-clamp-2 mt-0.5">{showTaskSubmitModal.description}</p>
               </div>
-              <button onClick={() => setShowTaskSubmitModal(null)} className="text-slate-400 hover:text-white text-lg">✕</button>
+              <button
+                type="button"
+                onClick={() => setShowTaskSubmitModal(null)}
+                className="text-slate-400 hover:text-white text-lg p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
-              <Star className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
-              <span>Reward Upon Approval: <strong>+{showTaskSubmitModal.starsReward} Stars ⭐</strong> and <strong>+{showTaskSubmitModal.pointsReward} Points 🎖️</strong></span>
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-indigo-500/10 border border-amber-500/25 text-xs text-amber-300 flex items-center justify-between gap-2 shadow-inner">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
+                <span>Rewards: <strong>+{showTaskSubmitModal.starsReward} Stars ⭐</strong> & <strong>+{showTaskSubmitModal.pointsReward} Points 🎖️</strong></span>
+              </div>
+              <span className="text-[10px] font-mono font-bold bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/30">
+                On Approval / Completion
+              </span>
             </div>
 
             <form onSubmit={handleSubmitTask} className="space-y-4 text-xs">
               <div className="space-y-1.5">
                 <label className="block text-slate-300 font-semibold">Summary of Work Accomplished *</label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   required
                   placeholder="Detail the actions taken, meetings conducted, colleges reached, or deliverables finalized..."
                   value={submissionNotes}
                   onChange={(e) => setSubmissionNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 leading-relaxed"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 leading-relaxed placeholder:text-slate-600"
                 />
               </div>
 
@@ -1527,27 +2138,40 @@ Portal URL: ${window.location.origin}`;
                 <label className="block text-slate-300 font-semibold">Proof Link (Google Drive / Docs / Spreadsheet / Social Post)</label>
                 <input
                   type="url"
-                  placeholder="https://drive.google.com/..."
+                  placeholder="https://drive.google.com/... or https://linkedin.com/..."
                   value={submissionProofUrl}
                   onChange={(e) => setSubmissionProofUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs placeholder:text-slate-600"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3">
+              {/* Action Buttons: Both Options (Submit for Review & Complete and Unlock Next) */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowTaskSubmitModal(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
                   disabled={isSubmittingTask}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
-                  {isSubmittingTask ? 'Submitting…' : 'Submit for Admin Review'}
+                  <Send className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Submit for Review</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSubmittingTask}
+                  onClick={() => handleCompleteTask(showTaskSubmitModal, submissionNotes, submissionProofUrl)}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>Complete & Unlock Next ✨</span>
                 </button>
               </div>
             </form>

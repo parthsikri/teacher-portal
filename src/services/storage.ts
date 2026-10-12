@@ -3628,6 +3628,14 @@ export const StorageService = {
     return 'Silver';
   },
 
+  getPrTierAfterRewards(currentTier: PrTier = 'Silver', points: number = 0, stars: number = 0): PrTier {
+    const earnedTier = this.calculateTierFromPointsAndStars(points, stars);
+    const tierRank: Record<PrTier, number> = { Silver: 0, Gold: 1, Premium: 2 };
+    // Rewards may promote an intern, but must never silently remove an admin-set tier
+    // (notably the Premium tier assigned to PR Heads).
+    return tierRank[earnedTier] > tierRank[currentTier] ? earnedTier : currentTier;
+  },
+
   // ─── PR TASKS ───────────────────────────────────────────────────────────────
 
   getPrTasks(): PrTask[] {
@@ -3643,6 +3651,7 @@ export const StorageService = {
 
   savePrTasks(tasks: PrTask[]): void {
     localStorage.setItem(PR_TASKS_KEY, JSON.stringify(tasks));
+    window.dispatchEvent(new CustomEvent('aew_pr_tasks_updated'));
     triggerBackgroundCloudSync();
   },
 
@@ -3663,6 +3672,7 @@ export const StorageService = {
     const tasks = this.getPrTasks();
     const idx = tasks.findIndex((t) => t.id === taskId);
     if (idx === -1) return null;
+    if (tasks[idx].status === 'approved' || tasks[idx].status === 'completed') return null;
 
     tasks[idx] = {
       ...tasks[idx],
@@ -3670,32 +3680,39 @@ export const StorageService = {
       submissionNotes: submissionNotes.trim(),
       submissionProofUrl: proofUrl?.trim(),
       submittedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     this.savePrTasks(tasks);
     return tasks[idx];
   },
 
-  approvePrTask(
+  completePrTask(
     taskId: string,
+    submissionNotes?: string,
+    proofUrl?: string,
     awardedPoints?: number,
-    awardedStars?: number,
-    remarks?: string
+    awardedStars?: number
   ): { task: PrTask; intern: User | null; promoted: boolean } | null {
     const tasks = this.getPrTasks();
     const idx = tasks.findIndex((t) => t.id === taskId);
     if (idx === -1) return null;
 
     const task = tasks[idx];
+    if (task.status === 'approved' || task.status === 'completed') return null;
+
     const finalPoints = awardedPoints !== undefined ? awardedPoints : task.pointsReward;
     const finalStars = awardedStars !== undefined ? awardedStars : task.starsReward;
 
     tasks[idx] = {
       ...task,
       status: 'approved',
+      submissionNotes: (submissionNotes || task.submissionNotes || 'Task completed and deliverable verified.').trim(),
+      submissionProofUrl: proofUrl !== undefined ? proofUrl.trim() : task.submissionProofUrl,
       awardedPoints: finalPoints,
       awardedStars: finalStars,
-      adminRemarks: remarks?.trim() || 'Task approved and verified by Academic Operations Admin.',
+      adminRemarks: 'Task verified & completed.',
       reviewedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     this.savePrTasks(tasks);
 
@@ -3709,7 +3726,7 @@ export const StorageService = {
       const prev = users[internIdx];
       const newPoints = (prev.prPoints || 0) + finalPoints;
       const newStars = (prev.prStars || 0) + finalStars;
-      const newTier = this.calculateTierFromPointsAndStars(newPoints, newStars);
+      const newTier = this.getPrTierAfterRewards(prev.prTier || 'Silver', newPoints, newStars);
       promoted = prev.prTier !== newTier && (newTier === 'Gold' || newTier === 'Premium');
 
       users[internIdx] = {
@@ -3728,6 +3745,70 @@ export const StorageService = {
       }
     }
 
+    window.dispatchEvent(new CustomEvent('aew_pr_tasks_updated'));
+    window.dispatchEvent(new CustomEvent('aew_users_updated'));
+
+    return { task: tasks[idx], intern: updatedIntern, promoted };
+  },
+
+  approvePrTask(
+    taskId: string,
+    awardedPoints?: number,
+    awardedStars?: number,
+    remarks?: string
+  ): { task: PrTask; intern: User | null; promoted: boolean } | null {
+    const tasks = this.getPrTasks();
+    const idx = tasks.findIndex((t) => t.id === taskId);
+    if (idx === -1) return null;
+
+    const task = tasks[idx];
+    if (task.status === 'approved' || task.status === 'completed') return null;
+    const finalPoints = awardedPoints !== undefined ? awardedPoints : task.pointsReward;
+    const finalStars = awardedStars !== undefined ? awardedStars : task.starsReward;
+
+    tasks[idx] = {
+      ...task,
+      status: 'approved',
+      awardedPoints: finalPoints,
+      awardedStars: finalStars,
+      adminRemarks: remarks?.trim() || 'Task approved and verified by Academic Operations Admin.',
+      reviewedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.savePrTasks(tasks);
+
+    // Update Intern's cumulative points, stars, and evaluate tier promotion
+    const users = this.getUsers();
+    const internIdx = users.findIndex((u) => u.teacherId.toUpperCase() === task.assignedToInternId.toUpperCase());
+    let promoted = false;
+    let updatedIntern: User | null = null;
+
+    if (internIdx !== -1) {
+      const prev = users[internIdx];
+      const newPoints = (prev.prPoints || 0) + finalPoints;
+      const newStars = (prev.prStars || 0) + finalStars;
+      const newTier = this.getPrTierAfterRewards(prev.prTier || 'Silver', newPoints, newStars);
+      promoted = prev.prTier !== newTier && (newTier === 'Gold' || newTier === 'Premium');
+
+      users[internIdx] = {
+        ...prev,
+        prPoints: newPoints,
+        prStars: newStars,
+        prTier: newTier,
+      };
+      this.saveUsers(users);
+      updatedIntern = users[internIdx];
+
+      // Update current session if the logged in user is this intern
+      const current = this.getCurrentUser();
+      if (current && current.teacherId.toUpperCase() === prev.teacherId.toUpperCase()) {
+        this.setCurrentUser(users[internIdx]);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('aew_pr_tasks_updated'));
+    window.dispatchEvent(new CustomEvent('aew_users_updated'));
+
     return { task: tasks[idx], intern: updatedIntern, promoted };
   },
 
@@ -3735,6 +3816,7 @@ export const StorageService = {
     const tasks = this.getPrTasks();
     const idx = tasks.findIndex((t) => t.id === taskId);
     if (idx === -1) return null;
+    if (tasks[idx].status !== 'submitted') return null;
 
     tasks[idx] = {
       ...tasks[idx],
@@ -3804,30 +3886,40 @@ export const StorageService = {
 
     const lead = leads[idx];
     const isClosing = stage === 'closed_won';
-    const finalAmount = isClosing ? (closedAmount || lead.expectedSponsorshipAmount) : lead.closedAmount;
+    const finalAmount = isClosing ? (closedAmount ?? lead.expectedSponsorshipAmount) : undefined;
 
-    // Determine commission using intern's current tier and custom settings
+    // Lock a won lead to its original tier/rate. Later promotions must not rewrite
+    // an already-earned commission when the amount or stage is edited.
     const intern = this.getUsers().find((u) => u.teacherId.toUpperCase() === lead.internId.toUpperCase());
-    const tier: PrTier = intern?.prTier || lead.internTierAtClosure || 'Silver';
-    const rate = this.getTierCommissionRate(tier, intern);
-    const commission = isClosing && finalAmount ? Math.round((finalAmount * rate) / 100) : lead.commissionEarned;
+    const tier: PrTier = lead.stage === 'closed_won'
+      ? (lead.internTierAtClosure || intern?.prTier || 'Silver')
+      : (intern?.prTier || 'Silver');
+    const rate = lead.stage === 'closed_won' && typeof lead.commissionRate === 'number'
+      ? lead.commissionRate
+      : this.getTierCommissionRate(tier, intern);
+    const commission = isClosing && finalAmount !== undefined ? Math.round((finalAmount * rate) / 100) : undefined;
 
     leads[idx] = {
       ...lead,
       stage,
       closedAmount: finalAmount,
-      internTierAtClosure: tier,
-      commissionRate: rate,
+      internTierAtClosure: isClosing ? tier : undefined,
+      commissionRate: isClosing ? rate : undefined,
       commissionEarned: commission,
       updatedAt: new Date().toISOString(),
     };
     this.savePrLeads(leads);
 
-    // If closed won, credit intern's lifetime revenue and earnings
-    if (isClosing && intern && finalAmount && commission) {
+    // Apply only the difference from a previously credited close. This keeps a
+    // repeated save, amount correction, or reopening of a lead financially idempotent.
+    const priorRevenue = lead.stage === 'closed_won' ? (lead.closedAmount ?? lead.expectedSponsorshipAmount) : 0;
+    const priorCommission = lead.stage === 'closed_won' ? (lead.commissionEarned || 0) : 0;
+    const nextRevenue = isClosing ? (finalAmount || 0) : 0;
+    const nextCommission = isClosing ? (commission || 0) : 0;
+    if (intern && (nextRevenue !== priorRevenue || nextCommission !== priorCommission)) {
       this.updateUser(intern.id, {
-        totalSponsorshipRevenue: (intern.totalSponsorshipRevenue || 0) + finalAmount,
-        totalCommissionEarned: (intern.totalCommissionEarned || 0) + commission,
+        totalSponsorshipRevenue: Math.max(0, (intern.totalSponsorshipRevenue || 0) + nextRevenue - priorRevenue),
+        totalCommissionEarned: Math.max(0, (intern.totalCommissionEarned || 0) + nextCommission - priorCommission),
       });
     }
 
