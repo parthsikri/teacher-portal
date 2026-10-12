@@ -5,7 +5,7 @@ import { WebDevService } from '../services/webDevService';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
-  Award, CheckCircle2, DollarSign, Star, TrendingUp, Building2, FileText,
+  Award, CheckCircle2, DollarSign, Star, TrendingUp, FileText,
   Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, FileCheck, Key, Lock
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
@@ -124,21 +124,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // PR Intern Navigation Links
   const prNavItems = [
-    { id: 'pr_dashboard', label: 'Mission Control & Tier', icon: Award },
-    ...(currentUser.role === 'pr_head'
-      ? [{ id: 'pr_team', label: 'PR Team & Ambassadors', icon: Users }]
-      : []),
+    { id: 'pr_dashboard', label: 'Overview', icon: Award },
     { 
       id: 'pr_tasks', 
-      label: 'Assigned Tasks', 
+      label: 'Tasks & XP', 
       icon: CheckCircle2,
       badge: prPendingTasksCount > 0 ? `${prPendingTasksCount} New` : undefined,
       badgeColor: 'bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30 font-mono',
     },
-    { id: 'pr_leads', label: 'Sponsorship Leads', icon: DollarSign },
-    { id: 'pr_mou_maker', label: 'MoU Maker & Legal', icon: FileText },
-    { id: 'pr_colleges', label: 'Campus Network', icon: Building2 },
-    { id: 'pr_earnings', label: 'Commission Ledger', icon: TrendingUp },
+    { id: 'pr_leads', label: 'Leads Pipeline', icon: DollarSign },
+    { id: 'pr_mou_maker', label: 'MoU Agreements', icon: FileText },
+    { id: 'pr_earnings', label: 'My Earnings', icon: TrendingUp },
+    ...(currentUser.role === 'pr_head'
+      ? [{ id: 'pr_team', label: 'PR Team Roster', icon: Users }]
+      : []),
   ];
 
   // Teacher Navigation Links

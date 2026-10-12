@@ -1,17 +1,39 @@
-import React, { useState, useMemo } from 'react';
-import type { User, PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage, PrTaskCategory, PrTaskPriority } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import type {
+  User,
+  PrTask,
+  PrLead,
+  PrMouRequest,
+  PrTier,
+  PrLeadStage
+} from '../../types';
 import { StorageService } from '../../services/storage';
 import {
-  Award, Star, DollarSign, TrendingUp, FileText, CheckCircle2,
-  Send, Plus, Building2, Phone, Mail,
-  ExternalLink, Copy, Check, Printer, ShieldCheck, ChevronRight,
-  Search, ArrowUpRight, Sparkles, HelpCircle, Briefcase,
-  Users, UserPlus, Loader2, RefreshCw, Crown, X, Trash2,
-  Lock, Unlock, Radio, Zap, Flame, ArrowRight, Clock
+  Star,
+  DollarSign,
+  TrendingUp,
+  FileText,
+  CheckCircle2,
+  Send,
+  Plus,
+  Phone,
+  Mail,
+  ExternalLink,
+  Check,
+  Printer,
+  Search,
+  Sparkles,
+  Briefcase,
+  Users,
+  Crown,
+  X,
+  Trash2,
+  Calendar,
+  MessageCircle,
+  Clock,
+  CheckCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { notificationService } from '../../services/notificationService';
-import { PrPathwayView } from './PrPathwayView';
 
 interface PrInternViewProps {
   intern: User;
@@ -30,17 +52,24 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const [tasks, setTasks] = useState<PrTask[]>(() => StorageService.getPrTasks());
   const [leads, setLeads] = useState<PrLead[]>(() => StorageService.getPrLeads());
   const [mous, setMous] = useState<PrMouRequest[]>(() => StorageService.getPrMous());
-  const [colleges, setColleges] = useState<PrCollege[]>(() => StorageService.getPrColleges());
   const [currentUser, setCurrentUser] = useState<User>(() => StorageService.getCurrentUser() || intern);
-  const [dashboardMode, setDashboardMode] = useState<'pathway' | 'cockpit'>('pathway');
+  const [allUsers, setAllUsers] = useState<User[]>(() => StorageService.getUsers());
 
-  // Modals & form state
+  // Task Filters & Submission Modal
+  const [taskFilter, setTaskFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [showTaskSubmitModal, setShowTaskSubmitModal] = useState<PrTask | null>(null);
   const [submissionNotes, setSubmissionNotes] = useState('');
   const [submissionProofUrl, setSubmissionProofUrl] = useState('');
   const [isSubmittingTask, setIsSubmittingTask] = useState(false);
 
+  // Lead Filters & Add Lead Modal
+  const [leadFilterStage, setLeadFilterStage] = useState<string>('all');
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [editingLeadNotesId, setEditingLeadNotesId] = useState<string | null>(null);
+  const [editingNotesText, setEditingNotesText] = useState('');
+
+  // Add Lead Form State
   const [leadOrgName, setLeadOrgName] = useState('');
   const [leadContactPerson, setLeadContactPerson] = useState('');
   const [leadDesignation, setLeadDesignation] = useState('');
@@ -50,77 +79,36 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const [leadExpectedAmount, setLeadExpectedAmount] = useState<number>(50000);
   const [leadNotes, setLeadNotes] = useState('');
 
+  // MoU Generator Modal State
   const [showMouModal, setShowMouModal] = useState(false);
   const [selectedPreviewMou, setSelectedPreviewMou] = useState<PrMouRequest | null>(null);
   const [mouPartnerOrg, setMouPartnerOrg] = useState('');
   const [mouSignatory, setMouSignatory] = useState('');
   const [mouDesignation, setMouDesignation] = useState('');
-  const [mouAddress, setMouAddress] = useState('');
-  const [mouPurpose, setMouPurpose] = useState('Official Corporate Event Sponsorship for AEW National Hackathon & Student Tech Summit 2026');
-  const [mouSponsorshipAmount, setMouSponsorshipAmount] = useState<number>(100000);
-  const [mouStartDate, setMouStartDate] = useState('2026-09-20');
-  const [mouEndDate, setMouEndDate] = useState('2026-09-22');
+  const [mouAddress, setMouAddress] = useState('Campus Office / Event Desk');
+  const [mouPurpose, setMouPurpose] = useState('Official Sponsorship & Knowledge Partner Agreement');
+  const [mouSponsorshipAmount, setMouSponsorshipAmount] = useState<number>(50000);
+  const [mouStartDate, setMouStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [mouEndDate, setMouEndDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().split('T')[0];
+  });
   const [mouCustomTerms, setMouCustomTerms] = useState<string>([
-    'Second Party (Corporate Sponsor) commits the agreed sponsorship funds to First Party (Apna Engineering Wallah - AEW) towards the official Title / Powered-By sponsorship.',
-    'AEW shall feature Sponsor Company branding on all student portal banners, event stages, hackathon problem statements, and digital media.',
-    'AEW faculty & management shall allocate a dedicated 45-minute stage keynote & recruitment workshop slot to the Sponsor Company.',
-    'Sponsor Company engineering & talent teams shall receive verified resumes of the top 100 student hackathon finalists for campus recruitment.',
-    'Financial Disbursement: 50% advance upon MoU execution, 50% within 7 business days following conclusion of the event.'
+    'Second Party (Partner / Sponsor) commits to the agreed deliverables and partnership sponsorship terms.',
+    'Apna Engineering Wallah (AEW) shall provide official branding, stage presence, and student community outreach.',
+    'Both parties agree to collaborate in good faith for event execution and student career growth.'
   ].join('\n'));
 
-  // Quick WhatsApp pitch copied indicator
-  const [copiedPitchId, setCopiedPitchId] = useState<string | null>(null);
+  // Notification Toast State
+  const [toastMessage, setToastMessage] = useState<{ text: string; sub?: string } | null>(null);
 
-  // Filters & search
-  const [taskFilterStatus, setTaskFilterStatus] = useState<string>('all');
-  const [collegeSearch, setCollegeSearch] = useState('');
-  const [calculatorAmount, setCalculatorAmount] = useState<number>(100000);
-
-  // PR Team & Onboarding Modal state
-  const [allUsers, setAllUsers] = useState<User[]>(() => StorageService.getUsers());
-  const [showAddPrModal, setShowAddPrModal] = useState(false);
-  const [prMemberName, setPrMemberName] = useState('');
-  const [prMemberEmail, setPrMemberEmail] = useState('');
-  const [prMemberUsername, setPrMemberUsername] = useState('');
-  const [prMemberPassword, setPrMemberPassword] = useState('intern123');
-  const [prMemberRole, setPrMemberRole] = useState<'pr_intern' | 'pr_head'>('pr_intern');
-  const [prMemberTier, setPrMemberTier] = useState<PrTier>('Silver');
-  const [prMemberPhone, setPrMemberPhone] = useState('');
-  const [prMemberSubject, setPrMemberSubject] = useState('Campus Brand Ambassador');
-  const [createdPrUserSuccess, setCreatedPrUserSuccess] = useState<User | null>(null);
-  const [prCopiedSuccess, setPrCopiedSuccess] = useState(false);
-  const [prEmailSending, setPrEmailSending] = useState(false);
-  const [prCloudSyncStatus, setPrCloudSyncStatus] = useState<'syncing' | 'synced' | 'error' | null>(null);
-  const [prEmailDispatchResult, setPrEmailDispatchResult] = useState<{
-    success: boolean;
-    status: string;
-    error?: string;
-  } | null>(null);
-  const [isPrManualSyncing, setIsPrManualSyncing] = useState(false);
-  const [prManualSyncMsg, setPrManualSyncMsg] = useState<string | null>(null);
-
-  // PR Sequential Task Mode & Unlock States
-  const [sequentialMode, setSequentialMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('aew_pr_sequential_mode');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [recentlyCompletedTaskId, setRecentlyCompletedTaskId] = useState<string | null>(null);
-  const [recentlyUnlockedTaskId, setRecentlyUnlockedTaskId] = useState<string | null>(null);
-  const [shakingTaskId, setShakingTaskId] = useState<string | null>(null);
-  const [unlockCelebration, setUnlockCelebration] = useState<{
-    type: 'unlocked' | 'waiting_for_assignment';
-    taskTitle: string;
-    stars: number;
-    points: number;
-  } | null>(null);
-
-  // Re-sync on external trigger or storage updates
-  React.useEffect(() => {
+  // Re-sync listener
+  useEffect(() => {
     const handleSync = () => {
       setTasks(StorageService.getPrTasks());
       setLeads(StorageService.getPrLeads());
       setMous(StorageService.getPrMous());
-      setColleges(StorageService.getPrColleges());
       const freshUsers = StorageService.getUsers();
       setAllUsers(freshUsers);
       const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase());
@@ -140,358 +128,149 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
     };
   }, [refreshTrigger, intern.teacherId]);
 
-  const prMembers = useMemo(() => {
-    return allUsers.filter((u) => (u.role === 'pr_intern' || u.role === 'pr_head') && !u.isOffboarded);
-  }, [allUsers]);
-
-  const handlePrManualSync = async () => {
-    setIsPrManualSyncing(true);
-    setPrManualSyncMsg('Syncing...');
-    try {
-      const ok = await StorageService.syncToCloud();
-      if (ok) {
-        setPrManualSyncMsg('Synced to Cloud ✓');
-        setAllUsers(StorageService.getUsers());
-      } else {
-        setPrManualSyncMsg('Sync Failed');
-      }
-    } catch {
-      setPrManualSyncMsg('Sync Error');
-    } finally {
-      setIsPrManualSyncing(false);
-      setTimeout(() => setPrManualSyncMsg(null), 3000);
-    }
-  };
-
-  const handleSendPrWelcomeEmail = async (user: User, plainPassword?: string) => {
-    const targetEmail = (user.email || '').trim();
-    if (!targetEmail || !targetEmail.includes('@')) {
-      setPrEmailDispatchResult({
-        success: false,
-        status: 'failed',
-        error: 'No valid email address provided for this PR member profile.',
-      });
-      return;
-    }
-
-    setPrEmailSending(true);
-    try {
-      const res = await notificationService.notifyEmployeeWelcome({
-        employeeEmail: targetEmail,
-        employeeName: user.name,
-        employeeId: user.teacherId,
-        role: user.role,
-        department: user.department,
-        subject: user.subject,
-        username: user.username || user.teacherId.toLowerCase(),
-        password: plainPassword || user.password,
-        joiningDate: user.joiningDate,
-        prTier: user.prTier,
-      });
-      setPrEmailDispatchResult(res);
-    } catch (err: any) {
-      setPrEmailDispatchResult({
-        success: false,
-        status: 'failed',
-        error: err?.message || 'Error communicating with notification server',
-      });
-    } finally {
-      setPrEmailSending(false);
-    }
-  };
-
-  const handleAddPrMemberSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prMemberName.trim() || !prMemberEmail.trim()) {
-      alert('Please fill in Member Name and Work Email.');
-      return;
-    }
-
-    try {
-      const plainPassword = prMemberPassword.trim() || (prMemberRole === 'pr_head' ? 'head123' : 'intern123');
-      const cleanId = StorageService.getNextEmployeeId(prMemberRole);
-      const cleanUsername = (prMemberUsername.trim().toLowerCase() || cleanId.toLowerCase()).replace(/\s+/g, '_');
-
-      const created = StorageService.onboardEmployee({
-        teacherId: cleanId,
-        name: prMemberName.trim(),
-        username: cleanUsername,
-        password: plainPassword,
-        email: prMemberEmail.trim(),
-        phone: prMemberPhone.trim() || undefined,
-        role: prMemberRole,
-        department: prMemberRole === 'pr_head' ? 'Public Relations & Strategic Partnerships' : 'Public Relations & Sponsorship',
-        subject: prMemberSubject.trim() || (prMemberRole === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' : 'Campus Brand Ambassador'),
-        prTier: prMemberRole === 'pr_head' ? 'Premium' : prMemberTier,
-        prPoints: 0,
-        prStars: 0,
-        totalSponsorshipRevenue: 0,
-        totalCommissionEarned: 0,
-      });
-
-      setCreatedPrUserSuccess(created);
-      setAllUsers(StorageService.getUsers());
-
-      try {
-        confetti({ particleCount: 60, spread: 70 });
-      } catch {
-        // ignore
-      }
-
-      setPrMemberName('');
-      setPrMemberEmail('');
-      setPrMemberUsername('');
-      setPrMemberPassword('intern123');
-      setPrMemberPhone('');
-      setPrMemberSubject('Campus Brand Ambassador');
-
-      // Dispatch welcome email
-      handleSendPrWelcomeEmail(created, plainPassword);
-
-      // Cloud Sync
-      setPrCloudSyncStatus('syncing');
-      StorageService.syncToCloud()
-        .then((ok) => {
-          setPrCloudSyncStatus(ok ? 'synced' : 'error');
-        })
-        .catch(() => {
-          setPrCloudSyncStatus('error');
-        });
-    } catch (err: any) {
-      alert(err.message || 'Failed to add PR member.');
-    }
-  };
-
-  const handleRemovePrMember = (memberId: string, memberName: string) => {
-    if (memberId === currentUser.teacherId || memberId === currentUser.id) {
-      alert('You cannot remove yourself from the PR team.');
-      return;
-    }
-    const confirmed = window.confirm(
-      `Are you sure you want to remove ${memberName} (${memberId}) from the PR team?\n\nThis will revoke their portal access and unassign active tasks.`
-    );
-    if (!confirmed) return;
-
-    try {
-      const res = StorageService.deleteEmployee(memberId);
-      if (res.success) {
-        setAllUsers(StorageService.getUsers());
-        StorageService.syncToCloud();
-      } else {
-        alert(res.error || 'Failed to remove member.');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Failed to remove member.');
-    }
-  };
-
-  const handleCopyPrCredentials = () => {
-    if (!createdPrUserSuccess) return;
-    const text = `AEW Portal Login Credentials:
-Name: ${createdPrUserSuccess.name}
-Role: ${createdPrUserSuccess.role === 'pr_head' ? 'Head of Public Relations' : 'PR & Campus Outreach Intern'}
-Employee ID: ${createdPrUserSuccess.teacherId}
-Username: ${createdPrUserSuccess.username}
-Password: ${createdPrUserSuccess.password}
-Portal URL: ${window.location.origin}`;
-
-    navigator.clipboard.writeText(text).then(() => {
-      setPrCopiedSuccess(true);
-      setTimeout(() => setPrCopiedSuccess(false), 2500);
-    });
-  };
-
-  const handleCloseAddPrModal = () => {
-    setShowAddPrModal(false);
-    setCreatedPrUserSuccess(null);
-    setPrEmailDispatchResult(null);
-    setPrCloudSyncStatus(null);
-  };
-
-  // Tier info & stats
+  // Derived Tier & Stats
   const currentTier: PrTier = currentUser.prTier || 'Silver';
-  const points = currentUser.prPoints || 0;
+  const xp = currentUser.prPoints || 0;
   const stars = currentUser.prStars || 0;
   const commissionRate = StorageService.getTierCommissionRate(currentTier, currentUser);
 
-  // Next tier threshold calculation
+  // Next tier progress
   const nextTierInfo = useMemo(() => {
     if (currentTier === 'Silver') {
-      const ptsReq = Math.max(0, 100 - points);
+      const xpReq = Math.max(0, 100 - xp);
       const starsReq = Math.max(0, 5 - stars);
-      const ptsProgress = Math.min(100, Math.round((points / 100) * 100));
+      const progressPercent = Math.min(100, Math.round(((xp / 100) * 0.6 + (stars / 5) * 0.4) * 100));
       return {
         nextTier: 'Gold' as PrTier,
         nextRate: 7.0,
-        ptsRemaining: ptsReq,
+        xpRemaining: xpReq,
         starsRemaining: starsReq,
-        progressPct: ptsProgress,
+        progressPercent,
         isMax: false,
       };
-    } else if (currentTier === 'Gold') {
-      const ptsReq = Math.max(0, 300 - points);
+    }
+    if (currentTier === 'Gold') {
+      const xpReq = Math.max(0, 300 - xp);
       const starsReq = Math.max(0, 15 - stars);
-      const ptsProgress = Math.min(100, Math.round(((points - 100) / 200) * 100));
+      const progressPercent = Math.min(100, Math.round(((xp / 300) * 0.6 + (stars / 15) * 0.4) * 100));
       return {
         nextTier: 'Premium' as PrTier,
         nextRate: 12.0,
-        ptsRemaining: ptsReq,
+        xpRemaining: xpReq,
         starsRemaining: starsReq,
-        progressPct: ptsProgress,
+        progressPercent,
         isMax: false,
       };
     }
     return {
       nextTier: 'Premium' as PrTier,
       nextRate: 12.0,
-      ptsRemaining: 0,
+      xpRemaining: 0,
       starsRemaining: 0,
-      progressPct: 100,
+      progressPercent: 100,
       isMax: true,
     };
-  }, [currentTier, points, stars]);
+  }, [currentTier, xp, stars]);
 
-  // Aggregate financial metrics
-  const internLeads = leads.filter((l) => l.internId.toUpperCase() === currentUser.teacherId.toUpperCase());
-  const totalClosedRevenue = currentUser.totalSponsorshipRevenue || internLeads.filter(l => l.stage === 'closed_won').reduce((sum, l) => sum + (l.closedAmount || l.expectedSponsorshipAmount || 0), 0);
-  const totalCommissionEarned = currentUser.totalCommissionEarned || internLeads.filter(l => l.stage === 'closed_won').reduce((sum, l) => sum + (l.commissionEarned || 0), 0);
-  const pipelineValue = internLeads.filter(l => l.stage !== 'closed_won' && l.stage !== 'closed_lost').reduce((sum, l) => sum + (l.expectedSponsorshipAmount || 0), 0);
-
-  // Tasks filter
-  const myTasks = tasks.filter((t) => t.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase());
-  const filteredTasks = myTasks.filter((t) => {
-    if (taskFilterStatus === 'all') return true;
-    return t.status === taskFilterStatus;
-  });
-
-  // Sequential Tasks Computation
-  const sequentialData = useMemo(() => {
-    // Sort tasks stably by createdAt (earliest created is stage 1, next is stage 2, etc.)
-    const sorted = [...myTasks].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  // Tasks assigned to this intern
+  const myTasks = useMemo(() => {
+    return tasks.filter(
+      (t) =>
+        t.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase() ||
+        t.assignedToInternId === 'all'
     );
+  }, [tasks, currentUser.teacherId]);
 
-    // Find the first task that is NOT completed/approved
-    const firstIncompleteIdx = sorted.findIndex(
-      (t) => t.status !== 'approved' && t.status !== 'completed'
-    );
-
-    const statuses: Record<string, 'completed' | 'active' | 'locked'> = {};
-    sorted.forEach((t, idx) => {
-      if (firstIncompleteIdx === -1) {
-        statuses[t.id] = 'completed';
-      } else if (idx < firstIncompleteIdx) {
-        statuses[t.id] = 'completed';
-      } else if (idx === firstIncompleteIdx) {
-        statuses[t.id] = 'active';
-      } else {
-        statuses[t.id] = 'locked';
-      }
-    });
-
-    const activeTask = firstIncompleteIdx !== -1 ? sorted[firstIncompleteIdx] : null;
-    const isAllCompleted = sorted.length > 0 && firstIncompleteIdx === -1;
-    const completedCount = sorted.filter((t) => t.status === 'approved' || t.status === 'completed').length;
-
-    return {
-      sorted,
-      statuses,
-      activeTask,
-      isAllCompleted,
-      completedCount,
-      totalCount: sorted.length,
-    };
+  const pendingTasks = useMemo(() => {
+    return myTasks.filter((t) => t.status === 'pending' || t.status === 'revision_requested');
   }, [myTasks]);
 
-  const handleToggleSequentialMode = (enabled: boolean) => {
-    setSequentialMode(enabled);
-    localStorage.setItem('aew_pr_sequential_mode', String(enabled));
+  const completedTasks = useMemo(() => {
+    return myTasks.filter((t) => t.status === 'completed' || t.status === 'approved');
+  }, [myTasks]);
+
+  // Filtered Tasks for the Tasks Tab
+  const displayedTasks = useMemo(() => {
+    if (taskFilter === 'pending') return pendingTasks;
+    if (taskFilter === 'completed') return completedTasks;
+    return myTasks;
+  }, [myTasks, pendingTasks, completedTasks, taskFilter]);
+
+  // Leads pipeline calculations
+  const totalPipelineRevenue = useMemo(() => {
+    return leads
+      .filter((l) => l.stage !== 'closed_lost')
+      .reduce((sum, l) => sum + (l.closedAmount || l.expectedSponsorshipAmount || 0), 0);
+  }, [leads]);
+
+  const wonLeads = useMemo(() => {
+    return leads.filter((l) => l.stage === 'closed_won');
+  }, [leads]);
+
+  const totalWonRevenue = useMemo(() => {
+    return wonLeads.reduce((sum, l) => sum + (l.closedAmount || l.expectedSponsorshipAmount || 0), 0);
+  }, [wonLeads]);
+
+  const totalCommissionEarned = useMemo(() => {
+    return wonLeads.reduce((sum, l) => sum + (l.commissionEarned || Math.round(((l.closedAmount || l.expectedSponsorshipAmount) * commissionRate) / 100)), 0);
+  }, [wonLeads, commissionRate]);
+
+  // Filtered Leads
+  const filteredLeads = useMemo(() => {
+    return leads.filter((lead) => {
+      const matchesStage = leadFilterStage === 'all' || lead.stage === leadFilterStage;
+      const q = leadSearchQuery.trim().toLowerCase();
+      const matchesQuery =
+        !q ||
+        lead.organizationName.toLowerCase().includes(q) ||
+        lead.contactPerson.toLowerCase().includes(q) ||
+        lead.designation.toLowerCase().includes(q) ||
+        lead.phone?.toLowerCase().includes(q) ||
+        lead.email?.toLowerCase().includes(q);
+      return matchesStage && matchesQuery;
+    });
+  }, [leads, leadFilterStage, leadSearchQuery]);
+
+  // Trigger Toast Helper
+  const showToast = (text: string, sub?: string) => {
+    setToastMessage({ text, sub });
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleLockedTaskClick = (taskId: string) => {
-    setShakingTaskId(taskId);
-    setTimeout(() => setShakingTaskId(null), 600);
-  };
+  // ─── ACTIONS ─────────────────────────────────────────────────────────────
 
-  // Handle direct task completion + unlock animation
+  // 1. Complete Task & Earn XP
   const handleCompleteTask = (taskToComplete: PrTask, notes?: string, proof?: string) => {
     setIsSubmittingTask(true);
     const result = StorageService.completePrTask(
       taskToComplete.id,
-      notes || submissionNotes || 'Task objective completed and deliverable verified.',
+      notes || submissionNotes || 'Task completed and verified.',
       proof || submissionProofUrl || undefined,
       taskToComplete.pointsReward,
       taskToComplete.starsReward
     );
 
     if (result) {
-      // 1. Trigger Confetti
       try {
         confetti({
-          particleCount: 80,
-          spread: 75,
+          particleCount: 70,
+          spread: 60,
           origin: { y: 0.6 },
-          colors: ['#6366f1', '#a855f7', '#f59e0b', '#10b981', '#ec4899'],
+          colors: ['#6366f1', '#10b981', '#f59e0b', '#ec4899'],
         });
       } catch {}
 
-      // 2. Mark completed task for celebration animation
-      setRecentlyCompletedTaskId(taskToComplete.id);
-      setTimeout(() => setRecentlyCompletedTaskId(null), 3000);
-
-      // 3. Find next sequential pending task to unlock
-      const freshTasks = StorageService.getPrTasks();
-      const myFreshTasks = freshTasks.filter(
-        (t) => t.assignedToInternId.toUpperCase() === currentUser.teacherId.toUpperCase()
-      );
-      const sorted = [...myFreshTasks].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-      const nextPending = sorted.find(
-        (t) => t.id !== taskToComplete.id && t.status !== 'approved' && t.status !== 'completed'
+      showToast(
+        `✓ Task Completed! You earned +${taskToComplete.pointsReward} XP & +${taskToComplete.starsReward} Stars!`,
+        result.promoted ? `🎉 Congratulations! You have been promoted to ${result.intern?.prTier} Tier!` : undefined
       );
 
-      if (nextPending) {
-        setRecentlyUnlockedTaskId(nextPending.id);
-        setUnlockCelebration({
-          type: 'unlocked',
-          taskTitle: nextPending.title,
-          stars: nextPending.starsReward,
-          points: nextPending.pointsReward,
-        });
-
-        // Secondary confetti burst for the unlock
-        setTimeout(() => {
-          try {
-            confetti({
-              particleCount: 45,
-              spread: 60,
-              origin: { y: 0.5 },
-              colors: ['#eab308', '#6366f1'],
-            });
-          } catch {}
-        }, 450);
-
-        setTimeout(() => {
-          setRecentlyUnlockedTaskId(null);
-        }, 4500);
-      } else {
-        // No next task remaining -> Waiting for assignment!
-        setUnlockCelebration({
-          type: 'waiting_for_assignment',
-          taskTitle: taskToComplete.title,
-          stars: taskToComplete.starsReward,
-          points: taskToComplete.pointsReward,
-        });
-      }
-
-      setTasks(freshTasks);
+      setTasks(StorageService.getPrTasks());
       const freshUsers = StorageService.getUsers();
       setAllUsers(freshUsers);
-      const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase());
+      const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase());
       if (freshUser) setCurrentUser(freshUser);
 
-      // Close modal & reset inputs
       setShowTaskSubmitModal(null);
       setSubmissionNotes('');
       setSubmissionProofUrl('');
@@ -499,106 +278,41 @@ Portal URL: ${window.location.origin}`;
     setIsSubmittingTask(false);
   };
 
-  const handleCreateDemoTask = () => {
-    const demoOptions = [
-      {
-        title: 'Lead Outreach Sprint: Target Top 5 EdTech & Dev Brand Sponsors',
-        description: 'Curate contact details for 5 corporate brand sponsorship managers and dispatch AEW National Tech Summit proposal kits.',
-        category: 'college_sponsorship' as PrTaskCategory,
-        starsReward: 3,
-        pointsReward: 50,
-        priority: 'high' as PrTaskPriority,
-      },
-      {
-        title: 'Draft Official Corporate Sponsorship MoU Framework (₹75k+)',
-        description: 'Generate standard AEW sponsorship agreement terms, establish corporate branding clauses, and submit draft for seal.',
-        category: 'fest_mou' as PrTaskCategory,
-        starsReward: 4,
-        pointsReward: 75,
-        priority: 'urgent' as PrTaskPriority,
-      },
-      {
-        title: 'Campus Ambassador Guild Recruitment & Outreach Campaign',
-        description: 'Coordinate with student technical clubs across 3 partner colleges for hackathon attendee promotions.',
-        category: 'campus_ambassador' as PrTaskCategory,
-        starsReward: 2,
-        pointsReward: 35,
-        priority: 'medium' as PrTaskPriority,
-      },
-      {
-        title: 'Influencer & Tech Community Co-Branding Coordination',
-        description: 'Reach out to 2 tech creator channels for hackathon registration promo shoutouts and webinar alignment.',
-        category: 'influencer_collab' as PrTaskCategory,
-        starsReward: 3,
-        pointsReward: 45,
-        priority: 'normal' as PrTaskPriority,
-      },
-    ];
-
-    const pick = demoOptions[Math.floor(Math.random() * demoOptions.length)];
-    const newTask = StorageService.createPrTask({
-      title: `${pick.title} (#${Math.floor(Math.random() * 900 + 100)})`,
-      description: pick.description,
-      category: pick.category,
-      assignedToInternId: currentUser.teacherId,
-      assignedToInternName: currentUser.name,
-      assignedByAdminName: 'AEW PR Mission Control',
-      starsReward: pick.starsReward,
-      pointsReward: pick.pointsReward,
-      deadline: new Date(Date.now() + 6 * 86400000).toISOString().split('T')[0],
-      priority: pick.priority,
-    });
-
-    setTasks(StorageService.getPrTasks());
-    setRecentlyUnlockedTaskId(newTask.id);
-    setUnlockCelebration({
-      type: 'unlocked',
-      taskTitle: newTask.title,
-      stars: newTask.starsReward,
-      points: newTask.pointsReward,
-    });
-    try {
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } });
-    } catch {}
-    setTimeout(() => setRecentlyUnlockedTaskId(null), 4000);
-  };
-
-  // Handle task submission
-  const handleSubmitTask = (e: React.FormEvent) => {
+  // 2. Submit Task Proof (for review)
+  const handleSubmitTaskForReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!showTaskSubmitModal) return;
-    if (!submissionNotes.trim()) {
-      alert('Please provide brief submission notes or summary of work done.');
-      return;
-    }
     setIsSubmittingTask(true);
-    const updated = StorageService.submitPrTask(showTaskSubmitModal.id, submissionNotes, submissionProofUrl);
+    const updated = StorageService.submitPrTask(
+      showTaskSubmitModal.id,
+      submissionNotes.trim() || 'Work delivered. Ready for review.',
+      submissionProofUrl.trim() || undefined
+    );
     if (updated) {
+      showToast('✓ Work Submitted for Review', 'Your PR Head will review the submission and verify stars.');
       setTasks(StorageService.getPrTasks());
       setShowTaskSubmitModal(null);
       setSubmissionNotes('');
       setSubmissionProofUrl('');
-      try {
-        confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
-      } catch {}
     }
     setIsSubmittingTask(false);
   };
 
-  // Handle adding lead
+  // 3. Add New Lead
   const handleAddLead = (e: React.FormEvent) => {
     e.preventDefault();
     if (!leadOrgName.trim() || !leadContactPerson.trim()) {
-      alert('Please fill in the organization name and contact person.');
+      alert('Please fill in the Organization Name and Contact Person.');
       return;
     }
+
     const newLead = StorageService.createPrLead({
       internId: currentUser.teacherId,
       internName: currentUser.name,
       type: leadType,
       organizationName: leadOrgName.trim(),
       contactPerson: leadContactPerson.trim(),
-      designation: leadDesignation.trim() || 'Fest Convener',
+      designation: leadDesignation.trim() || 'Sponsorship Coordinator',
       email: leadEmail.trim(),
       phone: leadPhone.trim(),
       expectedSponsorshipAmount: Number(leadExpectedAmount) || 0,
@@ -607,6 +321,7 @@ Portal URL: ${window.location.origin}`;
       commissionRate: commissionRate,
       notes: leadNotes.trim(),
     });
+
     setLeads([newLead, ...leads]);
     setShowAddLeadModal(false);
     setLeadOrgName('');
@@ -615,124 +330,194 @@ Portal URL: ${window.location.origin}`;
     setLeadPhone('');
     setLeadEmail('');
     setLeadNotes('');
+    setLeadExpectedAmount(50000);
+
+    showToast(`✓ Added Lead: "${newLead.organizationName}"`, `Contact: ${newLead.contactPerson}`);
   };
 
-  // Handle stage change & deal closure
+  // 4. Update Lead Stage / Status
   const handleStageChange = (leadId: string, nextStage: PrLeadStage) => {
     let closedVal: number | undefined = undefined;
     if (nextStage === 'closed_won') {
-      const target = leads.find(l => l.id === leadId);
-      const promptVal = prompt('Confirm final closed sponsorship amount (₹):', String(target?.expectedSponsorshipAmount || 50000));
+      const target = leads.find((l) => l.id === leadId);
+      const promptVal = prompt(
+        `🎉 Congratulations on closing this deal!\n\nConfirm final closed sponsorship amount (₹):`,
+        String(target?.expectedSponsorshipAmount || 50000)
+      );
       if (!promptVal || isNaN(Number(promptVal))) return;
       closedVal = Number(promptVal);
+
+      try {
+        confetti({
+          particleCount: 100,
+          spread: 80,
+          origin: { y: 0.6 },
+        });
+      } catch {}
     }
+
     const updated = StorageService.updatePrLeadStage(leadId, nextStage, closedVal);
     if (updated) {
       setLeads(StorageService.getPrLeads());
-      const freshUser = StorageService.getUsers().find((u) => u.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase());
+      const freshUser = StorageService.getUsers().find(
+        (u) => u.teacherId.toUpperCase() === currentUser.teacherId.toUpperCase()
+      );
       if (freshUser) setCurrentUser(freshUser);
+
+      const target = leads.find((l) => l.id === leadId);
+      showToast(
+        `✓ Updated "${target?.organizationName}" to ${nextStage.replace('_', ' ').toUpperCase()}`,
+        nextStage === 'closed_won' ? `Earned ₹${Math.round(((closedVal || 0) * commissionRate) / 100)} commission!` : undefined
+      );
     }
   };
 
-  // Handle MOU Creation
+  // 5. Save Notes on Lead
+  const handleSaveLeadNotes = (leadId: string) => {
+    const target = leads.find((l) => l.id === leadId);
+    if (!target) return;
+    target.notes = editingNotesText;
+    StorageService.savePrLeads(leads);
+    setEditingLeadNotesId(null);
+    setEditingNotesText('');
+    showToast('✓ Lead notes updated');
+  };
+
+  // 6. Delete Lead
+  const handleDeleteLead = (leadId: string, orgName: string) => {
+    if (!confirm(`Are you sure you want to delete lead "${orgName}"?`)) return;
+    StorageService.deletePrLead(leadId);
+    setLeads(StorageService.getPrLeads());
+    showToast(`Removed lead: "${orgName}"`);
+  };
+
+  // 7. Create MoU
   const handleCreateMou = (e: React.FormEvent) => {
     e.preventDefault();
     if (!mouPartnerOrg.trim() || !mouSignatory.trim()) {
-      alert('Please enter the partner organization name and signatory authority.');
+      alert('Please fill in Partner Organization and Signatory Name.');
       return;
     }
-    const termsArray = mouCustomTerms.split('\n').map(t => t.trim()).filter(Boolean);
+
     const newMou = StorageService.createPrMou({
       internId: currentUser.teacherId,
       internName: currentUser.name,
       partnerOrganization: mouPartnerOrg.trim(),
       partnerSignatory: mouSignatory.trim(),
-      partnerDesignation: mouDesignation.trim() || 'Dean Student Welfare',
-      partnerAddress: mouAddress.trim() || 'College Campus Administrative Block',
+      partnerDesignation: mouDesignation.trim() || 'Authorized Representative',
+      partnerAddress: mouAddress.trim() || 'Campus Office',
       purpose: mouPurpose.trim(),
-      terms: termsArray,
+      terms: mouCustomTerms.split('\n').filter((line) => line.trim().length > 0),
       sponsorshipAmount: Number(mouSponsorshipAmount) || 0,
       startDate: mouStartDate,
       endDate: mouEndDate,
       status: 'pending_admin_approval',
     });
+
     setMous([newMou, ...mous]);
     setShowMouModal(false);
     setSelectedPreviewMou(newMou);
+    showToast(`✓ MoU Draft Created for "${newMou.partnerOrganization}"`);
   };
 
-  // 1-Click Copy WhatsApp Pitch
-  const handleCopyPitch = (college: PrCollege) => {
-    const text = `Greetings Prof./Dr. ${college.contactPerson} (${college.name}),\n\nHope this finds you well. I am ${currentUser.name} representing Apna Engineering Wallah (AEW) - India's leading engineering curriculum & placement platform.\n\nWe would love to collaborate with ${college.name} as an Academic Knowledge Partner and offer title sponsorship support for your upcoming college fests and technical hackathons. We also provide free accredited masterclasses on Data Structures, Algorithms, and System Design for your student batches.\n\nCould we connect for a brief 10-minute introductory call this week?\n\nWarm regards,\n${currentUser.name}\nPublic Relations & Campus Outreach Executive\nApna Engineering Wallah (AEW)`;
-    navigator.clipboard.writeText(text);
-    setCopiedPitchId(college.id);
-    setTimeout(() => setCopiedPitchId(null), 3000);
+  // Helper: Open WhatsApp
+  const handleOpenWhatsApp = (phone?: string, contactName?: string, orgName?: string) => {
+    if (!phone) {
+      alert('No phone number registered for this lead.');
+      return;
+    }
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const text = encodeURIComponent(
+      `Hi ${contactName || 'there'}, this is ${currentUser.name} from Apna Engineering Wallah (AEW). Reaching out regarding sponsorship and student technical collaboration with ${orgName || 'your organization'}.`
+    );
+    window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
+  };
+
+  // Helper: Quick prefill MoU from lead
+  const handleDraftMouForLead = (lead: PrLead) => {
+    setMouPartnerOrg(lead.organizationName);
+    setMouSignatory(lead.contactPerson);
+    setMouDesignation(lead.designation);
+    setMouSponsorshipAmount(lead.closedAmount || lead.expectedSponsorshipAmount || 50000);
+    setMouPurpose(`Official Event Sponsorship & Student Partnership with ${lead.organizationName}`);
+    setShowMouModal(true);
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-300">
-      
-      {/* ─── TOP HEADER BAR ─── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl backdrop-blur-md">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-3">
-            <span className={`px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase flex items-center gap-1.5 ${
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+
+      {/* ─── TOAST NOTIFICATION ─── */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 p-4 rounded-2xl bg-indigo-600 text-white shadow-2xl flex items-start gap-3 border border-indigo-400 max-w-md animate-in slide-in-from-top-4 duration-200">
+          <Sparkles className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+          <div>
+            <div className="font-bold text-sm">{toastMessage.text}</div>
+            {toastMessage.sub && <div className="text-xs text-indigo-100 mt-0.5">{toastMessage.sub}</div>}
+          </div>
+          <button onClick={() => setToastMessage(null)} className="ml-auto text-indigo-200 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ─── WORKSPACE HEADER ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1 ${
               currentTier === 'Premium'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm shadow-purple-500/20'
+                ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
                 : currentTier === 'Gold'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/20'
-                : 'bg-slate-700/40 text-slate-300 border border-slate-600/40'
+                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                : 'bg-slate-800 text-slate-300 border border-slate-700'
             }`}>
-              <Award className="w-3.5 h-3.5" />
-              {currentTier} Tier Intern
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              {currentTier} Tier
             </span>
-            <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-bold">
-              💰 {commissionRate}% Sponsorship Share
+            <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+              {commissionRate}% Commission Share
             </span>
           </div>
 
-          <h1 className="text-2xl md:text-3xl font-black text-slate-100 tracking-tight flex items-center gap-2">
-            Welcome back, {currentUser.name}
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            Hello, {currentUser.name} 👋
           </h1>
-          <p className="text-xs text-slate-400">
-            Public Relations & Campus Sponsorship Workspace • {currentUser.teacherId}
+          <p className="text-xs text-slate-400 mt-0.5">
+            PR & Sponsorship Workspace • ID: <span className="font-mono text-slate-300">{currentUser.teacherId}</span>
           </p>
         </div>
 
-        {/* Quick KPI Pills in Header */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="px-4 py-2 bg-slate-950/80 border border-slate-800 rounded-2xl text-center">
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center justify-center gap-1">
-              <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Verified Stars
-            </div>
-            <div className="text-lg font-black text-amber-300 font-mono mt-0.5">
-              {stars} ⭐
-            </div>
+        {/* Quick Top Stats */}
+        <div className="flex items-center gap-3">
+          <div className="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-center min-w-[90px]">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Earned XP</div>
+            <div className="text-base font-black text-indigo-400 font-mono mt-0.5">{xp} XP</div>
           </div>
-
-          <div className="px-4 py-2 bg-slate-950/80 border border-slate-800 rounded-2xl text-center">
-            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center justify-center gap-1">
-              <TrendingUp className="w-3 h-3 text-indigo-400" /> Bounty Points
-            </div>
-            <div className="text-lg font-black text-indigo-300 font-mono mt-0.5">
-              {points} 🎖️
-            </div>
+          <div className="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-center min-w-[90px]">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stars</div>
+            <div className="text-base font-black text-amber-400 font-mono mt-0.5">⭐ {stars}</div>
           </div>
+          <button
+            onClick={() => setShowAddLeadModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Lead</span>
+          </button>
         </div>
       </div>
 
-      {/* ─── TAB NAVIGATION BAR ─── */}
-      <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3 overflow-x-auto text-xs no-scrollbar">
+      {/* ─── NAVIGATION TABS ─── */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto text-xs no-scrollbar">
         {[
-          { id: 'pr_dashboard', label: '🌟 Pathway & Operations', icon: Award },
+          { id: 'pr_dashboard', label: 'Overview', icon: Briefcase },
+          { id: 'pr_leads', label: `Leads Pipeline (${leads.length})`, icon: DollarSign },
+          { id: 'pr_tasks', label: `Tasks & XP (${pendingTasks.length} to do)`, icon: CheckCircle2 },
+          { id: 'pr_mou_maker', label: `MoU Agreements (${mous.length})`, icon: FileText },
+          { id: 'pr_earnings', label: 'My Earnings', icon: TrendingUp },
           ...(currentUser.role === 'pr_head'
-            ? [{ id: 'pr_team', label: `PR Team & Ambassadors (${prMembers.length})`, icon: Users }]
+            ? [{ id: 'pr_team', label: `PR Team (${allUsers.filter((u) => u.role === 'pr_intern').length})`, icon: Users }]
             : []),
-          { id: 'pr_tasks', label: `Assigned Tasks (${myTasks.filter(t => t.status === 'pending').length} New)`, icon: CheckCircle2 },
-          { id: 'pr_leads', label: `Lead Pipeline (${leads.length})`, icon: DollarSign },
-          { id: 'pr_mou_maker', label: `MOU Generator (${mous.length})`, icon: FileText },
-          { id: 'pr_colleges', label: `Campus Network (${colleges.length})`, icon: Building2 },
-          { id: 'pr_earnings', label: 'Commission Ledger', icon: TrendingUp },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = currentPage === tab.id;
@@ -740,13 +525,13 @@ Portal URL: ${window.location.origin}`;
             <button
               key={tab.id}
               onClick={() => onPageChange(tab.id)}
-              className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+              className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                 isActive
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-extrabold'
+                  ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+              <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
             </button>
           );
@@ -754,875 +539,333 @@ Portal URL: ${window.location.origin}`;
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── TAB 1: MISSION CONTROL & TIER PROGRESSION ──────────────────── */}
+      {/* ─── TAB 1: OVERVIEW DASHBOARD ───────────────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {currentPage === 'pr_dashboard' && (
+      {(currentPage === 'pr_dashboard' || !['pr_leads', 'pr_tasks', 'pr_mou_maker', 'pr_earnings', 'pr_team'].includes(currentPage)) && (
         <div className="space-y-6">
 
-          {/* Sub-view mode switcher */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 bg-slate-900/90 border border-slate-800 rounded-2xl backdrop-blur-sm shadow-xl">
-            <div className="flex items-center gap-1.5 p-1 bg-slate-950/90 rounded-xl border border-slate-800/80 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setDashboardMode('pathway')}
-                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  dashboardMode === 'pathway'
-                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-indigo-600/40 ring-1 ring-white/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                <span>🌟 Interactive Career Pathway</span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                  Live XP & Altitude
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDashboardMode('cockpit')}
-                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  dashboardMode === 'cockpit'
-                    ? 'bg-slate-800 text-white shadow-md border border-slate-700 font-extrabold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                <span>📊 Revenue & Operations Cockpit</span>
-              </button>
-            </div>
-
-            <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 px-3 font-medium">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span className="text-slate-300 font-semibold">Tier Altitude Engine Active</span>
-            </div>
-          </div>
-
-          {dashboardMode === 'pathway' ? (
-            <PrPathwayView
-              intern={currentUser}
-              onRefreshUser={() => {
-                const freshUsers = StorageService.getUsers();
-                setAllUsers(freshUsers);
-                const freshUser = freshUsers.find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase());
-                if (freshUser) setCurrentUser(freshUser);
-                setTasks(StorageService.getPrTasks());
-              }}
-              onPageChange={onPageChange}
-            />
-          ) : (
-            <>
-              {/* TIER HERO CARD */}
-              <div className={`p-6 md:p-8 rounded-3xl border relative overflow-hidden shadow-2xl transition-all ${
-            currentTier === 'Premium'
-              ? 'bg-gradient-to-br from-purple-950/60 via-slate-900 to-slate-950 border-purple-500/30'
-              : currentTier === 'Gold'
-              ? 'bg-gradient-to-br from-amber-950/50 via-slate-900 to-slate-950 border-amber-500/30'
-              : 'bg-gradient-to-br from-slate-800/40 via-slate-900 to-slate-950 border-slate-700/50'
-          }`}>
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-              <div className="space-y-3 max-w-xl">
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-950/80 border border-slate-800 text-slate-200">
-                    Tier-Based Prerogative Status
-                  </span>
-                  <span className="text-xs text-slate-400">• Evaluated & Assigned by Admin</span>
-                </div>
-
-                <div className="flex items-baseline gap-3">
-                  <h2 className="text-3xl md:text-4xl font-black text-slate-100 tracking-tight flex items-center gap-2">
-                    {currentTier === 'Premium' ? '💎 Premium Tier' : currentTier === 'Gold' ? '🥇 Gold Tier' : '🥈 Silver Tier'}
-                  </h2>
-                  <div className="text-2xl font-black text-emerald-400 font-mono">
-                    {commissionRate}%
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  As a <strong className="text-white">{currentTier} Tier</strong> intern, you take home{' '}
-                  <strong className="text-emerald-300 font-bold">{commissionRate}% of all sponsorship revenue</strong> you bring to AEW. Earn more Stars ⭐ and Points 🎖️ by completing Admin-assigned tasks to automatically unlock higher tiers!
-                </p>
-
-                {/* Progress bar to next tier */}
-                {!nextTierInfo.isMax ? (
-                  <div className="space-y-2 pt-2">
-                    <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
-                      <span>Progress to {nextTierInfo.nextTier} Tier ({nextTierInfo.nextRate}% Commission):</span>
-                      <span className="font-mono text-indigo-400">
-                        {nextTierInfo.ptsRemaining} pts & {nextTierInfo.starsRemaining} stars left
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 p-0.5">
-                      <div
-                        className="h-full rounded-full transition-all bg-gradient-to-r from-indigo-500 to-amber-400"
-                        style={{ width: `${nextTierInfo.progressPct}%` }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 text-xs font-bold flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-400" />
-                    You have reached the highest tier (Premium) with maximum 12% revenue commission!
-                  </div>
-                )}
-              </div>
-
-              {/* TIER COMPARISON MATRIX */}
-              <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 md:p-5 space-y-3 min-w-[280px]">
-                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between border-b border-slate-800/80 pb-2">
-                  <span>Commission Table</span>
-                  <HelpCircle className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div className={`flex items-center justify-between p-2 rounded-xl transition-all ${
-                    currentTier === 'Silver' ? 'bg-slate-800 border border-slate-700 text-white font-bold' : 'text-slate-400'
-                  }`}>
-                    <span className="flex items-center gap-2">🥈 Silver (Base)</span>
-                    <span className="font-mono font-black text-slate-200">3.3%</span>
-                  </div>
-
-                  <div className={`flex items-center justify-between p-2 rounded-xl transition-all ${
-                    currentTier === 'Gold' ? 'bg-amber-500/20 border border-amber-500/40 text-amber-200 font-bold' : 'text-slate-400'
-                  }`}>
-                    <span className="flex items-center gap-2">🥇 Gold (100p + 5⭐)</span>
-                    <span className="font-mono font-black text-amber-300">7.0%</span>
-                  </div>
-
-                  <div className={`flex items-center justify-between p-2 rounded-xl transition-all ${
-                    currentTier === 'Premium' ? 'bg-purple-500/20 border border-purple-500/40 text-purple-200 font-bold' : 'text-slate-400'
-                  }`}>
-                    <span className="flex items-center gap-2">💎 Premium (300p + 15⭐)</span>
-                    <span className="font-mono font-black text-purple-300">12.0%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 4 PRIMARY METRIC CARDS */}
+          {/* 4 Summary Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-lg">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-                <span>Total Closed Revenue</span>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>Active Leads</span>
                 <DollarSign className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="text-2xl font-black text-slate-100 font-mono">
-                ₹{totalClosedRevenue.toLocaleString('en-IN')}
-              </div>
-              <div className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
-                <ArrowUpRight className="w-3.5 h-3.5" /> Brought to company
+              <div className="text-2xl font-black text-white font-mono">{leads.length}</div>
+              <div className="text-[11px] text-slate-400">
+                Pipeline Value: <strong className="text-slate-200">₹{totalPipelineRevenue.toLocaleString('en-IN')}</strong>
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-lg">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-                <span>Your Take-Home Payout</span>
-                <TrendingUp className="w-4 h-4 text-indigo-400" />
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>Assigned Tasks</span>
+                <CheckCircle2 className="w-4 h-4 text-indigo-400" />
               </div>
-              <div className="text-2xl font-black text-indigo-300 font-mono">
-                ₹{totalCommissionEarned.toLocaleString('en-IN')}
-              </div>
-              <div className="text-[11px] text-indigo-400 flex items-center gap-1 font-medium">
-                💰 Based on {commissionRate}% tier share
+              <div className="text-2xl font-black text-white font-mono">{pendingTasks.length} to do</div>
+              <div className="text-[11px] text-slate-400">
+                Completed: <strong className="text-emerald-400">{completedTasks.length} tasks</strong>
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-lg">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-                <span>Active Pipeline Value</span>
-                <Briefcase className="w-4 h-4 text-amber-400" />
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>Earned XP & Stars</span>
+                <Star className="w-4 h-4 text-amber-400" />
               </div>
               <div className="text-2xl font-black text-amber-300 font-mono">
-                ₹{pipelineValue.toLocaleString('en-IN')}
+                {xp} <span className="text-xs text-slate-400">XP</span> • ⭐ {stars}
               </div>
               <div className="text-[11px] text-slate-400">
-                {internLeads.filter(l => l.stage !== 'closed_won' && l.stage !== 'closed_lost').length} deals in discussion
+                Tier: <strong className="text-slate-200">{currentTier}</strong> ({commissionRate}% share)
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-2 shadow-lg">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-                <span>Approved MOUs</span>
-                <FileText className="w-4 h-4 text-purple-400" />
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-2">
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <span>Total Commission</span>
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="text-2xl font-black text-purple-300 font-mono">
-                {mous.filter(m => m.status === 'approved' || m.status === 'signed').length}
+              <div className="text-2xl font-black text-emerald-400 font-mono">
+                ₹{totalCommissionEarned.toLocaleString('en-IN')}
               </div>
               <div className="text-[11px] text-slate-400">
-                Formal legal partner contracts
+                From <strong className="text-slate-200">{wonLeads.length} won deals</strong>
               </div>
             </div>
           </div>
 
-          {/* COMMISSION SIMULATOR & QUICK ACTIONS */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* COMMISSION SIMULATOR */}
-            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-400" /> Real-Time Sponsorship Commission Simulator
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Test expected sponsorship amounts to see your exact take-home earnings at your current tier vs higher tiers.
-                  </p>
+          {/* Simple Tier Progression Bar */}
+          {!nextTierInfo.isMax && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  <span>Level Up to {nextTierInfo.nextTier} Tier ({nextTierInfo.nextRate}% Commission)</span>
                 </div>
-              </div>
-
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center gap-3">
-                  <label className="text-xs text-slate-300 font-semibold shrink-0">Sponsorship Deal Amount (₹):</label>
-                  <input
-                    type="number"
-                    step="5000"
-                    min="10000"
-                    max="1000000"
-                    value={calculatorAmount}
-                    onChange={(e) => setCalculatorAmount(Math.max(0, Number(e.target.value)))}
-                    className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-indigo-500 w-44"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 pt-2">
-                  <div className={`p-4 rounded-2xl border ${currentTier === 'Silver' ? 'bg-indigo-950/40 border-indigo-500/50' : 'bg-slate-950 border-slate-800'}`}>
-                    <div className="text-[11px] text-slate-400 font-medium">Silver Tier (3.3%)</div>
-                    <div className="text-lg font-black text-slate-200 font-mono mt-1">
-                      ₹{Math.round((calculatorAmount * 3.3) / 100).toLocaleString('en-IN')}
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">Take-home payout</div>
-                  </div>
-
-                  <div className={`p-4 rounded-2xl border ${currentTier === 'Gold' ? 'bg-amber-950/40 border-amber-500/50' : 'bg-slate-950 border-slate-800'}`}>
-                    <div className="text-[11px] text-amber-300 font-medium">Gold Tier (7.0%)</div>
-                    <div className="text-lg font-black text-amber-300 font-mono mt-1">
-                      ₹{Math.round((calculatorAmount * 7.0) / 100).toLocaleString('en-IN')}
-                    </div>
-                    <div className="text-[10px] text-amber-400/80 mt-0.5">+₹{Math.round((calculatorAmount * (7.0 - 3.3)) / 100).toLocaleString('en-IN')} more than Silver!</div>
-                  </div>
-
-                  <div className={`p-4 rounded-2xl border ${currentTier === 'Premium' ? 'bg-purple-950/40 border-purple-500/50' : 'bg-slate-950 border-slate-800'}`}>
-                    <div className="text-[11px] text-purple-300 font-medium">Premium Tier (12.0%)</div>
-                    <div className="text-lg font-black text-purple-300 font-mono mt-1">
-                      ₹{Math.round((calculatorAmount * 12.0) / 100).toLocaleString('en-IN')}
-                    </div>
-                    <div className="text-[10px] text-purple-400/80 mt-0.5">+₹{Math.round((calculatorAmount * (12.0 - 3.3)) / 100).toLocaleString('en-IN')} more!</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* QUICK ACTIONS DRAWER */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4 flex flex-col justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-indigo-400" /> Quick PR Actions
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Direct triggers to accelerate your outreach and sponsorship deals.
+                <p className="text-xs text-slate-400">
+                  Complete tasks assigned by PR Head to earn <strong className="text-indigo-300">{nextTierInfo.xpRemaining} more XP</strong> and <strong className="text-amber-300">{nextTierInfo.starsRemaining} more Stars</strong>.
                 </p>
               </div>
 
-              <div className="space-y-2.5">
-                <button
-                  onClick={() => setShowAddLeadModal(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-between transition-all cursor-pointer shadow-md shadow-indigo-600/20"
-                >
-                  <span className="flex items-center gap-2">
-                    <Plus className="w-4 h-4" /> Add Sponsorship Lead
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-indigo-200" />
-                </button>
+              <div className="w-full md:w-64 space-y-1.5 shrink-0">
+                <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+                  <span>Progress</span>
+                  <span className="text-white font-bold">{nextTierInfo.progressPercent}%</span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 to-amber-400 rounded-full transition-all duration-500"
+                    style={{ width: `${nextTierInfo.progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
-                <button
-                  onClick={() => setShowMouModal(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center justify-between transition-all cursor-pointer border border-slate-700/60"
-                >
-                  <span className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-purple-400" /> Create Formal MoU
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                </button>
+          {/* Two-Column Overview */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
+            {/* Panel A: Tasks to Do */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-indigo-400" />
+                  <h2 className="font-bold text-white text-base">Tasks Assigned by PR Head</h2>
+                </div>
                 <button
                   onClick={() => onPageChange('pr_tasks')}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center justify-between transition-all cursor-pointer border border-slate-700/60"
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
                 >
-                  <span className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> View Assigned Tasks ({myTasks.filter(t => t.status === 'pending').length})
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                  View All ({myTasks.length}) →
                 </button>
               </div>
 
-              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Admin reviews task submissions & grants Stars every 24 hours.</span>
-              </div>
-            </div>
-
-          </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── TAB 2: ASSIGNED TASKS & STARS ROOM ─────────────────────────── */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {currentPage === 'pr_tasks' && (
-        <div className="space-y-6">
-          {/* Header & Controls */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 bg-slate-900/90 border border-slate-800 rounded-3xl shadow-xl backdrop-blur-sm">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
-                  <CheckCircle2 className="w-6 h-6 text-indigo-400" /> Assigned Directives & Star Bounties
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {myTasks.length} Total
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                Official PR deliverables assigned by Academic Operations Admin. Complete objectives to unlock stars ⭐, points 🎖️, and subsequent directives.
-              </p>
-            </div>
-
-            {/* Action Controls & Sequential Mode Toggle */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Sequential Mode Switch Option */}
-              <button
-                type="button"
-                onClick={() => handleToggleSequentialMode(!sequentialMode)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 border transition-all cursor-pointer shadow-md ${
-                  sequentialMode
-                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white border-indigo-400/50 shadow-indigo-600/30 ring-2 ring-indigo-500/20'
-                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
-                }`}
-                title="Toggle sequential task unlock flow with unlock animations"
-              >
-                <Zap className={`w-3.5 h-3.5 ${sequentialMode ? 'text-amber-300 fill-amber-300 animate-pulse' : 'text-slate-400'}`} />
-                <span>Sequential Unlock Flow:</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-extrabold ${
-                  sequentialMode ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-slate-700 text-slate-400'
-                }`}>
-                  {sequentialMode ? 'ON' : 'OFF'}
-                </span>
-              </button>
-
-              {/* Demo / Test Assignment Button */}
-              <button
-                type="button"
-                onClick={handleCreateDemoTask}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-                title="Assign a test PR directive to test the unlock animation flow"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>+ Add Test Directive</span>
-              </button>
-
-              {/* Classic Filter pills if sequential mode is OFF */}
-              {!sequentialMode && (
-                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-                  {['all', 'pending', 'submitted', 'approved', 'revision_requested'].map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setTaskFilterStatus(st)}
-                      className={`px-2.5 py-1 rounded-lg capitalize font-bold transition-all cursor-pointer text-[11px] ${
-                        taskFilterStatus === st
-                          ? 'bg-indigo-600 text-white shadow-md'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
+              {pendingTasks.length === 0 ? (
+                <div className="p-8 text-center bg-slate-950/60 rounded-xl border border-slate-800/60 space-y-2">
+                  <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto" />
+                  <div className="text-sm font-bold text-slate-200">You're All Caught Up!</div>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    No pending tasks right now. Check back soon or contact your PR Head for new assignments.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingTasks.slice(0, 3).map((task) => (
+                    <div
+                      key={task.id}
+                      className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 flex flex-col justify-between"
                     >
-                      {st.replace('_', ' ')}
-                    </button>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              +{task.pointsReward} XP • ⭐ {task.starsReward}
+                            </span>
+                            {task.priority === 'urgent' && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                Urgent
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="font-bold text-sm text-slate-100">{task.title}</h4>
+                          <p className="text-xs text-slate-400 line-clamp-2">{task.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                        <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-500" /> Due: {task.deadline}
+                        </span>
+                        <button
+                          onClick={() => handleCompleteTask(task)}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-all"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Mark Done & Claim XP</span>
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Floating Celebration & Unlock Announcement Toast */}
-          {unlockCelebration && (
-            <div className={`p-4 rounded-2xl border shadow-2xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 relative overflow-hidden ${
-              unlockCelebration.type === 'unlocked'
-                ? 'bg-gradient-to-r from-slate-900 via-indigo-950/80 to-purple-950/60 border-indigo-500/50 text-white'
-                : 'bg-gradient-to-r from-slate-900 via-emerald-950/80 to-teal-950/60 border-emerald-500/50 text-white'
-            }`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
-                  unlockCelebration.type === 'unlocked'
-                    ? 'bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-indigo-600/40 ring-2 ring-indigo-400/30'
-                    : 'bg-gradient-to-tr from-emerald-600 to-teal-600 text-white shadow-emerald-600/40 ring-2 ring-emerald-400/30'
-                }`}>
-                  {unlockCelebration.type === 'unlocked' ? (
-                    <Unlock className="w-5 h-5 text-amber-300 animate-bounce" />
-                  ) : (
-                    <Radio className="w-5 h-5 text-emerald-300 animate-pulse" />
-                  )}
+            {/* Panel B: Recent Leads */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-emerald-400" />
+                  <h2 className="font-bold text-white text-base">Your Active Leads</h2>
                 </div>
-                <div>
-                  <div className="text-[11px] font-mono uppercase tracking-wider font-extrabold text-amber-300 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    {unlockCelebration.type === 'unlocked' ? '🔓 Next Directive Unlocked & Ready!' : '📡 Mission Queue Clear'}
-                  </div>
-                  <div className="text-sm font-black text-white">
-                    {unlockCelebration.type === 'unlocked' ? (
-                      <span>{unlockCelebration.taskTitle} <strong className="text-amber-300 font-mono text-xs">(+{unlockCelebration.stars} ⭐, +{unlockCelebration.points} 🎖️)</strong></span>
-                    ) : (
-                      <span>All current directives completed! Standing by for next assignment.</span>
-                    )}
-                  </div>
-                </div>
+                <button
+                  onClick={() => onPageChange('pr_leads')}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+                >
+                  View Pipeline ({leads.length}) →
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setUnlockCelebration(null)}
-                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* ───────────────────────────────────────────────────────────── */}
-          {/* MODE A: SEQUENTIAL UNLOCK PROGRESSION (ANIMATED FLOW)        */}
-          {/* ───────────────────────────────────────────────────────────── */}
-          {sequentialMode ? (
-            <div className="space-y-6">
-              {/* Overall Progress Meter */}
-              {sequentialData.totalCount > 0 && (
-                <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                      <Award className="w-4 h-4 text-purple-400" />
-                      Sequential Directive Progress
-                    </span>
-                    <span className="font-mono text-slate-400">
-                      <strong className="text-emerald-400">{sequentialData.completedCount}</strong> of{' '}
-                      <strong className="text-white">{sequentialData.totalCount}</strong> Completed (
-                      {Math.round((sequentialData.completedCount / Math.max(1, sequentialData.totalCount)) * 100)}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800">
-                    <div
-                      className="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-2.5 rounded-full transition-all duration-500 shadow-md shadow-indigo-500/50"
-                      style={{
-                        width: `${Math.round((sequentialData.completedCount / Math.max(1, sequentialData.totalCount)) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* IF ALL COMPLETED OR NO TASKS -> WAITING FOR ASSIGNMENT COCKPIT */}
-              {sequentialData.isAllCompleted || sequentialData.totalCount === 0 ? (
-                <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-indigo-950/40 border border-slate-800 rounded-3xl p-10 md:p-14 text-center space-y-6 shadow-2xl">
-                  {/* Subtle Background Glow */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-500/10 blur-3xl rounded-full pointer-events-none" />
-
-                  {/* Sonar Radar Pulse Beacon */}
-                  <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
-                    <span className="absolute inset-0 rounded-full bg-indigo-500/25 animate-sonar-ping pointer-events-none" />
-                    <span className="absolute inset-2 rounded-full bg-purple-500/30 animate-ping pointer-events-none" />
-                    <div className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 border border-indigo-300/40 flex items-center justify-center shadow-2xl shadow-indigo-600/50 z-10">
-                      <Radio className="w-9 h-9 text-white animate-pulse" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 max-w-lg mx-auto relative z-10">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>{sequentialData.totalCount === 0 ? 'Desk Ready · Awaiting Directives' : 'All Objectives Completed ✓'}</span>
-                    </div>
-                    <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight">
-                      Waiting for Assignment
-                    </h3>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      {sequentialData.totalCount === 0
-                        ? 'You currently have no tasks assigned to your PR intern profile. PR Mission Control will allocate your outreach directives shortly.'
-                        : 'Outstanding performance! You have finished every assigned PR directive in your queue. The system is actively waiting for Academic Operations to assign your next mission.'}
-                    </p>
-                  </div>
-
-                  {/* Live Radar Listening Indicator */}
-                  <div className="p-3 max-w-md mx-auto rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-center gap-2.5 text-xs text-slate-400 font-mono relative z-10">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-                    <span>Real-time channel active · Listening for Admin assignments</span>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2 relative z-10">
-                    <button
-                      type="button"
-                      onClick={handleCreateDemoTask}
-                      className="px-6 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 text-white font-black text-xs rounded-2xl shadow-xl shadow-indigo-600/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                    >
-                      <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>Simulate New Assignment (Test Unlock Flow)</span>
-                    </button>
-                    {sequentialData.completedCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSequentialMode(false)}
-                        className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-2xl border border-slate-700/60 transition-all cursor-pointer"
-                      >
-                        <span>📜 Review Completed Directives ({sequentialData.completedCount})</span>
-                      </button>
-                    )}
-                  </div>
+              {leads.length === 0 ? (
+                <div className="p-8 text-center bg-slate-950/60 rounded-xl border border-slate-800/60 space-y-2">
+                  <Briefcase className="w-8 h-8 text-slate-600 mx-auto" />
+                  <div className="text-sm font-bold text-slate-200">No Leads Yet</div>
+                  <p className="text-xs text-slate-400">
+                    Add sponsors, college fest conveners, or brand partners to track deals and earn commission.
+                  </p>
+                  <button
+                    onClick={() => setShowAddLeadModal(true)}
+                    className="mt-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Add First Lead
+                  </button>
                 </div>
               ) : (
-                /* SEQUENTIAL TASK LIST */
-                <div className="space-y-4">
-                  {sequentialData.sorted.map((t, idx) => {
-                    const status = sequentialData.statuses[t.id];
-                    const isCompleted = status === 'completed';
-                    const isActive = status === 'active';
-                    const isLocked = status === 'locked';
-                    const isNewlyUnlocked = recentlyUnlockedTaskId === t.id;
-                    const isRecentlyCelebrated = recentlyCompletedTaskId === t.id;
-                    const isShaking = shakingTaskId === t.id;
-
+                <div className="space-y-3">
+                  {leads.slice(0, 3).map((lead) => {
+                    const isWon = lead.stage === 'closed_won';
                     return (
                       <div
-                        key={t.id}
-                        onClick={() => isLocked && handleLockedTaskClick(t.id)}
-                        className={`rounded-3xl p-6 transition-all duration-300 relative border flex flex-col justify-between ${
-                          isShaking ? 'animate-lock-shake' : ''
-                        } ${
-                          isRecentlyCelebrated ? 'animate-complete-celebration border-emerald-400 shadow-2xl shadow-emerald-500/20' : ''
-                        } ${
-                          isNewlyUnlocked
-                            ? 'animate-unlock-flash ring-4 ring-indigo-500/40 border-amber-400 shadow-2xl shadow-indigo-600/30'
-                            : ''
-                        } ${
-                          isActive
-                            ? 'bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border-indigo-500/60 ring-2 ring-indigo-500/20 shadow-xl'
-                            : isCompleted
-                            ? 'bg-slate-900/80 border-emerald-500/30'
-                            : 'bg-slate-950/60 border-slate-800/80 opacity-75 cursor-pointer hover:border-slate-700'
-                        }`}
+                        key={lead.id}
+                        className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5"
                       >
-                        {/* Newly Unlocked Banner Overlay */}
-                        {isNewlyUnlocked && (
-                          <div className="absolute -top-3.5 left-6 z-20 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-amber-500/30 animate-bounce">
-                            <Sparkles className="w-3 h-3 text-slate-950" />
-                            Next Directive Unlocked!
-                          </div>
-                        )}
-
-                        <div className="space-y-3.5">
-                          {/* Header: Stage Badge, Bounties, Status */}
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              {/* Stage Number Pill */}
-                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${
-                                isActive
-                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                                  : isCompleted
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                  : 'bg-slate-800 text-slate-400 border-slate-700'
-                              }`}>
-                                Stage {idx + 1}
-                              </span>
-
-                              {/* Bounty Pill */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1">
-                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                                  +{t.starsReward} Stars
-                                </span>
-                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-purple-500/15 border border-purple-500/30 text-purple-300 flex items-center gap-1">
-                                  <TrendingUp className="w-3 h-3" />
-                                  +{t.pointsReward} Pts
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Status State Badge */}
-                            <div>
-                              {isCompleted ? (
-                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Completed & Verified ✓
-                                </span>
-                              ) : isActive ? (
-                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 animate-pulse">
-                                  <Flame className="w-3.5 h-3.5 text-amber-400" /> Active Objective
-                                </span>
-                              ) : (
-                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-800/80 text-slate-400 border border-slate-700 flex items-center gap-1">
-                                  <Lock className="w-3.5 h-3.5 text-slate-500" /> Locked Directive
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Directive Title & Description */}
+                        <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className={`text-base font-extrabold tracking-tight ${
-                              isActive ? 'text-white' : isCompleted ? 'text-slate-200' : 'text-slate-400'
-                            }`}>
-                              {t.title}
-                            </h3>
-                            <p className={`text-xs mt-1 leading-relaxed ${
-                              isActive ? 'text-slate-300' : isCompleted ? 'text-slate-400' : 'text-slate-500'
-                            }`}>
-                              {t.description}
-                            </p>
-                          </div>
-
-                          {/* Metadata Details */}
-                          <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-1">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />
-                              Deadline: <strong className={isActive ? 'text-amber-300' : 'text-slate-300'}>{t.deadline}</strong>
-                            </span>
-                            <span>Assigned by: <strong className="text-slate-300">{t.assignedByAdminName || 'AEW Mission Control'}</strong></span>
-                          </div>
-
-                          {/* Locked Notice Banner */}
-                          {isLocked && (
-                            <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800/80 flex items-center justify-between gap-2 text-xs text-slate-400">
-                              <span className="flex items-center gap-2">
-                                <Lock className="w-4 h-4 text-slate-500 shrink-0" />
-                                <span>Locked Directive · Complete <strong>Stage {idx}</strong> above to unlock.</span>
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-mono">Sequential Mode</span>
+                            <h4 className="font-bold text-sm text-slate-100">{lead.organizationName}</h4>
+                            <div className="text-xs text-slate-400">
+                              👤 <strong>{lead.contactPerson}</strong> ({lead.designation})
                             </div>
-                          )}
-
-                          {/* Completed Submissions / Proof Preview */}
-                          {t.submissionNotes && (
-                            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-1 text-xs">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Submission Notes:</span>
-                              <p className="text-slate-300">{t.submissionNotes}</p>
-                              {t.submissionProofUrl && (
-                                <a
-                                  href={t.submissionProofUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-indigo-400 hover:text-indigo-300 text-[11px] inline-flex items-center gap-1 font-semibold mt-1"
-                                >
-                                  <ExternalLink className="w-3 h-3" /> View Submitted Proof Link
-                                </a>
-                              )}
-                            </div>
-                          )}
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            isWon
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : lead.stage === 'closed_lost'
+                              ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                              : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
+                          }`}>
+                            {lead.stage.replace('_', ' ')}
+                          </span>
                         </div>
 
-                        {/* Action Footer on Active Card */}
-                        {isActive && (
-                          <div className="pt-4 mt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">
+                          <span className="text-slate-400">
+                            Deal: <strong className="text-slate-200">₹{(lead.closedAmount || lead.expectedSponsorshipAmount).toLocaleString('en-IN')}</strong>
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {lead.phone && (
+                              <button
+                                onClick={() => handleOpenWhatsApp(lead.phone, lead.contactPerson, lead.organizationName)}
+                                className="text-emerald-400 hover:text-emerald-300 text-[11px] font-semibold flex items-center gap-1"
+                                title="Open WhatsApp"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                              </button>
+                            )}
                             <button
-                              type="button"
-                              onClick={() => {
-                                setShowTaskSubmitModal(t);
-                                setSubmissionNotes(t.submissionNotes || '');
-                                setSubmissionProofUrl(t.submissionProofUrl || '');
-                              }}
-                              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-700/80 shadow"
+                              onClick={() => onPageChange('pr_leads')}
+                              className="text-slate-400 hover:text-slate-200 text-[11px]"
                             >
-                              <Send className="w-3.5 h-3.5 text-indigo-400" />
-                              <span>Submit Proof & Notes</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleCompleteTask(t)}
-                              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 text-white font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95"
-                            >
-                              <Sparkles className="w-4 h-4 text-amber-300" />
-                              <span>Complete & Unlock Next Task</span>
-                              <ArrowRight className="w-3.5 h-3.5 text-amber-300" />
+                              Manage →
                             </button>
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
-          ) : (
-            /* ───────────────────────────────────────────────────────────── */
-            /* MODE B: STANDARD GRID VIEW                                   */
-            /* ───────────────────────────────────────────────────────────── */
-            filteredTasks.length === 0 ? (
-              <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/95 to-indigo-950/40 border border-slate-800 rounded-3xl p-10 md:p-14 text-center space-y-6 shadow-2xl">
-                <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
-                  <span className="absolute inset-0 rounded-full bg-indigo-500/20 animate-sonar-ping pointer-events-none" />
-                  <div className="relative w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-600/40">
-                    <Radio className="w-8 h-8 text-white animate-pulse" />
-                  </div>
-                </div>
-                <div className="space-y-1.5 max-w-md mx-auto">
-                  <h3 className="text-xl font-bold text-white">Waiting for Assignment</h3>
-                  <p className="text-xs text-slate-400">
-                    No tasks currently found in this category. System is listening for new admin assignments.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCreateDemoTask}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all"
-                >
-                  + Add Test Directive
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredTasks.map((t) => {
-                  const isPending = t.status === 'pending';
-                  const isSubmitted = t.status === 'submitted';
-                  const isApproved = t.status === 'approved' || t.status === 'completed';
-                  const isRevision = t.status === 'revision_requested';
 
-                  return (
-                    <div
-                      key={t.id}
-                      className={`bg-slate-900 border rounded-3xl p-6 space-y-4 shadow-xl transition-all flex flex-col justify-between ${
-                        isApproved
-                          ? 'border-emerald-500/30'
-                          : isRevision
-                          ? 'border-rose-500/40'
-                          : isSubmitted
-                          ? 'border-amber-500/30'
-                          : 'border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1 font-mono">
-                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                              +{t.starsReward} Stars
-                            </span>
-                            <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center gap-1 font-mono">
-                              <TrendingUp className="w-3.5 h-3.5" />
-                              +{t.pointsReward} Pts
-                            </span>
-                          </div>
-
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                            isApproved
-                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                              : isSubmitted
-                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                              : isRevision
-                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
-                              : 'bg-slate-800 text-slate-300'
-                          }`}>
-                            {t.status.replace('_', ' ')}
-                          </span>
-                        </div>
-
-                        <h3 className="font-extrabold text-base text-slate-100">{t.title}</h3>
-                        <p className="text-xs text-slate-300 leading-relaxed">{t.description}</p>
-
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                          <span>Deadline: <strong className="text-slate-200">{t.deadline}</strong></span>
-                          <span>Assigned by: <strong className="text-slate-300">{t.assignedByAdminName}</strong></span>
-                        </div>
-
-                        {t.submissionNotes && (
-                          <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1 text-xs">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Your Submission:</span>
-                            <p className="text-slate-300">{t.submissionNotes}</p>
-                            {t.submissionProofUrl && (
-                              <a
-                                href={t.submissionProofUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-indigo-400 hover:text-indigo-300 text-[11px] inline-flex items-center gap-1 font-semibold mt-1"
-                              >
-                                <ExternalLink className="w-3 h-3" /> View Submitted Proof Link
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row gap-2">
-                        {isPending || isRevision ? (
-                          <>
-                            <button
-                              onClick={() => {
-                                setShowTaskSubmitModal(t);
-                                setSubmissionNotes(t.submissionNotes || '');
-                                setSubmissionProofUrl(t.submissionProofUrl || '');
-                              }}
-                              className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700/60"
-                            >
-                              <Send className="w-3.5 h-3.5" />
-                              <span>Submit Proof</span>
-                            </button>
-                            <button
-                              onClick={() => handleCompleteTask(t)}
-                              className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/30"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                              <span>Complete & Unlock Next ✨</span>
-                            </button>
-                          </>
-                        ) : isSubmitted ? (
-                          <div className="w-full text-center text-xs text-amber-400/90 font-medium py-1">
-                            ⏳ Waiting for Admin review & Star/Point allocation
-                          </div>
-                        ) : (
-                          <div className="w-full text-center text-xs text-emerald-400 font-bold py-1 flex items-center justify-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4" />
-                            +{t.awardedStars || t.starsReward} Stars & +{t.awardedPoints || t.pointsReward} Points Awarded!
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          )}
+          </div>
         </div>
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── TAB 3: LEAD GENERATOR & SPONSORSHIP PIPELINE ─────────────────── */}
+      {/* ─── TAB 2: LEADS PIPELINE ───────────────────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {currentPage === 'pr_leads' && (
         <div className="space-y-6">
+
+          {/* Header Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
-                <DollarSign className="w-6 h-6 text-emerald-400" /> Sponsorship Lead Generator & Pipeline
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-emerald-400" />
+                Leads & Sponsorship Pipeline
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Register sponsorship opportunities with colleges, techfests, and brand partners. Every closed deal pays {commissionRate}% commission!
+                Register sponsors, track conversation stages, and record who they are. Every closed deal pays {commissionRate}% commission!
               </p>
             </div>
 
             <button
               onClick={() => setShowAddLeadModal(true)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> + Register New Sponsorship Lead
+              <Plus className="w-4 h-4" /> + Add New Lead
             </button>
           </div>
 
-          {/* Leads table / cards */}
-          {leads.length === 0 ? (
-            <div className="p-16 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
+          {/* Filters & Search */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-3 rounded-2xl">
+            {/* Stage filter pills */}
+            <div className="flex items-center gap-1 overflow-x-auto text-xs no-scrollbar">
+              {[
+                { id: 'all', label: 'All Leads' },
+                { id: 'lead', label: 'Prospects' },
+                { id: 'contacted', label: 'Contacted' },
+                { id: 'pitch_deck_sent', label: 'Pitch Sent' },
+                { id: 'negotiation', label: 'In Discussion' },
+                { id: 'closed_won', label: 'Won 🎉' },
+                { id: 'closed_lost', label: 'Lost' },
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  onClick={() => setLeadFilterStage(pill.id)}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 cursor-pointer ${
+                    leadFilterStage === pill.id
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search input */}
+            <div className="relative min-w-[220px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search org, person, phone..."
+                value={leadSearchQuery}
+                onChange={(e) => setLeadSearchQuery(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Leads Grid */}
+          {filteredLeads.length === 0 ? (
+            <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
               <Briefcase className="w-10 h-10 text-slate-600 mx-auto" />
-              <div className="font-bold text-slate-300 text-base">No Leads Registered Yet</div>
-              <p className="text-xs text-slate-500">Click "+ Register New Sponsorship Lead" to start building your revenue pipeline.</p>
+              <div className="font-bold text-slate-200 text-sm">No Leads Found</div>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                {leadSearchQuery || leadFilterStage !== 'all'
+                  ? 'No leads matched your filter criteria.'
+                  : 'Start by adding your first college fest, club, or sponsor lead.'}
+              </p>
+              <button
+                onClick={() => setShowAddLeadModal(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" /> Add Lead
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {leads.map((lead) => {
+              {filteredLeads.map((lead) => {
                 const isWon = lead.stage === 'closed_won';
                 const isLost = lead.stage === 'closed_lost';
                 const projectedPayout = Math.round((lead.expectedSponsorshipAmount * commissionRate) / 100);
@@ -1630,7 +873,7 @@ Portal URL: ${window.location.origin}`;
                 return (
                   <div
                     key={lead.id}
-                    className={`bg-slate-900 border rounded-3xl p-6 space-y-4 shadow-xl transition-all flex flex-col justify-between ${
+                    className={`bg-slate-900 border rounded-2xl p-5 space-y-4 shadow-sm flex flex-col justify-between transition-all ${
                       isWon
                         ? 'border-emerald-500/40 bg-gradient-to-br from-emerald-950/20 via-slate-900 to-slate-900'
                         : isLost
@@ -1639,18 +882,16 @@ Portal URL: ${window.location.origin}`;
                     }`}
                   >
                     <div className="space-y-3">
+                      {/* Header: Org & Stage Dropdown */}
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/25">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
                             {lead.type.replace('_', ' ').toUpperCase()}
                           </span>
-                          <h3 className="font-extrabold text-base text-slate-100 mt-1">{lead.organizationName}</h3>
-                          <div className="text-xs text-slate-400">
-                            {lead.contactPerson} ({lead.designation})
-                          </div>
+                          <h3 className="font-bold text-base text-white mt-1">{lead.organizationName}</h3>
                         </div>
 
-                        {/* Status selector */}
+                        {/* Interactive Status Selector */}
                         <select
                           value={lead.stage}
                           onChange={(e) => handleStageChange(lead.id, e.target.value as PrLeadStage)}
@@ -1658,70 +899,143 @@ Portal URL: ${window.location.origin}`;
                         >
                           <option value="lead">Lead / Prospect</option>
                           <option value="contacted">Contacted</option>
-                          <option value="pitch_deck_sent">Pitch Deck Sent</option>
-                          <option value="negotiation">Negotiation</option>
+                          <option value="pitch_deck_sent">Pitch Sent</option>
+                          <option value="negotiation">In Discussion</option>
                           <option value="mou_drafted">MoU Drafted</option>
                           <option value="closed_won">✅ Closed Won</option>
                           <option value="closed_lost">❌ Closed Lost</option>
                         </select>
                       </div>
 
-                      {/* Financial projection banner */}
-                      <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80 flex items-center justify-between text-xs">
+                      {/* Who They Are: Contact Person Card */}
+                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs">
+                            <span className="text-slate-400">Contact Person: </span>
+                            <strong className="text-slate-100">{lead.contactPerson}</strong>
+                            <span className="text-slate-400"> ({lead.designation})</span>
+                          </div>
+                        </div>
+
+                        {/* Quick 1-Click Communications */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-900 text-xs">
+                          {lead.phone && (
+                            <>
+                              <a
+                                href={`tel:${lead.phone}`}
+                                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-semibold text-[11px] flex items-center gap-1 border border-slate-800"
+                              >
+                                <Phone className="w-3 h-3 text-indigo-400" />
+                                <span>{lead.phone}</span>
+                              </a>
+                              <button
+                                onClick={() => handleOpenWhatsApp(lead.phone, lead.contactPerson, lead.organizationName)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 font-semibold text-[11px] flex items-center gap-1 border border-emerald-800/40 cursor-pointer"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>WhatsApp</span>
+                              </button>
+                            </>
+                          )}
+                          {lead.email && (
+                            <a
+                              href={`mailto:${lead.email}`}
+                              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-semibold text-[11px] flex items-center gap-1 border border-slate-800 truncate max-w-[200px]"
+                            >
+                              <Mail className="w-3 h-3 text-indigo-400" />
+                              <span className="truncate">{lead.email}</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Financial Value Banner */}
+                      <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
                         <div>
-                          <span className="text-slate-400 text-[11px] block">
-                            {isWon ? 'Final Closed Revenue:' : 'Expected Sponsorship:'}
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold tracking-wider">
+                            {isWon ? 'Confirmed Amount' : 'Expected Deal'}
                           </span>
-                          <span className="text-base font-black text-slate-100 font-mono">
+                          <span className="text-base font-black text-white font-mono">
                             ₹{(isWon ? lead.closedAmount : lead.expectedSponsorshipAmount)?.toLocaleString('en-IN')}
                           </span>
                         </div>
 
                         <div className="text-right">
-                          <span className="text-slate-400 text-[11px] block">
-                            {isWon ? 'Confirmed Commission:' : 'Projected Payout:'}
+                          <span className="text-slate-400 text-[10px] block uppercase font-bold tracking-wider">
+                            {isWon ? 'Confirmed Commission' : 'Your Projected Share'}
                           </span>
                           <span className="text-base font-black text-emerald-400 font-mono">
                             ₹{(isWon ? lead.commissionEarned : projectedPayout)?.toLocaleString('en-IN')}
                           </span>
-                          <span className="text-[10px] text-slate-500 block">({commissionRate}% {currentTier})</span>
+                          <span className="text-[10px] text-slate-500 font-semibold">({commissionRate}% rate)</span>
                         </div>
                       </div>
 
-                      {/* Contact details */}
-                      <div className="flex items-center gap-4 text-xs text-slate-400">
-                        {lead.phone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3.5 h-3.5 text-slate-500" /> {lead.phone}
+                      {/* Notes / Last update */}
+                      {editingLeadNotesId === lead.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingNotesText}
+                            onChange={(e) => setEditingNotesText(e.target.value)}
+                            placeholder="Add meeting notes or next action steps..."
+                            rows={2}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => setEditingLeadNotesId(null)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleSaveLeadNotes(lead.id)}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold"
+                            >
+                              Save Notes
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => {
+                            setEditingLeadNotesId(lead.id);
+                            setEditingNotesText(lead.notes || '');
+                          }}
+                          className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/60 text-xs text-slate-400 hover:border-slate-700 cursor-pointer group flex items-start justify-between"
+                        >
+                          <p className="line-clamp-2 italic">
+                            {lead.notes ? `"${lead.notes}"` : 'Click to add notes or follow-up details...'}
+                          </p>
+                          <span className="text-[10px] text-indigo-400 font-semibold opacity-0 group-hover:opacity-100 shrink-0 ml-2">
+                            Edit
                           </span>
-                        )}
-                        {lead.email && (
-                          <span className="flex items-center gap-1 truncate">
-                            <Mail className="w-3.5 h-3.5 text-slate-500" /> {lead.email}
-                          </span>
-                        )}
-                      </div>
-
-                      {lead.notes && (
-                        <p className="text-xs text-slate-400 italic bg-slate-950/50 p-2.5 rounded-xl border border-slate-800/50">
-                          "{lead.notes}"
-                        </p>
+                        </div>
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500">
-                        Added on {new Date(lead.createdAt).toLocaleDateString()}
+                    {/* Footer Actions */}
+                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 text-[11px]">
+                        Added: {new Date(lead.createdAt).toLocaleDateString()}
                       </span>
 
-                      {!isWon && !isLost && (
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleStageChange(lead.id, 'closed_won')}
-                          className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
+                          onClick={() => handleDraftMouForLead(lead)}
+                          className="text-purple-400 hover:text-purple-300 font-semibold text-[11px] flex items-center gap-1"
                         >
-                          Mark as Closed Won ➔
+                          <FileText className="w-3 h-3" /> Draft MoU
                         </button>
-                      )}
+
+                        <button
+                          onClick={() => handleDeleteLead(lead.id, lead.organizationName)}
+                          className="text-slate-500 hover:text-rose-400 p-1"
+                          title="Delete Lead"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1732,446 +1046,595 @@ Portal URL: ${window.location.origin}`;
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── TAB 4: MOU MAKER & FORMAL AGREEMENTS ────────────────────────── */}
+      {/* ─── TAB 3: TASKS ASSIGNED BY PR HEAD & XP ───────────────────────── */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {currentPage === 'pr_tasks' && (
+        <div className="space-y-6">
+
+          {/* Header Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-indigo-400" />
+                Assigned Tasks & XP Rewards
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Complete tasks assigned by your PR Head or AEW Admin. Earn XP and Stars to level up your tier and commission rate!
+              </p>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs">
+              <button
+                onClick={() => setTaskFilter('all')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  taskFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                All Tasks ({myTasks.length})
+              </button>
+              <button
+                onClick={() => setTaskFilter('pending')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  taskFilter === 'pending' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                To Do ({pendingTasks.length})
+              </button>
+              <button
+                onClick={() => setTaskFilter('completed')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  taskFilter === 'completed' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Completed ({completedTasks.length})
+              </button>
+            </div>
+          </div>
+
+          {/* Tasks List */}
+          {displayedTasks.length === 0 ? (
+            <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
+              <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto" />
+              <div className="text-sm font-bold text-slate-200">
+                {taskFilter === 'pending' ? 'No Tasks Pending!' : 'No Tasks Found'}
+              </div>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                {taskFilter === 'pending'
+                  ? 'Great job! You have cleared all tasks assigned by your PR Head.'
+                  : 'Tasks assigned to you will show up here.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {displayedTasks.map((t) => {
+                const isCompleted = t.status === 'completed' || t.status === 'approved';
+                const isSubmitted = t.status === 'submitted';
+
+                return (
+                  <div
+                    key={t.id}
+                    className={`bg-slate-900 border rounded-2xl p-5 space-y-3 transition-all ${
+                      isCompleted
+                        ? 'border-emerald-500/30 bg-slate-900/80'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {/* Top Row: Bounty, Priority & Status */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          +{t.starsReward} Stars
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          +{t.pointsReward} XP
+                        </span>
+                        {t.priority === 'urgent' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 uppercase">
+                            Urgent
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Status Badge */}
+                      <div>
+                        {isCompleted ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Completed ✓
+                          </span>
+                        ) : isSubmitted ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            Submitted for Review
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                            To Do
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Task Title & Description */}
+                    <div>
+                      <h3 className={`font-bold text-base ${isCompleted ? 'text-slate-300' : 'text-white'}`}>
+                        {t.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">{t.description}</p>
+                    </div>
+
+                    {/* Metadata & Assignee */}
+                    <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                        Deadline: <strong className="text-slate-300">{t.deadline}</strong>
+                      </span>
+                      <span>
+                        Assigned by: <strong className="text-slate-300">{t.assignedByAdminName || 'PR Head'}</strong>
+                      </span>
+                    </div>
+
+                    {/* Submitted Proof / Notes */}
+                    {t.submissionNotes && (
+                      <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Your Submission:</span>
+                        <p>{t.submissionNotes}</p>
+                        {t.submissionProofUrl && (
+                          <a
+                            href={t.submissionProofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-indigo-400 hover:text-indigo-300 font-semibold inline-flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" /> View Submitted Proof Link
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Action Button */}
+                    {!isCompleted && (
+                      <div className="pt-2 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowTaskSubmitModal(t);
+                            setSubmissionNotes(t.submissionNotes || '');
+                            setSubmissionProofUrl(t.submissionProofUrl || '');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
+                        >
+                          <Send className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Submit Notes & Link</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCompleteTask(t)}
+                          className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/30"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Complete & Claim XP ✨</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* ─── TAB 4: MOU GENERATOR ────────────────────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {currentPage === 'pr_mou_maker' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
-                <FileText className="w-6 h-6 text-purple-400" /> Formal MoU Maker & Legal Agreements
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-400" />
+                MoU Agreements & Legal Drafts
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Generate official Memorandums of Understanding with college fests, knowledge partners, and student bodies with automated legal terms and signatory blocks.
+                Generate official Memorandums of Understanding for corporate sponsors and college partners.
               </p>
             </div>
 
             <button
               onClick={() => setShowMouModal(true)}
-              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> + Draft New Official MoU
+              <Plus className="w-4 h-4" /> + Draft New MoU
             </button>
           </div>
 
-          {/* List of MOUs */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {mous.map((m) => {
-              const isApproved = m.status === 'approved' || m.status === 'signed';
-              return (
+          {/* List of Mous */}
+          {mous.length === 0 ? (
+            <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
+              <FileText className="w-8 h-8 text-slate-600 mx-auto" />
+              <div className="text-sm font-bold text-slate-200">No MoUs Drafted Yet</div>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Once you close a sponsorship deal, generate an official MoU here to send to the partner.
+              </p>
+              <button
+                onClick={() => setShowMouModal(true)}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
+              >
+                + Draft MoU
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {mous.map((mou) => (
                 <div
-                  key={m.id}
-                  className={`bg-slate-900 border rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between ${
-                    isApproved ? 'border-purple-500/40 bg-gradient-to-br from-purple-950/15 via-slate-900 to-slate-900' : 'border-slate-800'
-                  }`}
+                  key={mou.id}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between"
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="font-mono text-xs font-bold text-purple-400 bg-purple-500/15 px-2.5 py-0.5 rounded-full border border-purple-500/30">
-                          {m.mouNumber}
-                        </span>
-                        <h3 className="font-extrabold text-base text-slate-100 mt-2">{m.partnerOrganization}</h3>
-                        <div className="text-xs text-slate-400">
-                          Signatory: <strong className="text-slate-200">{m.partnerSignatory}</strong> ({m.partnerDesignation})
-                        </div>
-                      </div>
-
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                        isApproved
-                          ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                          : m.status === 'rejected'
-                          ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                      }`}>
-                        {m.status.replace('_', ' ')}
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="font-bold text-base text-white">{mou.partnerOrganization}</h4>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 uppercase">
+                        {mou.status.replace(/_/g, ' ')}
                       </span>
                     </div>
 
-                    <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs">
-                      <div className="text-[11px] text-slate-400 font-semibold">Purpose:</div>
-                      <p className="text-slate-200">{m.purpose}</p>
-                      {m.sponsorshipAmount ? (
-                        <div className="pt-1 flex items-center justify-between font-mono">
-                          <span className="text-slate-400">Consideration:</span>
-                          <span className="text-emerald-400 font-bold">₹{m.sponsorshipAmount.toLocaleString('en-IN')}</span>
-                        </div>
-                      ) : null}
+                    <div className="text-xs text-slate-300">
+                      Signatory: <strong>{mou.partnerSignatory}</strong> ({mou.partnerDesignation})
                     </div>
+                    <div className="text-xs text-slate-400 line-clamp-2">Purpose: {mou.purpose}</div>
 
-                    {m.adminFeedback && (
-                      <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-purple-300">
-                        <strong>Admin Note:</strong> {m.adminFeedback}
-                      </div>
-                    )}
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Agreed Sponsorship:</span>
+                      <strong className="text-emerald-400 font-mono text-sm">
+                        ₹{mou.sponsorshipAmount?.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500">
-                      Duration: {m.startDate} to {m.endDate}
-                    </span>
-
+                  <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 text-[11px] font-mono">{mou.id}</span>
                     <button
-                      onClick={() => setSelectedPreviewMou(m)}
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700/60"
+                      onClick={() => setSelectedPreviewMou(mou)}
+                      className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
                     >
-                      <FileText className="w-3.5 h-3.5 text-purple-400" /> View & Print Formal MoU
+                      <Printer className="w-3.5 h-3.5" /> View / Print MoU
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── TAB 5: CAMPUS DIRECTORY & WHATSAPP PITCH MAKER ─────────────── */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {currentPage === 'pr_colleges' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
-                <Building2 className="w-6 h-6 text-indigo-400" /> Engineering Colleges Outreach Directory
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Verified training and placement officers (TPOs), HODs, and student body heads across universities.
-              </p>
-            </div>
-
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search colleges, cities..."
-                value={collegeSearch}
-                onChange={(e) => setCollegeSearch(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {colleges
-              .filter((c) => c.name.toLowerCase().includes(collegeSearch.toLowerCase()) || c.city.toLowerCase().includes(collegeSearch.toLowerCase()))
-              .map((c) => {
-                const isCopied = copiedPitchId === c.id;
-                return (
-                  <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-xl flex flex-col justify-between">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/25">
-                            {c.tier} • {c.state}
-                          </span>
-                          <h4 className="font-extrabold text-sm text-slate-100 mt-1">{c.name}</h4>
-                          <p className="text-xs text-slate-400">{c.city}</p>
-                        </div>
-
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold capitalize bg-slate-800 text-slate-300">
-                          {c.status.replace('_', ' ')}
-                        </span>
-                      </div>
-
-                      <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1 text-xs">
-                        <div className="text-slate-200 font-semibold">{c.contactPerson}</div>
-                        <div className="text-slate-400 text-[11px]">{c.designation}</div>
-                        <div className="flex items-center gap-3 text-slate-400 text-[11px] pt-1">
-                          <span>📞 {c.phone}</span>
-                          <span>✉️ {c.email}</span>
-                        </div>
-                      </div>
-
-                      {c.notes && (
-                        <p className="text-[11px] text-slate-400 italic">
-                          "{c.notes}"
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => handleCopyPitch(c)}
-                      className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                        isCopied
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20'
-                      }`}
-                    >
-                      {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      {isCopied ? 'WhatsApp Pitch Copied!' : 'Copy Tailored Pitch'}
-                    </button>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── TAB 6: COMMISSION LEDGER & PAYOUTS ──────────────────────────── */}
+      {/* ─── TAB 5: COMMISSION LEDGER & EARNINGS ─────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {currentPage === 'pr_earnings' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-emerald-400" /> Commission Ledger & Closed Deals Statement
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+              Your Commission & Earnings Ledger
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Verified earnings statement for all sponsorship agreements closed under your PR ID ({currentUser.teacherId}).
+            <p className="text-xs text-slate-400">
+              Verified breakdown of sponsorship revenues brought to AEW and confirmed commission payouts based on your {currentTier} tier rate ({commissionRate}%).
             </p>
-          </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-            <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
-              <div className="font-bold text-sm text-slate-100">Itemized Sponsorship Statements</div>
-              <div className="font-mono text-xs text-slate-400">
-                Total Earned: <strong className="text-emerald-400 text-sm">₹{totalCommissionEarned.toLocaleString('en-IN')}</strong>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <div className="text-xs text-slate-400">Total Sponsorship Closed</div>
+                <div className="text-xl font-black text-white font-mono mt-1">
+                  ₹{totalWonRevenue.toLocaleString('en-IN')}
+                </div>
+              </div>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <div className="text-xs text-slate-400">Your Current Commission Rate</div>
+                <div className="text-xl font-black text-indigo-400 font-mono mt-1">
+                  {commissionRate}% ({currentTier})
+                </div>
+              </div>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <div className="text-xs text-slate-400">Confirmed Payout Earned</div>
+                <div className="text-xl font-black text-emerald-400 font-mono mt-1">
+                  ₹{totalCommissionEarned.toLocaleString('en-IN')}
+                </div>
               </div>
             </div>
+          </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
-                  <tr>
-                    <th className="p-4 font-semibold">Partner / Organization</th>
-                    <th className="p-4 font-semibold">Date Closed</th>
-                    <th className="p-4 font-semibold">Deal Volume (₹)</th>
-                    <th className="p-4 font-semibold">Intern Tier Rate</th>
-                    <th className="p-4 font-semibold text-right">Commission Payout (₹)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {leads.filter(l => l.stage === 'closed_won').map((l) => (
-                    <tr key={l.id} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="p-4 font-bold text-slate-200">
-                        {l.organizationName}
-                        <span className="block text-[11px] text-slate-400 font-normal">{l.contactPerson}</span>
-                      </td>
-                      <td className="p-4 text-slate-400 font-mono">
-                        {new Date(l.updatedAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-4 font-mono font-bold text-slate-200">
-                        ₹{(l.closedAmount || l.expectedSponsorshipAmount).toLocaleString('en-IN')}
-                      </td>
-                      <td className="p-4">
-                        <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                          {l.commissionRate || commissionRate}% ({l.internTierAtClosure || currentTier})
-                        </span>
-                      </td>
-                      <td className="p-4 font-mono font-bold text-emerald-400 text-right text-sm">
-                        +₹{(l.commissionEarned || Math.round(((l.closedAmount || l.expectedSponsorshipAmount) * commissionRate) / 100)).toLocaleString('en-IN')}
-                      </td>
-                    </tr>
-                  ))}
-                  {leads.filter(l => l.stage === 'closed_won').length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-500">
-                        No closed won deals in ledger yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          {/* Won Deals Breakdown */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <h3 className="font-bold text-white text-base">Closed Deals Breakdown</h3>
+            {wonLeads.length === 0 ? (
+              <div className="p-8 text-center bg-slate-950 rounded-xl text-xs text-slate-400">
+                No closed deals yet. Update leads in your pipeline to "Closed Won" to register your verified commissions.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-800">
+                {wonLeads.map((deal) => (
+                  <div key={deal.id} className="py-3 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="font-bold text-white">{deal.organizationName}</div>
+                      <div className="text-slate-400 text-[11px]">Contact: {deal.contactPerson} ({deal.designation})</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-emerald-400 font-mono">
+                        +₹{(deal.commissionEarned || Math.round(((deal.closedAmount || deal.expectedSponsorshipAmount) * commissionRate) / 100)).toLocaleString('en-IN')}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        Deal: ₹{(deal.closedAmount || deal.expectedSponsorshipAmount).toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── TAB: PR TEAM & AMBASSADORS (PR HEAD EXCLUSIVE) ───────────────── */}
+      {/* ─── TAB 6: PR TEAM (PR HEAD ONLY) ───────────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {currentPage === 'pr_team' && currentUser.role === 'pr_head' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-3xl border border-slate-800">
+          <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-100 flex items-center gap-2">
-                <Users className="w-6 h-6 text-purple-400" />
-                PR Team, Ambassadors & Campus Leads ({prMembers.length})
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-400" />
+                PR Team Roster
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Manage PR interns, campus ambassadors, tier permissions, and team onboardings.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={handlePrManualSync}
-                disabled={isPrManualSyncing}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-2 cursor-pointer transition-all shadow"
-                title="Synchronize PR roster with cloud database"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-purple-400 ${isPrManualSyncing ? 'animate-spin' : ''}`} />
-                <span>{prManualSyncMsg || 'Sync to Cloud'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddPrModal(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-purple-950 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                Add PR Member / Ambassador
-              </button>
+              <p className="text-xs text-slate-400">Manage PR interns, assign objectives, and review progress.</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {prMembers.map((member) => {
-              const isSelf = member.teacherId === currentUser.teacherId;
-              const isHead = member.role === 'pr_head';
-              return (
-                <div key={member.teacherId} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm text-white shadow-inner ${
-                          isHead ? 'bg-gradient-to-br from-amber-500 to-purple-600' : 'bg-gradient-to-br from-indigo-500 to-purple-600'
-                        }`}>
-                          {member.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h4 className="text-sm font-bold text-white">{member.name}</h4>
-                            {isHead && <Crown className="w-3.5 h-3.5 text-amber-400" />}
-                          </div>
-                          <p className="text-[11px] text-slate-400 font-mono">{member.teacherId}</p>
-                        </div>
-                      </div>
-
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        isHead ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                      }`}>
-                        {isHead ? 'PR Head' : `${member.prTier || 'Silver'} Intern`}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>Role / Focus:</span>
-                        <span className="text-slate-200 font-medium truncate max-w-[150px]">{member.subject || 'Campus Brand Outreach'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>Stars & Points:</span>
-                        <span className="text-amber-400 font-bold font-mono">⭐ {member.prStars || 0} • 🎖️ {member.prPoints || 0}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>Closed Deals:</span>
-                        <span className="text-emerald-400 font-bold font-mono">₹{(member.totalSponsorshipRevenue || 0).toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>Email:</span>
-                        <span className="text-indigo-300 font-mono text-[10px] truncate max-w-[160px]">{member.email}</span>
-                      </div>
-                    </div>
+            {allUsers.filter((u) => u.role === 'pr_intern' && !u.isOffboarded).map((member) => (
+              <div key={member.teacherId} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-bold text-white text-base">{member.name}</h3>
+                    <div className="text-xs text-slate-400">{member.email}</div>
                   </div>
-
-                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      Joined: {member.joiningDate || 'Active'}
-                    </span>
-                    {!isSelf && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePrMember(member.teacherId, member.name)}
-                        className="text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-3 h-3" /> Remove
-                      </button>
-                    )}
-                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">
+                    {member.prTier || 'Silver'}
+                  </span>
                 </div>
-              );
-            })}
+                <div className="pt-2 border-t border-slate-800 flex justify-between text-xs text-slate-400">
+                  <span>Earned XP: <strong className="text-indigo-300">{member.prPoints || 0}</strong></span>
+                  <span>Stars: <strong className="text-amber-300">⭐ {member.prStars || 0}</strong></span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
-      {showTaskSubmitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-start justify-between border-b border-slate-800 pb-3 gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    PR Directive
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    Deadline: {showTaskSubmitModal.deadline}
-                  </span>
-                </div>
-                <h3 className="font-extrabold text-base text-slate-100 mt-1">{showTaskSubmitModal.title}</h3>
-                <p className="text-xs text-slate-400 line-clamp-2 mt-0.5">{showTaskSubmitModal.description}</p>
-              </div>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* ─── MODAL 1: ADD NEW LEAD ───────────────────────────────────────── */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {showAddLeadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Plus className="w-4 h-4 text-emerald-400" /> Register Sponsorship Lead
+              </h3>
               <button
-                type="button"
-                onClick={() => setShowTaskSubmitModal(null)}
-                className="text-slate-400 hover:text-white text-lg p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                onClick={() => setShowAddLeadModal(false)}
+                className="text-slate-400 hover:text-white p-1"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-indigo-500/10 border border-amber-500/25 text-xs text-amber-300 flex items-center justify-between gap-2 shadow-inner">
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
-                <span>Rewards: <strong>+{showTaskSubmitModal.starsReward} Stars ⭐</strong> & <strong>+{showTaskSubmitModal.pointsReward} Points 🎖️</strong></span>
-              </div>
-              <span className="text-[10px] font-mono font-bold bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/30">
-                On Approval / Completion
-              </span>
-            </div>
-
-            <form onSubmit={handleSubmitTask} className="space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Summary of Work Accomplished *</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Detail the actions taken, meetings conducted, colleges reached, or deliverables finalized..."
-                  value={submissionNotes}
-                  onChange={(e) => setSubmissionNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 leading-relaxed placeholder:text-slate-600"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Proof Link (Google Drive / Docs / Spreadsheet / Social Post)</label>
+            <form onSubmit={handleAddLead} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Organization / College / Brand Name *
+                </label>
                 <input
-                  type="url"
-                  placeholder="https://drive.google.com/... or https://linkedin.com/..."
-                  value={submissionProofUrl}
-                  onChange={(e) => setSubmissionProofUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs placeholder:text-slate-600"
+                  type="text"
+                  required
+                  placeholder="e.g. IIT Delhi Rendezvous Fest / Tech Mahindra"
+                  value={leadOrgName}
+                  onChange={(e) => setLeadOrgName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              {/* Action Buttons: Both Options (Submit for Review & Complete and Unlock Next) */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Contact Person Name (Who they are) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rahul Sharma"
+                    value={leadContactPerson}
+                    onChange={(e) => setLeadContactPerson(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Designation / Role</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Fest Convener / Sponsorship Head"
+                    value={leadDesignation}
+                    onChange={(e) => setLeadDesignation(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Phone Number (with WhatsApp)</label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={leadPhone}
+                    onChange={(e) => setLeadPhone(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="contact@sponsor.com"
+                    value={leadEmail}
+                    onChange={(e) => setLeadEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Lead Category</label>
+                  <select
+                    value={leadType}
+                    onChange={(e) => setLeadType(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="college_sponsorship">College Fest Sponsorship</option>
+                    <option value="fest_mou">Official Fest MoU</option>
+                    <option value="hackathon_partner">Hackathon Knowledge Partner</option>
+                    <option value="campus_ambassador">Campus Ambassador Chapter</option>
+                    <option value="corporate_sponsor">Corporate Brand Sponsor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Expected Deal Amount (₹)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={5000}
+                    value={leadExpectedAmount}
+                    onChange={(e) => setLeadExpectedAmount(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Initial Conversation Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Discussed title branding for annual hackathon. Requested official proposal pitch deck by Friday."
+                  value={leadNotes}
+                  onChange={(e) => setLeadNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2.5 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowTaskSubmitModal(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 cursor-pointer text-xs"
+                  onClick={() => setShowAddLeadModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
+                >
+                  Save Lead
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* ─── MODAL 2: COMPLETE TASK / SUBMIT PROOF ───────────────────────── */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {showTaskSubmitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                Submit / Complete Task
+              </h3>
+              <button
+                onClick={() => setShowTaskSubmitModal(null)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1 text-xs">
+              <div className="font-bold text-white">{showTaskSubmitModal.title}</div>
+              <div className="text-slate-400">{showTaskSubmitModal.description}</div>
+              <div className="text-amber-400 font-mono font-bold pt-1">
+                Reward: ⭐ {showTaskSubmitModal.starsReward} Stars • 🎖️ {showTaskSubmitModal.pointsReward} XP
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitTaskForReview} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Submission Notes / Summary of Work
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Summarize what you accomplished, links sent, or results achieved..."
+                  value={submissionNotes}
+                  onChange={(e) => setSubmissionNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Proof URL (Google Drive, Sheet, or Screenshot Link)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://drive.google.com/... or https://..."
+                  value={submissionProofUrl}
+                  onChange={(e) => setSubmissionProofUrl(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowTaskSubmitModal(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   disabled={isSubmittingTask}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold cursor-pointer"
                 >
-                  <Send className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Submit for Review</span>
+                  Submit for Review
                 </button>
-
                 <button
                   type="button"
                   disabled={isSubmittingTask}
                   onClick={() => handleCompleteTask(showTaskSubmitModal, submissionNotes, submissionProofUrl)}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center gap-1 shadow-md shadow-indigo-600/30 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Complete & Unlock Next ✨</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Complete & Claim XP ✨</span>
                 </button>
               </div>
             </form>
@@ -2180,285 +1643,138 @@ Portal URL: ${window.location.origin}`;
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── MODAL 2: ADD NEW SPONSORSHIP LEAD ───────────────────────────── */}
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {showAddLeadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-emerald-400" /> Register Corporate Sponsorship Lead
-                </h3>
-                <p className="text-[11px] text-slate-400">Companies & brands sponsoring AEW hackathons, events & curriculum initiatives</p>
-              </div>
-              <button onClick={() => setShowAddLeadModal(false)} className="text-slate-400 hover:text-white text-lg">✕</button>
-            </div>
-
-            <form onSubmit={handleAddLead} className="space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Corporate Sponsor / Company Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Razorpay Software Pvt Ltd / Google Cloud / Red Bull"
-                  value={leadOrgName}
-                  onChange={(e) => setLeadOrgName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Company Contact Person (POC) *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Vikram Malhotra"
-                    value={leadContactPerson}
-                    onChange={(e) => setLeadContactPerson(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">POC Designation / Role</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Lead Campus Evangelist / Brand Lead"
-                    value={leadDesignation}
-                    onChange={(e) => setLeadDesignation(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Corporate Phone / WhatsApp</label>
-                  <input
-                    type="tel"
-                    placeholder="+91 98110..."
-                    value={leadPhone}
-                    onChange={(e) => setLeadPhone(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Work Email Address</label>
-                  <input
-                    type="email"
-                    placeholder="partnerships@company.com"
-                    value={leadEmail}
-                    onChange={(e) => setLeadEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Sponsorship Package / Tier</label>
-                  <select
-                    value={leadType}
-                    onChange={(e) => setLeadType(e.target.value as PrLead['type'])}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="corporate_brand_sponsor">Title Corporate Sponsor (₹2,50,000+)</option>
-                    <option value="tech_event_sponsor">Powered By / Tech Track Sponsor (₹1,00,000)</option>
-                    <option value="recruitment_partner_sponsor">Exclusive Hiring Partner Sponsor (₹75,000)</option>
-                    <option value="developer_tools_sponsor">Cloud & Dev Tools Sponsor (₹50,000)</option>
-                    <option value="fmcg_lifestyle_sponsor">FMCG / Beverage Partner Sponsor (₹40,000)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Sponsorship Check Amount (₹)</label>
-                  <input
-                    type="number"
-                    step="5000"
-                    placeholder="100000"
-                    value={leadExpectedAmount}
-                    onChange={(e) => setLeadExpectedAmount(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-emerald-400 font-mono font-bold focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs flex items-center justify-between font-mono">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Your Direct Commission ({commissionRate}%):</span>
-                  <span className="text-[10px] text-slate-500">Paid to you upon sponsor funds received</span>
-                </div>
-                <span className="text-emerald-400 font-bold text-sm">₹{Math.round((leadExpectedAmount * commissionRate) / 100).toLocaleString('en-IN')}</span>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Deliverables & Discussion Notes</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Logo on hackathon mainstage, 45-min tech workshop, recruitment booth, social media shoutouts..."
-                  value={leadNotes}
-                  onChange={(e) => setLeadNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddLeadModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/30 cursor-pointer"
-                >
-                  Save Corporate Sponsor Lead
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── MODAL 3: CREATE FORMAL MOU ──────────────────────────────────── */}
+      {/* ─── MODAL 3: MOU DRAFTING FORM ──────────────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {showMouModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-purple-400" /> Draft Corporate Sponsorship Agreement (MoU)
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Official contract wherein Corporate Sponsor provides funds to Apna Engineering Wallah (AEW) for student events, hackathons & curriculum branding.
-                </p>
-              </div>
-              <button onClick={() => setShowMouModal(false)} className="text-slate-400 hover:text-white text-lg">✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-400" /> Draft Formal MoU Agreement
+              </h3>
+              <button
+                onClick={() => setShowMouModal(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <form onSubmit={handleCreateMou} className="space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Corporate Sponsor Company / Brand Name *</label>
+            <form onSubmit={handleCreateMou} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Partner Organization / College Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Google Cloud India / Razorpay Software Pvt Ltd"
+                  placeholder="e.g. Rendezvous 2026, IIT Delhi"
                   value={mouPartnerOrg}
                   onChange={(e) => setMouPartnerOrg(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Corporate Signatory Authority Name *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Signatory Full Name *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rohit Varma"
+                    placeholder="e.g. Dr. Ramesh Kumar"
                     value={mouSignatory}
                     onChange={(e) => setMouSignatory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Signatory Designation</label>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Designation</label>
                   <input
                     type="text"
-                    placeholder="e.g. Director of Campus Partnerships / Marketing Head"
+                    placeholder="e.g. President / Convener"
                     value={mouDesignation}
                     onChange={(e) => setMouDesignation(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Corporate Registered Office Address</label>
-                <input
-                  type="text"
-                  placeholder="e.g. RMZ Infinity, Old Madras Road, Bengaluru - 560016"
-                  value={mouAddress}
-                  onChange={(e) => setMouAddress(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Sponsorship Event / Campaign Purpose</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Official Title Sponsorship for AEW National Hackathon & Student Tech Summit 2026"
-                  value={mouPurpose}
-                  onChange={(e) => setMouPurpose(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Sponsorship Funds to AEW (₹)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Campus Office / Desk Address</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Student Activity Center"
+                    value={mouAddress}
+                    onChange={(e) => setMouAddress(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Sponsorship Amount (₹)</label>
                   <input
                     type="number"
-                    step="5000"
+                    min={0}
+                    step={5000}
                     value={mouSponsorshipAmount}
                     onChange={(e) => setMouSponsorshipAmount(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-emerald-400 font-mono font-bold focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500"
                   />
                 </div>
+              </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">Start Date</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Agreement Start Date</label>
                   <input
                     type="date"
                     value={mouStartDate}
                     onChange={(e) => setMouStartDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-slate-300 font-semibold">End Date</label>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Agreement Valid Till</label>
                   <input
                     type="date"
                     value={mouEndDate}
                     onChange={(e) => setMouEndDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-slate-300 font-semibold">Sponsorship Terms & Corporate Deliverables (One per line)</label>
-                <textarea
-                  rows={5}
-                  value={mouCustomTerms}
-                  onChange={(e) => setMouCustomTerms(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs leading-relaxed"
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Partnership Purpose</label>
+                <input
+                  type="text"
+                  value={mouPurpose}
+                  onChange={(e) => setMouPurpose(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Custom Terms (1 per line)</label>
+                <textarea
+                  rows={3}
+                  value={mouCustomTerms}
+                  onChange={(e) => setMouCustomTerms(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2.5 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowMouModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg shadow-purple-600/30 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer"
                 >
-                  Generate Corporate Sponsorship Agreement
+                  Generate MoU Draft
                 </button>
               </div>
             </form>
@@ -2467,483 +1783,65 @@ Portal URL: ${window.location.origin}`;
       )}
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* ─── MODAL 4: FULL FORMAL MOU PREVIEW & PRINT ────────────────────── */}
+      {/* ─── MODAL 4: PRINTABLE MOU PREVIEW ──────────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {selectedPreviewMou && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl space-y-6 my-8">
-            
-            {/* Action Bar */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <span className="font-mono text-xs text-purple-400 font-bold bg-purple-500/10 border border-purple-500/20 px-3 py-1 rounded-full">
-                Document: {selectedPreviewMou.mouNumber}
-              </span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white text-slate-900 rounded-2xl p-8 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div>
+                <h3 className="font-black text-xl text-slate-900">MEMORANDUM OF UNDERSTANDING</h3>
+                <p className="text-xs text-slate-500">Ref: {selectedPreviewMou.mouNumber || selectedPreviewMou.id}</p>
+              </div>
+              <button
+                onClick={() => setSelectedPreviewMou(null)}
+                className="text-slate-400 hover:text-slate-800 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              <div className="flex items-center gap-2">
+            <div className="text-xs leading-relaxed space-y-3">
+              <p>
+                This Memorandum of Understanding (MoU) is entered between{' '}
+                <strong>Apna Engineering Wallah (AEW)</strong> and{' '}
+                <strong>{selectedPreviewMou.partnerOrganization}</strong> represented by{' '}
+                <strong>{selectedPreviewMou.partnerSignatory}</strong> ({selectedPreviewMou.partnerDesignation}).
+              </p>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <div><strong>Purpose:</strong> {selectedPreviewMou.purpose}</div>
+                <div><strong>Agreed Amount:</strong> ₹{selectedPreviewMou.sponsorshipAmount?.toLocaleString('en-IN')}</div>
+                <div><strong>Valid Through:</strong> {selectedPreviewMou.endDate}</div>
+              </div>
+              <div className="space-y-1 text-slate-700 pt-2">
+                <div className="font-bold text-slate-900">Terms & Conditions:</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {selectedPreviewMou.terms.map((term, i) => (
+                    <li key={i}>{term}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-200 flex items-center justify-between">
+              <div className="text-[11px] text-slate-500">
+                Drafted by PR Intern: {currentUser.name} ({currentUser.teacherId})
+              </div>
+              <div className="flex gap-2">
                 <button
                   onClick={() => window.print()}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                  className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
                 >
-                  <Printer className="w-3.5 h-3.5" /> Print / Save as PDF
+                  <Printer className="w-4 h-4" /> Print / Save PDF
                 </button>
                 <button
                   onClick={() => setSelectedPreviewMou(null)}
-                  className="p-2 text-slate-400 hover:text-white text-lg font-bold"
+                  className="px-4 py-2 bg-slate-200 text-slate-800 font-bold text-xs rounded-xl"
                 >
-                  ✕
+                  Close
                 </button>
               </div>
             </div>
-
-            {/* FORMAL PRINTABLE LEGAL CONTRACT CONTAINER */}
-            <div className="bg-white text-slate-900 p-8 md:p-12 rounded-2xl shadow-inner space-y-6 font-serif leading-relaxed text-xs border border-slate-200">
-              
-              {/* Header Letterhead */}
-              <div className="text-center border-b-2 border-slate-900 pb-4 space-y-1">
-                <h1 className="text-xl font-bold tracking-tight text-slate-950 uppercase font-sans">
-                  APNA ENGINEERING WALLAH (AEW)
-                </h1>
-                <p className="text-[11px] text-slate-600 font-sans font-medium">
-                  Center for Technical Excellence & Academic Operations • New Delhi - 110001
-                </p>
-                <div className="text-[10px] font-mono text-slate-500 tracking-wider">
-                  OFFICIAL CORPORATE SPONSORSHIP AGREEMENT • {selectedPreviewMou.mouNumber}
-                </div>
-              </div>
-
-              {/* Preamble */}
-              <div className="space-y-2 text-justify">
-                <p>
-                  This Corporate Sponsorship Agreement and Memorandum of Understanding (hereinafter referred to as <strong>"Agreement"</strong>) is entered into as of{' '}
-                  <strong>{selectedPreviewMou.startDate}</strong>, by and between:
-                </p>
-                <p>
-                  <strong>FIRST PARTY (ORGANIZING BODY):</strong> <strong>APNA ENGINEERING WALLAH (AEW)</strong>, an academic organization dedicated to advanced engineering curriculum and developer initiatives, having its principal operations in New Delhi, represented herein by its authorized PR Executive <strong>{selectedPreviewMou.internName}</strong>.
-                </p>
-                <p className="text-center font-bold">AND</p>
-                <p>
-                  <strong>SECOND PARTY (CORPORATE SPONSOR):</strong> <strong>{selectedPreviewMou.partnerOrganization}</strong>, having its registered corporate office at {selectedPreviewMou.partnerAddress}, represented herein by <strong>{selectedPreviewMou.partnerSignatory}</strong>, in the capacity of <strong>{selectedPreviewMou.partnerDesignation}</strong>.
-                </p>
-              </div>
-
-              {/* Purpose */}
-              <div className="space-y-1">
-                <h4 className="font-bold text-slate-950 uppercase font-sans text-[11px]">1. PURPOSE & SCOPE</h4>
-                <p className="text-justify">{selectedPreviewMou.purpose}</p>
-              </div>
-
-              {/* Financial Clause */}
-              {selectedPreviewMou.sponsorshipAmount ? (
-                <div className="space-y-1">
-                  <h4 className="font-bold text-slate-950 uppercase font-sans text-[11px]">2. CORPORATE SPONSORSHIP FUNDS TO AEW</h4>
-                  <p>
-                    The Second Party (Corporate Sponsor) agrees to provide a total financial sponsorship contribution of{' '}
-                    <strong>₹{selectedPreviewMou.sponsorshipAmount.toLocaleString('en-IN')}</strong> to the First Party (Apna Engineering Wallah), disbursed in support of the event, student participants, curriculum workshops, and brand deliverables specified herein.
-                  </p>
-                </div>
-              ) : null}
-
-              {/* Deliverables List */}
-              <div className="space-y-1">
-                <h4 className="font-bold text-slate-950 uppercase font-sans text-[11px]">3. MUTUAL RESPONSIBILITIES & COVENANTS</h4>
-                <ol className="list-decimal pl-5 space-y-1.5">
-                  {selectedPreviewMou.terms.map((t, idx) => (
-                    <li key={idx} className="text-justify">{t}</li>
-                  ))}
-                </ol>
-              </div>
-
-              {/* Validity */}
-              <div className="space-y-1">
-                <h4 className="font-bold text-slate-950 uppercase font-sans text-[11px]">4. DURATION</h4>
-                <p>
-                  This agreement takes effect on <strong>{selectedPreviewMou.startDate}</strong> and shall remain in force until{' '}
-                  <strong>{selectedPreviewMou.endDate}</strong>, unless terminated earlier by mutual consent in writing.
-                </p>
-              </div>
-
-              {/* Signatures & Seal */}
-              <div className="pt-8 grid grid-cols-2 gap-8 border-t border-slate-300 font-sans">
-                <div className="space-y-4">
-                  <div className="h-10 border-b border-slate-400">
-                    <span className="text-[10px] text-emerald-700 font-bold font-mono">
-                      {selectedPreviewMou.status === 'approved' ? '✓ Digitally Verified & Sealed' : '[Pending Seal]'}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900">For APNA ENGINEERING WALLAH</div>
-                    <div className="text-[11px] text-slate-600">{selectedPreviewMou.internName} (PR Representative)</div>
-                    <div className="text-[10px] text-slate-500">Directorate of Academic Operations</div>
-                  </div>
-                </div>
-
-                <div className="space-y-4 text-right">
-                  <div className="h-10 border-b border-slate-400"></div>
-                  <div>
-                    <div className="font-bold text-slate-900">For {selectedPreviewMou.partnerOrganization}</div>
-                    <div className="text-[11px] text-slate-600">{selectedPreviewMou.partnerSignatory}</div>
-                    <div className="text-[10px] text-slate-500">{selectedPreviewMou.partnerDesignation}</div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── MODAL: ADD PR MEMBER / AMBASSADOR ─────────────────────────────── */}
-      {showAddPrModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl my-8">
-            {createdPrUserSuccess ? (
-              <div className="text-center space-y-4 py-2">
-                <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-950">
-                  <CheckCircle2 className="w-7 h-7" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">PR Member Provisioned & Onboarded!</h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Ambassador profile created and ready for immediate portal access.
-                  </p>
-                </div>
-
-                {/* Credential Card */}
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-left font-mono text-xs space-y-2.5 shadow-inner">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <span className="text-slate-400 font-sans font-bold text-[11px] uppercase tracking-wider">
-                      🔑 Login Credentials
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase">
-                      {createdPrUserSuccess.role === 'pr_head' ? 'PR Head' : `${createdPrUserSuccess.prTier || 'Silver'} Intern`}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-slate-500">Employee ID:</span>
-                    <span className="col-span-2 text-purple-300 font-bold select-all">{createdPrUserSuccess.teacherId}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-slate-500">Full Name:</span>
-                    <span className="col-span-2 text-white font-sans font-medium">{createdPrUserSuccess.name}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-slate-500">Username:</span>
-                    <span className="col-span-2 text-indigo-300 font-bold select-all">{createdPrUserSuccess.username}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-slate-500">Password:</span>
-                    <span className="col-span-2 text-emerald-300 font-bold select-all">{createdPrUserSuccess.password}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <span className="text-slate-500">Work Email:</span>
-                    <span className="col-span-2 text-slate-300 truncate">{createdPrUserSuccess.email}</span>
-                  </div>
-                </div>
-
-                {/* Welcome Email Status */}
-                <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 text-left space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-                    <span className="flex items-center gap-1.5 uppercase tracking-wider text-slate-300">
-                      <Mail className="w-3.5 h-3.5 text-purple-400" /> Welcome Email Dispatch
-                    </span>
-                    <span className="text-purple-300/80 font-mono text-[10px] truncate max-w-[180px]">
-                      {createdPrUserSuccess.email}
-                    </span>
-                  </div>
-
-                  {prEmailSending ? (
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
-                      <span>Dispatching official credentials email...</span>
-                    </div>
-                  ) : prEmailDispatchResult?.success ? (
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>Welcome email with login credentials delivered!</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleSendPrWelcomeEmail(createdPrUserSuccess, createdPrUserSuccess.password)}
-                        className="text-[10px] font-bold text-emerald-400 hover:text-emerald-200 underline cursor-pointer"
-                      >
-                        Resend
-                      </button>
-                    </div>
-                  ) : prEmailDispatchResult && !prEmailDispatchResult.success ? (
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-[11px]">⚠️ Dispatch Notice</span>
-                        <button
-                          type="button"
-                          onClick={() => handleSendPrWelcomeEmail(createdPrUserSuccess, createdPrUserSuccess.password)}
-                          className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 text-[10px] font-bold cursor-pointer"
-                        >
-                          Retry Email
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-amber-300/80">
-                        {prEmailDispatchResult.error || 'Check SMTP configuration or recipient address.'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 text-xs">
-                      <span>Ready to dispatch welcome email</span>
-                      <button
-                        type="button"
-                        onClick={() => handleSendPrWelcomeEmail(createdPrUserSuccess, createdPrUserSuccess.password)}
-                        className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        <Send className="w-3 h-3" /> Send Mail
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cloud Database Sync Status */}
-                <div>
-                  {prCloudSyncStatus === 'syncing' ? (
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
-                      <span>Syncing member record to Supabase Cloud Database...</span>
-                    </div>
-                  ) : prCloudSyncStatus === 'synced' ? (
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span>Member stored & synced to Supabase Cloud DB ✓</span>
-                    </div>
-                  ) : prCloudSyncStatus === 'error' ? (
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
-                      <span>⚠️ Cloud sync pending (persisted in local state)</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPrCloudSyncStatus('syncing');
-                          StorageService.syncToCloud().then((ok) => setPrCloudSyncStatus(ok ? 'synced' : 'error'));
-                        }}
-                        className="underline text-[10px] font-bold text-amber-300 hover:text-amber-100 cursor-pointer"
-                      >
-                        Retry Sync
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center justify-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleCopyPrCredentials}
-                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow"
-                  >
-                    {prCopiedSuccess ? (
-                      <>
-                        <Check className="w-4 h-4 text-emerald-400" /> Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 text-purple-400" /> Copy Credentials
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCloseAddPrModal}
-                    className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
-                  >
-                    Done & View PR Team
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <UserPlus className="w-5 h-5 text-purple-400" />
-                    Add PR Member / Campus Ambassador
-                  </h3>
-                  <button
-                    onClick={() => setShowAddPrModal(false)}
-                    className="text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleAddPrMemberSubmit} className="space-y-4">
-                  {/* Role Selection */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">Department Role *</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPrMemberRole('pr_intern');
-                          setPrMemberSubject('Campus Brand Ambassador');
-                        }}
-                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 cursor-pointer transition-all ${
-                          prMemberRole === 'pr_intern'
-                            ? 'bg-purple-600/20 border-purple-500 text-white font-bold'
-                            : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <Award className="w-4 h-4 text-purple-400 shrink-0" />
-                        <div>
-                          <div className="text-xs">PR Intern</div>
-                          <div className="text-[10px] text-slate-400">Campus outreach & leads</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPrMemberRole('pr_head');
-                          setPrMemberSubject('Corporate Brand Partnerships & Sponsorships');
-                        }}
-                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 cursor-pointer transition-all ${
-                          prMemberRole === 'pr_head'
-                            ? 'bg-purple-600/20 border-purple-500 text-white font-bold'
-                            : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <Crown className="w-4 h-4 text-amber-400 shrink-0" />
-                        <div>
-                          <div className="text-xs">PR Head</div>
-                          <div className="text-[10px] text-slate-400">Department lead & desk</div>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={prMemberName}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setPrMemberName(val);
-                          if (!prMemberUsername || prMemberUsername === prMemberName.toLowerCase().replace(/[^a-z0-9]/g, '_')) {
-                            const suggested = val.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
-                            setPrMemberUsername(suggested);
-                            if (!prMemberEmail || prMemberEmail.includes('@aew.com')) {
-                              setPrMemberEmail(`${suggested}@aew.com`);
-                            }
-                          }
-                        }}
-                        placeholder="e.g. Diya Sharma"
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Work Email *</label>
-                      <input
-                        type="email"
-                        required
-                        value={prMemberEmail}
-                        onChange={(e) => setPrMemberEmail(e.target.value)}
-                        placeholder="diya@aew.com"
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Portal Username *</label>
-                      <input
-                        type="text"
-                        required
-                        value={prMemberUsername}
-                        onChange={(e) => setPrMemberUsername(e.target.value)}
-                        placeholder="diya.s"
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Initial Password *</label>
-                      <input
-                        type="text"
-                        required
-                        value={prMemberPassword}
-                        onChange={(e) => setPrMemberPassword(e.target.value)}
-                        placeholder="intern123"
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Outreach Subject / Focus</label>
-                      <input
-                        type="text"
-                        value={prMemberSubject}
-                        onChange={(e) => setPrMemberSubject(e.target.value)}
-                        placeholder="Campus Brand Ambassador, Fest Outreach"
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Contact Phone (Optional)</label>
-                      <input
-                        type="tel"
-                        value={prMemberPhone}
-                        onChange={(e) => setPrMemberPhone(e.target.value)}
-                        placeholder="+91 98765 43210"
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-
-                  {prMemberRole === 'pr_intern' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Initial Ambassador Tier</label>
-                      <select
-                        value={prMemberTier}
-                        onChange={(e) => setPrMemberTier(e.target.value as PrTier)}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                      >
-                        <option value="Silver">Silver Tier (Base 5% Commission)</option>
-                        <option value="Gold">Gold Tier (7% Commission)</option>
-                        <option value="Platinum">Platinum Tier (9% Commission)</option>
-                        <option value="Diamond">Diamond Tier (12% Commission)</option>
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-400 space-y-1">
-                    <div className="font-semibold text-slate-300 flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-purple-400" />
-                      Automatic Credentials Dispatch & Cloud Sync
-                    </div>
-                    <p className="text-[11px] text-slate-400">
-                      Upon onboarding, the member will be stored in Supabase Cloud DB with sequential employee ID, and emailed their login credentials automatically.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddPrModal(false)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-950 cursor-pointer"
-                    >
-                      Onboard PR Member
-                    </button>
-                  </div>
-                </form>
-              </>
-            )}
           </div>
         </div>
       )}
