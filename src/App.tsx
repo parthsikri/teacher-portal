@@ -14,6 +14,7 @@ import { DailyCommitmentModal } from './components/Teacher/DailyCommitmentModal'
 import { PptGenerator } from './components/Common/PptGenerator';
 import { ThumbnailStudio } from './components/Common/ThumbnailStudio';
 import { EmployeeSalesCrmView } from './components/Sales/EmployeeSalesCrmView';
+import { OrganizationLeaderboardView } from './components/Common/OrganizationLeaderboardView';
 
 const getDefaultPageForUser = (user: User | null): string => {
   if (!user) return 'dashboard';
@@ -196,7 +197,12 @@ export const App: React.FC = () => {
           {/* MAIN APPLICATION VIEW — sidebar is fixed, so we just pad-left to offset */}
           <div className="min-h-screen md:pl-64 lg:pl-72" style={{ overflowX: 'hidden' }}>
             <main className="pt-16 md:pt-4 pb-16">
-              {currentPage === 'ppt_generator' ? (
+              {currentPage === 'org_leaderboard' || currentPage === 'leaderboard' ? (
+                <OrganizationLeaderboardView
+                  currentUser={currentUser}
+                  onPageChange={handlePageChange}
+                />
+              ) : currentPage === 'ppt_generator' ? (
                 <PptGenerator
                   userSubject={currentUser.subject || currentUser.department || 'General'}
                   userName={currentUser.name}

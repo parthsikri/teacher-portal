@@ -134,6 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'pr_leads', label: 'Leads Pipeline', icon: DollarSign },
     { id: 'pr_mou_maker', label: 'MoU Agreements', icon: FileText },
     { id: 'pr_earnings', label: 'My Earnings', icon: TrendingUp },
+    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
     ...(currentUser.role === 'pr_head'
       ? [{ id: 'pr_team', label: 'PR Team Roster', icon: Users }]
       : []),
@@ -193,6 +194,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: MessageSquare,
       badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount} New` : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-300 font-bold',
+    },
+    { 
+      id: 'org_leaderboard', 
+      label: 'Company Leaderboard', 
+      icon: Trophy,
+      badge: 'Honor Roll',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
     },
   ];
 
@@ -269,6 +277,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
         : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
     },
+    { 
+      id: 'org_leaderboard', 
+      label: 'Company Leaderboard', 
+      icon: Trophy,
+      badge: 'All Staff',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+    },
   ];
 
   interface NavItem {
@@ -320,7 +335,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: 'wdm_awards', label: 'Award & XP Thresholds', icon: Gift },
     { id: 'wdm_team', label: 'Engineering Roster', icon: Users },
-    { id: 'wdm_leaderboard', label: 'Company Leaderboard', icon: Trophy },
+    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
     { id: 'wdm_audit', label: 'Audit Trail', icon: FileText },
   ];
 
@@ -341,7 +356,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: wdmOpenBounties > 0 ? `${wdmOpenBounties} New` : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
     },
-    { id: 'dev_leaderboard', label: 'Company Leaderboard', icon: Trophy },
+    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
     { id: 'dev_achievements', label: 'Achievements & Badges', icon: Sparkles },
     { id: 'dev_rewards', label: 'Awards & Certificates', icon: Award },
     { id: 'dev_ledger', label: 'XP Ledger', icon: Clock },
@@ -359,6 +374,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
         : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold font-mono',
     },
+    { 
+      id: 'org_leaderboard', 
+      label: 'Company Leaderboard', 
+      icon: Trophy,
+    },
   ];
 
   // Filter admin items according to admin permissions scope
@@ -370,6 +390,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const perms = currentUser.adminPermissions;
     return adminNavItems.filter((item) => {
       if (item.id === 'admin_overview') return true;
+      if (item.id === 'org_leaderboard') return true;
       if (item.id === 'admin_faculty') return perms.includes('manage_faculty') || perms.includes('manage_credentials');
       if (item.id === 'admin_syllabus') return perms.includes('manage_syllabus');
       if (item.id === 'ppt_generator') return perms.includes('manage_syllabus');

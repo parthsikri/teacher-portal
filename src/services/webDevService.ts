@@ -1427,7 +1427,7 @@ export const WebDevService = {
   // ─── LEADERBOARDS ──────────────────────────────────────────────────────────
   getLeaderboard(
     period: 'weekly' | 'monthly' | 'all_time' = 'all_time',
-    deptFilter: 'all' | 'engineering' | 'faculty' | 'pr' | 'leadership' = 'all'
+    deptFilter: 'all' | 'engineering' | 'faculty' | 'pr' | 'sales' | 'leadership' = 'all'
   ): WebDevLeaderboardEntry[] {
     const now = new Date();
     const nowMs = now.getTime();
@@ -1478,15 +1478,26 @@ export const WebDevService = {
         totalPoints = mins + doneTopics * 120 + baseFactor;
         userLevel = Math.max(1, Math.min(10, Math.floor(totalPoints / 400) + 1));
         highlights = `${mins} mins recorded • ${doneTopics} topics completed`;
-      } else if (role === 'pr_intern') {
+      } else if (role === 'pr_intern' || role === 'pr_head') {
         department = 'Growth & PR';
-        userTitle = 'PR & Outreach Intern';
+        userTitle = role === 'pr_head' ? 'PR & Partnerships Head' : 'PR & Outreach Intern';
         const starPoints = (u.prStars || 0) * 150;
         const commPoints = Math.round((u.totalSponsorshipRevenue || 0) / 100);
         const basePr = period === 'all_time' ? u.prPoints || 0 : period === 'monthly' ? 50 : 20;
         totalPoints = starPoints + commPoints + basePr;
         userLevel = u.prTier === 'Premium' ? 4 : u.prTier === 'Gold' ? 3 : 2;
         highlights = `Tier: ${u.prTier || 'Silver'} • ₹${(u.totalSponsorshipRevenue || 0).toLocaleString()} Sponsorship`;
+      } else if (role === 'sales') {
+        department = 'Business & Sales';
+        userTitle = u.crmRole === 'sales_manager' ? 'Sales Manager' : 'Sales Representative';
+        const allSalesLeads = StorageService.getSalesLeads();
+        const myLeads = allSalesLeads.filter((l) => (l.assignedToEmployeeId || '').toUpperCase() === cleanId);
+        const wonLeads = myLeads.filter((l) => l.status === 'closed_won');
+        const closedRev = wonLeads.reduce((acc, l) => acc + (l.dealValue || 0), 0);
+        const baseSales = period === 'all_time' ? 300 : period === 'monthly' ? 100 : 40;
+        totalPoints = Math.round(closedRev / 100) + wonLeads.length * 150 + baseSales;
+        userLevel = Math.max(1, Math.min(10, Math.floor(totalPoints / 500) + 1));
+        highlights = `${wonLeads.length} deals closed • ₹${closedRev.toLocaleString('en-IN')} revenue`;
       } else if (role === 'admin') {
         department = 'Leadership';
         userTitle = 'Academic & Ops Director';
@@ -1566,6 +1577,8 @@ export const WebDevService = {
       entries = entries.filter((e) => e.department === 'Academic Faculty');
     } else if (deptFilter === 'pr') {
       entries = entries.filter((e) => e.department === 'Growth & PR');
+    } else if (deptFilter === 'sales') {
+      entries = entries.filter((e) => e.department === 'Business & Sales');
     } else if (deptFilter === 'leadership') {
       entries = entries.filter((e) => e.department === 'Leadership');
     }

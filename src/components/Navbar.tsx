@@ -122,6 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount}` : undefined,
       badgeColor: 'bg-amber-500 text-slate-950 font-bold',
     },
+    { id: 'org_leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
 
   // Admin Navigation Links
@@ -161,6 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
       badgeColor: 'bg-emerald-500 text-white font-bold',
     },
+    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
   ];
 
   const prNavItems: NavItem[] = [
@@ -170,6 +172,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'pr_mou_maker', label: 'MoU Maker', icon: FileSpreadsheet },
     { id: 'pr_colleges', label: 'Colleges', icon: Users },
     { id: 'pr_earnings', label: 'Earnings', icon: Layers },
+    { id: 'org_leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
 
   // Web Dev Manager Navigation Links
@@ -198,7 +201,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       badgeColor: 'bg-amber-500 text-slate-950 font-bold',
     },
     { id: 'wdm_team', label: 'Team', icon: Users },
-    { id: 'wdm_leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
   ];
 
   // Web Developer Navigation Links
@@ -218,12 +221,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       badge: wdmOpenBounties > 0 ? `${wdmOpenBounties}` : undefined,
       badgeColor: 'bg-amber-500 text-slate-950 font-bold',
     },
-    { id: 'dev_leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
     { id: 'dev_rewards', label: 'Awards', icon: Award },
   ];
 
   const salesNavItems: NavItem[] = [
     { id: 'sales_crm', label: 'Sales CRM Desk', icon: PhoneCall },
+    { id: 'org_leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
 
   const currentNavItems = currentUser?.role === 'admin' 
