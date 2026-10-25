@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { WebDevService } from '../services/webDevService';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, Key, Lock,
-  CheckSquare, Shield, ListTodo, Briefcase, Target, Trophy, PhoneCall
+  CheckSquare, Shield, ListTodo, Briefcase, Target, Trophy, PhoneCall, ShieldAlert
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
 
@@ -125,9 +125,24 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'org_leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
 
+  // Super admin verification
+  const isSuperAdmin = currentUser?.role === 'admin' && (
+    currentUser.adminTier === 'super_admin' || 
+    !currentUser.adminTier || 
+    currentUser.teacherId.toUpperCase() === 'ADMIN-01' || 
+    currentUser.teacherId.toUpperCase() === 'ADMIN'
+  );
+
   // Admin Navigation Links
   const adminNavItems: NavItem[] = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
+    ...(isSuperAdmin ? [{
+      id: 'super_admin_panel',
+      label: 'Super Admin',
+      icon: ShieldAlert,
+      badge: 'Root',
+      badgeColor: 'bg-rose-500 text-white font-bold',
+    }] : []),
     { id: 'admin_wallet', label: 'Faculty Wallets', icon: Wallet },
     { id: 'admin_leaves', label: 'Day Offs & Leaves', icon: Calendar },
     { id: 'admin_extensions', label: 'Extension Windows', icon: Clock },
@@ -230,7 +245,33 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'org_leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
 
-  const currentNavItems = currentUser?.role === 'admin' 
+  const customGrantedNavItems = useMemo<NavItem[]>(() => {
+    if (!currentUser?.customFeatures || currentUser.customFeatures.length === 0) return [];
+    const granted: NavItem[] = [];
+    if (currentUser.customFeatures.includes('pr_portal') && currentUser.role !== 'pr_intern' && currentUser.role !== 'pr_head') {
+      granted.push(
+        { id: 'pr_dashboard', label: 'PR Control', icon: Award },
+        { id: 'pr_leads', label: 'PR Leads', icon: Wallet },
+        { id: 'pr_mou_maker', label: 'MoU Maker', icon: FileSpreadsheet },
+        { id: 'pr_tasks', label: 'PR Tasks', icon: LayoutDashboard }
+      );
+    }
+    if (currentUser.customFeatures.includes('sales_crm') && currentUser.role !== 'sales' && currentUser.role !== 'admin') {
+      granted.push({ id: 'sales_crm', label: 'Sales CRM', icon: PhoneCall });
+    }
+    if (currentUser.customFeatures.includes('ppt_generator') && currentUser.role !== 'admin') {
+      granted.push({ id: 'ppt_generator', label: 'PPT Studio', icon: FileSpreadsheet });
+    }
+    if (currentUser.customFeatures.includes('thumbnail_studio') && currentUser.role !== 'admin') {
+      granted.push({ id: 'thumbnail_generator', label: 'Thumbnail Studio', icon: ImageIcon });
+    }
+    if (currentUser.customFeatures.includes('webdev_portal') && currentUser.role !== 'web_developer' && currentUser.role !== 'web_dev_manager' && currentUser.role !== 'admin') {
+      granted.push({ id: 'webdev_portal', label: 'WebDev Hub', icon: Target });
+    }
+    return granted;
+  }, [currentUser]);
+
+  const baseNavList = currentUser?.role === 'admin' 
     ? adminNavItems 
     : currentUser?.role === 'web_dev_manager'
     ? wdmNavItems
@@ -241,6 +282,16 @@ export const Navbar: React.FC<NavbarProps> = ({
     : currentUser?.role === 'pr_intern'
     ? prNavItems
     : teacherNavItems;
+
+  const currentNavItems = useMemo<NavItem[]>(() => {
+    const list = [...baseNavList];
+    for (const item of customGrantedNavItems) {
+      if (!list.some(i => i.id === item.id)) {
+        list.push(item);
+      }
+    }
+    return list;
+  }, [baseNavList, customGrantedNavItems]);
 
   return (
     <header className="w-full bg-slate-900/95 border-b border-slate-800 backdrop-blur-md sticky top-0 z-40 shadow-xl">

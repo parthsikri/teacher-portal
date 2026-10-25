@@ -19,7 +19,7 @@ import {
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
   ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail,
   Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2,
-  Crown, UserX, Percent, AlertTriangle, CheckCheck, ExternalLink
+  Crown, UserX, Percent, AlertTriangle, CheckCheck, ExternalLink, ShieldAlert
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -1355,6 +1355,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              {(!activeAdminUser.adminTier || activeAdminUser.adminTier === 'super_admin' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN-01' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN') && (
+                <button
+                  onClick={() => onPageChange('super_admin_panel')}
+                  className="px-4 py-3 rounded-2xl bg-gradient-to-r from-rose-600/30 via-rose-500/20 to-purple-600/30 hover:from-rose-600/40 hover:to-purple-600/40 border border-rose-500/50 text-rose-200 font-extrabold text-xs shadow-xl shadow-rose-950/40 transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02] cursor-pointer"
+                >
+                  <Crown className="w-4 h-4 text-amber-400" /> Super Admin Console
+                </button>
+              )}
               <button
                 onClick={() => onPageChange('thumbnail_generator')}
                 className="px-4 py-3 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
@@ -3743,14 +3751,38 @@ Portal URL: ${window.location.origin}`;
                             {t.joiningDate || t.firstLoginDate || '2026-08-25'}
                           </span>
                         </div>
+
+                        {/* Super Admin Granted Features Badge */}
+                        {t.customFeatures && t.customFeatures.length > 0 && (
+                          <div className="bg-amber-950/20 p-2.5 rounded-xl border border-amber-500/30 flex items-center justify-between text-xs">
+                            <span className="text-amber-300 font-bold flex items-center gap-1.5 text-[11px]">
+                              <Crown className="w-3.5 h-3.5 text-amber-400" /> Super Admin Grants:
+                            </span>
+                            <span className="font-mono font-bold text-amber-300 text-[10px] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                              {t.customFeatures.length} Feature{t.customFeatures.length > 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      <button
-                        onClick={() => handleOpenEditTeacher(t)}
-                        className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer mt-2"
-                      >
-                        <Key className="w-3.5 h-3.5" /> Edit Password & Profile
-                      </button>
+                      <div className="space-y-1.5 mt-2">
+                        <button
+                          onClick={() => handleOpenEditTeacher(t)}
+                          className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                        >
+                          <Key className="w-3.5 h-3.5" /> Edit Password & Profile
+                        </button>
+
+                        {(!activeAdminUser.adminTier || activeAdminUser.adminTier === 'super_admin' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN-01' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN') && (
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('super_admin_panel')}
+                            className="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" /> Feature Entitlements
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

@@ -6,7 +6,8 @@ import {
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
   Award, CheckCircle2, DollarSign, Star, TrendingUp, FileText,
-  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, Key, Lock
+  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, Key, Lock,
+  ShieldAlert
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
 
@@ -204,9 +205,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  // Super Admin verification
+  const isSuperAdmin = currentUser.role === 'admin' && (
+    currentUser.adminTier === 'super_admin' || 
+    !currentUser.adminTier || 
+    currentUser.teacherId.toUpperCase() === 'ADMIN-01' || 
+    currentUser.teacherId.toUpperCase() === 'ADMIN'
+  );
+
   // Admin Navigation Links
   const adminNavItems = [
     { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
+    ...(isSuperAdmin ? [{
+      id: 'super_admin_panel',
+      label: 'Super Admin Console',
+      icon: ShieldAlert,
+      badge: 'Root Access',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono font-bold',
+    }] : []),
     { 
       id: 'admin_pr', 
       label: 'PR Team & Gamification', 
@@ -384,12 +400,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Filter admin items according to admin permissions scope
   const filteredAdminNavItems = useMemo(() => {
     if (currentUser.role !== 'admin') return adminNavItems;
-    if (!currentUser.adminPermissions || currentUser.adminTier === 'super_admin') {
+    if (!currentUser.adminPermissions || isSuperAdmin) {
       return adminNavItems;
     }
     const perms = currentUser.adminPermissions;
     return adminNavItems.filter((item) => {
-      if (item.id === 'admin_overview') return true;
+      if (item.id === 'super_admin_panel') return isSuperAdmin;
+      if (item.id === 'admin_overview' || item.id === 'admin_dashboard') return true;
       if (item.id === 'org_leaderboard') return true;
       if (item.id === 'admin_faculty') return perms.includes('manage_faculty') || perms.includes('manage_credentials');
       if (item.id === 'admin_syllabus') return perms.includes('manage_syllabus');
@@ -398,12 +415,110 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (item.id === 'admin_resources') return perms.includes('manage_syllabus');
       if (item.id === 'admin_lectures') return perms.includes('manage_lectures');
       if (item.id === 'admin_extensions') return perms.includes('manage_leaves');
-      if (item.id === 'admin_pr_management') return perms.includes('manage_pr');
+      if (item.id === 'admin_pr') return perms.includes('manage_pr');
       if (item.id === 'admin_web_dev') return perms.includes('manage_webdev');
       if (item.id === 'admin_sales_crm') return perms.includes('manage_sales');
       return true;
     });
-  }, [currentUser, adminNavItems]);
+  }, [currentUser, adminNavItems, isSuperAdmin]);
+
+  // Dynamic cross-role features granted by Super Admin Console
+  const customGrantedNavItems = useMemo<NavItem[]>(() => {
+    if (!currentUser.customFeatures || currentUser.customFeatures.length === 0) return [];
+    const granted: NavItem[] = [];
+
+    // PR Portal features granted to Teacher / Dev / Staff
+    if (currentUser.customFeatures.includes('pr_portal') && currentUser.role !== 'pr_intern' && currentUser.role !== 'pr_head') {
+      granted.push(
+        { id: 'pr_dashboard', label: 'PR Mission Control', icon: Award, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
+        { id: 'pr_leads', label: 'PR Leads Pipeline', icon: DollarSign, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
+        { id: 'pr_mou_maker', label: 'PR MoU Agreements', icon: FileText, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
+        { id: 'pr_tasks', label: 'PR Tasks & XP', icon: CheckCircle2, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
+        { id: 'pr_earnings', label: 'PR Earnings', icon: TrendingUp, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' }
+      );
+    }
+
+    // Sales CRM granted
+    if (currentUser.customFeatures.includes('sales_crm') && currentUser.role !== 'sales' && currentUser.role !== 'admin') {
+      granted.push({
+        id: 'sales_crm',
+        label: 'Sales CRM Desk',
+        icon: PhoneCall,
+        badge: myTodayCallsDueCount > 0 ? `${myTodayCallsDueCount} Due` : (myAssignedLeads.length > 0 ? `${myAssignedLeads.length}` : 'CRM Grant'),
+        badgeColor: myTodayCallsDueCount > 0 
+          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
+          : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold font-mono',
+      });
+    }
+
+    // PPT Generator granted
+    if (currentUser.customFeatures.includes('ppt_generator') && currentUser.role !== 'admin') {
+      granted.push({
+        id: 'ppt_generator',
+        label: 'PYQ PPT Generator',
+        icon: FileSpreadsheet,
+        badge: 'PPT Grant',
+        badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+      });
+    }
+
+    // Thumbnail Studio granted
+    if (currentUser.customFeatures.includes('thumbnail_studio') && currentUser.role !== 'admin') {
+      granted.push({
+        id: 'thumbnail_generator',
+        label: '16:9 Thumbnail Studio',
+        icon: ImageIcon,
+        badge: 'Studio Grant',
+        badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold font-mono',
+      });
+    }
+
+    // WebDev Portal granted
+    if (currentUser.customFeatures.includes('webdev_portal') && currentUser.role !== 'web_developer' && currentUser.role !== 'web_dev_manager' && currentUser.role !== 'admin') {
+      granted.push({
+        id: 'webdev_portal',
+        label: 'WebDev Tasks & Bounties',
+        icon: Code2,
+        badge: 'Dev Hub',
+        badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold font-mono',
+      });
+    }
+
+    // Syllabus Curriculum granted
+    if (currentUser.customFeatures.includes('syllabus_manager') && currentUser.role !== 'admin') {
+      granted.push({
+        id: 'admin_syllabus',
+        label: 'Curriculum & Deadlines',
+        icon: Layers,
+        badge: 'Curriculum',
+        badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold font-mono',
+      });
+    }
+
+    // Academic Audits granted
+    if (currentUser.customFeatures.includes('academic_audits') && currentUser.role !== 'admin') {
+      granted.push({
+        id: 'admin_lectures',
+        label: 'Lecture Audits',
+        icon: Video,
+        badge: 'Audits',
+        badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold font-mono',
+      });
+    }
+
+    // Faculty Wallets management granted
+    if (currentUser.customFeatures.includes('time_wallet_grants') && currentUser.role !== 'admin') {
+      granted.push({
+        id: 'admin_wallet',
+        label: 'Faculty Wallets',
+        icon: Wallet,
+        badge: 'Wallets',
+        badgeColor: 'bg-violet-500/20 text-violet-300 border border-violet-500/30 font-bold font-mono',
+      });
+    }
+
+    return granted;
+  }, [currentUser, myTodayCallsDueCount, myAssignedLeads.length]);
 
   const baseNavItems: NavItem[] = currentUser.role === 'admin' 
     ? filteredAdminNavItems 
@@ -417,10 +532,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ? devNavItems
     : teacherNavItems;
 
-  const navItems: NavItem[] = (hasEmployeeCrmAccess && currentUser.role !== 'admin' && currentUser.role !== 'sales')
-    ? [
-        ...baseNavItems,
-        {
+  const navItems = useMemo<NavItem[]>(() => {
+    const list = [...baseNavItems];
+    if (hasEmployeeCrmAccess && currentUser.role !== 'admin' && currentUser.role !== 'sales') {
+      if (!list.some(i => i.id === 'sales_crm')) {
+        list.push({
           id: 'sales_crm',
           label: 'Sales CRM Desk',
           icon: PhoneCall,
@@ -428,9 +544,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeColor: myTodayCallsDueCount > 0 
             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
             : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
-        }
-      ]
-    : baseNavItems;
+        });
+      }
+    }
+    for (const item of customGrantedNavItems) {
+      if (!list.some(i => i.id === item.id)) {
+        list.push(item);
+      }
+    }
+    return list;
+  }, [baseNavItems, hasEmployeeCrmAccess, currentUser.role, customGrantedNavItems, myTodayCallsDueCount, myAssignedLeads.length]);
 
   const handleNavClick = (id: string) => {
     onPageChange(id);

@@ -870,6 +870,89 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
             </button>
           </div>
 
+          {/* SPECIAL CROSS-ROLE PRIVILEGES BANNER IF GRANTED BY SUPER ADMIN */}
+          {teacher.customFeatures && teacher.customFeatures.length > 0 && (
+            <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-slate-900 to-indigo-950/30 p-5 space-y-3 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-bold">
+                    👑
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-amber-200">
+                      Cross-Role Privileges Granted
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      You have special operational feature grants authorized directly by the Super Admin.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 self-start sm:self-auto">
+                  {teacher.customFeatures.length} Active Grant{teacher.customFeatures.length > 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {teacher.customFeatures.includes('pr_portal') && (
+                  <button
+                    onClick={() => onPageChange('pr_leads')}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    🚀 PR Leads Pipeline →
+                  </button>
+                )}
+                {teacher.customFeatures.includes('pr_portal') && (
+                  <button
+                    onClick={() => onPageChange('pr_mou_maker')}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    📄 MoU Agreement Maker →
+                  </button>
+                )}
+                {teacher.customFeatures.includes('pr_portal') && (
+                  <button
+                    onClick={() => onPageChange('pr_tasks')}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    🎯 PR Tasks & XP →
+                  </button>
+                )}
+                {teacher.customFeatures.includes('sales_crm') && (
+                  <button
+                    onClick={() => onPageChange('sales_crm')}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    📞 Sales CRM Desk →
+                  </button>
+                )}
+                {teacher.customFeatures.includes('ppt_generator') && (
+                  <button
+                    onClick={() => onPageChange('ppt_generator')}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    📊 PYQ PPT Generator →
+                  </button>
+                )}
+                {teacher.customFeatures.includes('thumbnail_studio') && (
+                  <button
+                    onClick={() => onPageChange('thumbnail_generator')}
+                    className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    🎨 16:9 Thumbnail Studio →
+                  </button>
+                )}
+                {teacher.customFeatures.includes('webdev_portal') && (
+                  <button
+                    onClick={() => onPageChange('webdev_portal')}
+                    className="px-3 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    💻 WebDev Tasks & Bounties →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ASSIGNED STUDY RESOURCES AT A GLANCE */}
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

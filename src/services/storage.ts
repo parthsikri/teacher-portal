@@ -3,7 +3,7 @@ import type {
   DayOffGrant,
   User, UserRole, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem,
   PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage, PrMouStatus,
-  SalesLead, SalesActivityLog } from '../types';
+  SalesLead, SalesActivityLog, CustomFeatureKey } from '../types';
 
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -291,6 +291,11 @@ export const StorageService = {
                 skills: u.skills || existing.skills,
                 githubUsername: u.githubUsername || existing.githubUsername,
                 avatarUrl: u.avatarUrl || existing.avatarUrl,
+                adminTier: u.adminTier || existing.adminTier,
+                adminPermissions: u.adminPermissions || existing.adminPermissions,
+                customFeatures: u.customFeatures || existing.customFeatures,
+                hasCrmAccess: u.hasCrmAccess !== undefined ? u.hasCrmAccess : existing.hasCrmAccess,
+                crmRole: u.crmRole || existing.crmRole,
               });
             }
           });
@@ -633,6 +638,9 @@ export const StorageService = {
       totalCommissionEarned: updates.totalCommissionEarned !== undefined ? updates.totalCommissionEarned : users[index].totalCommissionEarned,
       adminTier: updates.adminTier !== undefined ? updates.adminTier : users[index].adminTier,
       adminPermissions: updates.adminPermissions !== undefined ? updates.adminPermissions : users[index].adminPermissions,
+      customFeatures: updates.customFeatures !== undefined ? updates.customFeatures : users[index].customFeatures,
+      hasCrmAccess: updates.hasCrmAccess !== undefined ? updates.hasCrmAccess : users[index].hasCrmAccess,
+      crmRole: updates.crmRole !== undefined ? updates.crmRole : users[index].crmRole,
     };
     users[index] = updatedUser;
     this.saveUsers(users);
@@ -643,6 +651,10 @@ export const StorageService = {
     }
 
     return updatedUser;
+  },
+
+  updateUserCustomFeatures(userId: string, features: CustomFeatureKey[]): User | null {
+    return this.updateUser(userId, { customFeatures: features });
   },
 
   // Record faculty login date automatically upon successful login

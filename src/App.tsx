@@ -15,6 +15,7 @@ import { PptGenerator } from './components/Common/PptGenerator';
 import { ThumbnailStudio } from './components/Common/ThumbnailStudio';
 import { EmployeeSalesCrmView } from './components/Sales/EmployeeSalesCrmView';
 import { OrganizationLeaderboardView } from './components/Common/OrganizationLeaderboardView';
+import { SuperAdminConsole } from './components/SuperAdmin/SuperAdminConsole';
 
 const getDefaultPageForUser = (user: User | null): string => {
   if (!user) return 'dashboard';
@@ -197,7 +198,12 @@ export const App: React.FC = () => {
           {/* MAIN APPLICATION VIEW — sidebar is fixed, so we just pad-left to offset */}
           <div className="min-h-screen md:pl-64 lg:pl-72" style={{ overflowX: 'hidden' }}>
             <main className="pt-16 md:pt-4 pb-16">
-              {currentPage === 'org_leaderboard' || currentPage === 'leaderboard' ? (
+              {currentPage === 'super_admin_panel' ? (
+                <SuperAdminConsole
+                  currentUser={currentUser}
+                  onPageChange={handlePageChange}
+                />
+              ) : currentPage === 'org_leaderboard' || currentPage === 'leaderboard' ? (
                 <OrganizationLeaderboardView
                   currentUser={currentUser}
                   onPageChange={handlePageChange}
@@ -207,7 +213,7 @@ export const App: React.FC = () => {
                   userSubject={currentUser.subject || currentUser.department || 'General'}
                   userName={currentUser.name}
                 />
-              ) : currentPage === 'thumbnail_generator' && currentUser.role === 'admin' ? (
+              ) : currentPage === 'thumbnail_generator' && (currentUser.role === 'admin' || currentUser.customFeatures?.includes('thumbnail_studio')) ? (
                 <ThumbnailStudio
                   initialSubject={currentUser.subject || currentUser.department || 'General'}
                   initialTeacherName={undefined}
@@ -219,7 +225,24 @@ export const App: React.FC = () => {
                   onPageChange={handlePageChange}
                   onRefreshData={handleRefreshData}
                 />
-              ) : currentUser.role === 'admin' ? (
+              ) : (currentPage.startsWith('pr_') || currentPage === 'pr_dashboard') && (currentUser.role === 'pr_intern' || currentUser.role === 'pr_head' || currentUser.customFeatures?.includes('pr_portal')) ? (
+                <PrInternView
+                  intern={currentUser}
+                  currentPage={currentPage}
+                  onPageChange={handlePageChange}
+                  refreshTrigger={refreshKey}
+                />
+              ) : (currentPage === 'webdev_portal' || currentPage === 'dev_tasks' || currentPage === 'dev_projects' || currentPage === 'dev_bounties') && (currentUser.role === 'web_developer' || currentUser.role === 'web_dev_manager' || currentUser.customFeatures?.includes('webdev_portal')) ? (
+                <WebDeveloperView
+                  currentUser={currentUser}
+                  currentPage={currentPage === 'webdev_portal' ? 'dev_tasks' : currentPage}
+                  onPageChange={handlePageChange}
+                  onRefreshUser={handleRefreshData}
+                />
+              ) : currentUser.role === 'admin' || (
+                  (currentPage === 'admin_syllabus' || currentPage === 'admin_lectures' || currentPage === 'admin_wallet') &&
+                  (currentUser.customFeatures?.includes('syllabus_manager') || currentUser.customFeatures?.includes('academic_audits') || currentUser.customFeatures?.includes('time_wallet_grants'))
+                ) ? (
                 <AdminView
                   currentPage={currentPage}
                   onPageChange={handlePageChange}

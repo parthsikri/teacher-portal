@@ -14,6 +14,16 @@ export type AdminPermissionKey =
   | 'manage_credentials'
   | 'manage_leaves';
 
+export type CustomFeatureKey = 
+  | 'pr_portal'           // Full PR Team Suite (Leads, MoUs, PR Tasks, PR Earnings)
+  | 'sales_crm'           // Sales CRM & Calling Desk
+  | 'ppt_generator'       // PYQ Presentation Generator Studio
+  | 'thumbnail_studio'    // 16:9 Thumbnail Studio
+  | 'webdev_portal'       // Engineering Hub (Tasks & Bounties)
+  | 'syllabus_manager'    // Academic Syllabus Curriculum Manager
+  | 'time_wallet_grants'  // Time Wallet & Backlog Operations
+  | 'academic_audits';    // Administrative Lecture Auditing
+
 export interface User {
   id: string;
   teacherId: string;
@@ -37,6 +47,8 @@ export interface User {
   // Admin specific access & permissions
   adminTier?: AdminRoleTier;
   adminPermissions?: AdminPermissionKey[];
+  // Super Admin Granular Cross-Role Feature Entitlements
+  customFeatures?: CustomFeatureKey[];
   // Sales CRM specific fields
   hasCrmAccess?: boolean;        // Whether employee has visibility into the Sales CRM
   crmRole?: 'sales_rep' | 'sales_manager'; // Access level inside the CRM
