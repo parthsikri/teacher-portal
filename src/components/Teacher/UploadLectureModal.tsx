@@ -114,8 +114,16 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       // User strict requirement: Any lecture submitted under extension or past cutoff is marked as 'late' only!
       const submissionStatus = (activeExt || !isOnTime) ? 'late' : 'on_time';
 
-      const youtubeLink = videoLinkType === 'youtube' && videoUrl.trim() ? videoUrl.trim() : undefined;
-      const driveVideoLink = videoLinkType === 'drive' && videoUrl.trim() ? videoUrl.trim() : undefined;
+      const rawUrl = videoUrl.trim();
+      const isYt = rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be');
+      const isDrive = rawUrl.includes('drive.google.com') || rawUrl.includes('docs.google.com');
+
+      let resolvedType = videoLinkType;
+      if (isYt) resolvedType = 'youtube';
+      else if (isDrive) resolvedType = 'drive';
+
+      const youtubeLink = resolvedType === 'youtube' && rawUrl ? rawUrl : undefined;
+      const driveVideoLink = resolvedType === 'drive' && rawUrl ? rawUrl : undefined;
 
       const chosenTopic = chosenTopicId ? StorageService.getAssignedTopics().find(t => t.id === chosenTopicId) : null;
       const unitNumber = prefillTopic ? (prefillTopic.unitNumber || 'UNIT 1') : (chosenTopic?.unitNumber || 'UNIT 1');

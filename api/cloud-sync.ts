@@ -185,11 +185,54 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
             }
           });
 
-          lectureMap.set(l.id, {
-            ...existing,
-            ...l,
+          const getTimestamp = (item: any): number => {
+            const r = item.reuploadedAt ? new Date(item.reuploadedAt).getTime() : 0;
+            const u = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+            const c = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+            return Math.max(r, u, c);
+          };
+
+          const incomingCount = l.reuploadCount || 0;
+          const existingCount = existing.reuploadCount || 0;
+          const incomingTime = getTimestamp(l);
+          const existingTime = getTimestamp(existing);
+
+          let winner = l;
+          let loser = existing;
+
+          if (incomingCount > existingCount) {
+            winner = l;
+            loser = existing;
+          } else if (existingCount > incomingCount) {
+            winner = existing;
+            loser = l;
+          } else if (existingTime > incomingTime) {
+            winner = existing;
+            loser = l;
+          } else {
+            winner = l;
+            loser = existing;
+          }
+
+          const resolved = {
+            ...loser,
+            ...winner,
             adminRemarks: Array.from(remarkMap.values()),
-          });
+          };
+
+          if (winner.youtubeUrl) {
+            resolved.youtubeUrl = winner.youtubeUrl;
+            if (!winner.driveUrl) resolved.driveUrl = undefined;
+          } else if (winner.driveUrl) {
+            resolved.driveUrl = winner.driveUrl;
+            if (!winner.youtubeUrl) resolved.youtubeUrl = undefined;
+          }
+          if (winner.reuploadedAt) {
+            resolved.localFileUrl = undefined;
+            resolved.fileName = undefined;
+          }
+
+          lectureMap.set(l.id, resolved);
         }
       }
     });

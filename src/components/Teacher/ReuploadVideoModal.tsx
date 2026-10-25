@@ -235,7 +235,16 @@ export const ReuploadVideoModal: React.FC<ReuploadVideoModalProps> = ({
                 type="url"
                 required
                 value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setVideoUrl(val);
+                  const trimmed = val.trim().toLowerCase();
+                  if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
+                    setVideoLinkType('youtube');
+                  } else if (trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com')) {
+                    setVideoLinkType('drive');
+                  }
+                }}
                 placeholder={
                   videoLinkType === 'youtube'
                     ? 'https://youtu.be/... or https://www.youtube.com/watch?v=...'

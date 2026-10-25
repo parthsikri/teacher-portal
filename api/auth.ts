@@ -86,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const storedPassword = (
       matchedUser.password ||
       (matchedUser.role === 'admin'
-        ? 'admin123'
+        ? 'sikri_parth@2'
         : matchedUser.role === 'pr_head'
         ? 'head123'
         : matchedUser.role === 'pr_intern'

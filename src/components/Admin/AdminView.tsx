@@ -20,7 +20,7 @@ import {
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
   ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail, FileCheck,
   Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2,
-  Crown, UserX, Percent, AlertTriangle, CheckCheck
+  Crown, UserX, Percent, AlertTriangle, CheckCheck, ExternalLink
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -4249,6 +4249,19 @@ Portal URL: ${window.location.origin}`;
                                           </a>
                                         )}
 
+                                        {(lec.youtubeUrl || lec.driveUrl) && (
+                                          <a
+                                            href={lec.youtubeUrl || lec.driveUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-700 hover:text-white flex items-center gap-1.5 transition-colors"
+                                            title="Open video URL directly in new tab"
+                                          >
+                                            <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                                            <span>{lec.youtubeUrl ? 'YouTube' : 'Drive'}</span>
+                                          </a>
+                                        )}
+
                                         <button
                                           onClick={() => setSelectedLectureForPreview(lec)}
                                           className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-md"
@@ -6042,12 +6055,15 @@ Portal URL: ${window.location.origin}`;
         </div>
       )}
 
-      {selectedLectureForPreview && (
-        <VideoModal
-          lecture={selectedLectureForPreview}
-          onClose={() => setSelectedLectureForPreview(null)}
-        />
-      )}
+      {selectedLectureForPreview && (() => {
+        const activeLec = lectures.find((l) => l.id === selectedLectureForPreview.id) || selectedLectureForPreview;
+        return (
+          <VideoModal
+            lecture={activeLec}
+            onClose={() => setSelectedLectureForPreview(null)}
+          />
+        );
+      })()}
 
       {showDbModal && (
         <DatabaseSettingsModal
