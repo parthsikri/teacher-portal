@@ -139,11 +139,15 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
     const handleSync = () => reloadData();
     window.addEventListener('aew_cloud_data_synced', handleSync);
     window.addEventListener('aew_pr_tasks_updated', handleSync);
+    window.addEventListener('aew_pr_leads_updated', handleSync);
+    window.addEventListener('aew_pr_mous_updated', handleSync);
     window.addEventListener('aew_users_updated', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('aew_cloud_data_synced', handleSync);
       window.removeEventListener('aew_pr_tasks_updated', handleSync);
+      window.removeEventListener('aew_pr_leads_updated', handleSync);
+      window.removeEventListener('aew_pr_mous_updated', handleSync);
       window.removeEventListener('aew_users_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
@@ -586,6 +590,18 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                     >
                       <CheckCircle2 className="w-4 h-4" /> Review & Award ⭐/🎖️
                     </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete task "${t.title}"? This will permanently remove it from both admin and PR intern panels.`)) {
+                          StorageService.deletePrTask(t.id);
+                          reloadData();
+                        }
+                      }}
+                      className="p-2.5 bg-slate-800/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/30 rounded-xl transition-all cursor-pointer"
+                      title="Delete task permanently"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -927,13 +943,13 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
                     <button
                       onClick={() => {
-                        if (confirm(`Delete task "${task.title}"?`)) {
+                        if (confirm(`Delete task "${task.title}"? This will permanently remove it and it will no longer appear on the PR intern's panel.`)) {
                           StorageService.deletePrTask(task.id);
                           reloadData();
                         }
                       }}
-                      className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
-                      title="Delete task"
+                      className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                      title="Delete task permanently"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -1051,6 +1067,19 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                         </button>
                       </>
                     )}
+
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete MoU for "${mou.partnerOrganization}" (${mou.mouNumber})? This will permanently remove it from both admin and PR intern panels.`)) {
+                          StorageService.deletePrMou(mou.id);
+                          reloadData();
+                        }
+                      }}
+                      className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 rounded-xl transition-all cursor-pointer"
+                      title="Delete MoU permanently"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1084,6 +1113,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                     <th className="py-3 px-4">Stage</th>
                     <th className="py-3 px-4">Intern Rate</th>
                     <th className="py-3 px-4">Est. Commission</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-200">
@@ -1133,9 +1163,37 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                           <td className="py-3 px-4 font-black text-amber-400">
                             ₹{lead.commissionEarned ? lead.commissionEarned.toLocaleString('en-IN') : Math.round(((lead.expectedSponsorshipAmount * (lead.commissionRate || 3.3)) / 100)).toLocaleString('en-IN')}
                           </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete sponsorship lead "${lead.organizationName}"? This will permanently remove it so it is no longer shown on the PR intern's panel.`)) {
+                                  StorageService.deletePrLead(lead.id);
+                                  reloadData();
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Lead permanently"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
+                  {leads.filter((l) =>
+                    searchQuery
+                      ? l.organizationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        l.internName.toLowerCase().includes(searchQuery.toLowerCase())
+                      : true
+                  ).length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-500 text-xs">
+                        <TrendingUp className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                        <p className="font-semibold text-slate-400">No sponsorship leads found.</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">Pipeline is clear or does not match current search query.</p>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

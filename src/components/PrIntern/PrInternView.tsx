@@ -117,11 +117,15 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
     handleSync();
     window.addEventListener('aew_pr_tasks_updated', handleSync);
+    window.addEventListener('aew_pr_leads_updated', handleSync);
+    window.addEventListener('aew_pr_mous_updated', handleSync);
     window.addEventListener('aew_users_updated', handleSync);
     window.addEventListener('aew_cloud_data_synced', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('aew_pr_tasks_updated', handleSync);
+      window.removeEventListener('aew_pr_leads_updated', handleSync);
+      window.removeEventListener('aew_pr_mous_updated', handleSync);
       window.removeEventListener('aew_users_updated', handleSync);
       window.removeEventListener('aew_cloud_data_synced', handleSync);
       window.removeEventListener('storage', handleSync);

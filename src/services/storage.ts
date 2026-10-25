@@ -3775,6 +3775,7 @@ export const StorageService = {
           const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
           return parsed.filter((t) => {
             if (isMockPrTask(t)) return false;
+            if (t.id && deletedIds.has(t.id.toUpperCase())) return false;
             if (t.assignedToInternId && t.assignedToInternId !== 'all' && deletedIds.has(t.assignedToInternId.toUpperCase())) return false;
             return true;
           });
@@ -3965,6 +3966,22 @@ export const StorageService = {
 
   deletePrTask(taskId: string): void {
     this.addDeletedId(taskId);
+    const existing = this.getPrTasks().find((t) => t.id === taskId);
+    if (existing && (existing.status === 'approved' || existing.status === 'completed')) {
+      const intern = this.getUsers().find((u) => u.teacherId.toUpperCase() === existing.assignedToInternId.toUpperCase());
+      if (intern) {
+        const pts = existing.awardedPoints || existing.pointsReward || 0;
+        const stars = existing.awardedStars || existing.starsReward || 0;
+        const newPts = Math.max(0, (intern.prPoints || 0) - pts);
+        const newStars = Math.max(0, (intern.prStars || 0) - stars);
+        const newTier = this.calculateTierFromPointsAndStars(newPts, newStars);
+        this.updateUser(intern.id, {
+          prPoints: newPts,
+          prStars: newStars,
+          prTier: newTier,
+        });
+      }
+    }
     const tasks = this.getPrTasks().filter((t) => t.id !== taskId);
     this.savePrTasks(tasks);
   },
@@ -3980,6 +3997,7 @@ export const StorageService = {
           const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
           return parsed.filter((l) => {
             if (isMockPrLead(l)) return false;
+            if (l.id && deletedIds.has(l.id.toUpperCase())) return false;
             if (l.internId && deletedIds.has(l.internId.toUpperCase())) return false;
             return true;
           });
@@ -3991,6 +4009,7 @@ export const StorageService = {
 
   savePrLeads(leads: PrLead[]): void {
     localStorage.setItem(PR_LEADS_KEY, JSON.stringify(leads));
+    window.dispatchEvent(new CustomEvent('aew_pr_leads_updated'));
     triggerBackgroundCloudSync();
   },
 
@@ -4070,6 +4089,18 @@ export const StorageService = {
 
   deletePrLead(id: string): void {
     this.addDeletedId(id);
+    const existing = this.getPrLeads().find((l) => l.id === id);
+    if (existing && existing.stage === 'closed_won') {
+      const intern = this.getUsers().find((u) => u.teacherId.toUpperCase() === existing.internId.toUpperCase());
+      if (intern) {
+        const rev = existing.closedAmount || existing.expectedSponsorshipAmount || 0;
+        const comm = existing.commissionEarned || 0;
+        this.updateUser(intern.id, {
+          totalSponsorshipRevenue: Math.max(0, (intern.totalSponsorshipRevenue || 0) - rev),
+          totalCommissionEarned: Math.max(0, (intern.totalCommissionEarned || 0) - comm),
+        });
+      }
+    }
     const leads = this.getPrLeads().filter((l) => l.id !== id);
     this.savePrLeads(leads);
   },
@@ -4085,6 +4116,7 @@ export const StorageService = {
           const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
           return parsed.filter((m) => {
             if (isMockPrMou(m)) return false;
+            if (m.id && deletedIds.has(m.id.toUpperCase())) return false;
             if (m.internId && deletedIds.has(m.internId.toUpperCase())) return false;
             return true;
           });
@@ -4096,6 +4128,7 @@ export const StorageService = {
 
   savePrMous(mous: PrMouRequest[]): void {
     localStorage.setItem(PR_MOUS_KEY, JSON.stringify(mous));
+    window.dispatchEvent(new CustomEvent('aew_pr_mous_updated'));
     triggerBackgroundCloudSync();
   },
 
@@ -4199,6 +4232,7 @@ export const StorageService = {
           const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
           return parsed.filter((l) => {
             if (isMockSalesLead(l)) return false;
+            if (l.id && deletedIds.has(l.id.toUpperCase())) return false;
             if (l.assignedToEmployeeId && deletedIds.has(l.assignedToEmployeeId.toUpperCase())) return false;
             return true;
           });
@@ -4210,6 +4244,7 @@ export const StorageService = {
 
   saveSalesLeads(leads: SalesLead[]): void {
     localStorage.setItem(SALES_LEADS_KEY, JSON.stringify(leads));
+    window.dispatchEvent(new CustomEvent('aew_sales_leads_updated'));
     triggerBackgroundCloudSync();
   },
 

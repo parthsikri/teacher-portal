@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, SalesLead, SalesLeadStatus, SalesLeadPriority, CallDisposition } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   Phone, MessageSquare, Plus, Search, Upload, CheckCircle2,
   Clock, Calendar, ChevronRight, X, PhoneCall, PhoneOff,
-  Shield, Briefcase
+  Shield, Briefcase, Trash2
 } from 'lucide-react';
 
 interface AdminSalesCrmSectionProps {
@@ -95,6 +95,37 @@ export const AdminSalesCrmSection: React.FC<AdminSalesCrmSectionProps> = ({
     setEmployees(StorageService.getUsers());
     setPermissions(StorageService.getCrmPermissions());
     if (onRefreshData) onRefreshData();
+  };
+
+  useEffect(() => {
+    const handleSync = () => refreshLocalData();
+    window.addEventListener('aew_sales_leads_updated', handleSync);
+    window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('aew_sales_leads_updated', handleSync);
+      window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  const handleDeleteLead = (lead: SalesLead) => {
+    if (confirm(`Delete lead "${lead.name}" (${lead.phoneNumber})? This will permanently remove it from the system.`)) {
+      StorageService.deleteSalesLead(lead.id);
+      refreshLocalData();
+      if (activeDetailLead?.id === lead.id) {
+        setActiveDetailLead(null);
+      }
+    }
+  };
+
+  const handleBulkDeleteLeads = () => {
+    if (selectedLeadIds.length === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected lead(s)? This action cannot be undone.`)) {
+      selectedLeadIds.forEach((id) => StorageService.deleteSalesLead(id));
+      setSelectedLeadIds([]);
+      refreshLocalData();
+    }
   };
 
   // Metrics Calculations
@@ -561,6 +592,15 @@ export const AdminSalesCrmSection: React.FC<AdminSalesCrmSectionProps> = ({
               </button>
 
               <button
+                onClick={handleBulkDeleteLeads}
+                className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                title="Delete Selected Leads"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Selected</span>
+              </button>
+
+              <button
                 onClick={() => setSelectedLeadIds([])}
                 className="px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs"
               >
@@ -751,10 +791,18 @@ export const AdminSalesCrmSection: React.FC<AdminSalesCrmSectionProps> = ({
 
                             <button
                               onClick={() => setActiveDetailLead(lead)}
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
                               title="View Details"
                             >
                               <ChevronRight className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteLead(lead)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/30 transition-all cursor-pointer"
+                              title="Delete Lead"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -1447,12 +1495,21 @@ export const AdminSalesCrmSection: React.FC<AdminSalesCrmSectionProps> = ({
                 </span>
                 <h3 className="text-lg font-bold text-slate-100">{activeDetailLead.name}</h3>
               </div>
-              <button
-                onClick={() => setActiveDetailLead(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleDeleteLead(activeDetailLead)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition-colors"
+                  title="Delete Lead"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setActiveDetailLead(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Quick Actions Strip */}
