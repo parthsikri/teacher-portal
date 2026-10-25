@@ -39,9 +39,133 @@ import {
   CheckCircle,
   Trophy,
   GraduationCap,
-  Layers
+  Layers,
+  Flame,
+  Zap,
+  Award,
+  Target,
+  ChevronRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+
+interface TaskDeadlineInfo {
+  isOverdue: boolean;
+  isUrgent: boolean;   // < 12h
+  isCritical: boolean; // < 4h
+  isDueToday: boolean;
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  countdownText: string;
+  formattedDate: string;
+  formattedTime: string;
+  urgencyBadgeClass: string;
+}
+
+const getTaskDeadlineInfo = (deadlineStr: string | undefined, now: Date): TaskDeadlineInfo => {
+  if (!deadlineStr) {
+    return {
+      isOverdue: false,
+      isUrgent: false,
+      isCritical: false,
+      isDueToday: false,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      countdownText: 'Open Deadline',
+      formattedDate: 'Open Date',
+      formattedTime: '',
+      urgencyBadgeClass: 'bg-slate-800 text-slate-400 border-slate-700',
+    };
+  }
+
+  let targetDate: Date;
+  if (deadlineStr.includes('T')) {
+    targetDate = new Date(deadlineStr);
+  } else {
+    targetDate = new Date(`${deadlineStr}T23:59:59`);
+  }
+
+  if (isNaN(targetDate.getTime())) {
+    return {
+      isOverdue: false,
+      isUrgent: false,
+      isCritical: false,
+      isDueToday: false,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      countdownText: deadlineStr,
+      formattedDate: deadlineStr,
+      formattedTime: '',
+      urgencyBadgeClass: 'bg-slate-800 text-slate-400 border-slate-700',
+    };
+  }
+
+  const diffMs = targetDate.getTime() - now.getTime();
+  const isOverdue = diffMs < 0;
+  const absDiff = Math.abs(diffMs);
+
+  const days = Math.floor(absDiff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((absDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((absDiff % (1000 * 60)) / (1000 * 60));
+  const seconds = Math.floor((absDiff % (1000 * 60)) / 1000);
+
+  const totalHoursRemaining = diffMs / (1000 * 60 * 60);
+  const isCritical = !isOverdue && totalHoursRemaining <= 4;
+  const isUrgent = !isOverdue && totalHoursRemaining <= 12;
+  const isDueToday = !isOverdue && totalHoursRemaining <= 24;
+
+  let countdownText = '';
+  let urgencyBadgeClass = '';
+
+  if (isOverdue) {
+    countdownText = `🔴 Overdue by ${days > 0 ? `${days}d ` : ''}${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m`;
+    urgencyBadgeClass = 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse font-mono';
+  } else if (isCritical) {
+    countdownText = `🔥 ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s left`;
+    urgencyBadgeClass = 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse font-mono font-bold';
+  } else if (isUrgent) {
+    countdownText = `⚡ ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s left`;
+    urgencyBadgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-mono font-bold';
+  } else if (isDueToday) {
+    countdownText = `⏳ ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m left (Today)`;
+    urgencyBadgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30 font-mono';
+  } else {
+    countdownText = `⏳ ${days}d ${String(hours).padStart(2, '0')}h remaining`;
+    urgencyBadgeClass = 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30 font-mono';
+  }
+
+  const formattedDate = targetDate.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const formattedTime = targetDate.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  return {
+    isOverdue,
+    isUrgent,
+    isCritical,
+    isDueToday,
+    days,
+    hours,
+    minutes,
+    seconds,
+    countdownText,
+    formattedDate,
+    formattedTime,
+    urgencyBadgeClass,
+  };
+};
 
 interface PrInternViewProps {
   intern: User;
@@ -199,43 +323,49 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const stars = currentUser.prStars || 0;
   const commissionRate = StorageService.getTierCommissionRate(currentTier, currentUser);
 
-  // Next tier progress
-  const nextTierInfo = useMemo(() => {
-    if (currentTier === 'Silver') {
-      const xpReq = Math.max(0, 100 - xp);
-      const starsReq = Math.max(0, 5 - stars);
-      const progressPercent = Math.min(100, Math.round(((xp / 100) * 0.6 + (stars / 5) * 0.4) * 100));
-      return {
-        nextTier: 'Gold' as PrTier,
-        nextRate: 7.0,
-        xpRemaining: xpReq,
-        starsRemaining: starsReq,
-        progressPercent,
-        isMax: false,
-      };
-    }
-    if (currentTier === 'Gold') {
-      const xpReq = Math.max(0, 300 - xp);
-      const starsReq = Math.max(0, 15 - stars);
-      const progressPercent = Math.min(100, Math.round(((xp / 300) * 0.6 + (stars / 15) * 0.4) * 100));
-      return {
-        nextTier: 'Premium' as PrTier,
-        nextRate: 12.0,
-        xpRemaining: xpReq,
-        starsRemaining: starsReq,
-        progressPercent,
-        isMax: false,
-      };
-    }
+  // Real-time 1-second clock for live deadline countdowns
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Next tier progress & gamification metrics
+  const tierProgressDetails = useMemo(() => {
+    const isSilver = currentTier === 'Silver';
+    const isPremium = currentTier === 'Premium';
+
+    const targetTier: PrTier = isSilver ? 'Gold' : 'Premium';
+    const targetXp = isSilver ? 100 : 300;
+    const targetStars = isSilver ? 5 : 15;
+    const nextCommission = isSilver ? 7.0 : 12.0;
+
+    const currentTierCommission = commissionRate;
+    const commissionSurgePercent = Math.round(((nextCommission - currentTierCommission) / currentTierCommission) * 100);
+
+    const xpRemaining = Math.max(0, targetXp - xp);
+    const starsRemaining = Math.max(0, targetStars - stars);
+
+    const xpPercent = Math.min(100, Math.round((xp / targetXp) * 100));
+    const starPercent = Math.min(100, Math.round((stars / targetStars) * 100));
+    const overallPercent = isPremium ? 100 : Math.min(100, Math.round((xpPercent * 0.5) + (starPercent * 0.5)));
+
     return {
-      nextTier: 'Premium' as PrTier,
-      nextRate: 12.0,
-      xpRemaining: 0,
-      starsRemaining: 0,
-      progressPercent: 100,
-      isMax: true,
+      currentTier,
+      targetTier,
+      targetXp,
+      targetStars,
+      nextCommission,
+      currentTierCommission,
+      commissionSurgePercent,
+      xpRemaining,
+      starsRemaining,
+      xpPercent,
+      starPercent,
+      overallPercent,
+      isMax: isPremium,
     };
-  }, [currentTier, xp, stars]);
+  }, [currentTier, xp, stars, commissionRate]);
 
   // Tasks assigned to this intern
   const myTasks = useMemo(() => {
@@ -249,6 +379,17 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const pendingTasks = useMemo(() => {
     return myTasks.filter((t) => t.status === 'pending' || t.status === 'revision_requested');
   }, [myTasks]);
+
+  // Pending tasks sorted by deadline urgency (closest deadline first)
+  const urgentTasksWithDeadlines = useMemo(() => {
+    return pendingTasks
+      .filter((t) => !!t.deadline)
+      .sort((a, b) => {
+        const timeA = new Date(a.deadline.includes('T') ? a.deadline : `${a.deadline}T23:59:59`).getTime();
+        const timeB = new Date(b.deadline.includes('T') ? b.deadline : `${b.deadline}T23:59:59`).getTime();
+        return timeA - timeB;
+      });
+  }, [pendingTasks]);
 
   const completedTasks = useMemo(() => {
     return myTasks.filter((t) => t.status === 'completed' || t.status === 'approved');
@@ -863,38 +1004,257 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
             </div>
           </div>
 
-          {/* Simple Tier Progression Bar */}
-          {!nextTierInfo.isMax && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Crown className="w-4 h-4 text-amber-400" />
-                  <span>Level Up to {nextTierInfo.nextTier} Tier ({nextTierInfo.nextRate}% Commission)</span>
+          {/* ─── URGENT DEADLINES COUNTDOWN SHOWCASE (MOTIVATIONAL BLITZ) ─── */}
+          {urgentTasksWithDeadlines.length > 0 && (
+            <div className="relative overflow-hidden bg-gradient-to-r from-rose-950/40 via-slate-900 to-indigo-950/40 border border-rose-500/30 rounded-2xl p-5 md:p-6 shadow-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2.5 w-2.5 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                    </span>
+                    <span className="text-[10px] uppercase font-black tracking-widest text-rose-400 font-mono">
+                      Active Mission with Deadline
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      ⭐ +{urgentTasksWithDeadlines[0].starsReward} Stars • 🎖️ +{urgentTasksWithDeadlines[0].pointsReward} XP
+                    </span>
+                  </div>
+
+                  <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-rose-400 shrink-0" />
+                    <span>{urgentTasksWithDeadlines[0].title}</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 line-clamp-1">
+                    {urgentTasksWithDeadlines[0].description}
+                  </p>
+
+                  <div className="flex items-center gap-2 text-xs pt-1 text-slate-400">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Cutoff Time: <strong className="text-white font-mono">{getTaskDeadlineInfo(urgentTasksWithDeadlines[0].deadline, now).formattedDate} {getTaskDeadlineInfo(urgentTasksWithDeadlines[0].deadline, now).formattedTime && `@ ${getTaskDeadlineInfo(urgentTasksWithDeadlines[0].deadline, now).formattedTime}`}</strong></span>
+                    <span className="text-slate-600">•</span>
+                    <span className="text-indigo-300 font-semibold">
+                      Completing this mission leaves only <strong>{Math.max(0, tierProgressDetails.starsRemaining - urgentTasksWithDeadlines[0].starsReward)} ⭐</strong> to unlock {tierProgressDetails.targetTier} Tier!
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Complete tasks assigned by PR Head to earn <strong className="text-indigo-300">{nextTierInfo.xpRemaining} more XP</strong> and <strong className="text-amber-300">{nextTierInfo.starsRemaining} more Stars</strong>.
+
+                {/* Digital Countdown Clock */}
+                <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+                  <div className="bg-slate-950/90 border border-rose-500/40 rounded-xl px-4 py-3 text-center shadow-inner min-w-[200px]">
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-rose-300 mb-1 flex items-center justify-center gap-1">
+                      <Zap className="w-3 h-3 text-amber-400 fill-amber-400" /> Time Remaining
+                    </div>
+                    <div className="text-xl md:text-2xl font-black font-mono text-white tracking-wider flex items-center justify-center gap-1">
+                      {(() => {
+                        const dl = getTaskDeadlineInfo(urgentTasksWithDeadlines[0].deadline, now);
+                        if (dl.isOverdue) {
+                          return <span className="text-rose-400 text-sm font-bold">{dl.countdownText}</span>;
+                        }
+                        return (
+                          <>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-amber-300">
+                              {dl.days > 0 ? `${dl.days}d ` : ''}{String(dl.hours).padStart(2, '0')}h
+                            </span>
+                            <span className="text-slate-500">:</span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-amber-300">
+                              {String(dl.minutes).padStart(2, '0')}m
+                            </span>
+                            <span className="text-slate-500">:</span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-rose-400">
+                              {String(dl.seconds).padStart(2, '0')}s
+                            </span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleCompleteTask(urgentTasksWithDeadlines[0])}
+                    className="w-full sm:w-auto px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Complete & Claim XP</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Other Upcoming Tasks List if multiple */}
+              {urgentTasksWithDeadlines.length > 1 && (
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-[11px] text-slate-400 font-semibold">Other Deadlines:</span>
+                  {urgentTasksWithDeadlines.slice(1, 4).map((ot) => {
+                    const dl = getTaskDeadlineInfo(ot.deadline, now);
+                    return (
+                      <span
+                        key={ot.id}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] border flex items-center gap-1.5 ${dl.urgencyBadgeClass}`}
+                      >
+                        <span className="truncate max-w-[120px] font-bold text-slate-200">{ot.title}:</span>
+                        <span>{dl.countdownText}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── MOTIVATING TIER UPGRADE COMMAND HUB ─── */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" /> Career Promotion Road
+                  </span>
+                  {!tierProgressDetails.isMax && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      +{tierProgressDetails.commissionSurgePercent}% Payout Surge on Level Up!
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+                  <span>Current Tier:</span>
+                  <span className={currentTier === 'Premium' ? 'text-purple-400' : currentTier === 'Gold' ? 'text-amber-400' : 'text-slate-300'}>
+                    {currentTier} Representative ({commissionRate}% Commission)
+                  </span>
+                  {!tierProgressDetails.isMax && (
+                    <>
+                      <ChevronRight className="w-4 h-4 text-slate-500" />
+                      <span className="text-emerald-400 font-bold text-base">
+                        Target: {tierProgressDetails.targetTier} ({tierProgressDetails.nextCommission}%)
+                      </span>
+                    </>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                  {tierProgressDetails.isMax
+                    ? '🎉 Maximum PR Tier unlocked! You enjoy top 12.0% commission share, VIP deal escalation, and premium recommendation badges.'
+                    : `Every task delivered on time and every college/sponsor lead closed directly awards Stars & XP to upgrade you to ${tierProgressDetails.targetTier} Tier (${tierProgressDetails.nextCommission}% commission)!`}
                 </p>
               </div>
 
-              <div className="w-full md:w-64 space-y-1.5 shrink-0">
-                <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-                  <span>Progress</span>
-                  <span className="text-white font-bold">{nextTierInfo.progressPercent}%</span>
-                </div>
-                <div className="w-full h-2.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-indigo-500 to-amber-400 rounded-full transition-all duration-500"
-                    style={{ width: `${nextTierInfo.progressPercent}%` }}
-                  />
+              {/* Overall Readiness Pill */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center min-w-[130px]">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Promotion Readiness</span>
+                  <span className="text-2xl font-black text-amber-400 font-mono mt-0.5 block">
+                    {tierProgressDetails.overallPercent}%
+                  </span>
                 </div>
               </div>
             </div>
-          )}
+
+            {/* Dual Progress Gauges: Stars & XP */}
+            {!tierProgressDetails.isMax && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Gauge 1: ⭐ Stars */}
+                <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800/80 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      ⭐ Stars Requirement
+                    </span>
+                    <span className="font-mono text-slate-300 font-bold">
+                      {stars} / {tierProgressDetails.targetStars} Stars ({tierProgressDetails.starPercent}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-3 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-500"
+                      style={{ width: `${tierProgressDetails.starPercent}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>
+                      {tierProgressDetails.starsRemaining === 0 ? (
+                        <span className="text-emerald-400 font-bold">✓ Stars Requirement Achieved!</span>
+                      ) : (
+                        <span>Need <strong className="text-amber-300">{tierProgressDetails.starsRemaining} more Stars</strong></span>
+                      )}
+                    </span>
+                    <span className="text-slate-500">Earn from on-time tasks & college closures</span>
+                  </div>
+                </div>
+
+                {/* Gauge 2: 🎖️ XP Points */}
+                <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800/80 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-indigo-300 flex items-center gap-1.5">
+                      <TrendingUp className="w-4 h-4 text-indigo-400" />
+                      🎖️ XP Points Requirement
+                    </span>
+                    <span className="font-mono text-slate-300 font-bold">
+                      {xp} / {tierProgressDetails.targetXp} XP ({tierProgressDetails.xpPercent}%
+                    </span>
+                  </div>
+                  <div className="w-full h-3 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all duration-500"
+                      style={{ width: `${tierProgressDetails.xpPercent}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>
+                      {tierProgressDetails.xpRemaining === 0 ? (
+                        <span className="text-emerald-400 font-bold">✓ XP Requirement Achieved!</span>
+                      ) : (
+                        <span>Need <strong className="text-indigo-300">{tierProgressDetails.xpRemaining} more XP</strong></span>
+                      )}
+                    </span>
+                    <span className="text-slate-500">Earned with every task submission</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Motivational Perks Unlocked & Level Up Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+              <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Higher Commission Payout</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Jump from 3.3% ➔ <strong>7.0% (Gold)</strong> or <strong>12.0% (Premium)</strong> — more than double your cash earnings per closed deal!
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 shrink-0">
+                  <Award className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Verified AEW LOR & Honor Badge</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Official Letter of Recommendation from AEW leadership and a verified PR Elite badge for resumes and LinkedIn.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 shrink-0">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Priority Lead Allocation</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Gold and Premium interns receive priority routing for top Tier-1 college fest sponsorships and corporate cloud brands.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Two-Column Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* Panel A: Tasks to Do */}
+            {/* Panel A: Tasks to Do with Live Deadlines */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -919,42 +1279,55 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {pendingTasks.slice(0, 3).map((task) => (
-                    <div
-                      key={task.id}
-                      className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 flex flex-col justify-between"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                              +{task.pointsReward} XP • ⭐ {task.starsReward}
-                            </span>
-                            {task.priority === 'urgent' && (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                Urgent
+                  {pendingTasks.slice(0, 3).map((task) => {
+                    const dl = getTaskDeadlineInfo(task.deadline, now);
+                    return (
+                      <div
+                        key={task.id}
+                        className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 flex flex-col justify-between"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                +{task.pointsReward} XP • ⭐ {task.starsReward}
                               </span>
-                            )}
+                              {task.priority === 'urgent' && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                  Urgent
+                                </span>
+                              )}
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${dl.urgencyBadgeClass}`}>
+                                <Clock className="w-3 h-3 inline mr-1" />
+                                {dl.countdownText}
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-sm text-slate-100">{task.title}</h4>
+                            <p className="text-xs text-slate-400 line-clamp-2">{task.description}</p>
                           </div>
-                          <h4 className="font-bold text-sm text-slate-100">{task.title}</h4>
-                          <p className="text-xs text-slate-400 line-clamp-2">{task.description}</p>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                          <div className="flex flex-col">
+                            <span className="text-slate-300 text-[11px] flex items-center gap-1 font-mono">
+                              <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                              <span>{dl.formattedDate}</span>
+                              {dl.formattedTime && (
+                                <span className="text-amber-400 font-bold">@ {dl.formattedTime}</span>
+                              )}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleCompleteTask(task)}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-all"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Mark Done & Claim XP</span>
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
-                        <span className="text-slate-400 text-[11px] flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-slate-500" /> Due: {task.deadline}
-                        </span>
-                        <button
-                          onClick={() => handleCompleteTask(task)}
-                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-all"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Mark Done & Claim XP</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1539,12 +1912,23 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                       <p className="text-xs text-slate-400 mt-1 leading-relaxed">{t.description}</p>
                     </div>
 
-                    {/* Metadata & Assignee */}
-                    <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                        Deadline: <strong className="text-slate-300">{t.deadline}</strong>
-                      </span>
+                    {/* Metadata & Assignee with Live Countdown */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="flex items-center gap-1 font-mono">
+                          <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                          <strong className="text-slate-200">{getTaskDeadlineInfo(t.deadline, now).formattedDate}</strong>
+                          {getTaskDeadlineInfo(t.deadline, now).formattedTime && (
+                            <span className="text-amber-400 font-bold ml-1">⏰ {getTaskDeadlineInfo(t.deadline, now).formattedTime}</span>
+                          )}
+                        </span>
+                        {!isCompleted && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${getTaskDeadlineInfo(t.deadline, now).urgencyBadgeClass}`}>
+                            <Clock className="w-3 h-3" />
+                            {getTaskDeadlineInfo(t.deadline, now).countdownText}
+                          </span>
+                        )}
+                      </div>
                       <span>
                         Assigned by: <strong className="text-slate-300">{t.assignedByAdminName || 'PR Head'}</strong>
                       </span>

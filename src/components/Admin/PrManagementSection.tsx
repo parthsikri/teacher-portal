@@ -73,8 +73,10 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
   const [taskPointsReward, setTaskPointsReward] = useState<number>(50);
   const [taskDeadline, setTaskDeadline] = useState<string>(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
+    d.setDate(d.getDate() + 3);
+    d.setHours(18, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
   const [taskPriority, setTaskPriority] = useState<PrTaskPriority>('high');
 
@@ -940,9 +942,21 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                         <span className="text-slate-500">Assigned To:</span>
                         <span className="text-indigo-300 font-semibold">{task.assignedToInternName}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-slate-500">Deadline:</span>
-                        <span className="text-slate-300 font-mono">{task.deadline}</span>
+                        <span className="text-slate-300 font-mono text-[11px] flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-400" />
+                          {task.deadline ? (
+                            task.deadline.includes('T') ? (
+                              <>
+                                <span>{new Date(task.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                                <span className="text-amber-400 font-bold">{new Date(task.deadline).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                              </>
+                            ) : (
+                              <span>{task.deadline} (EOD)</span>
+                            )
+                          ) : 'No cutoff'}
+                        </span>
                       </div>
                       <div className="flex justify-between pt-1 border-t border-slate-800">
                         <span className="text-slate-500">Bounty:</span>
@@ -1538,14 +1552,70 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Deadline Date</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-300">Deadline (Date & Time)</label>
+                    <span className="text-[10px] text-amber-400 font-mono">Cutoff Time</span>
+                  </div>
                   <input
-                    type="date"
+                    type="datetime-local"
                     required
                     value={taskDeadline}
                     onChange={(e) => setTaskDeadline(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
                   />
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setHours(20, 0, 0, 0);
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        setTaskDeadline(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 cursor-pointer"
+                    >
+                      Today 8 PM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 1);
+                        d.setHours(18, 0, 0, 0);
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        setTaskDeadline(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 cursor-pointer"
+                    >
+                      Tomorrow 6 PM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 3);
+                        d.setHours(18, 0, 0, 0);
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        setTaskDeadline(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 cursor-pointer"
+                    >
+                      In 3 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 7);
+                        d.setHours(18, 0, 0, 0);
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        setTaskDeadline(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 cursor-pointer"
+                    >
+                      In 1 Week
+                    </button>
+                  </div>
                 </div>
 
                 <div>
