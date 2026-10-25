@@ -1135,7 +1135,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                       {category === 'college_society_session' && (
                         <div className="flex justify-between">
                           <span className="text-slate-400">Guaranteed Attendance:</span>
-                          <span className="text-blue-300 font-semibold">{mou.expectedStudentAttendance || mou.guaranteedAudience || 140} Students (130–155 target)</span>
+                          <span className="text-blue-300 font-semibold">{mou.expectedStudentAttendance || mou.guaranteedAudience || 100}+ Enrolled Students ({mou.sessionMode || 'offline'})</span>
                         </div>
                       )}
 
@@ -1325,7 +1325,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                                   🎓 {lead.sessionTopic === 'custom_topic' ? (lead.customTopicName || 'Custom Topic') : (lead.sessionTopic || 'Workshop')}
                                 </span>
                                 <span className="text-[10px] text-slate-400 block font-semibold">
-                                  {lead.sessionMode || 'offline'} • {lead.expectedAudience || lead.expectedStudentAttendance || 140} students (130–155 target)
+                                  {lead.sessionMode || 'offline'} • {lead.expectedAudience || lead.expectedStudentAttendance || 100}+ students
                                 </span>
                               </div>
                             )}
@@ -2058,7 +2058,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                       <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl space-y-1 font-sans text-[11px]">
                         <div><strong>Workshop Topic:</strong> {previewingMou.sessionTopic === 'custom_topic' ? (previewingMou.customTopicName || 'Custom Technical Session') : (previewingMou.sessionTopic?.replace(/_/g, ' ').toUpperCase() || 'Advanced AI & Engineering Masterclass')}</div>
                         <div><strong>Delivery Mode:</strong> {previewingMou.sessionMode === 'offline_campus' ? 'Offline On-Campus Auditorium' : previewingMou.sessionMode === 'virtual_webinar' ? 'Live Interactive Webinar' : 'Hybrid Session'}</div>
-                        <div><strong>Guaranteed Minimum Attendance:</strong> {previewingMou.expectedStudentAttendance || previewingMou.guaranteedAudience || 140} Registered Engineering Students (130–155 target range)</div>
+                        <div><strong>Guaranteed Minimum Attendance:</strong> {previewingMou.expectedStudentAttendance || previewingMou.guaranteedAudience || 100}+ Registered Engineering Students</div>
                         <div><strong>Scheduled Date & Slot:</strong> {previewingMou.sessionDate || previewingMou.startDate} • {previewingMou.sessionTime || '11:00 AM - 1:00 PM'}</div>
                         <div><strong>Venue / Platform:</strong> {previewingMou.venueOrPlatform || 'College Main Auditorium / Online Platform'}</div>
                       </div>
@@ -2077,7 +2077,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                         <li>AEW shall deploy experienced senior industry instructors to deliver comprehensive live hands-on instruction.</li>
                         <li>AEW shall issue verified digital certificates of completion to all registered student attendees.</li>
                         <li>The Society / College shall provide the auditorium venue, audio-visual system, and active campus publicity.</li>
-                        <li>The Society coordinators commit to ensuring the minimum guaranteed attendance of {previewingMou.expectedStudentAttendance || previewingMou.guaranteedAudience || 140} students (target: 130–155).</li>
+                        <li>The Society coordinators commit to ensuring the minimum guaranteed attendance of {previewingMou.expectedStudentAttendance || previewingMou.guaranteedAudience || 100}+ students.</li>
                       </ul>
                     </div>
 

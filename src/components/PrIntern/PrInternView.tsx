@@ -101,7 +101,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const [leadCustomTopicName, setLeadCustomTopicName] = useState('');
   const [leadSessionMode, setLeadSessionMode] = useState<CollegeSessionMode>('offline_campus');
   const [leadTargetDate, setLeadTargetDate] = useState('');
-  const [leadExpectedAudience, setLeadExpectedAudience] = useState<number>(140);
+  const [leadExpectedAudience, setLeadExpectedAudience] = useState<number>(100);
 
   // Track 3: Custom partnership lead state
   const [leadCustomTypeTitle, setLeadCustomTypeTitle] = useState('');
@@ -153,7 +153,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
     return d.toISOString().split('T')[0];
   });
   const [mouSessionTime, setMouSessionTime] = useState('11:00 AM - 1:00 PM');
-  const [mouGuaranteedAudience, setMouGuaranteedAudience] = useState<number>(140);
+  const [mouGuaranteedAudience, setMouGuaranteedAudience] = useState<number>(100);
   const [mouVenueOrPlatform, setMouVenueOrPlatform] = useState('College Main Auditorium / Seminar Hall');
 
   // Track 3: Custom Agreement MoU fields
@@ -414,6 +414,11 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       return;
     }
 
+    if (leadCategory === 'college_society' && leadExpectedAudience && Number(leadExpectedAudience) < 100) {
+      alert('Expected student audience must be at least 100 students.');
+      return;
+    }
+
     const newLead = StorageService.createPrLead({
       internId: currentUser.teacherId,
       internName: currentUser.name,
@@ -445,7 +450,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       customTopicName: leadCategory === 'college_society' && leadSessionTopic === 'custom_topic' ? leadCustomTopicName.trim() : undefined,
       sessionMode: leadCategory === 'college_society' ? leadSessionMode : undefined,
       targetSessionDate: leadCategory === 'college_society' ? leadTargetDate : undefined,
-      expectedAudience: leadCategory === 'college_society' ? (Number(leadExpectedAudience) || 140) : undefined,
+      expectedAudience: leadCategory === 'college_society' ? (Number(leadExpectedAudience) || 100) : undefined,
     });
 
     setLeads([newLead, ...leads]);
@@ -464,7 +469,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
     setLeadCustomTopicName('');
     setLeadCustomTypeTitle('');
     setLeadExpectedAmount(50000);
-    setLeadExpectedAudience(140);
+    setLeadExpectedAudience(100);
 
     showToast(`✓ Added Lead: "${newLead.organizationName}"`, `Category: ${leadCategory.replace(/_/g, ' ').toUpperCase()}`);
   };
@@ -497,7 +502,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
           `🎉 Outstanding Achievement! College Workshop Confirmed!\n\n` +
           `Institution / Society: ${target.organizationName}\n` +
           `Point of Contact: ${target.contactPerson}\n` +
-          `Committed Audience: ${target.expectedAudience || 140} Students (Target: 130–155)\n\n` +
+          `Committed Audience: ${target.expectedAudience || 100}+ Students\n\n` +
           `Commercials: ₹0 (Non-Commercial Academic Knowledge Barter)\n` +
           `Bounty stars and reputation points have been awarded!`
         );
@@ -568,6 +573,11 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       return;
     }
 
+    if (mouCategory === 'college_society_session' && mouGuaranteedAudience && Number(mouGuaranteedAudience) < 100) {
+      alert('Guaranteed student attendance must be at least 100 students.');
+      return;
+    }
+
     const deliverablesList: string[] = [];
     if (mouCategory === 'hackathon_sponsorship') {
       if (mouBoothRequired) deliverablesList.push('Dedicated Sponsor Booth / Desk in Grand Finale Arena');
@@ -578,7 +588,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
     } else if (mouCategory === 'college_society_session') {
       deliverablesList.push(`Hands-on workshop delivery on topic: ${mouSessionTopic === 'custom_topic' ? (mouCustomTopic || 'Custom Masterclass') : mouSessionTopic.replace(/_/g, ' ').toUpperCase()}`);
       deliverablesList.push(`Mode: ${mouSessionMode === 'offline_campus' ? 'On-Campus Auditorium Session' : mouSessionMode === 'virtual_webinar' ? 'Live Interactive Webinar' : 'Hybrid'}`);
-      deliverablesList.push(`Guaranteed minimum audience commitment: ${mouGuaranteedAudience || 140} students (Target: 130–155)`);
+      deliverablesList.push(`Guaranteed minimum audience commitment: ${mouGuaranteedAudience || 100}+ students`);
       deliverablesList.push('AEW to provide verified digital certificates to all registered attendees at ₹0 cost');
       deliverablesList.push('College / Society to provide auditorium venue, audio-visual equipment, and campus publicity');
     }
@@ -622,7 +632,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       sessionMode: mouCategory === 'college_society_session' ? mouSessionMode : undefined,
       sessionDate: mouCategory === 'college_society_session' ? mouSessionDate : undefined,
       sessionTime: mouCategory === 'college_society_session' ? mouSessionTime : undefined,
-      guaranteedAudience: mouCategory === 'college_society_session' ? (Number(mouGuaranteedAudience) || 140) : undefined,
+      guaranteedAudience: mouCategory === 'college_society_session' ? (Number(mouGuaranteedAudience) || 100) : undefined,
       venueOrPlatform: mouCategory === 'college_society_session' ? mouVenueOrPlatform : undefined,
 
       customAgreementTitle: mouCategory === 'custom_agreement' ? mouCustomAgreementTitle : undefined,
@@ -672,7 +682,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       setMouSessionTopic(lead.sessionTopic || 'ai_ml_agents');
       setMouCustomTopic(lead.customTopicName || '');
       setMouSessionMode(lead.sessionMode || 'offline_campus');
-      setMouGuaranteedAudience(lead.expectedAudience || 140);
+      setMouGuaranteedAudience(lead.expectedAudience || 100);
       setMouPartnerOrg(lead.societyName ? `${lead.societyName}, ${lead.collegeName || lead.organizationName}` : lead.organizationName);
       setMouSignatory(lead.contactPerson);
       setMouDesignation(lead.designation || 'Student Convener / Faculty In-Charge');
@@ -1306,9 +1316,9 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                               Target Audience
                             </span>
                             <span className="text-sm font-black text-emerald-400 font-mono">
-                              👥 {lead.confirmedAudience || lead.expectedAudience || 140} Students
+                              👥 {lead.confirmedAudience || lead.expectedAudience || 100}+ Students
                             </span>
-                            <span className="text-[10px] text-emerald-400/80 font-semibold block">Target: 130 – 155 batch (₹0 Barter)</span>
+                            <span className="text-[10px] text-slate-500 font-semibold block">₹0 Academic Barter</span>
                           </div>
                         </div>
                       ) : (
@@ -2110,21 +2120,20 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-slate-300 font-semibold">Expected Student Audience</label>
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          Target: 130 – 155
+                          Min: 100 Students
                         </span>
                       </div>
                       <input
                         type="number"
                         min={100}
-                        max={300}
-                        step={5}
-                        placeholder="140 (130 - 155 students)"
+                        step={10}
+                        placeholder="e.g. 150 (minimum 100)"
                         value={leadExpectedAudience}
                         onChange={(e) => setLeadExpectedAudience(Number(e.target.value))}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
                       />
                       <p className="text-[10px] text-slate-400 mt-1">
-                        College workshop batch size should be near <strong>130 to 155 students</strong>.
+                        Enter any expected audience size (minimum 100 students required).
                       </p>
                     </div>
                     <div>
@@ -2648,22 +2657,21 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-slate-300 font-semibold">Guaranteed Student Attendance *</label>
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          130 – 155 Target
+                          Min: 100 Students
                         </span>
                       </div>
                       <input
                         type="number"
                         min={100}
-                        max={300}
-                        step={5}
+                        step={10}
                         required
-                        placeholder="140"
+                        placeholder="e.g. 150 (minimum 100)"
                         value={mouGuaranteedAudience}
                         onChange={(e) => setMouGuaranteedAudience(Number(e.target.value))}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
                       />
                       <p className="text-[10px] text-slate-400 mt-1">
-                        Committed audience batch must be near <strong>130 to 155 students</strong>.
+                        Enter any guaranteed batch size (minimum 100 students required).
                       </p>
                     </div>
                     <div>
@@ -2979,7 +2987,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                     <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl space-y-1 font-sans text-[11px]">
                       <div><strong>Workshop Topic:</strong> {selectedPreviewMou.customSessionTopic || selectedPreviewMou.sessionTopic?.replace(/_/g, ' ').toUpperCase() || 'Advanced AI & Engineering Masterclass'}</div>
                       <div><strong>Delivery Mode:</strong> {selectedPreviewMou.sessionMode === 'offline_campus' ? 'Offline On-Campus Auditorium' : selectedPreviewMou.sessionMode === 'virtual_webinar' ? 'Live Interactive Webinar' : 'Hybrid Session'}</div>
-                      <div><strong>Guaranteed Minimum Attendance:</strong> {selectedPreviewMou.guaranteedAudience || 140} Registered Engineering Students (130–155 target range)</div>
+                      <div><strong>Guaranteed Minimum Attendance:</strong> {selectedPreviewMou.guaranteedAudience || 100}+ Registered Engineering Students</div>
                       <div><strong>Scheduled Date & Slot:</strong> {selectedPreviewMou.sessionDate || selectedPreviewMou.startDate} • {selectedPreviewMou.sessionTime || '11:00 AM - 1:00 PM'}</div>
                       <div><strong>Venue / Platform:</strong> {selectedPreviewMou.venueOrPlatform || 'College Main Auditorium / Online Platform'}</div>
                     </div>
@@ -2998,7 +3006,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                       <li>AEW shall deploy experienced senior industry instructors to deliver comprehensive live hands-on instruction.</li>
                       <li>AEW shall issue verified digital certificates of completion to all registered student attendees.</li>
                       <li>The Society / College shall provide the auditorium venue, audio-visual system, and active campus publicity.</li>
-                      <li>The Society coordinators commit to ensuring the minimum guaranteed attendance of {selectedPreviewMou.guaranteedAudience || 140} students (target batch: 130–155).</li>
+                      <li>The Society coordinators commit to ensuring the minimum guaranteed attendance of {selectedPreviewMou.guaranteedAudience || 100}+ students.</li>
                     </ul>
                   </div>
 
