@@ -196,16 +196,36 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
     return myTasks;
   }, [myTasks, pendingTasks, completedTasks, taskFilter]);
 
-  // Leads pipeline calculations
+  // Scope leads and MoUs to this individual intern unless PR Head inspects all team leads
+  const isPrHead = currentUser.role === 'pr_head';
+  const [prHeadLeadViewMode, setPrHeadLeadViewMode] = useState<'my_leads' | 'all_leads'>('my_leads');
+
+  const myLeads = useMemo(() => {
+    if (isPrHead && prHeadLeadViewMode === 'all_leads') {
+      return leads;
+    }
+    const myId = (currentUser.teacherId || '').trim().toUpperCase();
+    return leads.filter((l) => (l.internId || '').trim().toUpperCase() === myId);
+  }, [leads, currentUser.teacherId, isPrHead, prHeadLeadViewMode]);
+
+  const myMous = useMemo(() => {
+    if (isPrHead && prHeadLeadViewMode === 'all_leads') {
+      return mous;
+    }
+    const myId = (currentUser.teacherId || '').trim().toUpperCase();
+    return mous.filter((m) => (m.internId || '').trim().toUpperCase() === myId);
+  }, [mous, currentUser.teacherId, isPrHead, prHeadLeadViewMode]);
+
+  // Leads pipeline calculations strictly scoped to this user's leads
   const totalPipelineRevenue = useMemo(() => {
-    return leads
+    return myLeads
       .filter((l) => l.stage !== 'closed_lost')
       .reduce((sum, l) => sum + (l.closedAmount || l.expectedSponsorshipAmount || 0), 0);
-  }, [leads]);
+  }, [myLeads]);
 
   const wonLeads = useMemo(() => {
-    return leads.filter((l) => l.stage === 'closed_won');
-  }, [leads]);
+    return myLeads.filter((l) => l.stage === 'closed_won');
+  }, [myLeads]);
 
   const totalWonRevenue = useMemo(() => {
     return wonLeads.reduce((sum, l) => sum + (l.closedAmount || l.expectedSponsorshipAmount || 0), 0);
@@ -217,7 +237,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
 
   // Filtered Leads
   const filteredLeads = useMemo(() => {
-    return leads.filter((lead) => {
+    return myLeads.filter((lead) => {
       const matchesStage = leadFilterStage === 'all' || lead.stage === leadFilterStage;
       const q = leadSearchQuery.trim().toLowerCase();
       const matchesQuery =
@@ -229,7 +249,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
         lead.email?.toLowerCase().includes(q);
       return matchesStage && matchesQuery;
     });
-  }, [leads, leadFilterStage, leadSearchQuery]);
+  }, [myLeads, leadFilterStage, leadSearchQuery]);
 
   // Trigger Toast Helper
   const showToast = (text: string, sub?: string) => {
@@ -511,9 +531,9 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto text-xs no-scrollbar">
         {[
           { id: 'pr_dashboard', label: 'Overview', icon: Briefcase },
-          { id: 'pr_leads', label: `Leads Pipeline (${leads.length})`, icon: DollarSign },
+          { id: 'pr_leads', label: `Leads Pipeline (${myLeads.length})`, icon: DollarSign },
           { id: 'pr_tasks', label: `Tasks & XP (${pendingTasks.length} to do)`, icon: CheckCircle2 },
-          { id: 'pr_mou_maker', label: `MoU Agreements (${mous.length})`, icon: FileText },
+          { id: 'pr_mou_maker', label: `MoU Agreements (${myMous.length})`, icon: FileText },
           { id: 'pr_earnings', label: 'My Earnings', icon: TrendingUp },
           ...(currentUser.role === 'pr_head'
             ? [{ id: 'pr_team', label: `PR Team (${allUsers.filter((u) => u.role === 'pr_intern').length})`, icon: Users }]
@@ -551,7 +571,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                 <span>Active Leads</span>
                 <DollarSign className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="text-2xl font-black text-white font-mono">{leads.length}</div>
+              <div className="text-2xl font-black text-white font-mono">{myLeads.length}</div>
               <div className="text-[11px] text-slate-400">
                 Pipeline Value: <strong className="text-slate-200">₹{totalPipelineRevenue.toLocaleString('en-IN')}</strong>
               </div>
@@ -702,11 +722,11 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                   onClick={() => onPageChange('pr_leads')}
                   className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
                 >
-                  View Pipeline ({leads.length}) →
+                  View Pipeline ({myLeads.length}) →
                 </button>
               </div>
 
-              {leads.length === 0 ? (
+              {myLeads.length === 0 ? (
                 <div className="p-8 text-center bg-slate-950/60 rounded-xl border border-slate-800/60 space-y-2">
                   <Briefcase className="w-8 h-8 text-slate-600 mx-auto" />
                   <div className="text-sm font-bold text-slate-200">No Leads Yet</div>
@@ -715,14 +735,14 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                   </p>
                   <button
                     onClick={() => setShowAddLeadModal(true)}
-                    className="mt-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-flex items-center gap-1"
+                    className="mt-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" /> + Add First Lead
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {leads.slice(0, 3).map((lead) => {
+                  {myLeads.slice(0, 3).map((lead) => {
                     const isWon = lead.stage === 'closed_won';
                     return (
                       <div
@@ -798,12 +818,34 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
               </p>
             </div>
 
-            <button
-              onClick={() => setShowAddLeadModal(true)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> + Add New Lead
-            </button>
+            <div className="flex items-center gap-2">
+              {isPrHead && (
+                <div className="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 text-xs">
+                  <button
+                    onClick={() => setPrHeadLeadViewMode('my_leads')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      prHeadLeadViewMode === 'my_leads' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    My Leads ({leads.filter(l => (l.internId || '').toUpperCase() === currentUser.teacherId.toUpperCase()).length})
+                  </button>
+                  <button
+                    onClick={() => setPrHeadLeadViewMode('all_leads')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      prHeadLeadViewMode === 'all_leads' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    All Team Leads ({leads.length})
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setShowAddLeadModal(true)}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> + Add New Lead
+              </button>
+            </div>
           </div>
 
           {/* Filters & Search */}
@@ -1254,7 +1296,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
           </div>
 
           {/* List of Mous */}
-          {mous.length === 0 ? (
+          {myMous.length === 0 ? (
             <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
               <FileText className="w-8 h-8 text-slate-600 mx-auto" />
               <div className="text-sm font-bold text-slate-200">No MoUs Drafted Yet</div>
@@ -1263,14 +1305,14 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
               </p>
               <button
                 onClick={() => setShowMouModal(true)}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
+                className="mt-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs cursor-pointer"
               >
                 + Draft MoU
               </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {mous.map((mou) => (
+              {myMous.map((mou) => (
                 <div
                   key={mou.id}
                   className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between"

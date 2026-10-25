@@ -194,6 +194,97 @@ export function isHardcodedMockUser(u: { teacherId?: string; id?: string; userna
   return false;
 }
 
+export function isMockPrLead(lead: any): boolean {
+  if (!lead) return true;
+  const internId = (lead.internId || '').trim().toUpperCase();
+  const org = (lead.organizationName || '').trim().toLowerCase();
+  const contact = (lead.contactPerson || '').trim().toLowerCase();
+
+  if (
+    HARDCODED_MOCK_USER_IDS.has(lead.internId) ||
+    HARDCODED_MOCK_USERNAMES.has(lead.internId) ||
+    internId === 'AEW-PR-101' ||
+    internId === 'AEW-PR-102' ||
+    internId === 'U-PR101' ||
+    internId === 'U-PR102'
+  ) {
+    return true;
+  }
+
+  if (
+    org.includes('test sponsor') ||
+    org.includes('dummy lead') ||
+    org.includes('mock sponsor') ||
+    org.includes('demo sponsor') ||
+    contact.includes('test contact') ||
+    contact.includes('dummy person')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isMockPrTask(task: any): boolean {
+  if (!task) return true;
+  const internId = (task.assignedToInternId || '').trim().toUpperCase();
+  const title = (task.title || '').trim().toLowerCase();
+
+  if (
+    HARDCODED_MOCK_USER_IDS.has(task.assignedToInternId) ||
+    HARDCODED_MOCK_USERNAMES.has(task.assignedToInternId) ||
+    internId === 'AEW-PR-101' ||
+    internId === 'AEW-PR-102'
+  ) {
+    return true;
+  }
+
+  if (title.includes('mock task') || title.includes('test task') || title.includes('dummy task')) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isMockPrMou(mou: any): boolean {
+  if (!mou) return true;
+  const internId = (mou.internId || '').trim().toUpperCase();
+  const college = (mou.collegeName || '').trim().toLowerCase();
+
+  if (
+    HARDCODED_MOCK_USER_IDS.has(mou.internId) ||
+    HARDCODED_MOCK_USERNAMES.has(mou.internId) ||
+    internId === 'AEW-PR-101' ||
+    internId === 'AEW-PR-102'
+  ) {
+    return true;
+  }
+
+  if (college.includes('mock college') || college.includes('test college') || college.includes('dummy college')) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isMockSalesLead(lead: any): boolean {
+  if (!lead) return true;
+  const name = (lead.name || '').trim().toLowerCase();
+
+  if (
+    HARDCODED_MOCK_USER_IDS.has(lead.assignedToEmployeeId) ||
+    HARDCODED_MOCK_USERNAMES.has(lead.assignedToEmployeeId)
+  ) {
+    return true;
+  }
+
+  if (name.includes('test lead') || name.includes('dummy student') || name.includes('mock lead')) {
+    return true;
+  }
+
+  return false;
+}
+
 // Initial Registered Administrator (Credentials verified server-side only; passwords never stored in frontend bundle)
 const INITIAL_USERS: User[] = [
   {
@@ -540,6 +631,15 @@ export const StorageService = {
     this.removeDeletedId(cleanId);
     if (created.id) this.removeDeletedId(created.id);
     this.saveUsers(filtered);
+
+    // Guarantee newly onboarded employees start with a completely fresh slate (no dummy or stale test records)
+    const cleanLeads = this.getPrLeads().filter((l) => (l.internId || '').trim().toUpperCase() !== cleanId);
+    this.savePrLeads(cleanLeads);
+    const cleanTasks = this.getPrTasks().filter((t) => (t.assignedToInternId || '').trim().toUpperCase() !== cleanId);
+    this.savePrTasks(cleanTasks);
+    const cleanMous = this.getPrMous().filter((m) => (m.internId || '').trim().toUpperCase() !== cleanId);
+    this.savePrMous(cleanMous);
+
     return created;
   },
 
@@ -3671,7 +3771,14 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
+          return parsed.filter((t) => {
+            if (isMockPrTask(t)) return false;
+            if (t.assignedToInternId && t.assignedToInternId !== 'all' && deletedIds.has(t.assignedToInternId.toUpperCase())) return false;
+            return true;
+          });
+        }
       } catch {}
     }
     return [];
@@ -3869,7 +3976,14 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
+          return parsed.filter((l) => {
+            if (isMockPrLead(l)) return false;
+            if (l.internId && deletedIds.has(l.internId.toUpperCase())) return false;
+            return true;
+          });
+        }
       } catch {}
     }
     return [];
@@ -3967,7 +4081,14 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
+          return parsed.filter((m) => {
+            if (isMockPrMou(m)) return false;
+            if (m.internId && deletedIds.has(m.internId.toUpperCase())) return false;
+            return true;
+          });
+        }
       } catch {}
     }
     return [];
@@ -4074,7 +4195,14 @@ export const StorageService = {
     if (data) {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
+          return parsed.filter((l) => {
+            if (isMockSalesLead(l)) return false;
+            if (l.assignedToEmployeeId && deletedIds.has(l.assignedToEmployeeId.toUpperCase())) return false;
+            return true;
+          });
+        }
       } catch {}
     }
     return [];
