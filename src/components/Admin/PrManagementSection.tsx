@@ -30,7 +30,9 @@ import {
   X,
   Printer,
   Crown,
-  Percent
+  Percent,
+  Trophy,
+  GraduationCap
 } from 'lucide-react';
 
 interface PrManagementSectionProps {
@@ -52,6 +54,8 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'reviews' | 'roster' | 'tasks' | 'mous' | 'leads'>('reviews');
   const [searchQuery, setSearchQuery] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'open' | 'submitted' | 'approved' | 'completed' | 'revision_requested'>('all');
+  const [mouCategoryFilter, setMouCategoryFilter] = useState<'all' | string>('all');
+  const [leadCategoryFilter, setLeadCategoryFilter] = useState<'all' | string>('all');
 
   // Modals state
   const [showAssignTaskModal, setShowAssignTaskModal] = useState(false);
@@ -63,7 +67,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
   // Assign Task Form State
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
-  const [taskCategory, setTaskCategory] = useState<PrTaskCategory>('college_sponsorship');
+  const [taskCategory, setTaskCategory] = useState<PrTaskCategory>('hackathon_sponsor_outreach');
   const [taskAssignedInternId, setTaskAssignedInternId] = useState<string>('all');
   const [taskStarsReward, setTaskStarsReward] = useState<number>(3);
   const [taskPointsReward, setTaskPointsReward] = useState<number>(50);
@@ -163,6 +167,14 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
       .filter((l) => l.stage === 'closed_won')
       .reduce((sum, l) => sum + (l.commissionEarned || 0), 0);
 
+    const totalHackathonSponsorshipPipeline = leads
+      .filter((l) => l.leadCategory === 'hackathon_sponsor' || (l.type as string) === 'hackathon_sponsor' || l.category === 'hackathon_sponsorship')
+      .reduce((sum, l) => sum + (l.expectedSponsorshipAmount || 0), 0);
+
+    const totalCollegeReach = leads
+      .filter((l) => l.leadCategory === 'college_society' || (l.type as string) === 'college_society' || l.category === 'college_society_session' || (l.expectedAudience && l.expectedAudience > 0) || (l.expectedStudentAttendance && l.expectedStudentAttendance > 0))
+      .reduce((sum, l) => sum + (l.expectedAudience || l.expectedStudentAttendance || 0), 0);
+
     const pendingReviewsCount = tasks.filter((t) => t.status === 'submitted').length;
     const pendingMousCount = mous.filter((m) => m.status === 'pending_admin_approval').length;
     const activeLeadsCount = leads.filter((l) => l.stage !== 'closed_lost').length;
@@ -170,6 +182,8 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
     return {
       totalSponsorshipRevenue,
       totalCommissionsEarned,
+      totalHackathonSponsorshipPipeline,
+      totalCollegeReach,
       pendingReviewsCount,
       pendingMousCount,
       activeLeadsCount,
@@ -367,47 +381,59 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
         </div>
 
         {/* ─── LIVE METRIC CARDS ───────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 pt-6 border-t border-slate-800/80">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-6 pt-6 border-t border-slate-800/80">
           <div className="bg-slate-950/60 border border-slate-800/60 rounded-2xl p-4">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Sponsorship</span>
-            <span className="text-lg md:text-xl font-black text-emerald-400 mt-1 block">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Closed Revenue</span>
+            <span className="text-base md:text-lg font-black text-emerald-400 mt-1 block">
               ₹{metrics.totalSponsorshipRevenue.toLocaleString('en-IN')}
             </span>
-            <span className="text-[10px] text-slate-500 mt-0.5 block">Closed Won pipeline</span>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">Closed Won deals</span>
+          </div>
+
+          <div className="bg-slate-950/60 border border-amber-500/20 rounded-2xl p-4">
+            <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block flex items-center gap-1">
+              <Trophy className="w-3 h-3 text-amber-400" /> Hackathon Sponsors
+            </span>
+            <span className="text-base md:text-lg font-black text-amber-400 mt-1 block">
+              ₹{metrics.totalHackathonSponsorshipPipeline.toLocaleString('en-IN')}
+            </span>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">Brand sponsor pipeline</span>
+          </div>
+
+          <div className="bg-slate-950/60 border border-blue-500/20 rounded-2xl p-4">
+            <span className="text-[11px] font-bold text-blue-300 uppercase tracking-wider block flex items-center gap-1">
+              <GraduationCap className="w-3 h-3 text-blue-400" /> College Reach
+            </span>
+            <span className="text-base md:text-lg font-black text-blue-400 mt-1 block">
+              {metrics.totalCollegeReach.toLocaleString('en-IN')}+
+            </span>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">Committed students</span>
           </div>
 
           <div className="bg-slate-950/60 border border-slate-800/60 rounded-2xl p-4">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Intern Commission</span>
-            <span className="text-lg md:text-xl font-black text-amber-400 mt-1 block">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Commission</span>
+            <span className="text-base md:text-lg font-black text-amber-400 mt-1 block">
               ₹{metrics.totalCommissionsEarned.toLocaleString('en-IN')}
             </span>
             <span className="text-[10px] text-slate-500 mt-0.5 block">Tier-based payouts</span>
           </div>
 
           <div className="bg-slate-950/60 border border-slate-800/60 rounded-2xl p-4">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Awaiting Review</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Awaiting Action</span>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-lg md:text-xl font-black text-amber-300">
-                {metrics.pendingReviewsCount}
+              <span className="text-base md:text-lg font-black text-indigo-400">
+                {metrics.pendingReviewsCount + metrics.pendingMousCount}
               </span>
-              {metrics.pendingReviewsCount > 0 && (
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+              {(metrics.pendingReviewsCount > 0 || metrics.pendingMousCount > 0) && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
               )}
             </div>
-            <span className="text-[10px] text-slate-500 mt-0.5 block">Proof submissions</span>
+            <span className="text-[10px] text-slate-500 mt-0.5 block">{metrics.pendingReviewsCount} tasks • {metrics.pendingMousCount} MOUs</span>
           </div>
 
           <div className="bg-slate-950/60 border border-slate-800/60 rounded-2xl p-4">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Pending MOUs</span>
-            <span className="text-lg md:text-xl font-black text-indigo-400 mt-1 block">
-              {metrics.pendingMousCount}
-            </span>
-            <span className="text-[10px] text-slate-500 mt-0.5 block">Legal signoff queue</span>
-          </div>
-
-          <div className="bg-slate-950/60 border border-slate-800/60 rounded-2xl p-4 col-span-2 md:col-span-1">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Active PR Interns</span>
-            <span className="text-lg md:text-xl font-black text-purple-400 mt-1 block">
+            <span className="text-base md:text-lg font-black text-purple-400 mt-1 block">
               {interns.length}
             </span>
             <span className="text-[10px] text-slate-500 mt-0.5 block">Silver, Gold & Premium</span>
@@ -963,36 +989,110 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
       {/* ─── TAB 4: MOU LEGAL DESK & APPROVALS ──────────────────────────── */}
       {activeSubTab === 'mous' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-purple-400" /> College Fest & Partner MOU Approval Desk ({mous.length})
+                <ShieldCheck className="w-5 h-5 text-purple-400" /> Hackathon Sponsor & College MOU Desk ({mous.length})
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Review formal legal Memorandums of Understanding prepared by PR interns. Approving affixes the official AEW digital signature and seal.
+                Review formal legal agreements across Hackathons, College Societies, and Custom Partnerships. Approving affixes the AEW digital verification seal.
               </p>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setMouCategoryFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  mouCategoryFilter === 'all'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                All ({mous.length})
+              </button>
+              <button
+                onClick={() => setMouCategoryFilter('hackathon_sponsorship')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  mouCategoryFilter === 'hackathon_sponsorship'
+                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <Trophy className="w-3 h-3 text-amber-400" />
+                🏆 Hackathon ({mous.filter(m => (m.category || 'hackathon_sponsorship') === 'hackathon_sponsorship').length})
+              </button>
+              <button
+                onClick={() => setMouCategoryFilter('college_society_session')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  mouCategoryFilter === 'college_society_session'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <GraduationCap className="w-3 h-3 text-blue-400" />
+                🎓 College Society ({mous.filter(m => m.category === 'college_society_session').length})
+              </button>
+              <button
+                onClick={() => setMouCategoryFilter('custom_agreement')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  mouCategoryFilter === 'custom_agreement'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <FileText className="w-3 h-3 text-emerald-400" />
+                📝 Custom ({mous.filter(m => m.category === 'custom_agreement').length})
+              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {mous
-              .filter((m) =>
-                searchQuery
+              .filter((m) => {
+                const matchesCat = mouCategoryFilter === 'all' || (m.category || 'hackathon_sponsorship') === mouCategoryFilter;
+                const matchesSearch = searchQuery
                   ? m.partnerOrganization.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     m.mouNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     m.internName.toLowerCase().includes(searchQuery.toLowerCase())
-                  : true
-              )
-              .map((mou) => (
+                  : true;
+                return matchesCat && matchesSearch;
+              })
+              .map((mou) => {
+                const category = mou.category || 'hackathon_sponsorship';
+                return (
                 <div
                   key={mou.id}
                   className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
-                        {mou.mouNumber}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                          {mou.mouNumber}
+                        </span>
+
+                        {category === 'hackathon_sponsorship' && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-bold flex items-center gap-1">
+                            <Trophy className="w-3 h-3 text-amber-400" />
+                            🏆 {mou.sponsorTier === 'custom_tier' ? (mou.customTierName || 'Custom Tier') : (mou.sponsorTier || 'Hackathon')}
+                          </span>
+                        )}
+
+                        {category === 'college_society_session' && (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20 text-[10px] font-bold flex items-center gap-1">
+                            <GraduationCap className="w-3 h-3 text-blue-400" />
+                            🎓 College Workshop
+                          </span>
+                        )}
+
+                        {category === 'custom_agreement' && (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
+                            <FileText className="w-3 h-3 text-emerald-400" />
+                            📝 Custom Agreement
+                          </span>
+                        )}
+                      </div>
 
                       <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
                         mou.status === 'approved' || mou.status === 'signed'
@@ -1013,14 +1113,31 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
                     <div className="mt-3 p-3 bg-slate-950/70 rounded-xl border border-slate-800 space-y-1.5 text-xs">
                       <div>
-                        <span className="text-slate-500 block text-[10px] font-bold uppercase">Purpose:</span>
-                        <p className="text-slate-300 line-clamp-2">{mou.purpose}</p>
+                        <span className="text-slate-500 block text-[10px] font-bold uppercase">
+                          {category === 'college_society_session' ? 'Session Focus:' : category === 'custom_agreement' ? 'Custom Scope:' : 'Purpose:'}
+                        </span>
+                        <p className="text-slate-300 line-clamp-2">
+                          {category === 'college_society_session'
+                            ? (mou.sessionTopic === 'custom_topic' ? mou.customTopicName : mou.sessionTopic) || mou.purpose
+                            : mou.purpose}
+                        </p>
                       </div>
 
                       <div className="flex justify-between pt-1 border-t border-slate-800">
-                        <span className="text-slate-400">Sponsorship Consideration:</span>
-                        <span className="text-emerald-400 font-black">₹{(mou.sponsorshipAmount || 0).toLocaleString('en-IN')}</span>
+                        <span className="text-slate-400">
+                          {category === 'college_society_session' ? 'Commercials:' : 'Sponsorship Consideration:'}
+                        </span>
+                        <span className={category === 'college_society_session' ? "text-blue-400 font-bold" : "text-emerald-400 font-black"}>
+                          {category === 'college_society_session' ? '₹0 (Academic Knowledge Barter)' : `₹${(mou.sponsorshipAmount || 0).toLocaleString('en-IN')}`}
+                        </span>
                       </div>
+
+                      {category === 'college_society_session' && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Guaranteed Attendance:</span>
+                          <span className="text-blue-300 font-semibold">{mou.expectedStudentAttendance || 80}+ Enrolled Students ({mou.sessionMode || 'offline'})</span>
+                        </div>
+                      )}
 
                       <div className="flex justify-between">
                         <span className="text-slate-400">Drafted By:</span>
@@ -1082,7 +1199,8 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1090,14 +1208,61 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
       {/* ─── TAB 5: SPONSORSHIP LEADS PIPELINE ──────────────────────────── */}
       {activeSubTab === 'leads' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-emerald-400" /> College & Corporate Sponsorship Pipeline ({leads.length})
+                <TrendingUp className="w-5 h-5 text-emerald-400" /> Hackathon Sponsor & College Session Pipeline ({leads.length})
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Track deals in motion, verify commission forecasts, and monitor intern outreach velocity.
+                Track outreach velocity across Hackathon Brands, College Society Sessions, and Custom Partnerships.
               </p>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setLeadCategoryFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  leadCategoryFilter === 'all'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                All ({leads.length})
+              </button>
+              <button
+                onClick={() => setLeadCategoryFilter('hackathon_sponsorship')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  leadCategoryFilter === 'hackathon_sponsorship'
+                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <Trophy className="w-3 h-3 text-amber-400" />
+                🏆 Hackathon ({leads.filter(l => (l.category || 'hackathon_sponsorship') === 'hackathon_sponsorship').length})
+              </button>
+              <button
+                onClick={() => setLeadCategoryFilter('college_society_session')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  leadCategoryFilter === 'college_society_session'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <GraduationCap className="w-3 h-3 text-blue-400" />
+                🎓 College Society ({leads.filter(l => l.category === 'college_society_session').length})
+              </button>
+              <button
+                onClick={() => setLeadCategoryFilter('custom_lead')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  leadCategoryFilter === 'custom_lead'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                <FileText className="w-3 h-3 text-purple-400" />
+                📝 Custom ({leads.filter(l => l.category === 'custom_lead').length})
+              </button>
             </div>
           </div>
 
@@ -1107,9 +1272,9 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                 <thead className="bg-slate-950/80 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-800">
                   <tr>
                     <th className="py-3 px-4">Organization / Event</th>
-                    <th className="py-3 px-4">Type</th>
+                    <th className="py-3 px-4">Track & Focus</th>
                     <th className="py-3 px-4">Lead Owner</th>
-                    <th className="py-3 px-4">Deal Value</th>
+                    <th className="py-3 px-4">Deal / Commercials</th>
                     <th className="py-3 px-4">Stage</th>
                     <th className="py-3 px-4">Intern Rate</th>
                     <th className="py-3 px-4">Est. Commission</th>
@@ -1118,14 +1283,22 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-200">
                   {leads
-                    .filter((l) =>
-                      searchQuery
+                    .filter((l) => {
+                      const matchesCat = leadCategoryFilter === 'all' || 
+                        (leadCategoryFilter === 'hackathon_sponsorship' && (l.leadCategory === 'hackathon_sponsor' || l.category === 'hackathon_sponsorship' || (l.type as string) === 'hackathon_sponsor' || (!l.leadCategory && !l.category && (l.type as string) !== 'college_society' && (l.type as string) !== 'custom_partnership'))) ||
+                        (leadCategoryFilter === 'college_society_session' && (l.leadCategory === 'college_society' || l.category === 'college_society_session' || (l.type as string) === 'college_society')) ||
+                        (leadCategoryFilter === 'custom_lead' && (l.leadCategory === 'custom_partnership' || l.category === 'custom_lead' || (l.type as string) === 'custom_partnership'));
+                      const matchesSearch = searchQuery
                         ? l.organizationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           l.internName.toLowerCase().includes(searchQuery.toLowerCase())
-                        : true
-                    )
+                        : true;
+                      return matchesCat && matchesSearch;
+                    })
                     .map((lead) => {
                       const isWon = lead.stage === 'closed_won';
+                      const isCollege = lead.leadCategory === 'college_society' || lead.category === 'college_society_session' || (lead.type as string) === 'college_society';
+                      const isCustom = lead.leadCategory === 'custom_partnership' || lead.category === 'custom_lead' || (lead.type as string) === 'custom_partnership';
+                      const isHackathon = !isCollege && !isCustom;
                       return (
                         <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
                           <td className="py-3 px-4">
@@ -1133,15 +1306,53 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                             <span className="text-[11px] text-slate-400">{lead.contactPerson} ({lead.designation})</span>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="capitalize px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[10px] font-semibold">
-                              {lead.type.replace('_', ' ')}
-                            </span>
+                            {isHackathon && (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-bold">
+                                  <Trophy className="w-3 h-3 text-amber-400" />
+                                  🏆 {(lead.hackathonTier === 'custom_tier' || lead.sponsorTier === 'custom_tier') ? (lead.customTierName || lead.customPackageName || 'Custom Tier') : (lead.hackathonTier || lead.sponsorTier || 'Sponsor')}
+                                </span>
+                                {(lead.customTierName || lead.customPackageName) && (
+                                  <span className="text-[10px] text-slate-400 block font-mono">Custom: {lead.customTierName || lead.customPackageName}</span>
+                                )}
+                              </div>
+                            )}
+
+                            {isCollege && (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20 text-[10px] font-bold">
+                                  <GraduationCap className="w-3 h-3 text-blue-400" />
+                                  🎓 {lead.sessionTopic === 'custom_topic' ? (lead.customTopicName || 'Custom Topic') : (lead.sessionTopic || 'Workshop')}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block font-semibold">
+                                  {lead.sessionMode || 'offline'} • {lead.expectedAudience || lead.expectedStudentAttendance || 80}+ students
+                                </span>
+                              </div>
+                            )}
+
+                            {isCustom && (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[10px] font-bold">
+                                  <FileText className="w-3 h-3 text-purple-400" />
+                                  📝 Custom Lead
+                                </span>
+                                {(lead.customLeadDetails || lead.customPackageName) && (
+                                  <span className="text-[10px] text-slate-400 block line-clamp-1">{lead.customLeadDetails || lead.customPackageName}</span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-4 font-semibold text-indigo-300">
                             {lead.internName}
                           </td>
-                          <td className="py-3 px-4 font-black text-emerald-400">
-                            ₹{(lead.closedAmount || lead.expectedSponsorshipAmount).toLocaleString('en-IN')}
+                          <td className="py-3 px-4">
+                            {isCollege ? (
+                              <span className="text-blue-400 font-bold text-[11px] block">₹0 (Academic Barter)</span>
+                            ) : (
+                              <span className="font-black text-emerald-400 block">
+                                ₹{(lead.closedAmount || lead.expectedSponsorshipAmount).toLocaleString('en-IN')}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -1161,7 +1372,11 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                             <span className="text-[10px] text-slate-500 block">({lead.internTierAtClosure || 'Silver'})</span>
                           </td>
                           <td className="py-3 px-4 font-black text-amber-400">
-                            ₹{lead.commissionEarned ? lead.commissionEarned.toLocaleString('en-IN') : Math.round(((lead.expectedSponsorshipAmount * (lead.commissionRate || 3.3)) / 100)).toLocaleString('en-IN')}
+                            {isCollege ? (
+                              <span className="text-slate-500 text-[11px] font-normal">N/A (Bounty star)</span>
+                            ) : (
+                              <span>₹{lead.commissionEarned ? lead.commissionEarned.toLocaleString('en-IN') : Math.round(((lead.expectedSponsorshipAmount * (lead.commissionRate || 3.3)) / 100)).toLocaleString('en-IN')}</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-right">
                             <button
@@ -1256,11 +1471,15 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                     onChange={(e) => setTaskCategory(e.target.value as PrTaskCategory)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="college_sponsorship">College Sponsorship</option>
-                    <option value="fest_mou">Fest MOU Agreement</option>
-                    <option value="influencer_collab">Influencer Collaboration</option>
-                    <option value="campus_ambassador">Campus Ambassador</option>
-                    <option value="content_promo">Content Promotion</option>
+                    <option value="hackathon_sponsor_outreach">🏆 Hackathon Brand Sponsor Outreach</option>
+                    <option value="college_session_booking">🎓 College Society Session Booking</option>
+                    <option value="campus_ambassador_drive">🚀 Campus Ambassador Drive</option>
+                    <option value="pr_social_outreach">📣 PR & Social Media Outreach</option>
+                    <option value="custom_task">⚙️ Custom PR Initiative</option>
+                    <option value="college_sponsorship">College Sponsorship (Legacy)</option>
+                    <option value="fest_mou">Fest MOU Agreement (Legacy)</option>
+                    <option value="influencer_collab">Influencer Collaboration (Legacy)</option>
+                    <option value="content_promo">Content Promotion (Legacy)</option>
                   </select>
                 </div>
 
@@ -1746,52 +1965,178 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
             {/* Legal Document Parchment */}
             <div className="bg-white text-slate-900 rounded-2xl p-6 md:p-8 shadow-inner space-y-6 font-serif">
-              <div className="text-center border-b-2 border-slate-900 pb-4">
-                <span className="text-xs tracking-widest font-sans font-bold uppercase text-indigo-700">Official Partnership Instrument</span>
-                <h2 className="text-xl md:text-2xl font-black font-sans uppercase tracking-tight text-slate-900 mt-1">
-                  MEMORANDUM OF UNDERSTANDING
-                </h2>
-                <p className="text-xs text-slate-600 font-sans mt-0.5">
-                  Ref Number: <span className="font-mono font-bold text-slate-900">{previewingMou.mouNumber}</span> • Effective: {previewingMou.startDate} to {previewingMou.endDate}
-                </p>
-              </div>
+              {/* ─── TEMPLATE 1: HACKATHON BRAND SPONSORSHIP CONTRACT ─── */}
+              {(previewingMou.category === 'hackathon_sponsorship' || (!previewingMou.category && (previewingMou.sponsorshipAmount || 0) > 0)) && (
+                <div className="space-y-5">
+                  <div className="text-center border-b-2 border-slate-900 pb-4">
+                    <div className="inline-block px-3 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-sans font-black uppercase tracking-wider mb-1">
+                      {previewingMou.hackathonName || 'AEW National Hackathon 2026'}
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-black font-sans uppercase tracking-tight text-slate-900 mt-1">
+                      BRAND SPONSORSHIP & PARTNERSHIP AGREEMENT
+                    </h2>
+                    <p className="text-xs text-slate-600 font-sans mt-0.5">
+                      Tier: <strong className="text-slate-900">{previewingMou.sponsorTier === 'custom_tier' ? (previewingMou.customTierName || 'Custom Tier') : (previewingMou.sponsorTier?.toUpperCase() || 'SPONSOR')}</strong> • Effective: {previewingMou.startDate} to {previewingMou.endDate}
+                    </p>
+                  </div>
 
-              <div className="text-xs leading-relaxed space-y-3">
-                <p>
-                  This <strong>Memorandum of Understanding ("MOU")</strong> is formally entered into between:
-                </p>
-                <div className="pl-4 border-l-2 border-slate-400 space-y-2">
-                  <p>
-                    <strong>PARTY 1: APNA ENGINEERING WALLAH (AEW)</strong>, an advanced technical education and engineering upskilling ecosystem having its operational headquarters in New Delhi, India.
-                  </p>
-                  <p>
-                    <strong>PARTY 2: {previewingMou.partnerOrganization.toUpperCase()}</strong>, represented by <strong>{previewingMou.partnerSignatory}</strong> ({previewingMou.partnerDesignation}), having premises at {previewingMou.partnerAddress || 'Partner Campus Address'}.
-                  </p>
+                  <div className="text-xs leading-relaxed space-y-2.5">
+                    <p>This Formal Sponsorship Agreement is executed between:</p>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 font-sans text-xs">
+                      <div>
+                        <strong className="text-indigo-900">PARTY 1: APNA ENGINEERING WALLAH (AEW)</strong>, having operational headquarters in New Delhi, India (hereinafter referred to as the <em>"Host Organizers"</em>).
+                      </div>
+                      <div>
+                        <strong className="text-indigo-900">PARTY 2: {previewingMou.partnerOrganization.toUpperCase()}</strong>, represented by <strong>{previewingMou.partnerSignatory}</strong> ({previewingMou.partnerDesignation}), having offices at {previewingMou.partnerAddress || 'Registered Office'} (hereinafter referred to as the <em>"Sponsoring Partner"</em>).
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">1. Commercial Sponsorship Consideration:</h4>
+                      <p className="text-slate-700">
+                        The Sponsoring Partner agrees to provide commercial sponsorship consideration of <strong>₹{(previewingMou.sponsorshipAmount || 0).toLocaleString('en-IN')} (Indian Rupees)</strong> in exchange for official hackathon branding, talent engagement, and promotional deliverables.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">2. Guaranteed Deliverables & Privileges:</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-slate-700 font-sans text-[11px]">
+                        {previewingMou.deliverables && previewingMou.deliverables.length > 0 ? (
+                          previewingMou.deliverables.map((item, i) => <li key={i}>{item}</li>)
+                        ) : (
+                          <>
+                            <li>Official {previewingMou.sponsorTier === 'custom_tier' ? previewingMou.customTierName : previewingMou.sponsorTier || 'Brand'} logo placement on hackathon portal, stage backdrops, and live broadcast stream.</li>
+                            <li>Allotment of prime physical interactive booth / desk during the Grand Finale arena.</li>
+                            <li>15-Minute Keynote address slot during Inaugural Ceremony.</li>
+                            <li>Seat on official Grand Finale Jury and Mentor Evaluation panel.</li>
+                            <li>Exclusive access to participant resume book for engineering talent recruitment.</li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">3. Covenants & General Terms:</h4>
+                      <ol className="list-decimal pl-5 space-y-1 text-slate-700 font-sans text-[11px]">
+                        {previewingMou.terms.map((t, idx) => (
+                          <li key={idx}>{t}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                <div className="pt-2">
-                  <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">1. Objective & Scope:</h4>
-                  <p className="text-slate-700">{previewingMou.purpose}</p>
+              {/* ─── TEMPLATE 2: COLLEGE SOCIETY WORKSHOP AGREEMENT ─── */}
+              {previewingMou.category === 'college_society_session' && (
+                <div className="space-y-5">
+                  <div className="text-center border-b-2 border-slate-900 pb-4">
+                    <div className="inline-block px-3 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-sans font-black uppercase tracking-wider mb-1">
+                      Academic Outreach & Technical Upskilling Initiative
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-black font-sans uppercase tracking-tight text-slate-900 mt-1">
+                      MEMORANDUM OF UNDERSTANDING (ACADEMIC BARTER)
+                    </h2>
+                    <p className="text-xs text-slate-600 font-sans mt-0.5">
+                      Collaboration with <strong className="text-slate-900">{previewingMou.societyName || 'Technical Society'}</strong> • {previewingMou.collegeName || previewingMou.partnerOrganization}
+                    </p>
+                  </div>
+
+                  <div className="text-xs leading-relaxed space-y-2.5">
+                    <p>This Memorandum of Understanding (MoU) is entered between:</p>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 font-sans text-xs">
+                      <div>
+                        <strong className="text-indigo-900">PARTY 1: APNA ENGINEERING WALLAH (AEW)</strong>, an engineering upskilling ecosystem dedicated to hands-on practical training.
+                      </div>
+                      <div>
+                        <strong className="text-indigo-900">PARTY 2: {previewingMou.societyName ? previewingMou.societyName.toUpperCase() : 'TECHNICAL SOCIETY'}</strong> of <strong>{(previewingMou.collegeName || previewingMou.partnerOrganization).toUpperCase()}</strong>, represented by <strong>{previewingMou.partnerSignatory}</strong> ({previewingMou.partnerDesignation}).
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">1. Technical Workshop Details:</h4>
+                      <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl space-y-1 font-sans text-[11px]">
+                        <div><strong>Workshop Topic:</strong> {previewingMou.sessionTopic === 'custom_topic' ? (previewingMou.customTopicName || 'Custom Technical Session') : (previewingMou.sessionTopic?.replace(/_/g, ' ').toUpperCase() || 'Advanced AI & Engineering Masterclass')}</div>
+                        <div><strong>Delivery Mode:</strong> {previewingMou.sessionMode === 'offline_campus' ? 'Offline On-Campus Auditorium' : previewingMou.sessionMode === 'virtual_webinar' ? 'Live Interactive Webinar' : 'Hybrid Session'}</div>
+                        <div><strong>Guaranteed Minimum Attendance:</strong> {previewingMou.expectedStudentAttendance || 80}+ Registered Engineering Students</div>
+                        <div><strong>Scheduled Date & Slot:</strong> {previewingMou.sessionDate || previewingMou.startDate} • {previewingMou.sessionTime || '11:00 AM - 1:00 PM'}</div>
+                        <div><strong>Venue / Platform:</strong> {previewingMou.venueOrPlatform || 'College Main Auditorium / Online Platform'}</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">2. Financial Consideration:</h4>
+                      <p className="text-slate-700">
+                        This collaboration is undertaken as a <strong>Zero-Fee (₹0) Academic Knowledge Barter</strong>. Neither party shall invoice or charge students or each other any consideration. AEW provides mentors and syllabus curriculum free of cost.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">3. Responsibilities of Parties:</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-slate-700 font-sans text-[11px]">
+                        <li>AEW shall deploy experienced senior industry instructors to deliver comprehensive live hands-on instruction.</li>
+                        <li>AEW shall issue verified digital certificates of completion to all registered student attendees.</li>
+                        <li>The Society / College shall provide the auditorium venue, audio-visual system, and active campus publicity.</li>
+                        <li>The Society coordinators commit to ensuring the minimum guaranteed attendance of {previewingMou.expectedStudentAttendance || 80}+ students.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">4. Agreed Clauses:</h4>
+                      <ol className="list-decimal pl-5 space-y-1 text-slate-700 font-sans text-[11px]">
+                        {previewingMou.terms.map((t, idx) => (
+                          <li key={idx}>{t}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                <div className="pt-2">
-                  <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">2. Consideration & Sponsorship Commercials:</h4>
-                  <p className="text-slate-700">
-                    The total sponsorship consideration agreed between parties is <strong>₹{(previewingMou.sponsorshipAmount || 0).toLocaleString('en-IN')} (Indian Rupees)</strong> payable as per the operational milestone schedule.
-                  </p>
+              {/* ─── TEMPLATE 3: CUSTOM STRATEGIC AGREEMENT ─── */}
+              {previewingMou.category === 'custom_agreement' && (
+                <div className="space-y-5">
+                  <div className="text-center border-b-2 border-slate-900 pb-4">
+                    <div className="inline-block px-3 py-1 rounded bg-purple-50 border border-purple-200 text-purple-800 text-[10px] font-sans font-black uppercase tracking-wider mb-1">
+                      {previewingMou.customPartnerType || 'Strategic Partnership Instrument'}
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-black font-sans uppercase tracking-tight text-slate-900 mt-1">
+                      {previewingMou.customAgreementTitle || 'MEMORANDUM OF UNDERSTANDING'}
+                    </h2>
+                    <p className="text-xs text-slate-600 font-sans mt-0.5">
+                      Valid: {previewingMou.startDate} through {previewingMou.endDate}
+                    </p>
+                  </div>
+
+                  <div className="text-xs leading-relaxed space-y-2.5">
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 font-sans text-xs">
+                      <div><strong>Party 1:</strong> Apna Engineering Wallah (AEW)</div>
+                      <div><strong>Party 2:</strong> {previewingMou.partnerOrganization} ({previewingMou.partnerSignatory}, {previewingMou.partnerDesignation})</div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">Scope of Collaboration:</h4>
+                      <p className="text-slate-700">{previewingMou.customAgreementScope || previewingMou.purpose}</p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">Commercial Consideration:</h4>
+                      <p className="text-slate-700">₹{(previewingMou.sponsorshipAmount || 0).toLocaleString('en-IN')} (Indian Rupees)</p>
+                    </div>
+
+                    <div>
+                      <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">Terms & Conditions:</h4>
+                      <ol className="list-decimal pl-5 space-y-1 text-slate-700 font-sans text-[11px]">
+                        {previewingMou.terms.map((t, idx) => (
+                          <li key={idx}>{t}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                <div className="pt-2">
-                  <h4 className="font-sans font-bold text-slate-900 uppercase tracking-wide text-xs mb-1">3. Covenants & Deliverables:</h4>
-                  <ol className="list-decimal pl-5 space-y-1 text-slate-700">
-                    {previewingMou.terms.map((t, idx) => (
-                      <li key={idx}>{t}</li>
-                    ))}
-                  </ol>
-                </div>
-              </div>
-
-              {/* Signatures & Seals */}
+              {/* Signatures & Seals (Shared across all templates) */}
               <div className="pt-8 border-t border-slate-300 grid grid-cols-2 gap-8 text-xs font-sans">
                 <div className="border border-dashed border-slate-300 rounded-xl p-4 text-center">
                   <span className="text-[11px] font-bold text-slate-500 uppercase block mb-6">For Apna Engineering Wallah (AEW)</span>

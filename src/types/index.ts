@@ -322,7 +322,17 @@ export interface EmailLogItem {
 
 export type PrTaskStatus = 'pending' | 'submitted' | 'approved' | 'revision_requested' | 'completed';
 export type PrTaskPriority = 'urgent' | 'high' | 'medium' | 'normal';
-export type PrTaskCategory = 'college_sponsorship' | 'fest_mou' | 'influencer_collab' | 'campus_ambassador' | 'content_promo';
+export type PrTaskCategory = 
+  | 'hackathon_sponsor_outreach'
+  | 'college_session_booking'
+  | 'campus_ambassador_drive'
+  | 'pr_social_outreach'
+  | 'custom_task'
+  | 'college_sponsorship'
+  | 'fest_mou'
+  | 'influencer_collab'
+  | 'campus_ambassador'
+  | 'content_promo';
 
 export interface PrTask {
   id: string;
@@ -359,7 +369,12 @@ export type PrLeadStage =
   | 'closed_won' 
   | 'closed_lost';
 
+export type PrLeadCategory = 'hackathon_sponsor' | 'college_society' | 'custom_partnership';
+
 export type PrLeadType = 
+  | 'hackathon_sponsor'           // Flagship Hackathon Sponsor
+  | 'college_society'             // College Society / Technical Club Partner
+  | 'custom_partnership'          // Custom Strategic Partner
   | 'corporate_brand_sponsor'     // Corporate Tech & SaaS Brands
   | 'tech_event_sponsor'          // TechFest & Hackathon Sponsors
   | 'recruitment_partner_sponsor' // Talent & Hiring Sponsors
@@ -369,6 +384,23 @@ export type PrLeadType =
   | 'event_partner'               // Legacy support
   | 'brand_sponsor'               // Legacy support
   | 'campus_ambassador_lead';     // Legacy support
+
+export type HackathonSponsorTier = 
+  | 'title_partner'          // ₹1,50,000+ (Exclusive Title Partner)
+  | 'powered_by'             // ₹75,000 - ₹1,00,000 (Powered By Partner)
+  | 'track_challenge'        // ₹30,000 - ₹50,000 (Track / Problem Statement Sponsor)
+  | 'swag_beverage_perks'    // In-Kind / Cloud / Swag / Food
+  | 'custom_tier';           // Custom Brand Tier
+
+export type CollegeSessionTopic = 
+  | 'fullstack_web_dev'
+  | 'ai_ml_agents'
+  | 'dsa_problem_solving'
+  | 'gate_placements_roadmap'
+  | 'hackathon_orientation'
+  | 'custom_topic';
+
+export type CollegeSessionMode = 'offline_campus' | 'virtual_webinar' | 'hybrid';
 
 export type PrSponsorshipPackage = 
   | 'title_sponsor'          // ₹1,50,000+ (Exclusive Title Partner)
@@ -384,26 +416,54 @@ export interface PrLead {
   internId: string;
   internName: string;
   type: PrLeadType;
-  organizationName: string; // Sponsoring Company / Corporate Brand Name
+  leadCategory?: PrLeadCategory;
+  category?: string; // Compatibility alias
+  organizationName: string; // Sponsoring Company or College Name
   companyIndustry?: string; // SaaS / Cloud, FinTech, FMCG, Hardware, EdTech, DevTools, Gaming, Other
-  contactPerson: string;    // Corporate POC (e.g. Brand Partnerships Lead / DevRel)
-  designation: string;      // Corporate POC Designation
+  contactPerson: string;    // POC Name
+  designation: string;      // POC Designation
   email: string;
   phone: string;
   sponsorshipPackage?: PrSponsorshipPackage;
   expectedSponsorshipAmount: number; // Sponsorship consideration payable BY Company TO AEW (₹)
   closedAmount?: number;             // Closed sponsorship consideration received from company (₹)
-  deliverablesPromised?: string[];   // Promised branding deliverables (e.g. Mainstage logo, booth, keynote slot)
+  deliverablesPromised?: string[];   // Promised branding deliverables
   stage: PrLeadStage;
   internTierAtClosure?: PrTier;
-  commissionRate?: number; // % earned by PR rep from the incoming company sponsorship
+  commissionRate?: number; // % earned by PR rep
   commissionEarned?: number; // ₹ commission earned by PR rep
   notes?: string;
   createdAt: string;
   updatedAt: string;
+
+  // Hackathon Sponsorship Lead fields:
+  hackathonTier?: HackathonSponsorTier;
+  sponsorTier?: string; // Compatibility alias
+  customTierName?: string;
+  customPackageName?: string;
+
+  // College Society Workshop fields:
+  collegeName?: string;
+  societyName?: string;
+  facultyMentor?: string;
+  sessionTopic?: CollegeSessionTopic;
+  customTopicName?: string;
+  sessionMode?: CollegeSessionMode;
+  targetSessionDate?: string;
+  expectedAudience?: number;
+  expectedStudentAttendance?: number; // Compatibility alias
+  confirmedAudience?: number;
+
+  // Custom Lead fields:
+  customLeadDetails?: string;
 }
 
 export type PrMouStatus = 'draft' | 'pending_admin_approval' | 'approved' | 'signed' | 'rejected';
+
+export type PrMouCategory = 
+  | 'hackathon_sponsorship' 
+  | 'college_society_session' 
+  | 'custom_agreement';
 
 export interface PrMouRequest {
   id: string;
@@ -424,6 +484,41 @@ export interface PrMouRequest {
   generatedAt: string;
   approvedAt?: string;
   signedAt?: string;
+
+  // Revamped Domain Category:
+  mouCategory?: PrMouCategory;
+  category?: string; // Compatibility alias
+  sponsorTier?: string; // Compatibility alias
+
+  // Hackathon Brand Sponsorship fields:
+  hackathonName?: string;
+  hackathonTier?: HackathonSponsorTier;
+  customTierName?: string;
+  deliverables?: string[];
+  boothRequired?: boolean;
+  keynoteSlot?: boolean;
+  judgeMentorSlot?: boolean;
+  resumeAccess?: boolean;
+
+  // College Society Workshop & Session fields:
+  collegeName?: string;
+  societyName?: string;
+  facultyAdvisorName?: string;
+  sessionTopic?: CollegeSessionTopic;
+  customSessionTopic?: string;
+  customTopicName?: string;
+  sessionMode?: CollegeSessionMode;
+  sessionDate?: string;
+  sessionTime?: string;
+  guaranteedAudience?: number;
+  expectedStudentAttendance?: number;
+  venueOrPlatform?: string;
+
+  // Custom Agreement fields:
+  customAgreementTitle?: string;
+  customPartnerType?: string;
+  customScopeOfWork?: string;
+  customAgreementScope?: string;
 }
 
 export interface PrCollege {
