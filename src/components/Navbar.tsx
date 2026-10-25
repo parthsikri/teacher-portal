@@ -4,7 +4,7 @@ import { StorageService } from '../services/storage';
 import { WebDevService } from '../services/webDevService';
 import { 
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, FileCheck, Key, Lock,
+  Users, FileSpreadsheet, Image as ImageIcon, Wallet, Clock, Award, Key, Lock,
   CheckSquare, Shield, ListTodo, Briefcase, Target, Trophy, PhoneCall
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
@@ -15,7 +15,6 @@ const ADMIN_PAGE_PERMISSIONS: Record<string, string> = {
   admin_lectures: 'manage_lectures',
   admin_leaves: 'manage_leaves',
   admin_pr: 'manage_pr',
-  admin_offer_letters: 'manage_offer_letters',
 };
 
 interface NavItem {
@@ -161,11 +160,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: Video,
       badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
       badgeColor: 'bg-emerald-500 text-white font-bold',
-    },
-    { 
-      id: 'admin_offer_letters', 
-      label: 'Offer Letters', 
-      icon: FileCheck,
     },
   ];
 

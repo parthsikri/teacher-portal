@@ -6,7 +6,7 @@ import {
   Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
   Award, CheckCircle2, DollarSign, Star, TrendingUp, FileText,
-  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, FileCheck, Key, Lock
+  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, Key, Lock
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
 
@@ -18,7 +18,6 @@ const ADMIN_PAGE_PERMISSIONS: Record<string, string> = {
   admin_pr: 'manage_pr',
   admin_web_dev: 'manage_webdev',
   admin_sales_crm: 'manage_sales',
-  admin_offer_letters: 'manage_offer_letters',
 };
 
 interface SidebarProps {
@@ -270,13 +269,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
         : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
     },
-    { 
-      id: 'admin_offer_letters', 
-      label: 'Offer Letter Studio', 
-      icon: FileCheck,
-      badge: 'Generator',
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold font-mono',
-    },
   ];
 
   interface NavItem {
@@ -388,7 +380,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (item.id === 'admin_pr_management') return perms.includes('manage_pr');
       if (item.id === 'admin_web_dev') return perms.includes('manage_webdev');
       if (item.id === 'admin_sales_crm') return perms.includes('manage_sales');
-      if (item.id === 'admin_offer_letters') return perms.includes('manage_offer_letters');
       return true;
     });
   }, [currentUser, adminNavItems]);

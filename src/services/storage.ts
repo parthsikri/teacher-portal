@@ -3,8 +3,7 @@ import type {
   DayOffGrant,
   User, UserRole, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem,
   PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage, PrMouStatus,
-  SalesLead, SalesActivityLog,
-  OfferLetter, OfferLetterStatus } from '../types';
+  SalesLead, SalesActivityLog } from '../types';
 
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -26,7 +25,6 @@ const PR_MOUS_KEY = 'aew_pr_mous_prod_v1';
 const PR_COLLEGES_KEY = 'aew_pr_colleges_prod_v1';
 const SALES_LEADS_KEY = 'aew_sales_leads_v1';
 const CRM_PERMISSIONS_KEY = 'aew_crm_permissions_v1';
-const OFFER_LETTERS_KEY = 'aew_offer_letters_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 const SESSION_TOKEN_KEY = 'aew_portal_session_token_v2';
 
@@ -501,7 +499,6 @@ export const StorageService = {
             'manage_pr',
             'manage_webdev',
             'manage_sales',
-            'manage_offer_letters',
             'manage_credentials',
             'manage_leaves',
           ])
@@ -4252,7 +4249,6 @@ export const StorageService = {
       webDevUserAchievements: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_user_achievements_v2') || '[]') : [],
       webDevNotifications: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_notifications_v2') || '[]') : [],
       webDevChallenges: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_challenges_v2') || '[]') : [],
-      offerLetters: this.getOfferLetters(),
     };
   },
 
@@ -5012,27 +5008,6 @@ export const StorageService = {
       localStorage.setItem(SALES_LEADS_KEY, JSON.stringify(Array.from(leadMap.values())));
     }
 
-    // Smart merge Offer Letters
-    if (Array.isArray(state.offerLetters)) {
-      const localOffers = this.getOfferLetters();
-      const offerMap = new Map<string, OfferLetter>();
-      localOffers.forEach((o) => {
-        if (!deletedIds.has(o.id.toUpperCase())) offerMap.set(o.id, o);
-      });
-      state.offerLetters.forEach((cloudOffer: OfferLetter) => {
-        if (cloudOffer && cloudOffer.id && !deletedIds.has(cloudOffer.id.toUpperCase())) {
-          const local = offerMap.get(cloudOffer.id);
-          if (!local) {
-            offerMap.set(cloudOffer.id, cloudOffer);
-          } else {
-            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
-            const cloudTime = cloudOffer.updatedAt ? new Date(cloudOffer.updatedAt).getTime() : 0;
-            offerMap.set(cloudOffer.id, cloudTime >= localTime ? { ...local, ...cloudOffer } : { ...cloudOffer, ...local });
-          }
-        }
-      });
-      localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(Array.from(offerMap.values())));
-    }
 
     if (state.crmPermissions && typeof state.crmPermissions === 'object') {
       localStorage.setItem(CRM_PERMISSIONS_KEY, JSON.stringify(state.crmPermissions));
@@ -5454,71 +5429,4 @@ export const StorageService = {
     };
   },
 
-  // ==========================================
-  // OFFER LETTER GENERATOR REPOSITORY & CRUD
-  // ==========================================
-  getOfferLetters(): OfferLetter[] {
-    if (typeof window === 'undefined') return [];
-    try {
-      const raw = localStorage.getItem(OFFER_LETTERS_KEY);
-      if (raw) {
-        return JSON.parse(raw);
-      }
-    } catch (e) {
-      console.error('[Storage] Error reading offer letters:', e);
-    }
-    return [];
-  },
-
-  saveOfferLetter(offer: OfferLetter): OfferLetter {
-    const list = this.getOfferLetters();
-    const existingIdx = list.findIndex(l => l.id === offer.id);
-    const updatedOffer: OfferLetter = {
-      ...offer,
-      updatedAt: new Date().toISOString(),
-    };
-
-    let nextList: OfferLetter[];
-    if (existingIdx >= 0) {
-      nextList = [...list];
-      nextList[existingIdx] = updatedOffer;
-    } else {
-      nextList = [updatedOffer, ...list];
-    }
-
-    try {
-      localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(nextList));
-      triggerBackgroundCloudSync();
-    } catch (e) {
-      console.error('[Storage] Error saving offer letter:', e);
-    }
-    return updatedOffer;
-  },
-
-  deleteOfferLetter(id: string): void {
-    this.addDeletedId(id);
-    const list = this.getOfferLetters();
-    const nextList = list.filter(l => l.id !== id);
-    try {
-      localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(nextList));
-      triggerBackgroundCloudSync();
-    } catch (e) {
-      console.error('[Storage] Error deleting offer letter:', e);
-    }
-  },
-
-  updateOfferLetterStatus(id: string, status: OfferLetterStatus): void {
-    const list = this.getOfferLetters();
-    const letter = list.find(l => l.id === id);
-    if (letter) {
-      letter.status = status;
-      letter.updatedAt = new Date().toISOString();
-      try {
-        localStorage.setItem(OFFER_LETTERS_KEY, JSON.stringify(list));
-        triggerBackgroundCloudSync();
-      } catch (e) {
-        console.error('[Storage] Error updating offer letter status:', e);
-      }
-    }
-  },
 };

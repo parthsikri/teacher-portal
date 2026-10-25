@@ -9,7 +9,6 @@ import { DailyBacklogLogsView } from '../Teacher/DailyBacklogLogsView';
 import { PrManagementSection } from './PrManagementSection';
 import { AdminWebDevSection } from '../WebDev/Admin/AdminWebDevSection';
 import { AdminSalesCrmSection } from './AdminSalesCrmSection';
-import { AdminOfferLetterGenerator } from './AdminOfferLetterGenerator';
 import { OnboardEmployeeModal, ALL_ADMIN_PERMISSIONS } from './OnboardEmployeeModal';
 import { 
   Calendar, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
@@ -18,7 +17,7 @@ import {
   Edit3, Link2, Layers, BookMarked, FolderPlus,
   Users, FileSpreadsheet, Database, Folder,
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
-  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail, FileCheck,
+  ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail,
   Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2,
   Crown, UserX, Percent, AlertTriangle, CheckCheck, ExternalLink
 } from 'lucide-react';
@@ -50,7 +49,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_head' | 'pr_intern' | 'web_developer' | 'sales' | 'admin' | 'offboarded'>('all');
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [onboardInitialData, setOnboardInitialData] = useState<Partial<User> | undefined>(undefined);
-  const [onboardOfferId, setOnboardOfferId] = useState<string | undefined>(undefined);
 
   // Employee Offboard / Delete Modal State
   const [employeeToOffboardOrDelete, setEmployeeToOffboardOrDelete] = useState<User | null>(null);
@@ -1368,12 +1366,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-xl shadow-indigo-600/30 transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02]"
               >
                 <FileSpreadsheet className="w-4 h-4 text-amber-300" /> PYQ PPT Generator
-              </button>
-              <button
-                onClick={() => onPageChange('admin_offer_letters')}
-                className="px-4 py-3 rounded-2xl bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-500/40 text-indigo-300 font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 shrink-0 hover:scale-[1.02] cursor-pointer"
-              >
-                <FileCheck className="w-4 h-4 text-indigo-400" /> Offer Letter Generator
               </button>
               <button
                 onClick={() => setShowEmailModal(true)}
@@ -3176,21 +3168,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
         )
       )}
 
-      {/* PAGE: 📜 OFFER LETTER & APPOINTMENT GENERATOR */}
-      {currentPage === 'admin_offer_letters' && (
-        !checkHasAdminPermission('manage_offer_letters') ? (
-          <AdminPermissionRestrictedCard moduleName="Offer Letter Studio" requiredPermission="manage_offer_letters" />
-        ) : (
-          <AdminOfferLetterGenerator
-            currentUser={activeAdminUser}
-            onOnboardCandidate={(data, offerId) => {
-              setOnboardInitialData(data);
-              setOnboardOfferId(offerId);
-              setShowOnboardModal(true);
-            }}
-          />
-        )
-      )}
 
       {currentPage === 'admin_faculty' && (() => {
         if (!checkHasAdminPermission('manage_faculty')) {
@@ -6392,13 +6369,8 @@ Portal URL: ${window.location.origin}`;
         isOpen={showOnboardModal}
         onClose={() => {
           setShowOnboardModal(false);
-          setOnboardOfferId(undefined);
         }}
         onSuccess={(_newUser) => {
-          if (onboardOfferId) {
-            StorageService.updateOfferLetterStatus(onboardOfferId, 'accepted');
-            setOnboardOfferId(undefined);
-          }
           refreshState();
         }}
         initialData={onboardInitialData}
@@ -6440,10 +6412,10 @@ Portal URL: ${window.location.origin}`;
                 <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-rose-500/30 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-extrabold text-xs text-rose-300">Super Admin</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-200">Full 9/9</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-200">Full 8/8</span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Unrestricted access to all modules, faculty quotas, CRM, development, offer letters, credentials & leaves.
+                    Unrestricted access to all modules, faculty quotas, CRM, development, credentials & leaves.
                   </p>
                 </div>
 
@@ -6460,10 +6432,10 @@ Portal URL: ${window.location.origin}`;
                 <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-indigo-500/30 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-extrabold text-xs text-indigo-300">HR & Talent Admin</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-200">4 Modules</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-200">3 Modules</span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Candidate offer letters, employee onboarding, credentials management, and leave & day-off approvals.
+                    Employee onboarding, credentials management, and leave & day-off approvals.
                   </p>
                 </div>
 

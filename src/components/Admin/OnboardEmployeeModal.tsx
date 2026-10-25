@@ -26,8 +26,33 @@ import {
 } from 'lucide-react';
 import type { User, UserRole, PrTier, AdminRoleTier, AdminPermissionKey } from '../../types';
 import { StorageService } from '../../services/storage';
-import { AVAILABLE_SME_SUBJECTS } from '../../services/offerLetterService';
 import { notificationService } from '../../services/notificationService';
+
+export interface SubjectOption {
+  id: string;
+  name: string;
+  department: string;
+}
+
+export const AVAILABLE_SME_SUBJECTS: SubjectOption[] = [
+  { id: 'math', name: 'Engineering Mathematics', department: 'Applied Sciences & Mathematics' },
+  { id: 'dsa', name: 'Data Structures & Algorithms', department: 'Computer Science & Engineering' },
+  { id: 'os', name: 'Operating Systems', department: 'Computer Science & Engineering' },
+  { id: 'dbms', name: 'Database Management Systems', department: 'Computer Science & Engineering' },
+  { id: 'cn', name: 'Computer Networks', department: 'Computer Science & Engineering' },
+  { id: 'aiml', name: 'Artificial Intelligence & Machine Learning', department: 'Computer Science & Data Science' },
+  { id: 'toc', name: 'Theory of Computation & Automata', department: 'Computer Science & Engineering' },
+  { id: 'compiler', name: 'Compiler Design', department: 'Computer Science & Engineering' },
+  { id: 'se', name: 'Software Engineering & System Design', department: 'Computer Science & Engineering' },
+  { id: 'fm', name: 'Fluid Mechanics', department: 'Mechanical & Civil Engineering' },
+  { id: 'thermo', name: 'Thermodynamics & Heat Transfer', department: 'Mechanical Engineering' },
+  { id: 'som', name: 'Strength of Materials & Solid Mechanics', department: 'Mechanical & Civil Engineering' },
+  { id: 'signals', name: 'Signals & Systems', department: 'Electronics & Communication Engineering' },
+  { id: 'digital_electronics', name: 'Digital Electronics & Microprocessors', department: 'Electronics & Electrical Engineering' },
+  { id: 'electrical_machines', name: 'Electrical Machines & Power Systems', department: 'Electrical Engineering' },
+  { id: 'engineering_physics', name: 'Engineering Physics & Electromagnetics', department: 'Applied Sciences & Physics' },
+  { id: 'engineering_chemistry', name: 'Engineering Chemistry & Materials', department: 'Applied Sciences & Chemistry' },
+];
 
 export interface AdminPermissionOption {
   key: AdminPermissionKey;
@@ -43,7 +68,6 @@ export const ALL_ADMIN_PERMISSIONS: AdminPermissionOption[] = [
   { key: 'manage_pr', label: 'PR & Ambassador Desk', desc: 'College sponsorships, MoU generation & ambassador leaderboards', category: 'Growth' },
   { key: 'manage_webdev', label: 'Web Dev War Room', desc: 'Developer squads, bounty allocation & GitHub pull approvals', category: 'Tech' },
   { key: 'manage_sales', label: 'Sales CRM & Leads Desk', desc: 'Admissions counseling, student leads & phone call tracking', category: 'Growth' },
-  { key: 'manage_offer_letters', label: 'Offer Letter Studio', desc: 'Draft, preview, export PDF offers & onboard candidate hires', category: 'HR' },
   { key: 'manage_credentials', label: 'Credentials & Passwords', desc: 'Override usernames, reset passwords & maintain security keys', category: 'System' },
   { key: 'manage_leaves', label: 'Leaves & Day-Off Grants', desc: 'Approve day-off requests, excused leaves & deadline extensions', category: 'HR' },
 ];
@@ -52,7 +76,7 @@ export const ADMIN_TIER_PRESETS: { id: AdminRoleTier; name: string; desc: string
   {
     id: 'super_admin',
     name: 'Super Admin',
-    desc: 'Unrestricted master access across all 9 portal modules & systems',
+    desc: 'Unrestricted master access across all portal modules & systems',
     permissions: [
       'manage_faculty',
       'manage_syllabus',
@@ -60,7 +84,6 @@ export const ADMIN_TIER_PRESETS: { id: AdminRoleTier; name: string; desc: string
       'manage_pr',
       'manage_webdev',
       'manage_sales',
-      'manage_offer_letters',
       'manage_credentials',
       'manage_leaves',
     ],
@@ -74,14 +97,14 @@ export const ADMIN_TIER_PRESETS: { id: AdminRoleTier; name: string; desc: string
   {
     id: 'hr_admin',
     name: 'HR & Talent Admin',
-    desc: 'Candidate offer letters, employee onboarding, credentials & leave management',
-    permissions: ['manage_faculty', 'manage_offer_letters', 'manage_credentials', 'manage_leaves'],
+    desc: 'Employee onboarding, credentials & leave management',
+    permissions: ['manage_faculty', 'manage_credentials', 'manage_leaves'],
   },
   {
     id: 'growth_admin',
     name: 'PR & Growth Admin',
     desc: 'College ambassador MoUs, fest sponsorships, course sales CRM & student calls',
-    permissions: ['manage_pr', 'manage_sales', 'manage_offer_letters'],
+    permissions: ['manage_pr', 'manage_sales'],
   },
   {
     id: 'tech_admin',
@@ -144,7 +167,6 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
     'manage_pr',
     'manage_webdev',
     'manage_sales',
-    'manage_offer_letters',
     'manage_credentials',
     'manage_leaves',
   ]);

@@ -11,7 +11,6 @@ export type AdminPermissionKey =
   | 'manage_pr'
   | 'manage_webdev'
   | 'manage_sales'
-  | 'manage_offer_letters'
   | 'manage_credentials'
   | 'manage_leaves';
 
@@ -991,53 +990,5 @@ export interface SalesLead {
   nextFollowUpDate?: string;      // YYYY-MM-DD
   nextFollowUpTime?: string;      // e.g. "14:00"
   activityLogs: SalesActivityLog[];
-}
-
-export type OfferLetterRoleType = 
-  | 'sme' 
-  | 'hr_intern' 
-  | 'pr_intern' 
-  | 'pr_head'
-  | 'web_dev_intern' 
-  | 'graphic_designer' 
-  | 'sales_intern' 
-  | 'custom';
-
-export type OfferLetterStatus = 'draft' | 'issued' | 'accepted' | 'declined' | 'revoked';
-
-export type OfferLetterTheme = 'modern_tech' | 'executive_navy' | 'classic_academic';
-
-export interface OfferLetter {
-  id: string;
-  referenceNumber: string;         // e.g. "AEW/OL/2026/042"
-  candidateName: string;
-  candidateEmail: string;
-  candidatePhone?: string;
-  candidateCollege?: string;
-  candidateAddress?: string;
-  roleType: OfferLetterRoleType;
-  roleTitle: string;              // e.g. "Subject Matter Expert - Engineering Mathematics"
-  subject?: string;                // Relevant when roleType === 'sme'
-  department: string;             // e.g. "Academic Operations & Curriculum"
-  employmentType: 'Internship' | 'Full-time' | 'Part-time' | 'Contract';
-  workMode: 'Remote (Work From Home)' | 'Hybrid' | 'In-Office (New Delhi)';
-  duration: string;               // e.g. "3 Months", "6 Months", "1 Year", "Permanent"
-  joiningDate: string;            // YYYY-MM-DD
-  validUntil: string;             // YYYY-MM-DD (acceptance deadline)
-  stipendAmount: string;          // e.g. "₹15,000 / Month", "₹600 / Session"
-  incentiveDetails?: string;      // e.g. "Performance bonus up to ₹5,000 upon milestone completion"
-  workingHours: string;           // e.g. "20-25 Hours/Week (Flexible)"
-  reportingManager: string;       // e.g. "Director of Academic Operations"
-  responsibilities: string[];     // Bullet points of key responsibilities
-  perks: string[];                // Bullet points of benefits & perks
-  terms: string[];                // Institutional terms, confidentiality, notice period
-  signatoryName: string;          // e.g. "Dr. Aarav Sharma"
-  signatoryTitle: string;         // e.g. "Director of Operations & Academic Dean"
-  includeDigitalSeal: boolean;
-  status: OfferLetterStatus;
-  templateTheme: OfferLetterTheme;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
