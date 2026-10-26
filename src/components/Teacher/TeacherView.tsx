@@ -832,7 +832,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 {teacher.name}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {teacher.subject} • {teacher.department}
+                {teacherAssignedSubjects.join(' • ') || teacher.subject} • {teacher.department}
               </p>
             </div>
 

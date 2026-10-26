@@ -31,9 +31,13 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   const activeExtension = StorageService.getActiveExtensionForTopic(teacher.teacherId, chosenTopicId);
   const [showBacklogLogsDetails, setShowBacklogLogsDetails] = useState(false);
 
+  const teacherAssignedSubjects = StorageService.getTeacherAssignedSubjects(teacher);
+
   // Form fields
   const [title, setTitle] = useState(prefillTopic ? prefillTopic.topicTitle : '');
-  const [subject, setSubject] = useState(prefillTopic ? prefillTopic.subject : (teacher.subject || 'Engineering'));
+  const [subject, setSubject] = useState(
+    prefillTopic ? prefillTopic.subject : (teacherAssignedSubjects[0] || teacher.subject || 'Engineering')
+  );
   const [primaryTopic, setPrimaryTopic] = useState(prefillTopic ? prefillTopic.topicTitle : '');
   const [subtopics, setSubtopics] = useState<string[]>(prefillTopic ? prefillTopic.subtopics : []);
   const [subtopicInput, setSubtopicInput] = useState('');
@@ -238,7 +242,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 <option value="">-- General / Extra Recording (Not assigned to specific topic) --</option>
                 {undeliveredAssignedTopics.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.unitNumber || 'Unit'} — {t.topicTitle} {t.deadlineDate ? `(Due: ${t.deadlineDate})` : ''}
+                    {t.unitNumber || 'Unit'} — {t.topicTitle} [{t.subject || teacher.subject}] {t.deadlineDate ? `(Due: ${t.deadlineDate})` : ''}
                   </option>
                 ))}
               </select>
@@ -327,13 +331,37 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Subject</label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-400 font-medium text-xs">Subject</label>
+                  {teacherAssignedSubjects.length > 1 && (
+                    <span className="text-[10px] text-purple-400 font-mono">
+                      {teacherAssignedSubjects.length} subjects
+                    </span>
+                  )}
+                </div>
+                {teacherAssignedSubjects.length > 1 ? (
+                  <select
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs font-medium cursor-pointer"
+                  >
+                    {teacherAssignedSubjects.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                    {!teacherAssignedSubjects.includes(subject) && subject && (
+                      <option value={subject}>{subject} (Custom)</option>
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-slate-400 font-medium mb-1">Duration (Minutes) *</label>

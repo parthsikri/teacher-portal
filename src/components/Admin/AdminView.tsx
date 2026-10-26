@@ -19,7 +19,8 @@ import {
   ChevronDown, ChevronUp, Image as ImageIcon, MessageSquare,
   ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail,
   Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2,
-  Crown, UserX, Percent, AlertTriangle, CheckCheck, ExternalLink, ShieldAlert
+  Crown, UserX, Percent, AlertTriangle, CheckCheck, ExternalLink, ShieldAlert,
+  Plus
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -219,6 +220,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newEmail, setNewEmail] = useState('');
   const [newDept, setNewDept] = useState('Computer Science & Engg');
   const [newSubject, setNewSubject] = useState('Data Structures & Algorithms');
+  const [newSubjects, setNewSubjects] = useState<string[]>(['Data Structures & Algorithms']);
+  const [newCustomSubjectInput, setNewCustomSubjectInput] = useState('');
   const [newTargetMinutes, setNewTargetMinutes] = useState(120);
   const [newMaxDailyMinutes, setNewMaxDailyMinutes] = useState(240);
   const [newJoiningDate, setNewJoiningDate] = useState(new Date().toISOString().split('T')[0]);
@@ -231,10 +234,48 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editEmail, setEditEmail] = useState('');
   const [editDept, setEditDept] = useState('');
   const [editSubject, setEditSubject] = useState('');
+  const [editSubjects, setEditSubjects] = useState<string[]>([]);
+  const [editCustomSubjectInput, setEditCustomSubjectInput] = useState('');
   const [editTargetMinutes, setEditTargetMinutes] = useState(120);
   const [editMaxDailyMinutes, setEditMaxDailyMinutes] = useState(240);
   const [editJoiningDate, setEditJoiningDate] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // Subject helpers for Add Teacher Modal
+  const handleAddNewSubject = (subjToAdd: string) => {
+    const clean = subjToAdd.trim();
+    if (!clean) return;
+    if (!newSubjects.some((s) => s.toLowerCase() === clean.toLowerCase())) {
+      const updated = [...newSubjects, clean];
+      setNewSubjects(updated);
+      setNewSubject(updated[0]);
+    }
+    setNewCustomSubjectInput('');
+  };
+
+  const handleRemoveNewSubject = (subjToRemove: string) => {
+    const updated = newSubjects.filter((s) => s.toLowerCase() !== subjToRemove.toLowerCase());
+    setNewSubjects(updated);
+    setNewSubject(updated[0] || '');
+  };
+
+  // Subject helpers for Edit Teacher Modal
+  const handleAddEditSubject = (subjToAdd: string) => {
+    const clean = subjToAdd.trim();
+    if (!clean) return;
+    if (!editSubjects.some((s) => s.toLowerCase() === clean.toLowerCase())) {
+      const updated = [...editSubjects, clean];
+      setEditSubjects(updated);
+      setEditSubject(updated[0]);
+    }
+    setEditCustomSubjectInput('');
+  };
+
+  const handleRemoveEditSubject = (subjToRemove: string) => {
+    const updated = editSubjects.filter((s) => s.toLowerCase() !== subjToRemove.toLowerCase());
+    setEditSubjects(updated);
+    setEditSubject(updated[0] || '');
+  };
 
   // Late Extensions Modal State
   const [showExtensionModal, setShowExtensionModal] = useState(false);
@@ -285,6 +326,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showReorderModal, setShowReorderModal] = useState(false);
   const [assignTeacherId, setAssignTeacherId] = useState(teachers[0]?.teacherId || '');
+  const [assignSubject, setAssignSubject] = useState('');
   const [assignUnitNumber, setAssignUnitNumber] = useState('UNIT 1');
   const [assignTopicInput, setAssignTopicInput] = useState('');
   const [assignPriority, setAssignPriority] = useState<'high' | 'medium' | 'normal'>('high');
@@ -330,8 +372,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const normDept = dept.trim().toLowerCase();
     const subjects = new Set<string>();
     teachers.forEach((t) => {
-      if ((t.department || '').trim().toLowerCase() === normDept && t.subject?.trim()) {
-        subjects.add(t.subject.trim());
+      if ((t.department || '').trim().toLowerCase() === normDept) {
+        StorageService.getTeacherAssignedSubjects(t).forEach((s) => subjects.add(s));
       }
     });
     subjectReferences.forEach((r) => {
@@ -346,11 +388,53 @@ export const AdminView: React.FC<AdminViewProps> = ({
       }
     });
     if (subjects.size === 0 || normDept === 'all' || normDept === 'general') {
-      teachers.forEach((t) => { if (t.subject?.trim()) subjects.add(t.subject.trim()); });
+      teachers.forEach((t) => {
+        StorageService.getTeacherAssignedSubjects(t).forEach((s) => subjects.add(s));
+      });
       subjectReferences.forEach((r) => { if (r.subjectName?.trim()) subjects.add(r.subjectName.trim()); });
     }
     return Array.from(subjects).sort();
   };
+
+  // Master list of curriculum subjects available for multi-subject and custom selection
+  const availableCurriculumSubjects = useMemo(() => {
+    const set = new Set<string>();
+    teachers.forEach((t) => {
+      StorageService.getTeacherAssignedSubjects(t).forEach((s) => set.add(s));
+    });
+    subjectReferences.forEach((r) => {
+      if (r.subjectName?.trim()) set.add(r.subjectName.trim());
+    });
+    assignedTopics.forEach((top) => {
+      if (top.subject?.trim()) set.add(top.subject.trim());
+    });
+    [
+      'Data Structures & Algorithms',
+      'Operating Systems',
+      'Database Management Systems',
+      'Computer Networks',
+      'Object Oriented Programming',
+      'Artificial Intelligence & Machine Learning',
+      'Software Engineering & System Design',
+      'Theory of Computation & Automata',
+      'Compiler Design',
+      'Cloud Computing',
+      'Web Development',
+      'Cybersecurity & Cryptography',
+      'Engineering Mathematics',
+      'Thermodynamics & Heat Transfer',
+      'Fluid Mechanics',
+      'Strength of Materials & Solid Mechanics',
+      'Structural Analysis',
+      'Signals & Systems',
+      'Digital Electronics & Microprocessors',
+      'Electrical Machines & Power Systems',
+      'Engineering Physics & Electromagnetics',
+      'Engineering Chemistry & Materials',
+      'Principles of Management',
+    ].forEach((s) => set.add(s));
+    return Array.from(set).sort();
+  }, [teachers, subjectReferences, assignedTopics]);
 
   // Filtered Subject References by selected department in admin resources view
   const filteredAdminSubjectReferences = useMemo(() => {
@@ -460,6 +544,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const generatedPassword = newPassword.trim() || 'teach123';
     const destEmail = newEmail.trim() || `${newTeacherId.toLowerCase()}@aew.com`;
 
+    const finalSubjects = newSubjects.length > 0 ? newSubjects : [newSubject.trim() || 'Engineering'];
+    const primarySubject = finalSubjects[0];
+
     StorageService.addTeacher({
       teacherId: newTeacherId.trim().toUpperCase(),
       username: generatedUsername,
@@ -467,7 +554,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
       name: newName.trim(),
       email: destEmail,
       department: newDept.trim() || 'Engineering',
-      subject: newSubject.trim() || 'Engineering',
+      subject: primarySubject,
+      subjects: finalSubjects,
       dailyTargetMinutes: newTargetMinutes || 120,
       maxDailyMinutes: newMaxDailyMinutes || 240,
       joiningDate: newJoiningDate || new Date().toISOString().split('T')[0],
@@ -480,7 +568,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       employeeId: newTeacherId.trim().toUpperCase(),
       role: 'teacher',
       department: newDept.trim() || 'Engineering',
-      subject: newSubject.trim() || 'Engineering',
+      subject: finalSubjects.join(', '),
       username: generatedUsername,
       password: generatedPassword,
       joiningDate: newJoiningDate || new Date().toISOString().split('T')[0],
@@ -490,6 +578,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setNewName('');
     setNewUsername('');
     setNewPassword('teach123');
+    setNewSubject('Data Structures & Algorithms');
+    setNewSubjects(['Data Structures & Algorithms']);
+    setNewCustomSubjectInput('');
     setNewTargetMinutes(120);
     setNewMaxDailyMinutes(240);
     setNewJoiningDate(new Date().toISOString().split('T')[0]);
@@ -504,7 +595,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setEditName(t.name);
     setEditEmail(t.email);
     setEditDept(t.department);
-    setEditSubject(t.subject);
+    const existingSubs = StorageService.getTeacherAssignedSubjects(t);
+    const resolvedSubs = existingSubs.length > 0 ? existingSubs : (t.subject ? [t.subject] : []);
+    setEditSubjects(resolvedSubs);
+    setEditSubject(resolvedSubs[0] || t.subject || '');
+    setEditCustomSubjectInput('');
     setEditTargetMinutes(t.dailyTargetMinutes || 120);
     setEditMaxDailyMinutes(t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240));
     setEditJoiningDate(t.joiningDate || t.firstLoginDate || '2026-08-25');
@@ -516,12 +611,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
     e.preventDefault();
     if (!editingTeacher) return;
 
+    const finalSubjects = editSubjects.length > 0 ? editSubjects : [editSubject.trim() || 'Engineering'];
+    const primarySubject = finalSubjects[0];
+
     const updates: Partial<User> = {
       name: editName.trim(),
       username: editUsername.trim().toLowerCase(),
       email: editEmail.trim(),
       department: editDept.trim(),
-      subject: editSubject.trim(),
+      subject: primarySubject,
+      subjects: finalSubjects,
       dailyTargetMinutes: editTargetMinutes || 120,
       maxDailyMinutes: editMaxDailyMinutes || 240,
       joiningDate: editJoiningDate || undefined,
@@ -579,9 +678,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return;
     }
 
+    const teacherSubjects = StorageService.getTeacherAssignedSubjects(targetTeacher);
+    const chosenSubject = assignSubject.trim() || teacherSubjects[0] || targetTeacher.subject || 'Engineering';
+
     StorageService.addMultipleAssignedTopics(parsedTopicList, {
       teacherId: assignTeacherId,
-      subject: targetTeacher?.subject || 'Engineering',
+      subject: chosenSubject,
       unitNumber: assignUnitNumber.trim() || 'UNIT 1',
       priority: assignPriority,
       notes: assignNotes.trim() || undefined,
@@ -1876,7 +1978,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           {t.teacherId}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-400">{t.subject}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {StorageService.getTeacherAssignedSubjects(t).join(', ') || t.subject}
+                      </div>
                     </div>
 
                     <div className="pt-2 border-t border-slate-800/60 space-y-1">
@@ -2803,7 +2907,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <div className="font-bold text-slate-100">{t.name}</div>
                           <div className="text-[10px] text-slate-400 font-mono">{t.teacherId}</div>
                         </td>
-                        <td className="px-3 py-3 text-slate-400">{t.subject || t.department}</td>
+                        <td className="px-3 py-3 text-slate-400">
+                          {StorageService.getTeacherAssignedSubjects(t).join(', ') || t.subject || t.department}
+                        </td>
                         <td className="px-3 py-3 text-slate-300 font-mono">{t.dailyTargetMinutes || 120}m</td>
                         <td className="px-3 py-3 font-mono font-bold text-indigo-300">
                           {w.balance > 0 ? `+${w.balance} min` : '0 min'}
@@ -3457,7 +3563,29 @@ Portal URL: ${window.location.origin}`;
                             </div>
                             <h4 className="font-extrabold text-sm text-slate-100 truncate">{t.name}</h4>
                             <p className="text-xs text-slate-400 truncate">{t.department}</p>
-                            <p className="text-[11px] text-indigo-300/80 truncate mt-0.5">{t.subject}</p>
+                            {(() => {
+                              const teacherSubjs = StorageService.getTeacherAssignedSubjects(t);
+                              const displaySubs = teacherSubjs.length > 0 ? teacherSubjs : [t.subject || 'Engineering'];
+                              return (
+                                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                  {displaySubs.map((s, sIdx) => (
+                                    <span
+                                      key={sIdx}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 max-w-[220px] truncate"
+                                      title={s}
+                                    >
+                                      <BookOpen className="w-2.5 h-2.5 shrink-0 text-indigo-400" />
+                                      <span className="truncate">{s}</span>
+                                    </span>
+                                  ))}
+                                  {displaySubs.length > 1 && (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                      {displaySubs.length} Subjects
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
@@ -4677,26 +4805,133 @@ Portal URL: ${window.location.origin}`;
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Department</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Civil Engineering"
-                      value={newDept}
-                      onChange={(e) => setNewDept(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                    />
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Department</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Civil Engineering"
+                    value={newDept}
+                    onChange={(e) => setNewDept(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
+                  />
+                </div>
+
+                {/* MULTI-SUBJECT ASSIGNMENT & CUSTOM SUBJECT */}
+                <div className="p-3.5 bg-slate-950 border border-purple-500/30 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-purple-300 text-xs flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Assigned Subjects ({newSubjects.length} Assigned)</span>
+                    </div>
+                    <span className="text-[10px] text-purple-300/80 font-mono">
+                      Multiple subjects supported
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Primary Subject</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Structural Analysis"
-                      value={newSubject}
-                      onChange={(e) => setNewSubject(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                    />
+
+                  {/* Active Subject Tags */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-slate-400 font-medium block">
+                      Currently Assigned Subjects (Click ✕ to remove):
+                    </label>
+                    {newSubjects.length === 0 ? (
+                      <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span>No subjects assigned yet. Please add at least 1 subject below.</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
+                        {newSubjects.map((s, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-200 group"
+                          >
+                            {idx === 0 && (
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-purple-400/20 text-purple-300 font-mono font-bold" title="Primary subject">
+                                ★ Primary
+                              </span>
+                            )}
+                            <span>{s}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveNewSubject(s)}
+                              className="text-slate-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
+                              title={`Remove ${s}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Custom Subject Input */}
+                  <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                    <label className="text-[11px] text-slate-300 font-semibold block">
+                      Add Custom Subject (Type any custom subject name):
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Type any custom subject name (e.g. Robotics, AI Ethics, Avionics)..."
+                        value={newCustomSubjectInput}
+                        onChange={(e) => setNewCustomSubjectInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddNewSubject(newCustomSubjectInput);
+                          }
+                        }}
+                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-purple-500 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddNewSubject(newCustomSubjectInput)}
+                        disabled={!newCustomSubjectInput.trim()}
+                        className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Subject</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Select from Standard / Department Curriculum */}
+                  <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <label className="text-slate-400 font-medium">
+                        Or pick from existing curriculum subjects:
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-mono">Click to toggle</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-1">
+                      {availableCurriculumSubjects.map((subName) => {
+                        const isSelected = newSubjects.some(
+                          (s) => s.toLowerCase() === subName.toLowerCase()
+                        );
+                        return (
+                          <button
+                            key={subName}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                handleRemoveNewSubject(subName);
+                              } else {
+                                handleAddNewSubject(subName);
+                              }
+                            }}
+                            className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                              isSelected
+                                ? 'bg-purple-500 text-slate-950 font-bold shadow-sm'
+                                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-purple-500/40'
+                            }`}
+                          >
+                            {isSelected ? '✓ ' : '+ '}
+                            {subName}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -4817,24 +5052,132 @@ Portal URL: ${window.location.origin}`;
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Department</label>
-                  <input
-                    type="text"
-                    value={editDept}
-                    onChange={(e) => setEditDept(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                  />
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Department</label>
+                <input
+                  type="text"
+                  value={editDept}
+                  onChange={(e) => setEditDept(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
+                />
+              </div>
+
+              {/* MULTI-SUBJECT ASSIGNMENT & CUSTOM SUBJECT */}
+              <div className="p-3.5 bg-slate-950 border border-indigo-500/30 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Assigned Subjects ({editSubjects.length} Assigned)</span>
+                  </div>
+                  <span className="text-[10px] text-indigo-300/80 font-mono">
+                    Multiple subjects enabled
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Primary Subject</label>
-                  <input
-                    type="text"
-                    value={editSubject}
-                    onChange={(e) => setEditSubject(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                  />
+
+                {/* Active Subject Tags */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-slate-400 font-medium block">
+                    Currently Assigned Subjects (Click ✕ to remove):
+                  </label>
+                  {editSubjects.length === 0 ? (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>No subjects assigned yet. Please add at least 1 subject below.</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
+                      {editSubjects.map((s, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 group"
+                        >
+                          {idx === 0 && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-400/20 text-indigo-300 font-mono font-bold" title="Primary subject">
+                              ★ Primary
+                            </span>
+                          )}
+                          <span>{s}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEditSubject(s)}
+                            className="text-slate-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
+                            title={`Remove ${s}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Custom Subject Input */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                  <label className="text-[11px] text-slate-300 font-semibold block">
+                    Add Custom Subject (Type any custom subject name):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Type any custom subject name (e.g. Embedded IoT, Power Plant Engg)..."
+                      value={editCustomSubjectInput}
+                      onChange={(e) => setEditCustomSubjectInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddEditSubject(editCustomSubjectInput);
+                        }
+                      }}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddEditSubject(editCustomSubjectInput)}
+                      disabled={!editCustomSubjectInput.trim()}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Subject</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Select from Standard / Department Curriculum */}
+                <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <label className="text-slate-400 font-medium">
+                      Or pick from existing curriculum subjects:
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">Click to toggle</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-1">
+                    {availableCurriculumSubjects.map((subName) => {
+                      const isSelected = editSubjects.some(
+                        (s) => s.toLowerCase() === subName.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={subName}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              handleRemoveEditSubject(subName);
+                            } else {
+                              handleAddEditSubject(subName);
+                            }
+                          }}
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-indigo-500 text-slate-950 font-bold shadow-sm'
+                              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-indigo-500/40'
+                          }`}
+                        >
+                          {isSelected ? '✓ ' : '+ '}
+                          {subName}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -4907,63 +5250,123 @@ Portal URL: ${window.location.origin}`;
             </div>
 
             <form onSubmit={handleAssignTopicSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
-                    <span>Assign to Faculty Member *</span>
-                    <span className="text-[10px] text-amber-300 font-normal">Click a teacher below to select</span>
-                  </label>
-                  <select
-                    value={assignTeacherId}
-                    onChange={(e) => setAssignTeacherId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
-                    required
-                  >
-                    {!assignTeacherId && <option value="">-- Click to Choose Faculty --</option>}
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.teacherId}>
-                        {t.name} ({t.teacherId}) - {t.subject}
-                      </option>
-                    ))}
-                  </select>
+              {(() => {
+                const selectedTeacherForAssign = teachers.find(
+                  (t) => t.teacherId.toUpperCase() === (assignTeacherId || '').toUpperCase()
+                );
+                const teacherAssignedSubjects = selectedTeacherForAssign
+                  ? StorageService.getTeacherAssignedSubjects(selectedTeacherForAssign)
+                  : [];
 
-                  {/* Interactive One-Click Faculty Chips */}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {teachers.map((t) => {
-                      const isSelected = (assignTeacherId || '').toUpperCase() === t.teacherId.toUpperCase();
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => setAssignTeacherId(t.teacherId)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${isSelected ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 ring-2 ring-amber-400 font-black' : 'bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-amber-500/50'}`}
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                        <span>Assign to Faculty Member *</span>
+                        <span className="text-[10px] text-amber-300 font-normal">Click a teacher below to select</span>
+                      </label>
+                      <select
+                        value={assignTeacherId}
+                        onChange={(e) => {
+                          const newTId = e.target.value;
+                          setAssignTeacherId(newTId);
+                          const target = teachers.find((u) => u.teacherId === newTId);
+                          if (target) {
+                            const subjs = StorageService.getTeacherAssignedSubjects(target);
+                            setAssignSubject(subjs[0] || target.subject || '');
+                          }
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500"
+                        required
+                      >
+                        {!assignTeacherId && <option value="">-- Click to Choose Faculty --</option>}
+                        {teachers.map((t) => {
+                          const tSubs = StorageService.getTeacherAssignedSubjects(t);
+                          return (
+                            <option key={t.id} value={t.teacherId}>
+                              {t.name} ({t.teacherId}) - {tSubs.join(', ') || t.subject}
+                            </option>
+                          );
+                        })}
+                      </select>
+
+                      {/* Interactive One-Click Faculty Chips */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {teachers.map((t) => {
+                          const isSelected = (assignTeacherId || '').toUpperCase() === t.teacherId.toUpperCase();
+                          const tSubs = StorageService.getTeacherAssignedSubjects(t);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setAssignTeacherId(t.teacherId);
+                                setAssignSubject(tSubs[0] || t.subject || '');
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 ring-2 ring-amber-400 font-black'
+                                  : 'bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-amber-500/50'
+                              }`}
+                            >
+                              <span>👨‍🏫 {t.name}</span>
+                              <span
+                                className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${
+                                  isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {tSubs.join(', ') || t.subject || t.teacherId}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                          <span>Target Subject *</span>
+                          {teacherAssignedSubjects.length > 1 && (
+                            <span className="text-[10px] text-amber-300 font-mono font-bold">
+                              {teacherAssignedSubjects.length} subjects assigned
+                            </span>
+                          )}
+                        </label>
+                        <select
+                          value={assignSubject || teacherAssignedSubjects[0] || ''}
+                          onChange={(e) => setAssignSubject(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-medium"
+                          required
                         >
-                          <span>👨‍🏫 {t.name}</span>
-                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
-                            {t.subject || t.teacherId}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                          {teacherAssignedSubjects.length === 0 && <option value="Engineering">Engineering</option>}
+                          {teacherAssignedSubjects.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Target Unit *</label>
-                  <select
-                    value={assignUnitNumber}
-                    onChange={(e) => setAssignUnitNumber(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                  >
-                    <option value="UNIT 1">UNIT 1</option>
-                    <option value="UNIT 2">UNIT 2</option>
-                    <option value="UNIT 3">UNIT 3</option>
-                    <option value="UNIT 4">UNIT 4</option>
-                    <option value="UNIT 5">UNIT 5</option>
-                    <option value="UNIT 6">UNIT 6</option>
-                  </select>
-                </div>
-              </div>
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">Target Unit *</label>
+                        <select
+                          value={assignUnitNumber}
+                          onChange={(e) => setAssignUnitNumber(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                        >
+                          <option value="UNIT 1">UNIT 1</option>
+                          <option value="UNIT 2">UNIT 2</option>
+                          <option value="UNIT 3">UNIT 3</option>
+                          <option value="UNIT 4">UNIT 4</option>
+                          <option value="UNIT 5">UNIT 5</option>
+                          <option value="UNIT 6">UNIT 6</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -5185,7 +5588,7 @@ Portal URL: ${window.location.origin}`;
                     {!extTeacherId && <option value="">-- Choose Faculty Member --</option>}
                     {teachers.map((t) => (
                       <option key={t.id} value={t.teacherId}>
-                        {t.name} ({t.teacherId}) - {t.subject}
+                        {t.name} ({t.teacherId}) - {StorageService.getTeacherAssignedSubjects(t).join(', ') || t.subject}
                       </option>
                     ))}
                   </select>

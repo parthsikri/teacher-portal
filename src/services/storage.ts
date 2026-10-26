@@ -572,15 +572,39 @@ export const StorageService = {
         employee.role === 'sales' ? 'Admissions & Growth' :
         'Engineering'
       ),
-      subject: employee.subject?.trim() || (
-        employee.role === 'admin' ? 'Management' :
-        employee.role === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' :
-        employee.role === 'pr_intern' ? 'Corporate Sponsor Outreach' :
-        employee.role === 'web_developer' ? 'Web Development' :
-        employee.role === 'web_dev_manager' ? 'Software Architecture' :
-        employee.role === 'sales' ? 'Course Admissions' :
-        'Engineering'
-      ),
+      subject: (() => {
+        if (Array.isArray(employee.subjects) && employee.subjects.length > 0) {
+          return employee.subjects[0].trim();
+        }
+        return employee.subject?.trim() || (
+          employee.role === 'admin' ? 'Management' :
+          employee.role === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' :
+          employee.role === 'pr_intern' ? 'Corporate Sponsor Outreach' :
+          employee.role === 'web_developer' ? 'Web Development' :
+          employee.role === 'web_dev_manager' ? 'Software Architecture' :
+          employee.role === 'sales' ? 'Course Admissions' :
+          'Engineering'
+        );
+      })(),
+      subjects: (() => {
+        let raw: string[] = [];
+        if (Array.isArray(employee.subjects) && employee.subjects.length > 0) {
+          raw = employee.subjects;
+        } else if (employee.subject) {
+          raw = employee.subject.split(/[,/|;]/).map((s) => s.trim()).filter(Boolean);
+        }
+        const cleaned = Array.from(new Set(raw.map((s) => s.trim()).filter(Boolean)));
+        if (cleaned.length > 0) return cleaned;
+        return [
+          employee.role === 'admin' ? 'Management' :
+          employee.role === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' :
+          employee.role === 'pr_intern' ? 'Corporate Sponsor Outreach' :
+          employee.role === 'web_developer' ? 'Web Development' :
+          employee.role === 'web_dev_manager' ? 'Software Architecture' :
+          employee.role === 'sales' ? 'Course Admissions' :
+          'Engineering'
+        ];
+      })(),
       dailyTargetMinutes: employee.role === 'teacher' ? (employee.dailyTargetMinutes || 120) : (employee.dailyTargetMinutes || 0),
       dailyLimit: employee.role === 'teacher' ? (employee.dailyLimit || Math.ceil((employee.dailyTargetMinutes || 120) / 30)) : (employee.dailyLimit || 0),
       joiningDate: employee.joiningDate || todayStr,
@@ -652,6 +676,19 @@ export const StorageService = {
 
     const filtered = users.filter((u) => u.teacherId.toUpperCase() !== cleanTeacherId);
 
+    // Normalize subjects array & primary subject
+    let rawSubjects: string[] = [];
+    if (Array.isArray(newTeacher.subjects) && newTeacher.subjects.length > 0) {
+      rawSubjects = newTeacher.subjects;
+    } else if (newTeacher.subject) {
+      rawSubjects = newTeacher.subject.split(/[,/|;]/).map((s) => s.trim()).filter(Boolean);
+    }
+    const cleanSubjects = Array.from(new Set(rawSubjects.map((s) => s.trim()).filter(Boolean)));
+    const primarySubject = cleanSubjects[0] || (newTeacher.subject ? newTeacher.subject.trim() : 'Engineering');
+    if (cleanSubjects.length === 0) {
+      cleanSubjects.push(primarySubject);
+    }
+
     const created: User = {
       ...newTeacher,
       id: `u-${Date.now()}`,
@@ -661,7 +698,8 @@ export const StorageService = {
       name: newTeacher.name.trim(),
       email: newTeacher.email.trim() || `${cleanTeacherId.toLowerCase()}@aew.com`,
       department: newTeacher.department.trim() || 'Engineering',
-      subject: newTeacher.subject.trim() || 'Engineering',
+      subject: primarySubject,
+      subjects: cleanSubjects,
       dailyTargetMinutes: newTeacher.dailyTargetMinutes || 120,
       dailyLimit: newTeacher.dailyLimit || Math.ceil((newTeacher.dailyTargetMinutes || 120) / 30),
       joiningDate: newTeacher.joiningDate || todayStr,
@@ -722,12 +760,30 @@ export const StorageService = {
     const index = users.findIndex((u) => u.id === userId || u.teacherId.toUpperCase() === cleanLookup);
     if (index === -1) return null;
 
+    let updatedSubjects = updates.subjects !== undefined ? updates.subjects : users[index].subjects;
+    let updatedSubject = updates.subject !== undefined ? updates.subject.trim() : users[index].subject;
+
+    if (updates.subjects !== undefined && Array.isArray(updates.subjects)) {
+      const cleanList = Array.from(new Set(updates.subjects.map((s) => s.trim()).filter(Boolean)));
+      updatedSubjects = cleanList;
+      if (!updates.subject && cleanList.length > 0) {
+        updatedSubject = cleanList[0];
+      }
+    } else if (updates.subject !== undefined && !updates.subjects) {
+      const parts = updates.subject.split(/[,/|;]/).map((s) => s.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        updatedSubjects = Array.from(new Set(parts));
+      }
+    }
+
     const updatedUser: User = {
       ...users[index],
       ...updates,
       teacherId: updates.teacherId ? updates.teacherId.trim().toUpperCase() : users[index].teacherId,
       username: updates.username ? updates.username.trim().toLowerCase().replace(/\s+/g, '_') : users[index].username,
       password: updates.password ? updates.password.trim() : users[index].password,
+      subject: updatedSubject,
+      subjects: updatedSubjects,
       dailyTargetMinutes: updates.dailyTargetMinutes !== undefined ? updates.dailyTargetMinutes : users[index].dailyTargetMinutes,
       joiningDate: updates.joiningDate !== undefined ? updates.joiningDate : users[index].joiningDate,
       firstLoginDate: updates.firstLoginDate !== undefined ? updates.firstLoginDate : users[index].firstLoginDate,

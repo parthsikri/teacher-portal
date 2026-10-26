@@ -23,6 +23,9 @@ import {
   Send,
   Loader2,
   Crown,
+  Plus,
+  BookOpen,
+  AlertTriangle,
 } from 'lucide-react';
 import type { User, UserRole, PrTier, AdminRoleTier, AdminPermissionKey } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -137,7 +140,26 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('');
   const [subject, setSubject] = useState('');
+  const [teacherSubjects, setTeacherSubjects] = useState<string[]>(['Engineering Mathematics']);
+  const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [joiningDate, setJoiningDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const handleAddTeacherSubject = (subjToAdd: string) => {
+    const clean = subjToAdd.trim();
+    if (!clean) return;
+    if (!teacherSubjects.some((s) => s.toLowerCase() === clean.toLowerCase())) {
+      const updated = [...teacherSubjects, clean];
+      setTeacherSubjects(updated);
+      setSubject(updated[0]);
+    }
+    setCustomSubjectInput('');
+  };
+
+  const handleRemoveTeacherSubject = (subjToRemove: string) => {
+    const updated = teacherSubjects.filter((s) => s.toLowerCase() !== subjToRemove.toLowerCase());
+    setTeacherSubjects(updated);
+    setSubject(updated[0] || '');
+  };
 
   // Teacher specific
   const [dailyTargetMinutes, setDailyTargetMinutes] = useState(120);
@@ -199,7 +221,17 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
     if (initialData?.email) setEmail(initialData.email);
     if (initialData?.phone) setPhone(initialData.phone);
     if (initialData?.department) setDepartment(initialData.department);
-    if (initialData?.subject) setSubject(initialData.subject);
+    if (initialData?.subjects && Array.isArray(initialData.subjects) && initialData.subjects.length > 0) {
+      setTeacherSubjects(initialData.subjects);
+      setSubject(initialData.subjects[0]);
+    } else if (initialData?.subject) {
+      const parts = initialData.subject.split(/[,/|;]/).map((s) => s.trim()).filter(Boolean);
+      setTeacherSubjects(parts.length > 0 ? parts : [initialData.subject]);
+      setSubject(initialData.subject);
+    } else if (roleToUse === 'teacher') {
+      setTeacherSubjects(['Engineering Mathematics']);
+      setSubject('Engineering Mathematics');
+    }
     if (initialData?.joiningDate) setJoiningDate(initialData.joiningDate);
     if (initialData?.username) setUsername(initialData.username);
 
@@ -353,7 +385,8 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
       phone: phone.trim() || undefined,
       role: selectedRole,
       department: department.trim(),
-      subject: subject.trim(),
+      subject: selectedRole === 'teacher' ? (teacherSubjects[0] || subject.trim() || 'Engineering') : subject.trim(),
+      subjects: selectedRole === 'teacher' ? (teacherSubjects.length > 0 ? teacherSubjects : [subject.trim() || 'Engineering']) : undefined,
       joiningDate: joiningDate || new Date().toISOString().split('T')[0],
       dailyTargetMinutes: selectedRole === 'teacher' ? dailyTargetMinutes : 0,
       maxDailyMinutes: selectedRole === 'teacher' ? maxDailyMinutes : 0,
@@ -821,42 +854,163 @@ Portal URL: ${window.location.origin}`;
                 </div>
 
                 {/* General Department & Subject */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Department</label>
-                    <input
-                      type="text"
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
+                {selectedRole === 'teacher' ? (
+                  <div className="space-y-3.5">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-400">Department</label>
+                      <input
+                        type="text"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                        placeholder="e.g. Computer Science & Engineering"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">
-                      {selectedRole === 'teacher' ? 'Primary Subject / Specialization' : 'Focus Area / Subject'}
-                    </label>
-                    {selectedRole === 'teacher' ? (
-                      <select
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
-                      >
-                        {AVAILABLE_SME_SUBJECTS.map((s) => (
-                          <option key={s.id} value={s.name}>{s.name}</option>
-                        ))}
-                        <option value="General Engineering">General Engineering</option>
-                      </select>
-                    ) : (
+                    {/* MULTI-SUBJECT ASSIGNMENT & CUSTOM SUBJECT */}
+                    <div className="p-3.5 bg-slate-900/90 border border-purple-500/30 rounded-2xl space-y-3 shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-purple-300 text-xs flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                          <span>Assigned Subjects ({teacherSubjects.length} Assigned)</span>
+                        </div>
+                        <span className="text-[10px] text-purple-300/80 font-mono">
+                          Multiple subjects enabled
+                        </span>
+                      </div>
+
+                      {/* Active Badges */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] text-slate-400 font-medium block">
+                          Current Assigned Subjects (Click ✕ to remove):
+                        </label>
+                        {teacherSubjects.length === 0 ? (
+                          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                            <span>No subject assigned yet. Please add at least 1 subject below.</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1.5 bg-slate-950/70 rounded-xl border border-slate-800/80">
+                            {teacherSubjects.map((s, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-200 group"
+                              >
+                                {idx === 0 && (
+                                  <span className="text-[9px] px-1 py-0.2 rounded bg-purple-400/20 text-purple-300 font-mono font-bold" title="Primary subject">
+                                    ★ Primary
+                                  </span>
+                                )}
+                                <span>{s}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveTeacherSubject(s)}
+                                  className="text-slate-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
+                                  title={`Remove ${s}`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add Custom Subject Input */}
+                      <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                        <label className="text-[11px] text-slate-300 font-semibold block">
+                          Add Custom Subject (Type any custom subject name):
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Type any custom subject (e.g. Advanced Robotics, AI Ethics, Avionics)..."
+                            value={customSubjectInput}
+                            onChange={(e) => setCustomSubjectInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddTeacherSubject(customSubjectInput);
+                              }
+                            }}
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-purple-500 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddTeacherSubject(customSubjectInput)}
+                            disabled={!customSubjectInput.trim()}
+                            className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add Subject</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick-add Standard Curriculum Subject Chips */}
+                      <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <label className="text-slate-400 font-medium">
+                            Or pick from curriculum subjects:
+                          </label>
+                          <span className="text-[10px] text-slate-500 font-mono">Click to toggle</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto pt-1">
+                          {AVAILABLE_SME_SUBJECTS.map((s) => {
+                            const isSelected = teacherSubjects.some(
+                              (ts) => ts.toLowerCase() === s.name.toLowerCase()
+                            );
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    handleRemoveTeacherSubject(s.name);
+                                  } else {
+                                    handleAddTeacherSubject(s.name);
+                                  }
+                                }}
+                                className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                                  isSelected
+                                    ? 'bg-purple-500 text-slate-950 font-bold shadow-sm'
+                                    : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-purple-500/40'
+                                }`}
+                              >
+                                {isSelected ? '✓ ' : '+ '}
+                                {s.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-400">Department</label>
+                      <input
+                        type="text"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-400">
+                        Focus Area / Subject
+                      </label>
                       <input
                         type="text"
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
                       />
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* TEACHER SPECIFIC */}
                 {selectedRole === 'teacher' && (
