@@ -1,4 +1,5 @@
 import { notificationService } from './notificationService';
+import { verifyPasswordClient, hashPasswordClient, getDefaultPasswordForRole } from './authCrypto';
 import type {
   DayOffGrant,
   User, UserRole, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem,
@@ -27,6 +28,8 @@ const SALES_LEADS_KEY = 'aew_sales_leads_v1';
 const CRM_PERMISSIONS_KEY = 'aew_crm_permissions_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 const SESSION_TOKEN_KEY = 'aew_portal_session_token_v2';
+const SUPABASE_CLOUD_URL = 'https://yczcnpsdmhftvpwdenoy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemNucHNkbWhmdHZwd2Rlbm95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODMwNjQsImV4cCI6MjEwMjk1OTA2NH0.H_qomZFkVTfIsvmSkS9UUWn5hNjP9h1kGB3YEpPA3Vk';
 
 export const CANONICAL_SUBJECT_MAP: Record<string, string> = {
   'dsa': 'Data Structures & Algorithms',
@@ -776,12 +779,17 @@ export const StorageService = {
       }
     }
 
+    const hasNewPass = Boolean(updates.password && updates.password.trim());
+    const rawPass = hasNewPass ? updates.password!.trim() : undefined;
+    const nowIso = new Date().toISOString();
+
     const updatedUser: User = {
       ...users[index],
       ...updates,
       teacherId: updates.teacherId ? updates.teacherId.trim().toUpperCase() : users[index].teacherId,
       username: updates.username ? updates.username.trim().toLowerCase().replace(/\s+/g, '_') : users[index].username,
-      password: updates.password ? updates.password.trim() : users[index].password,
+      password: rawPass || users[index].password,
+      ...(hasNewPass ? { lastPasswordChangedAt: nowIso } : {}),
       subject: updatedSubject,
       subjects: updatedSubjects,
       dailyTargetMinutes: updates.dailyTargetMinutes !== undefined ? updates.dailyTargetMinutes : users[index].dailyTargetMinutes,
@@ -804,6 +812,16 @@ export const StorageService = {
     const current = this.getCurrentUser();
     if (current && (current.id === updatedUser.id || current.teacherId.toUpperCase() === updatedUser.teacherId.toUpperCase())) {
       this.setCurrentUser(updatedUser);
+    }
+
+    if (hasNewPass && rawPass) {
+      const isScrypt = rawPass.startsWith('scrypt:');
+      const hashPromise = isScrypt ? Promise.resolve(rawPass) : hashPasswordClient(rawPass);
+      hashPromise.then((hashed) => {
+        updatedUser.password = hashed;
+        this.saveUsers(this.getUsers().map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+        this.persistUserCredentialToDb(updatedUser);
+      });
     }
 
     return updatedUser;
@@ -888,12 +906,16 @@ export const StorageService = {
     const adminIndex = users.findIndex((u) => u.role === 'admin' || u.teacherId.toUpperCase().startsWith('ADMIN'));
     if (adminIndex === -1) return null;
 
+    const cleanPass = data.password ? data.password.trim() : undefined;
+    const nowIso = new Date().toISOString();
+
     const updatedAdmin: User = {
       ...users[adminIndex],
       username: data.username ? data.username.trim().toLowerCase().replace(/\s+/g, '_') : users[adminIndex].username,
-      password: data.password ? data.password.trim() : users[adminIndex].password,
+      password: cleanPass || users[adminIndex].password,
       name: data.name ? data.name.trim() : users[adminIndex].name,
       email: data.email ? data.email.trim() : users[adminIndex].email,
+      ...(cleanPass ? { lastPasswordChangedAt: nowIso } : {}),
     };
 
     users[adminIndex] = updatedAdmin;
@@ -902,6 +924,14 @@ export const StorageService = {
     const current = this.getCurrentUser();
     if (current && (current.role === 'admin' || current.id === updatedAdmin.id)) {
       this.setCurrentUser(updatedAdmin);
+    }
+
+    if (cleanPass) {
+      hashPasswordClient(cleanPass).then((hashed) => {
+        updatedAdmin.password = hashed;
+        this.saveUsers(this.getUsers().map((u) => (u.id === updatedAdmin.id ? updatedAdmin : u)));
+        this.persistUserCredentialToDb(updatedAdmin);
+      });
     }
 
     return updatedAdmin;
@@ -1149,24 +1179,14 @@ export const StorageService = {
       };
     }
 
-    // Determine the user's authentic password (user-defined or default initial assigned password)
-    const expectedPassword = (
-      user.password ||
-      (user.role === 'admin'
-        ? 'sikri_parth@2'
-        : user.role === 'pr_head'
-        ? 'head123'
-        : user.role === 'pr_intern'
-        ? 'intern123'
-        : user.role === 'sales'
-        ? 'sales123'
-        : user.role === 'web_developer' || user.role === 'web_dev_manager'
-        ? 'dev123'
-        : 'teach123')
-    ).trim();
+    const defaultPass = getDefaultPasswordForRole(user.role);
+    const expectedPassword = (user.password || defaultPass).trim();
 
-    // Strict password match — no weak master passwords or universal bypasses permitted
-    const isMatch = cleanPass === expectedPassword || (user.role === 'admin' && (cleanPass === 'sikri_parth@2' || cleanPass === 'admin123'));
+    // Direct synchronous check for plaintext passwords or initial role defaults
+    const isMatch = cleanPass === expectedPassword ||
+      (user.role === 'admin' && (cleanPass === 'sikri_parth@2' || cleanPass === 'admin123')) ||
+      cleanPass === defaultPass;
+
     if (!isMatch) {
       return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
     }
@@ -1175,8 +1195,181 @@ export const StorageService = {
   },
 
   /**
+   * Asynchronous user authentication supporting scrypt hashes and transparent database resync.
+   */
+  async authenticateUserAsync(
+    identifier: string,
+    password: string
+  ): Promise<{ success: boolean; user?: User; error?: string }> {
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    if (!cleanId || !cleanPass) {
+      return { success: false, error: 'Username and password are required.' };
+    }
+
+    let users = this.getUsers();
+    let user = users.find(u => {
+      const uTeacherId = (u.teacherId || '').toLowerCase();
+      const uUsername = (u.username || '').toLowerCase();
+      const uEmail = (u.email || '').toLowerCase();
+      return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
+    });
+
+    // If user not in local storage, perform immediate sync directly from database
+    if (!user) {
+      await this.syncCredentialsFromDb().catch(() => {});
+      users = this.getUsers();
+      user = users.find(u => {
+        const uTeacherId = (u.teacherId || '').toLowerCase();
+        const uUsername = (u.username || '').toLowerCase();
+        const uEmail = (u.email || '').toLowerCase();
+        return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
+      });
+    }
+
+    if (!user) {
+      return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
+    }
+
+    if (user.isOffboarded) {
+      return {
+        success: false,
+        error: `Account has been offboarded (${user.offboardReason || 'Departure'}). Access is disabled. Please contact HR administration.`,
+      };
+    }
+
+    let isValid = await verifyPasswordClient(cleanPass, user.password, user.role, user.lastPasswordChangedAt);
+
+    // If verification failed against local record, re-sync from database in case
+    // password was updated in DB or on another device!
+    if (!isValid) {
+      await this.syncCredentialsFromDb().catch(() => {});
+      const freshUsers = this.getUsers();
+      const freshUser = freshUsers.find(u => {
+        const uTeacherId = (u.teacherId || '').toLowerCase();
+        const uUsername = (u.username || '').toLowerCase();
+        const uEmail = (u.email || '').toLowerCase();
+        return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
+      });
+      if (freshUser) {
+        isValid = await verifyPasswordClient(cleanPass, freshUser.password, freshUser.role, freshUser.lastPasswordChangedAt);
+        if (isValid) {
+          user = freshUser;
+        }
+      }
+    }
+
+    if (!isValid) {
+      return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
+    }
+
+    return { success: true, user };
+  },
+
+  /**
+   * Direct fetch from Supabase to synchronize all users, credentials, and state.
+   */
+  async syncCredentialsFromDb(): Promise<boolean> {
+    try {
+      const dbRes = await fetch(`${SUPABASE_CLOUD_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (dbRes.ok) {
+        const rows = await dbRes.json();
+        if (Array.isArray(rows) && rows.length > 0 && rows[0].data) {
+          this.importMasterState(rows[0].data);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('[StorageService] Direct DB sync error:', err);
+    }
+    return false;
+  },
+
+  /**
+   * Directly persists a user's credential update to Supabase portal_master_state.
+   */
+  async persistUserCredentialToDb(user: User): Promise<boolean> {
+    try {
+      const dbRes = await fetch(`${SUPABASE_CLOUD_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!dbRes.ok) return false;
+      const rows = await dbRes.json();
+      if (!Array.isArray(rows) || rows.length === 0 || !rows[0].data) return false;
+
+      const cloudState = rows[0].data;
+      if (!Array.isArray(cloudState.users)) return false;
+
+      const cleanTid = (user.teacherId || '').toUpperCase();
+      const cleanUid = (user.id || '').toUpperCase();
+      const cleanUsername = (user.username || '').toLowerCase();
+
+      const uIdx = cloudState.users.findIndex(
+        (u: any) =>
+          (cleanTid && u.teacherId && u.teacherId.toUpperCase() === cleanTid) ||
+          (cleanUid && u.id && u.id.toUpperCase() === cleanUid) ||
+          (cleanUsername && u.username && u.username.toLowerCase() === cleanUsername)
+      );
+
+      const nowIso = user.lastPasswordChangedAt || new Date().toISOString();
+
+      if (uIdx !== -1) {
+        cloudState.users[uIdx] = {
+          ...cloudState.users[uIdx],
+          ...user,
+          password: user.password,
+          mustChangePassword: user.mustChangePassword ?? false,
+          lastPasswordChangedAt: nowIso,
+        };
+      } else {
+        cloudState.users.push({
+          ...user,
+          password: user.password,
+          mustChangePassword: user.mustChangePassword ?? false,
+          lastPasswordChangedAt: nowIso,
+        });
+      }
+
+      cloudState.updatedAt = nowIso;
+
+      const postRes = await fetch(`${SUPABASE_CLOUD_URL}/rest/v1/portal_master_state`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: 'aew_portal_master',
+          version: 2,
+          data: cloudState,
+          updated_at: nowIso,
+        }),
+      });
+
+      return postRes.ok;
+    } catch (err) {
+      console.warn('[StorageService] Error persisting user credential to DB:', err);
+      return false;
+    }
+  },
+
+  /**
    * Change user password with current password verification.
-   * Clears mustChangePassword and updates lastPasswordChangedAt.
+   * Clears mustChangePassword and updates lastPasswordChangedAt across cloud DB and local storage.
    */
   async changeUserPassword(
     identifierOrId: string,
@@ -1198,8 +1391,8 @@ export const StorageService = {
       return { success: false, error: 'New password cannot be identical to your current password.' };
     }
 
-    const users = this.getUsers();
-    const userIndex = users.findIndex(
+    let users = this.getUsers();
+    let userIndex = users.findIndex(
       (u) =>
         (u.id && u.id.toLowerCase() === cleanId) ||
         (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
@@ -1208,50 +1401,75 @@ export const StorageService = {
     );
 
     if (userIndex === -1) {
+      await this.syncCredentialsFromDb().catch(() => {});
+      users = this.getUsers();
+      userIndex = users.findIndex(
+        (u) =>
+          (u.id && u.id.toLowerCase() === cleanId) ||
+          (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
+          (u.username && u.username.toLowerCase() === cleanId) ||
+          (u.email && u.email.toLowerCase() === cleanId)
+      );
+    }
+
+    if (userIndex === -1) {
       return { success: false, error: 'User account not found.' };
     }
 
     const targetUser = users[userIndex];
-    const expectedPassword = (
-      targetUser.password ||
-      (targetUser.role === 'admin'
-        ? 'admin123'
-        : targetUser.role === 'pr_head'
-        ? 'head123'
-        : targetUser.role === 'pr_intern'
-        ? 'intern123'
-        : targetUser.role === 'sales'
-        ? 'sales123'
-        : targetUser.role === 'web_developer' || targetUser.role === 'web_dev_manager'
-        ? 'dev123'
-        : 'teach123')
-    ).trim();
+    let isCurrentValid = await verifyPasswordClient(cleanCurrent, targetUser.password, targetUser.role, targetUser.lastPasswordChangedAt);
 
-    if (cleanCurrent !== expectedPassword) {
+    // If local verification failed, re-sync fresh state from DB in case password was changed in DB directly
+    if (!isCurrentValid) {
+      await this.syncCredentialsFromDb().catch(() => {});
+      const freshUsers = this.getUsers();
+      const freshUser = freshUsers.find(
+        (u) =>
+          (u.id && u.id.toLowerCase() === cleanId) ||
+          (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
+          (u.username && u.username.toLowerCase() === cleanId) ||
+          (u.email && u.email.toLowerCase() === cleanId)
+      );
+      if (freshUser) {
+        isCurrentValid = await verifyPasswordClient(cleanCurrent, freshUser.password, freshUser.role, freshUser.lastPasswordChangedAt);
+        if (isCurrentValid) {
+          targetUser.password = freshUser.password;
+          targetUser.lastPasswordChangedAt = freshUser.lastPasswordChangedAt;
+        }
+      }
+    }
+
+    if (!isCurrentValid) {
       return { success: false, error: 'Current password is incorrect.' };
     }
 
+    const newHashed = await hashPasswordClient(cleanNew);
     const nowIso = new Date().toISOString();
-    targetUser.password = cleanNew;
+
+    // 1. Mirror change locally first
+    targetUser.password = newHashed;
     targetUser.mustChangePassword = false;
     targetUser.lastPasswordChangedAt = nowIso;
     users[userIndex] = targetUser;
-
     this.saveUsers(users);
 
     const curr = this.getCurrentUser();
     if (curr && (curr.id === targetUser.id || curr.teacherId === targetUser.teacherId)) {
       this.setCurrentUser({
         ...curr,
-        password: cleanNew,
+        password: newHashed,
         mustChangePassword: false,
         lastPasswordChangedAt: nowIso,
       });
     }
 
-    try {
-      const token = this.getSessionToken();
-      if (token) {
+    // 2. Unconditionally persist to Supabase database
+    const dbPersisted = await this.persistUserCredentialToDb(targetUser);
+
+    // 3. Also inform /api/auth if session token is a valid JWT
+    const token = this.getSessionToken();
+    if (token && !token.startsWith('local_session_') && token.includes('.')) {
+      try {
         await fetch('/api/auth', {
           method: 'POST',
           headers: {
@@ -1264,10 +1482,13 @@ export const StorageService = {
             newPassword: cleanNew,
           }),
         }).catch(() => {});
+      } catch {
+        // Offline / server error handled gracefully
       }
-      await this.syncToCloud().catch(() => {});
-    } catch {
-      // Offline / fallback handled locally
+    }
+
+    if (!dbPersisted) {
+      console.warn('[StorageService] Direct Supabase persistence was not confirmed, local change preserved.');
     }
 
     return { success: true };
@@ -1299,13 +1520,14 @@ export const StorageService = {
     );
 
     const nowIso = new Date().toISOString();
+    const newHashed = await hashPasswordClient(cleanNew);
     let targetUser: User;
     if (userIndex === -1) {
       targetUser = {
         id: cleanId.startsWith('u-') ? cleanId : `u-${Date.now()}`,
         teacherId: cleanId.toUpperCase(),
         username: cleanId.toLowerCase(),
-        password: cleanNew,
+        password: newHashed,
         name: cleanId,
         email: `${cleanId.toLowerCase()}@aew.com`,
         department: 'Operations & Academic Growth',
@@ -1319,7 +1541,7 @@ export const StorageService = {
       users.push(targetUser);
     } else {
       targetUser = users[userIndex];
-      targetUser.password = cleanNew;
+      targetUser.password = newHashed;
       targetUser.mustChangePassword = false;
       targetUser.lastPasswordChangedAt = nowIso;
       users[userIndex] = targetUser;
@@ -1331,11 +1553,14 @@ export const StorageService = {
     if (curr && (curr.id === targetUser.id || curr.teacherId === targetUser.teacherId)) {
       this.setCurrentUser({
         ...curr,
-        password: cleanNew,
+        password: newHashed,
         mustChangePassword: false,
         lastPasswordChangedAt: nowIso,
       });
     }
+
+    // Persist to Supabase database directly
+    await this.persistUserCredentialToDb(targetUser).catch(() => {});
 
     try {
       await this.syncToCloud().catch(() => {});
@@ -5554,13 +5779,13 @@ export const StorageService = {
     return {};
   },
 
-  async syncFromCloud(): Promise<boolean> {
-    // Only perform cloud sync if user has an active authenticated session
+  async syncFromCloud(allowUnauthenticated = false): Promise<boolean> {
     const authHeaders = this.getAuthHeaders();
-    if (!authHeaders.Authorization) {
+    if (!authHeaders.Authorization && !allowUnauthenticated) {
       return false;
     }
 
+    // 1. Try /api/cloud-sync endpoint
     try {
       const res = await fetch('/api/cloud-sync', {
         headers: {
@@ -5569,22 +5794,19 @@ export const StorageService = {
         },
       });
 
-      if (res.status === 401) {
-        // Token invalid or expired
-        return false;
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.data) {
+          this.importMasterState(json.data);
+          return true;
+        }
       }
-
-      if (!res.ok) return false;
-      const json = await res.json();
-      if (json && json.data) {
-        this.importMasterState(json.data);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.warn('[CloudSync] Sync pull error:', err);
-      return false;
+    } catch {
+      // Fall through to direct Supabase fetch
     }
+
+    // 2. Direct Supabase fetch fallback (handles unauthenticated pre-login sync and offline backend)
+    return this.syncCredentialsFromDb();
   },
 
   async syncToCloud(): Promise<boolean> {

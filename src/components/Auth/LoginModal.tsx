@@ -88,10 +88,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     return () => clearInterval(interval);
   }, [lockoutUntil]);
 
-  // Sync latest cloud credentials on modal load
+  // Sync latest cloud credentials on modal load directly from Supabase database
   useEffect(() => {
     setIsSyncing(true);
-    StorageService.syncFromCloud()
+    StorageService.syncCredentialsFromDb()
+      .then(() => StorageService.syncFromCloud(true))
       .catch(() => {})
       .finally(() => setIsSyncing(false));
   }, []);
@@ -147,7 +148,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
     // 2. Resilient local fallback if server failed or returned error
     if (!authenticatedUser) {
-      const localResult = StorageService.authenticateUser(rawQuery, inputPass);
+      const localResult = await StorageService.authenticateUserAsync(rawQuery, inputPass);
       if (localResult.success && localResult.user) {
         authenticatedUser = localResult.user;
         sessionToken = `local_session_${Date.now()}_${authenticatedUser.id}`;
@@ -202,6 +203,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const finalizeLogin = async (user: User, token: string | null) => {
     StorageService.setSessionToken(token || `session_${Date.now()}_${user.id}`);
     StorageService.setCurrentUser(user);
+
+    // Keep local roster synchronized with the authenticated user
+    const users = StorageService.getUsers();
+    const idx = users.findIndex(
+      (u) =>
+        (u.id && user.id && u.id.toLowerCase() === user.id.toLowerCase()) ||
+        (u.teacherId && user.teacherId && u.teacherId.toUpperCase() === user.teacherId.toUpperCase()) ||
+        (u.username && user.username && u.username.toLowerCase() === user.username.toLowerCase())
+    );
+    if (idx !== -1) {
+      users[idx] = { ...users[idx], ...user };
+      StorageService.saveUsers(users);
+    }
 
     try {
       await StorageService.syncFromCloud();

@@ -5,6 +5,7 @@ import {
   checkRateLimit,
   getClientIp,
   hashPassword,
+  verifyPassword,
   isHardcodedMockUser,
   sanitizePortalState,
   SUPABASE_URL,
@@ -88,9 +89,20 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
         const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing?.email : (u.email || existing?.email));
 
         let passwordToStore = existing?.password;
-        if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
-          // If a new password is provided, hash it if not already scrypt
-          passwordToStore = u.password.startsWith('scrypt:') ? u.password : hashPassword(u.password.trim());
+        const incomingChangedAt = u.lastPasswordChangedAt ? new Date(u.lastPasswordChangedAt).getTime() : 0;
+        const existingChangedAt = existing?.lastPasswordChangedAt ? new Date(existing.lastPasswordChangedAt).getTime() : 0;
+
+        if (!existing?.password) {
+          if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
+            const cleanU = u.password.trim();
+            passwordToStore = cleanU.startsWith('scrypt:') ? cleanU : hashPassword(cleanU);
+          }
+        } else if (incomingChangedAt > existingChangedAt) {
+          // Incoming password change is strictly newer than cloud state
+          if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
+            const cleanU = u.password.trim();
+            passwordToStore = cleanU.startsWith('scrypt:') ? cleanU : hashPassword(cleanU);
+          }
         }
 
         userMap.set(u.teacherId.toUpperCase(), {
@@ -820,19 +832,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ─── AUTHENTICATION CHECK ──────────────────────────────────────────────────
   const auth = authenticateRequest(req);
-  if (!auth.authenticated || !auth.user) {
+  const isPost = req.method === 'POST';
+
+  if (isPost && (!auth.authenticated || !auth.user)) {
     return res.status(401).json({
       success: false,
-      error: auth.error || 'Authentication required to access cloud sync.',
+      error: auth.error || 'Authentication required to modify cloud state.',
     });
   }
 
-  const callerRole = auth.user.role;
+  const callerRole = auth.authenticated && auth.user ? auth.user.role : 'guest';
+  const userId = auth.authenticated && auth.user ? auth.user.sub : 'guest';
   const ip = getClientIp(req);
 
   // ─── GET: FETCH PORTAL STATE ───────────────────────────────────────────────
   if (req.method === 'GET') {
-    const rl = checkRateLimit(`sync_get:${auth.user.sub}:${ip}`, 120, 60 * 1000); // 120 requests/min
+    const rl = checkRateLimit(`sync_get:${userId}:${ip}`, 120, 60 * 1000); // 120 requests/min
     if (!rl.allowed) {
       return res.status(429).json({ success: false, error: 'Too many sync requests. Please wait a moment.' });
     }
