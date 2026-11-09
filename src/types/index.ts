@@ -1,4 +1,6 @@
-export type UserRole = 'teacher' | 'admin' | 'pr_intern' | 'pr_head' | 'web_dev_manager' | 'web_developer' | 'sales';
+export type UserRole = 'teacher' | 'admin' | 'pr_intern' | 'pr_head' | 'web_dev_manager' | 'web_developer' | 'sales' | 'hr';
+
+export type HrTeamCategory = 'teacher' | 'pr' | 'sales' | 'web_dev';
 
 export type PrTier = 'Silver' | 'Gold' | 'Premium';
 
@@ -11,6 +13,7 @@ export type AdminPermissionKey =
   | 'manage_pr'
   | 'manage_webdev'
   | 'manage_sales'
+  | 'manage_hr'
   | 'manage_credentials'
   | 'manage_leaves';
 
@@ -78,6 +81,11 @@ export interface User {
   // Faculty Portal Metrics Cycle Refresh
   portalRefreshedAt?: string;    // ISO timestamp of latest portal metrics refresh (clean slate origin)
   portalRefreshHistory?: PortalRefreshRecord[]; // Audit trail of all cycle refreshes
+  // HR Management & Team Allocation (Admin-Controlled)
+  hrTitle?: string;              // Designation for HR (e.g. "HR Operations Manager", "Talent & Performance Lead")
+  hrAssignedTeams?: HrTeamCategory[]; // Teams allotted by Admin to this HR ('teacher' | 'pr' | 'sales' | 'web_dev')
+  hrAssignedMemberIds?: string[]; // Specific employee teacherIds allotted by Admin to this HR
+  hrPoints?: number;             // Total HR points earned by an employee across HR tasks & spot awards
 }
 
 export interface PortalRefreshRecord {
@@ -1115,4 +1123,50 @@ export interface SalesLead {
   nextFollowUpTime?: string;      // e.g. "14:00"
   activityLogs: SalesActivityLog[];
 }
+
+// ─── HR TASK ALLOCATION, SUBMISSIONS & POINTS MANAGEMENT ────────────────────
+export type HrTaskStatus = 'pending' | 'submitted' | 'approved' | 'revision_requested';
+
+export type HrTaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface HrTask {
+  id: string;
+  title: string;
+  description: string;
+  teamCategory: HrTeamCategory;
+  assignedToId: string;           // Employee teacherId (e.g. "AEW-T-101", "AEW-PR-01")
+  assignedToName: string;
+  assignedToRole: UserRole;
+  assignedByHrId: string;         // HR or Admin teacherId who allotted the task
+  assignedByHrName: string;
+  priority: HrTaskPriority;
+  deadlineDate: string;           // YYYY-MM-DD
+  maxPoints: number;              // Base / maximum points for completing the task
+  awardedPoints?: number;         // Points awarded by HR upon approval
+  status: HrTaskStatus;
+  submissionUrl?: string;         // Proof link / Google Drive / GitHub / Document URL submitted by employee
+  submissionNotes?: string;       // Employee notes / summary of work done
+  submittedAt?: string;           // ISO timestamp when employee submitted
+  hrFeedback?: string;            // HR review remarks or revision instructions
+  reviewedByHrId?: string;
+  reviewedByHrName?: string;
+  reviewedAt?: string;            // ISO timestamp when HR reviewed
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HrPointLog {
+  id: string;
+  employeeId: string;             // Employee teacherId
+  employeeName: string;
+  employeeRole: UserRole;
+  teamCategory: HrTeamCategory;
+  points: number;                 // Positive (or adjustment) points awarded
+  reason: string;                 // Task title or bonus recognition reason
+  taskId?: string;                // Optional linked HrTask ID
+  awardedByHrId: string;
+  awardedByHrName: string;
+  createdAt: string;
+}
+
 

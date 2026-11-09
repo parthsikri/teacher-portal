@@ -96,6 +96,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? 'dev123'
         : matchedUser.role === 'sales'
         ? 'sales123'
+        : matchedUser.role === 'hr'
+        ? 'hr123'
         : 'teach123')
     ).trim();
 

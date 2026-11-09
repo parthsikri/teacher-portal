@@ -4,7 +4,8 @@ import type {
   DayOffGrant,
   User, UserRole, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem,
   PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage, PrMouStatus,
-  SalesLead, SalesActivityLog, CustomFeatureKey, PortalRefreshRecord } from '../types';
+  SalesLead, SalesActivityLog, CustomFeatureKey, PortalRefreshRecord,
+  HrTeamCategory, HrTask, HrTaskPriority, HrPointLog } from '../types';
 
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -26,6 +27,8 @@ const PR_MOUS_KEY = 'aew_pr_mous_prod_v1';
 const PR_COLLEGES_KEY = 'aew_pr_colleges_prod_v1';
 const SALES_LEADS_KEY = 'aew_sales_leads_v1';
 const CRM_PERMISSIONS_KEY = 'aew_crm_permissions_v1';
+const HR_TASKS_KEY = 'aew_hr_tasks_prod_v1';
+const HR_POINT_LOGS_KEY = 'aew_hr_point_logs_prod_v1';
 const PDF_STORE_PREFIX = 'aew_pdf_';
 const SESSION_TOKEN_KEY = 'aew_portal_session_token_v2';
 const SUPABASE_CLOUD_URL = 'https://yczcnpsdmhftvpwdenoy.supabase.co';
@@ -353,14 +356,14 @@ export const StorageService = {
                 username: (u.username || existing.username || cleanId.toLowerCase()).trim().toLowerCase().replace(/\s+/g, '_'),
                 password: (u.password || existing.password || '').trim() || undefined,
                 name: (u.name || existing.name || cleanId).trim(),
-                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : cleanId.startsWith('AEW-PRH') ? 'pr_head' : cleanId.startsWith('AEW-PR') ? 'pr_intern' : cleanId.startsWith('AEW-WDM') ? 'web_dev_manager' : cleanId.startsWith('AEW-DEV') ? 'web_developer' : 'teacher'),
+                role: u.role || existing.role || (cleanId.startsWith('ADMIN') ? 'admin' : cleanId.startsWith('AEW-HR') ? 'hr' : cleanId.startsWith('AEW-PRH') ? 'pr_head' : cleanId.startsWith('AEW-PR') ? 'pr_intern' : cleanId.startsWith('AEW-WDM') ? 'web_dev_manager' : cleanId.startsWith('AEW-DEV') ? 'web_developer' : 'teacher'),
                 email: (u.email && !String(u.email).endsWith('@aew.com')
                   ? u.email
                   : (existing.email && !String(existing.email).endsWith('@aew.com')
                     ? existing.email
                     : (u.email || existing.email || `${cleanId.toLowerCase()}@aew.com`))).trim(),
-                department: u.department || existing.department || (cleanId.startsWith('AEW-PRH') ? 'Public Relations & Strategic Partnerships' : cleanId.startsWith('AEW-PR') ? 'Public Relations & Sponsorship' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
-                subject: u.subject || existing.subject || (cleanId.startsWith('AEW-PRH') ? 'Corporate Brand Sponsorships & Deals' : cleanId.startsWith('AEW-PR') ? 'Corporate Sponsor Outreach' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
+                department: u.department || existing.department || (cleanId.startsWith('AEW-HR') ? 'Human Resources & Talent Operations' : cleanId.startsWith('AEW-PRH') ? 'Public Relations & Strategic Partnerships' : cleanId.startsWith('AEW-PR') ? 'Public Relations & Sponsorship' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
+                subject: u.subject || existing.subject || (cleanId.startsWith('AEW-HR') ? 'Team Task & Performance Management' : cleanId.startsWith('AEW-PRH') ? 'Corporate Brand Sponsorships & Deals' : cleanId.startsWith('AEW-PR') ? 'Corporate Sponsor Outreach' : cleanId.startsWith('AEW-DEV') || cleanId.startsWith('AEW-WDM') ? 'Web Development' : 'Engineering'),
                 dailyTargetMinutes: u.dailyTargetMinutes !== undefined ? u.dailyTargetMinutes : (existing.dailyTargetMinutes || 0),
                 dailyUploadCutoffTime: u.dailyUploadCutoffTime || existing.dailyUploadCutoffTime,
                 hasSetInitialCommitment: u.hasSetInitialCommitment ?? existing.hasSetInitialCommitment ?? false,
@@ -390,6 +393,10 @@ export const StorageService = {
                 customFeatures: u.customFeatures || existing.customFeatures,
                 hasCrmAccess: u.hasCrmAccess !== undefined ? u.hasCrmAccess : existing.hasCrmAccess,
                 crmRole: u.crmRole || existing.crmRole,
+                hrTitle: u.hrTitle || existing.hrTitle,
+                hrAssignedTeams: u.hrAssignedTeams || existing.hrAssignedTeams,
+                hrAssignedMemberIds: u.hrAssignedMemberIds || existing.hrAssignedMemberIds,
+                hrPoints: u.hrPoints !== undefined ? u.hrPoints : existing.hrPoints,
               });
             }
           });
@@ -467,6 +474,7 @@ export const StorageService = {
     }
     const role = user.role;
     if (role === 'admin') return 'sikri_parth@2';
+    if (role === 'hr') return 'hr123';
     if (role === 'pr_head') return 'head123';
     if (role === 'pr_intern') return 'intern123';
     if (role === 'sales') return 'sales123';
@@ -539,6 +547,16 @@ export const StorageService = {
       const max = ids.length > 0 ? Math.max(...ids) : 0;
       return `AEW-SALES-${String(max + 1).padStart(2, '0')}`;
     }
+    if (role === 'hr') {
+      const ids = allKnownIds
+        .map((tid) => {
+          const m = tid.match(/AEW-HR-(\d+)/i);
+          return m ? parseInt(m[1], 10) : 0;
+        })
+        .filter((n) => n > 0);
+      const max = ids.length > 0 ? Math.max(...ids) : 0;
+      return `AEW-HR-${String(max + 1).padStart(2, '0')}`;
+    }
     if (role === 'admin') {
       const ids = allKnownIds
         .map((tid) => {
@@ -562,6 +580,8 @@ export const StorageService = {
       employee.password?.trim() ||
       (employee.role === 'admin'
         ? 'admin123'
+        : employee.role === 'hr'
+        ? 'hr123'
         : employee.role === 'pr_head'
         ? 'head123'
         : employee.role === 'pr_intern'
@@ -587,6 +607,7 @@ export const StorageService = {
       role: employee.role,
       department: employee.department?.trim() || (
         employee.role === 'admin' ? 'Academic Operations' :
+        employee.role === 'hr' ? 'Human Resources & Talent Operations' :
         employee.role === 'pr_head' ? 'Public Relations & Strategic Partnerships' :
         employee.role === 'pr_intern' ? 'Public Relations & Sponsorship' :
         employee.role === 'web_developer' || employee.role === 'web_dev_manager' ? 'Engineering & Product' :
@@ -599,6 +620,7 @@ export const StorageService = {
         }
         return employee.subject?.trim() || (
           employee.role === 'admin' ? 'Management' :
+          employee.role === 'hr' ? 'Team Task & Performance Management' :
           employee.role === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' :
           employee.role === 'pr_intern' ? 'Corporate Sponsor Outreach' :
           employee.role === 'web_developer' ? 'Web Development' :
@@ -618,6 +640,7 @@ export const StorageService = {
         if (cleaned.length > 0) return cleaned;
         return [
           employee.role === 'admin' ? 'Management' :
+          employee.role === 'hr' ? 'Team Task & Performance Management' :
           employee.role === 'pr_head' ? 'Corporate Brand Partnerships & Sponsorships' :
           employee.role === 'pr_intern' ? 'Corporate Sponsor Outreach' :
           employee.role === 'web_developer' ? 'Web Development' :
@@ -640,6 +663,7 @@ export const StorageService = {
             'manage_pr',
             'manage_webdev',
             'manage_sales',
+            'manage_hr',
             'manage_credentials',
             'manage_leaves',
           ])
@@ -647,6 +671,11 @@ export const StorageService = {
       // Sales specific
       hasCrmAccess: employee.role === 'sales' || employee.role === 'admin' || !!employee.hasCrmAccess,
       crmRole: employee.crmRole || (employee.role === 'sales' ? 'sales_rep' : undefined),
+      // HR specific (Admin-controlled team & member allocation)
+      hrTitle: employee.hrTitle || (employee.role === 'hr' ? 'HR Operations Lead' : undefined),
+      hrAssignedTeams: employee.role === 'hr' ? (employee.hrAssignedTeams || []) : undefined,
+      hrAssignedMemberIds: employee.role === 'hr' ? (employee.hrAssignedMemberIds || []) : undefined,
+      hrPoints: employee.hrPoints ?? 0,
       // PR specific
       prTier: employee.prTier || (employee.role === 'pr_head' ? 'Premium' : employee.role === 'pr_intern' ? 'Silver' : undefined),
       prPoints: employee.prPoints ?? (employee.role === 'pr_head' || employee.role === 'pr_intern' ? 0 : undefined),
@@ -833,6 +862,10 @@ export const StorageService = {
       customFeatures: updates.customFeatures !== undefined ? updates.customFeatures : users[index].customFeatures,
       hasCrmAccess: updates.hasCrmAccess !== undefined ? updates.hasCrmAccess : users[index].hasCrmAccess,
       crmRole: updates.crmRole !== undefined ? updates.crmRole : users[index].crmRole,
+      hrTitle: updates.hrTitle !== undefined ? updates.hrTitle : users[index].hrTitle,
+      hrAssignedTeams: updates.hrAssignedTeams !== undefined ? updates.hrAssignedTeams : users[index].hrAssignedTeams,
+      hrAssignedMemberIds: updates.hrAssignedMemberIds !== undefined ? updates.hrAssignedMemberIds : users[index].hrAssignedMemberIds,
+      hrPoints: updates.hrPoints !== undefined ? updates.hrPoints : users[index].hrPoints,
       portalRefreshedAt: updates.portalRefreshedAt !== undefined ? updates.portalRefreshedAt : users[index].portalRefreshedAt,
       portalRefreshHistory: updates.portalRefreshHistory !== undefined ? updates.portalRefreshHistory : users[index].portalRefreshHistory,
     };
@@ -4987,6 +5020,8 @@ export const StorageService = {
       prColleges: this.getPrColleges(),
       salesLeads: this.getSalesLeads(),
       crmPermissions: this.getCrmPermissions(),
+      hrTasks: this.getHrTasks(),
+      hrPointLogs: this.getHrPointLogs(),
       emailConfig: this.getEmailConfig(),
       emailLogs: this.getEmailLogs(),
       webDevProjects: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('aew_webdev_projects_v2') || '[]') : [],
@@ -5762,6 +5797,46 @@ export const StorageService = {
       localStorage.setItem(CRM_PERMISSIONS_KEY, JSON.stringify(state.crmPermissions));
     }
 
+    // Smart merge HR Tasks
+    if (Array.isArray(state.hrTasks)) {
+      const localTasks = this.getHrTasks();
+      const taskMap = new Map<string, HrTask>();
+      localTasks.forEach((t) => {
+        if (t && t.id && !deletedIds.has(t.id.toUpperCase())) taskMap.set(t.id, t);
+      });
+      state.hrTasks.forEach((cloudTask: HrTask) => {
+        if (cloudTask && cloudTask.id && !deletedIds.has(cloudTask.id.toUpperCase())) {
+          const local = taskMap.get(cloudTask.id);
+          if (!local) {
+            taskMap.set(cloudTask.id, cloudTask);
+          } else {
+            const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const cloudTime = cloudTask.updatedAt ? new Date(cloudTask.updatedAt).getTime() : 0;
+            taskMap.set(cloudTask.id, cloudTime >= localTime ? { ...local, ...cloudTask } : { ...cloudTask, ...local });
+          }
+        }
+      });
+      localStorage.setItem(HR_TASKS_KEY, JSON.stringify(Array.from(taskMap.values())));
+    }
+
+    // Smart merge HR Point Logs
+    if (Array.isArray(state.hrPointLogs)) {
+      const localLogs = this.getHrPointLogs();
+      const logMap = new Map<string, HrPointLog>();
+      localLogs.forEach((l) => {
+        if (l && l.id && !deletedIds.has(l.id.toUpperCase())) logMap.set(l.id, l);
+      });
+      state.hrPointLogs.forEach((cloudLog: HrPointLog) => {
+        if (cloudLog && cloudLog.id && !deletedIds.has(cloudLog.id.toUpperCase())) {
+          logMap.set(cloudLog.id, cloudLog);
+        }
+      });
+      const sortedLogs = Array.from(logMap.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      localStorage.setItem(HR_POINT_LOGS_KEY, JSON.stringify(sortedLogs));
+    }
+
     // Dispatch global broadcast event so open pages/tabs/components refresh without needing full reload
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('aew_users_updated'));
@@ -6191,6 +6266,313 @@ export const StorageService = {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('portal_storage_update', handleStorageChange);
     };
+  },
+
+  // ─── HR MODULE: ADMIN TEAM/MEMBER ALLOCATION, TASKS, SUBMISSIONS & POINTS ───
+
+  getRoleTeamCategory(role?: UserRole): HrTeamCategory | null {
+    if (role === 'teacher') return 'teacher';
+    if (role === 'pr_intern' || role === 'pr_head') return 'pr';
+    if (role === 'sales') return 'sales';
+    if (role === 'web_developer' || role === 'web_dev_manager') return 'web_dev';
+    return null;
+  },
+
+  getHrManagers(): User[] {
+    return this.getUsers().filter((u) => u.role === 'hr' && !u.isOffboarded);
+  },
+
+  /**
+   * Admin-only control: Set which Teams ('teacher' | 'pr' | 'sales' | 'web_dev')
+   * and/or which specific Member IDs are allotted to a given HR manager.
+   */
+  updateHrAllocation(
+    hrIdOrTeacherId: string,
+    assignedTeams: HrTeamCategory[],
+    assignedMemberIds: string[],
+    hrTitle?: string
+  ): User | null {
+    const cleanTeams = Array.from(new Set(assignedTeams));
+    const cleanMembers = Array.from(
+      new Set(assignedMemberIds.map((id) => (id || '').trim().toUpperCase()).filter(Boolean))
+    );
+    return this.updateUser(hrIdOrTeacherId, {
+      hrAssignedTeams: cleanTeams,
+      hrAssignedMemberIds: cleanMembers,
+      ...(hrTitle !== undefined ? { hrTitle } : {}),
+    });
+  },
+
+  /**
+   * Returns the exact list of active employees that a given HR (or Admin) is authorized to manage.
+   * - For Admin: returns all active team members across Teacher, PR, Sales, and Web Dev teams.
+   * - For HR: returns only members belonging to the Teams (`hrAssignedTeams`) OR explicitly
+   *   listed in `hrAssignedMemberIds` allotted by Admin to this HR.
+   */
+  getAllottedMembersForHr(hrUser: User | null): User[] {
+    if (!hrUser) return [];
+    const allStaff = this.getUsers().filter(
+      (u) => !u.isOffboarded && u.role !== 'admin' && u.role !== 'hr'
+    );
+
+    if (hrUser.role === 'admin') {
+      return allStaff;
+    }
+
+    if (hrUser.role === 'hr') {
+      // Look up fresh HR user from storage in case Admin updated allocations in real-time
+      const freshHr =
+        this.getUsers().find(
+          (u) =>
+            u.id === hrUser.id ||
+            (u.teacherId && hrUser.teacherId && u.teacherId.toUpperCase() === hrUser.teacherId.toUpperCase())
+        ) || hrUser;
+
+      const allottedTeams = new Set<HrTeamCategory>(freshHr.hrAssignedTeams || []);
+      const allottedIds = new Set<string>(
+        (freshHr.hrAssignedMemberIds || []).map((id) => (id || '').trim().toUpperCase())
+      );
+
+      return allStaff.filter((member) => {
+        const cat = this.getRoleTeamCategory(member.role);
+        if (cat && allottedTeams.has(cat)) return true;
+        if (member.teacherId && allottedIds.has(member.teacherId.trim().toUpperCase())) return true;
+        if (member.id && allottedIds.has(member.id.trim().toUpperCase())) return true;
+        return false;
+      });
+    }
+
+    return [];
+  },
+
+  getHrTasks(): HrTask[] {
+    if (typeof localStorage === 'undefined') return [];
+    const data = localStorage.getItem(HR_TASKS_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed)) return [];
+      const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
+      return (parsed as HrTask[])
+        .filter((t) => t && t.id && !deletedIds.has(t.id.toUpperCase()))
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    } catch {
+      return [];
+    }
+  },
+
+  saveHrTasks(tasks: HrTask[]): void {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(HR_TASKS_KEY, JSON.stringify(tasks));
+    triggerBackgroundCloudSync();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('portal_storage_update'));
+      window.dispatchEvent(new Event('storage'));
+    }
+  },
+
+  createHrTasks(params: {
+    title: string;
+    description: string;
+    targetMemberIds: string[];
+    priority: HrTaskPriority;
+    deadlineDate: string;
+    maxPoints: number;
+    assignedByUser: User;
+  }): HrTask[] {
+    const allUsers = this.getUsers();
+    const existingTasks = this.getHrTasks();
+    const nowIso = new Date().toISOString();
+    const createdTasks: HrTask[] = [];
+
+    const uniqueTargetIds = Array.from(
+      new Set(params.targetMemberIds.map((id) => (id || '').trim().toUpperCase()).filter(Boolean))
+    );
+
+    uniqueTargetIds.forEach((tid, idx) => {
+      const member = allUsers.find(
+        (u) => u.teacherId.toUpperCase() === tid || u.id.toUpperCase() === tid
+      );
+      if (!member) return;
+
+      const teamCategory = this.getRoleTeamCategory(member.role) || 'teacher';
+      const newTask: HrTask = {
+        id: `hrtask-${Date.now() + idx}-${Math.random().toString(36).substring(2, 7)}`,
+        title: params.title.trim(),
+        description: params.description.trim(),
+        teamCategory,
+        assignedToId: member.teacherId.toUpperCase(),
+        assignedToName: member.name,
+        assignedToRole: member.role,
+        assignedByHrId: params.assignedByUser.teacherId.toUpperCase(),
+        assignedByHrName: params.assignedByUser.name,
+        priority: params.priority || 'medium',
+        deadlineDate: params.deadlineDate || this.toLocalDateKey(new Date()),
+        maxPoints: Math.max(1, Number(params.maxPoints) || 50),
+        status: 'pending',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      existingTasks.unshift(newTask);
+      createdTasks.push(newTask);
+    });
+
+    this.saveHrTasks(existingTasks);
+    return createdTasks;
+  },
+
+  submitHrTask(taskId: string, submissionUrl: string, submissionNotes: string): HrTask | null {
+    const tasks = this.getHrTasks();
+    const idx = tasks.findIndex((t) => t.id === taskId);
+    if (idx === -1) return null;
+
+    const nowIso = new Date().toISOString();
+    const updated: HrTask = {
+      ...tasks[idx],
+      status: 'submitted',
+      submissionUrl: submissionUrl.trim() || undefined,
+      submissionNotes: submissionNotes.trim() || undefined,
+      submittedAt: nowIso,
+      updatedAt: nowIso,
+    };
+    tasks[idx] = updated;
+    this.saveHrTasks(tasks);
+    return updated;
+  },
+
+  reviewHrTask(params: {
+    taskId: string;
+    decision: 'approved' | 'revision_requested';
+    awardedPoints: number;
+    hrFeedback: string;
+    reviewerUser: User;
+  }): HrTask | null {
+    const tasks = this.getHrTasks();
+    const idx = tasks.findIndex((t) => t.id === params.taskId);
+    if (idx === -1) return null;
+
+    const existingTask = tasks[idx];
+    const nowIso = new Date().toISOString();
+    const previousAwarded = existingTask.status === 'approved' ? (existingTask.awardedPoints || 0) : 0;
+    const cleanAwarded = params.decision === 'approved' ? Math.max(0, Number(params.awardedPoints) || 0) : 0;
+    const pointsDelta = cleanAwarded - previousAwarded;
+
+    const updated: HrTask = {
+      ...existingTask,
+      status: params.decision,
+      awardedPoints: params.decision === 'approved' ? cleanAwarded : undefined,
+      hrFeedback: params.hrFeedback.trim() || undefined,
+      reviewedByHrId: params.reviewerUser.teacherId.toUpperCase(),
+      reviewedByHrName: params.reviewerUser.name,
+      reviewedAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    tasks[idx] = updated;
+    this.saveHrTasks(tasks);
+
+    // Credit/adjust employee's hrPoints & log the award if approved and points changed
+    if (pointsDelta !== 0) {
+      const users = this.getUsers();
+      const uIdx = users.findIndex(
+        (u) => u.teacherId.toUpperCase() === existingTask.assignedToId.toUpperCase()
+      );
+      if (uIdx !== -1) {
+        const currentPts = users[uIdx].hrPoints || 0;
+        this.updateUser(users[uIdx].id, {
+          hrPoints: Math.max(0, currentPts + pointsDelta),
+        });
+      }
+
+      if (pointsDelta > 0) {
+        const logs = this.getHrPointLogs();
+        const newLog: HrPointLog = {
+          id: `hrpt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          employeeId: existingTask.assignedToId.toUpperCase(),
+          employeeName: existingTask.assignedToName,
+          employeeRole: existingTask.assignedToRole,
+          teamCategory: existingTask.teamCategory,
+          points: pointsDelta,
+          reason: `Completed HR Task: ${existingTask.title}`,
+          taskId: existingTask.id,
+          awardedByHrId: params.reviewerUser.teacherId.toUpperCase(),
+          awardedByHrName: params.reviewerUser.name,
+          createdAt: nowIso,
+        };
+        logs.unshift(newLog);
+        this.saveHrPointLogs(logs);
+      }
+    }
+
+    return updated;
+  },
+
+  deleteHrTask(taskId: string): void {
+    this.addDeletedId(taskId);
+    const tasks = this.getHrTasks().filter((t) => t.id !== taskId);
+    this.saveHrTasks(tasks);
+  },
+
+  getHrPointLogs(): HrPointLog[] {
+    if (typeof localStorage === 'undefined') return [];
+    const data = localStorage.getItem(HR_POINT_LOGS_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed)) return [];
+      const deletedIds = new Set(this.getDeletedIds().map((id) => id.toUpperCase()));
+      return (parsed as HrPointLog[])
+        .filter((l) => l && l.id && !deletedIds.has(l.id.toUpperCase()))
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    } catch {
+      return [];
+    }
+  },
+
+  saveHrPointLogs(logs: HrPointLog[]): void {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(HR_POINT_LOGS_KEY, JSON.stringify(logs));
+    triggerBackgroundCloudSync();
+  },
+
+  awardDirectHrPoints(params: {
+    employeeId: string;
+    points: number;
+    reason: string;
+    awardedByUser: User;
+  }): HrPointLog | null {
+    const cleanId = (params.employeeId || '').trim().toUpperCase();
+    const pts = Number(params.points) || 0;
+    if (!cleanId || pts === 0) return null;
+
+    const users = this.getUsers();
+    const member = users.find((u) => u.teacherId.toUpperCase() === cleanId || u.id.toUpperCase() === cleanId);
+    if (!member) return null;
+
+    const currentPts = member.hrPoints || 0;
+    this.updateUser(member.id, {
+      hrPoints: Math.max(0, currentPts + pts),
+    });
+
+    const nowIso = new Date().toISOString();
+    const newLog: HrPointLog = {
+      id: `hrpt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      employeeId: member.teacherId.toUpperCase(),
+      employeeName: member.name,
+      employeeRole: member.role,
+      teamCategory: this.getRoleTeamCategory(member.role) || 'teacher',
+      points: pts,
+      reason: params.reason.trim() || 'HR Performance Bonus',
+      awardedByHrId: params.awardedByUser.teacherId.toUpperCase(),
+      awardedByHrName: params.awardedByUser.name,
+      createdAt: nowIso,
+    };
+
+    const logs = this.getHrPointLogs();
+    logs.unshift(newLog);
+    this.saveHrPointLogs(logs);
+    return newLog;
   },
 
 };

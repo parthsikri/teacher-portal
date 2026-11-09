@@ -5,7 +5,7 @@ import { WebDevService } from '../services/webDevService';
 import { 
   LogOut, LayoutDashboard, Menu, X, Wallet,
   Award, Star, Code2, Trophy, Sparkles, Shield, PhoneCall, Key, Lock,
-  ChevronDown, ChevronRight, GraduationCap
+  ChevronDown, ChevronRight, GraduationCap, Users
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
 
@@ -17,6 +17,7 @@ const ADMIN_PAGE_PERMISSIONS: Record<string, string> = {
   admin_pr: 'manage_pr',
   admin_web_dev: 'manage_webdev',
   admin_sales_crm: 'manage_sales',
+  admin_hr: 'manage_hr',
 };
 
 export interface SubNavItem {
@@ -60,6 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     sales_module: true,
     sales_ops: true,
     webdev_module: true,
+    hr_module: true,
+    hr_ops: true,
     engineering: true,
     sprints: true,
   });
@@ -167,6 +170,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ? WebDevService.getTasks({ assigneeId: currentUser.teacherId }).filter((t) => t.status !== 'completed').length
     : 0;
 
+  // HR Task & Submission Badges
+  const allHrTasks = StorageService.getHrTasks();
+  const adminHrSubmissionsCount = currentUser.role === 'admin'
+    ? allHrTasks.filter((t) => t.status === 'submitted').length
+    : 0;
+  const hrAllottedMemberIds = currentUser.role === 'hr'
+    ? new Set(StorageService.getAllottedMembersForHr(currentUser).map((m) => m.teacherId.toUpperCase()))
+    : new Set<string>();
+  const hrPendingSubmissionsCount = currentUser.role === 'hr'
+    ? allHrTasks.filter(
+        (t) =>
+          t.status === 'submitted' &&
+          (hrAllottedMemberIds.has(t.assignedToId.toUpperCase()) ||
+            t.assignedByHrId.toUpperCase() === currentUser.teacherId.toUpperCase())
+      ).length
+    : 0;
+  const myPendingHrTasksCount = allHrTasks.filter(
+    (t) =>
+      t.assignedToId.toUpperCase() === currentUser.teacherId.toUpperCase() &&
+      (t.status === 'pending' || t.status === 'revision_requested')
+  ).length;
+
   // Super Admin verification
   const isSuperAdmin = currentUser.role === 'admin' && (
     currentUser.adminTier === 'super_admin' || 
@@ -246,6 +271,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }] : []),
       ];
 
+      const hrChildren: SubNavItem[] = [
+        ...(hasPerm('manage_hr') || hasPerm('manage_faculty') ? [{
+          id: 'admin_hr',
+          label: 'HR Allocation & Tasks',
+          badge: adminHrSubmissionsCount > 0 ? `${adminHrSubmissionsCount} Sub` : 'Teams',
+          badgeColor: adminHrSubmissionsCount > 0
+            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse'
+            : 'bg-pink-500/20 text-pink-300 border border-pink-500/30 font-bold font-mono',
+        }] : []),
+      ];
+
       return [
         {
           id: 'dashboard',
@@ -276,6 +312,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Web Dev Module',
           icon: Code2,
           children: webdevChildren,
+        }] : []),
+        ...(hrChildren.length > 0 ? [{
+          id: 'hr_module',
+          label: 'HR Module',
+          icon: Users,
+          children: hrChildren,
         }] : []),
         {
           id: 'reports',
@@ -365,6 +407,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount} New` : undefined,
               badgeColor: 'bg-amber-500/20 text-amber-300 font-bold',
             },
+            {
+              id: 'hr_tasks',
+              label: 'HR Tasks & Points',
+              badge: myPendingHrTasksCount > 0 ? `${myPendingHrTasksCount} Task` : (currentUser.hrPoints ? `+${currentUser.hrPoints}p` : undefined),
+              badgeColor: myPendingHrTasksCount > 0 ? 'bg-pink-500/20 text-pink-300 font-bold' : 'bg-emerald-500/20 text-emerald-300 font-mono font-bold',
+            },
           ],
         },
         {
@@ -426,6 +474,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             { id: 'pr_leads', label: 'Leads Pipeline' },
             { id: 'pr_mou_maker', label: 'MoU Agreements' },
             { id: 'pr_earnings', label: 'My Earnings' },
+            {
+              id: 'hr_tasks',
+              label: 'HR Tasks & Points',
+              badge: myPendingHrTasksCount > 0 ? `${myPendingHrTasksCount} Task` : (currentUser.hrPoints ? `+${currentUser.hrPoints}p` : undefined),
+              badgeColor: myPendingHrTasksCount > 0 ? 'bg-pink-500/20 text-pink-300 font-bold' : 'bg-emerald-500/20 text-emerald-300 font-mono font-bold',
+            },
             ...(currentUser.role === 'pr_head' ? [{ id: 'pr_team', label: 'PR Team Roster' }] : []),
           ],
         },
@@ -470,6 +524,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             { id: 'wdm_awards', label: 'Award & XP Thresholds' },
             { id: 'wdm_team', label: 'Engineering Roster' },
             { id: 'wdm_audit', label: 'Audit Trail' },
+            {
+              id: 'hr_tasks',
+              label: 'HR Tasks & Points',
+              badge: myPendingHrTasksCount > 0 ? `${myPendingHrTasksCount} Task` : (currentUser.hrPoints ? `+${currentUser.hrPoints}p` : undefined),
+              badgeColor: myPendingHrTasksCount > 0 ? 'bg-pink-500/20 text-pink-300 font-bold' : 'bg-emerald-500/20 text-emerald-300 font-mono font-bold',
+            },
           ],
         },
         {
@@ -507,6 +567,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
             { id: 'dev_rewards', label: 'Awards & Certificates' },
             { id: 'dev_ledger', label: 'XP Ledger' },
             { id: 'dev_team', label: 'Team & Kudos' },
+            {
+              id: 'hr_tasks',
+              label: 'HR Tasks & Points',
+              badge: myPendingHrTasksCount > 0 ? `${myPendingHrTasksCount} Task` : (currentUser.hrPoints ? `+${currentUser.hrPoints}p` : undefined),
+              badgeColor: myPendingHrTasksCount > 0 ? 'bg-pink-500/20 text-pink-300 font-bold' : 'bg-emerald-500/20 text-emerald-300 font-mono font-bold',
+            },
+          ],
+        },
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: Trophy,
+          children: [
+            { id: 'org_leaderboard', label: 'Company Leaderboard' },
+          ],
+        },
+      ];
+    }
+
+    if (currentUser.role === 'hr') {
+      return [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: LayoutDashboard,
+          directPageId: 'hr_dashboard',
+        },
+        {
+          id: 'hr_ops',
+          label: 'HR Operations',
+          icon: Users,
+          children: [
+            { id: 'hr_tasks', label: 'Allot & Manage Tasks' },
+            {
+              id: 'hr_submissions',
+              label: 'Check Submissions',
+              badge: hrPendingSubmissionsCount > 0 ? `${hrPendingSubmissionsCount} Sub` : undefined,
+              badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse',
+            },
+            { id: 'hr_members', label: 'Allotted Teams & Points' },
           ],
         },
         {
@@ -533,6 +633,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
       },
       {
+        id: 'sales_ops',
+        label: 'Sales & HR Work',
+        icon: Users,
+        children: [
+          {
+            id: 'hr_tasks',
+            label: 'HR Tasks & Points',
+            badge: myPendingHrTasksCount > 0 ? `${myPendingHrTasksCount} Task` : (currentUser.hrPoints ? `+${currentUser.hrPoints}p` : undefined),
+            badgeColor: myPendingHrTasksCount > 0 ? 'bg-pink-500/20 text-pink-300 font-bold' : 'bg-emerald-500/20 text-emerald-300 font-mono font-bold',
+          },
+        ],
+      },
+      {
         id: 'reports',
         label: 'Reports',
         icon: Trophy,
@@ -549,6 +662,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     adminActiveExtensions,
     adminPptRequestsQueueCount,
     adminPrSubmissionsCount,
+    adminHrSubmissionsCount,
+    hrPendingSubmissionsCount,
+    myPendingHrTasksCount,
     adminTodayCallsDueCount,
     allSalesLeads.length,
     teacherActiveExtensions,

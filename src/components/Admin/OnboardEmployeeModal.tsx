@@ -27,8 +27,9 @@ import {
   BookOpen,
   AlertTriangle,
   ChevronDown,
+  Users,
 } from 'lucide-react';
-import type { User, UserRole, PrTier, AdminRoleTier, AdminPermissionKey } from '../../types';
+import type { User, UserRole, PrTier, AdminRoleTier, AdminPermissionKey, HrTeamCategory } from '../../types';
 import { StorageService } from '../../services/storage';
 import { notificationService } from '../../services/notificationService';
 
@@ -72,6 +73,7 @@ export const ALL_ADMIN_PERMISSIONS: AdminPermissionOption[] = [
   { key: 'manage_pr', label: 'PR & Ambassador Desk', desc: 'College sponsorships, MoU generation & ambassador leaderboards', category: 'Growth' },
   { key: 'manage_webdev', label: 'Web Dev War Room', desc: 'Developer squads, bounty allocation & GitHub pull approvals', category: 'Tech' },
   { key: 'manage_sales', label: 'Sales CRM & Leads Desk', desc: 'Admissions counseling, student leads & phone call tracking', category: 'Growth' },
+  { key: 'manage_hr', label: 'HR Task & Team Allocation', desc: 'Allot teams/members to HR, oversee HR tasks, submissions & points', category: 'HR' },
   { key: 'manage_credentials', label: 'Credentials & Passwords', desc: 'Override usernames, reset passwords & maintain security keys', category: 'System' },
   { key: 'manage_leaves', label: 'Leaves & Day-Off Grants', desc: 'Approve day-off requests, excused leaves & deadline extensions', category: 'HR' },
 ];
@@ -88,6 +90,7 @@ export const ADMIN_TIER_PRESETS: { id: AdminRoleTier; name: string; desc: string
       'manage_pr',
       'manage_webdev',
       'manage_sales',
+      'manage_hr',
       'manage_credentials',
       'manage_leaves',
     ],
@@ -101,8 +104,8 @@ export const ADMIN_TIER_PRESETS: { id: AdminRoleTier; name: string; desc: string
   {
     id: 'hr_admin',
     name: 'HR & Talent Admin',
-    desc: 'Employee onboarding, credentials & leave management',
-    permissions: ['manage_faculty', 'manage_credentials', 'manage_leaves'],
+    desc: 'Employee onboarding, HR team allocation, credentials & leave management',
+    permissions: ['manage_faculty', 'manage_hr', 'manage_credentials', 'manage_leaves'],
   },
   {
     id: 'growth_admin',
@@ -187,6 +190,11 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
   // Sales specific
   const [crmRole, setCrmRole] = useState<'sales_rep' | 'sales_manager'>('sales_rep');
 
+  // HR specific (Admin-controlled team & member allocation)
+  const [hrTitle, setHrTitle] = useState('HR Operations Lead');
+  const [hrAssignedTeams, setHrAssignedTeams] = useState<HrTeamCategory[]>(['teacher', 'pr', 'sales', 'web_dev']);
+  const [hrAssignedMemberIds, setHrAssignedMemberIds] = useState<string[]>([]);
+
   // Admin specific access & permissions
   const [adminTier, setAdminTier] = useState<AdminRoleTier>('super_admin');
   const [adminPermissions, setAdminPermissions] = useState<AdminPermissionKey[]>([
@@ -196,6 +204,7 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
     'manage_pr',
     'manage_webdev',
     'manage_sales',
+    'manage_hr',
     'manage_credentials',
     'manage_leaves',
   ]);
@@ -250,6 +259,7 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
       web_developer: 'dev123',
       web_dev_manager: 'dev123',
       sales: 'sales123',
+      hr: 'hr123',
       admin: 'admin123',
     };
     setPassword(initialData?.password || defaultPasswords[roleToUse]);
@@ -261,6 +271,7 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
       else if (roleToUse === 'pr_intern') setDepartment('Public Relations & Sponsorship');
       else if (roleToUse === 'web_developer' || roleToUse === 'web_dev_manager') setDepartment('Engineering & Product');
       else if (roleToUse === 'sales') setDepartment('Admissions & Student Growth');
+      else if (roleToUse === 'hr') setDepartment('Human Resources & Talent Operations');
       else if (roleToUse === 'admin') setDepartment('Academic Operations');
     }
 
@@ -271,7 +282,14 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
       else if (roleToUse === 'web_developer') setSubject('Web Development');
       else if (roleToUse === 'web_dev_manager') setSubject('Software Architecture');
       else if (roleToUse === 'sales') setSubject('Course Admissions');
+      else if (roleToUse === 'hr') setSubject('Team Task & Performance Management');
       else if (roleToUse === 'admin') setSubject('Management');
+    }
+
+    if (roleToUse === 'hr') {
+      setHrTitle(initialData?.hrTitle || 'HR Operations Lead');
+      setHrAssignedTeams(initialData?.hrAssignedTeams || ['teacher', 'pr', 'sales', 'web_dev']);
+      setHrAssignedMemberIds(initialData?.hrAssignedMemberIds || []);
     }
 
     if (roleToUse === 'pr_head') {
@@ -412,6 +430,9 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
       githubUsername: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager' ? githubUsername : undefined,
       crmRole: selectedRole === 'sales' ? crmRole : undefined,
       hasCrmAccess: selectedRole === 'sales' || selectedRole === 'admin',
+      hrTitle: selectedRole === 'hr' ? hrTitle : undefined,
+      hrAssignedTeams: selectedRole === 'hr' ? hrAssignedTeams : undefined,
+      hrAssignedMemberIds: selectedRole === 'hr' ? hrAssignedMemberIds : undefined,
       adminTier: selectedRole === 'admin' ? adminTier : undefined,
       adminPermissions: selectedRole === 'admin' ? adminPermissions : undefined,
     });
@@ -701,8 +722,8 @@ Portal URL: ${window.location.origin}`;
 
                 {expandedSections.step1 && (
                   <div className="space-y-3 pt-2 border-t border-slate-800/80">
-                    {/* 5 Clean Department Module Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {/* 6 Clean Department Module Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {[
                         {
                           id: 'teacher_mod',
@@ -743,6 +764,16 @@ Portal URL: ${window.location.origin}`;
                           isActive: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager',
                           color: 'text-emerald-400',
                           activeRing: 'bg-emerald-600/20 border-emerald-500 ring-2 ring-emerald-500/40',
+                        },
+                        {
+                          id: 'hr_mod',
+                          title: 'HR Module',
+                          sub: 'Tasks, Teams & Points',
+                          icon: Users,
+                          defaultRole: 'hr' as UserRole,
+                          isActive: selectedRole === 'hr',
+                          color: 'text-pink-400',
+                          activeRing: 'bg-pink-600/20 border-pink-500 ring-2 ring-pink-500/40',
                         },
                         {
                           id: 'admin_mod',
@@ -1010,6 +1041,7 @@ Portal URL: ${window.location.origin}`;
                             web_developer: 'dev123',
                             web_dev_manager: 'dev123',
                             sales: 'sales123',
+                            hr: 'hr123',
                             admin: 'admin123',
                           };
                           setPassword(defMap[selectedRole]);
@@ -1350,6 +1382,81 @@ Portal URL: ${window.location.origin}`;
                         onChange={(e) => setJoiningDate(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none"
                       />
+                    </div>
+                  </div>
+                )}
+
+                {/* HR SPECIFIC: ADMIN CONTROL OVER ALLOTTED TEAMS & MEMBERS */}
+                {selectedRole === 'hr' && (
+                  <div className="space-y-4 pt-3 border-t border-slate-800/80">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-400">HR Designation Title</label>
+                        <input
+                          type="text"
+                          value={hrTitle}
+                          onChange={(e) => setHrTitle(e.target.value)}
+                          placeholder="e.g. HR Operations Lead, Talent Manager"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-400">Joining Date</label>
+                        <input
+                          type="date"
+                          value={joiningDate}
+                          onChange={(e) => setJoiningDate(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-pink-950/20 border border-pink-500/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-pink-300 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-pink-400" />
+                          <span>Admin Control: Allot Teams to this HR</span>
+                        </label>
+                        <span className="text-[10px] font-mono text-pink-300/80">
+                          {hrAssignedTeams.length} Team(s) Allotted
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Choose which department teams this HR is allowed to allot tasks to, check submissions for, and award points to:
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            { id: 'teacher', label: 'Teacher Team (Faculty)' },
+                            { id: 'pr', label: 'PR Team (Outreach & MoUs)' },
+                            { id: 'sales', label: 'Sales Team (CRM)' },
+                            { id: 'web_dev', label: 'Web Dev Team (Engineering)' },
+                          ] as { id: HrTeamCategory; label: string }[]
+                        ).map((teamOpt) => {
+                          const isChecked = hrAssignedTeams.includes(teamOpt.id);
+                          return (
+                            <button
+                              key={teamOpt.id}
+                              type="button"
+                              onClick={() =>
+                                setHrAssignedTeams((prev) =>
+                                  prev.includes(teamOpt.id)
+                                    ? prev.filter((t) => t !== teamOpt.id)
+                                    : [...prev, teamOpt.id]
+                                )
+                              }
+                              className={`p-2.5 rounded-xl border text-left text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
+                                isChecked
+                                  ? 'bg-pink-600/20 border-pink-500 text-slate-100'
+                                  : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                              }`}
+                            >
+                              <span>{teamOpt.label}</span>
+                              {isChecked && <Check className="w-3.5 h-3.5 text-pink-400 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}

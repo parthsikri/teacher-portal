@@ -108,6 +108,8 @@ export function getDefaultPasswordForRole(role?: string): string {
       return 'intern123';
     case 'sales':
       return 'sales123';
+    case 'hr':
+      return 'hr123';
     case 'web_developer':
     case 'web_dev_manager':
       return 'dev123';

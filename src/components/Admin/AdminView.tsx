@@ -10,6 +10,7 @@ import { PortalRefreshModal } from '../Teacher/PortalRefreshModal';
 import { PrManagementSection } from './PrManagementSection';
 import { AdminWebDevSection } from '../WebDev/Admin/AdminWebDevSection';
 import { AdminSalesCrmSection } from './AdminSalesCrmSection';
+import { HrPortalView } from '../Hr/HrPortalView';
 import { OnboardEmployeeModal, ALL_ADMIN_PERMISSIONS } from './OnboardEmployeeModal';
 import { 
   Calendar, Search, UserPlus, Trash2, Video, FileText, ShieldCheck, 
@@ -48,7 +49,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   } as User);
   const [teachers, setTeachers] = useState<User[]>(StorageService.getTeachers());
   const [allEmployees, setAllEmployees] = useState<User[]>(() => StorageService.getUsers());
-  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_module' | 'pr_head' | 'pr_intern' | 'web_developer' | 'sales' | 'admin' | 'offboarded'>('all');
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_module' | 'pr_head' | 'pr_intern' | 'web_developer' | 'sales' | 'hr' | 'admin' | 'offboarded'>('all');
   const [showAllPasswords, setShowAllPasswords] = useState<boolean>(true);
   const [expandedDashboardModules, setExpandedDashboardModules] = useState<Record<string, boolean>>({
     teacher_mod: true,
@@ -3847,6 +3848,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
         )
       )}
 
+      {/* PAGE: 👥 HR MODULE — TEAM ALLOCATION, TASKS, SUBMISSIONS & POINTS */}
+      {currentPage === 'admin_hr' && (
+        <HrPortalView
+          currentUser={activeAdminUser}
+          currentPage={currentPage}
+          onPageChange={onPageChange}
+          refreshTrigger={refreshTrigger}
+          onOpenOnboardHr={() => {
+            setOnboardInitialData({ role: 'hr' });
+            setShowOnboardModal(true);
+          }}
+        />
+      )}
+
 
       {currentPage === 'admin_faculty' && (() => {
         if (!checkHasAdminPermission('manage_faculty')) {
@@ -3859,6 +3874,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         const prTotalCount = prHeadCount + prInternCount;
         const webDevCount = activeStaff.filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager').length;
         const salesCount = activeStaff.filter((u) => u.role === 'sales').length;
+        const hrCount = activeStaff.filter((u) => u.role === 'hr').length;
         const adminCount = activeStaff.filter((u) => u.role === 'admin').length;
         const offboardedCount = allEmployees.filter((u) => u.isOffboarded).length;
 
@@ -3868,6 +3884,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           { id: 'pr_module' as const, label: '🤝 PR Module', count: prTotalCount, icon: Award },
           { id: 'sales' as const, label: '📞 Sales Module', count: salesCount, icon: PhoneCall },
           { id: 'web_developer' as const, label: '💻 Web Dev Module', count: webDevCount, icon: Code2 },
+          { id: 'hr' as const, label: '👥 HR Module', count: hrCount, icon: Users },
           { id: 'admin' as const, label: '🛡️ Admin Module', count: adminCount, icon: ShieldCheck },
           ...(offboardedCount > 0 ? [{ id: 'offboarded' as const, label: 'Offboarded / Left', count: offboardedCount, icon: UserX }] : []),
         ];
@@ -4046,6 +4063,7 @@ Portal URL: ${window.location.origin}`;
                       employeeRoleFilter === 'pr_head' ? 'pr_head' :
                       employeeRoleFilter === 'sales' ? 'sales' :
                       employeeRoleFilter === 'web_developer' ? 'web_developer' :
+                      employeeRoleFilter === 'hr' ? 'hr' :
                       employeeRoleFilter === 'admin' ? 'admin' : undefined;
                     setOnboardInitialData(defaultRoleForFilter ? { role: defaultRoleForFilter } : undefined);
                     setShowOnboardModal(true);
@@ -4058,6 +4076,7 @@ Portal URL: ${window.location.origin}`;
                      employeeRoleFilter === 'pr_module' || employeeRoleFilter === 'pr_intern' || employeeRoleFilter === 'pr_head' ? '+ Onboard PR Member' :
                      employeeRoleFilter === 'sales' ? '+ Onboard Sales Rep' :
                      employeeRoleFilter === 'web_developer' ? '+ Onboard Developer' :
+                     employeeRoleFilter === 'hr' ? '+ Onboard HR Manager' :
                      employeeRoleFilter === 'admin' ? '+ Onboard Admin' : '+ Onboard Employee'}
                   </span>
                 </button>
@@ -4180,6 +4199,7 @@ Portal URL: ${window.location.origin}`;
                     web_developer: { label: 'WEB DEVELOPER', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
                     web_dev_manager: { label: 'DEV ARCHITECT', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
                     sales: { label: 'SALES REP', color: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+                    hr: { label: 'HR MANAGER', color: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30' },
                     admin: { label: 'OPERATIONS ADMIN', color: 'bg-rose-500/10 text-rose-400 border-rose-500/30' },
                   }[t.role] || { label: t.role.toUpperCase(), color: 'bg-slate-800 text-slate-300 border-slate-700' };
 
@@ -4558,6 +4578,24 @@ Portal URL: ${window.location.origin}`;
                                       <div className="text-[11px] text-slate-400">
                                         Admissions Counselor • Lead Follow-ups
                                       </div>
+                                    </div>
+                                  )}
+
+                                  {t.role === 'hr' && (
+                                    <div className="bg-slate-900 p-3 rounded-xl border border-pink-500/30 space-y-2 text-xs">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400 font-medium">Allotted Scope:</span>
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                                          {(t.hrAssignedTeams || []).length} Teams • {StorageService.getAllottedMembersForHr(t).length} Staff
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => onPageChange('admin_hr')}
+                                        className="text-[11px] font-bold text-pink-400 hover:text-pink-300 underline block cursor-pointer"
+                                      >
+                                        Allot Teams & Members to this HR →
+                                      </button>
                                     </div>
                                   )}
 

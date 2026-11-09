@@ -16,10 +16,13 @@ import { ThumbnailStudio } from './components/Common/ThumbnailStudio';
 import { EmployeeSalesCrmView } from './components/Sales/EmployeeSalesCrmView';
 import { OrganizationLeaderboardView } from './components/Common/OrganizationLeaderboardView';
 import { SuperAdminConsole } from './components/SuperAdmin/SuperAdminConsole';
+import { HrPortalView } from './components/Hr/HrPortalView';
+import { EmployeeHrTasksView } from './components/Hr/EmployeeHrTasksView';
 
 const getDefaultPageForUser = (user: User | null): string => {
   if (!user) return 'dashboard';
   if (user.role === 'admin') return 'admin_dashboard';
+  if (user.role === 'hr') return 'hr_dashboard';
   if (user.role === 'sales') return 'sales_crm';
   if (user.role === 'pr_intern' || user.role === 'pr_head') return 'pr_dashboard';
   if (user.role === 'web_dev_manager') return 'wdm_review';
@@ -225,6 +228,22 @@ export const App: React.FC = () => {
                   onPageChange={handlePageChange}
                   onRefreshData={handleRefreshData}
                 />
+              ) : currentUser.role === 'hr' ? (
+                <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
+                  <HrPortalView
+                    currentUser={currentUser}
+                    currentPage={currentPage}
+                    onPageChange={handlePageChange}
+                    refreshTrigger={refreshKey}
+                  />
+                </div>
+              ) : currentPage === 'hr_tasks' ? (
+                <div className="max-w-6xl mx-auto px-4 md:px-6 py-6">
+                  <EmployeeHrTasksView
+                    currentUser={currentUser}
+                    refreshTrigger={refreshKey}
+                  />
+                </div>
               ) : (currentPage.startsWith('pr_') || currentPage === 'pr_dashboard') && (currentUser.role === 'pr_intern' || currentUser.role === 'pr_head' || currentUser.customFeatures?.includes('pr_portal')) ? (
                 <PrInternView
                   intern={currentUser}
