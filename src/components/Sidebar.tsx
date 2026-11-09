@@ -1,13 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User } from '../types';
 import { StorageService } from '../services/storage';
 import { WebDevService } from '../services/webDevService';
 import { 
-  Calendar, LogOut, LayoutDashboard, Layers, Video, BookMarked, MessageSquare, 
-  Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
-  Award, CheckCircle2, DollarSign, Star, TrendingUp, FileText,
-  Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, Key, Lock,
-  ShieldAlert, ChevronDown, ChevronRight
+  LogOut, LayoutDashboard, Menu, X, Wallet,
+  Award, Star, Code2, Trophy, Sparkles, Shield, PhoneCall, Key, Lock,
+  ChevronDown, ChevronRight, GraduationCap
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
 
@@ -20,6 +18,23 @@ const ADMIN_PAGE_PERMISSIONS: Record<string, string> = {
   admin_web_dev: 'manage_webdev',
   admin_sales_crm: 'manage_sales',
 };
+
+export interface SubNavItem {
+  id: string;
+  label: string;
+  badge?: string;
+  badgeColor?: string;
+}
+
+export interface NavCategory {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  directPageId?: string;
+  badge?: string;
+  badgeColor?: string;
+  children?: SubNavItem[];
+}
 
 interface SidebarProps {
   currentUser: User | null;
@@ -37,18 +52,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [expandedAdminModules, setExpandedAdminModules] = useState<Record<string, boolean>>({
-    command_center: true,
-    teacher_module: false,
-    pr_module: false,
-    sales_module: false,
-    webdev_module: false,
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    teacher_module: true,
+    academic: true,
+    pr_module: true,
+    pr_ops: true,
+    sales_module: true,
+    sales_ops: true,
+    webdev_module: true,
+    engineering: true,
+    sprints: true,
   });
 
-  const toggleAdminModule = (modId: string) => {
-    setExpandedAdminModules((prev) => ({
+  const toggleCategory = (catId: string) => {
+    setExpandedCategories((prev) => ({
       ...prev,
-      [modId]: !prev[modId],
+      [catId]: !prev[catId],
     }));
   };
 
@@ -134,223 +153,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     (l) => l.nextFollowUpDate === todayStr && l.status !== 'closed_won' && l.status !== 'closed_lost'
   ).length;
 
-  const hasEmployeeCrmAccess = StorageService.hasUserCrmAccess(currentUser);
-
-  // PR Intern Navigation Links
-  const prNavItems = [
-    { id: 'pr_dashboard', label: 'Overview', icon: Award },
-    { 
-      id: 'pr_tasks', 
-      label: 'Tasks & XP', 
-      icon: CheckCircle2,
-      badge: prPendingTasksCount > 0 ? `${prPendingTasksCount} New` : undefined,
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30 font-mono',
-    },
-    { id: 'pr_leads', label: 'Leads Pipeline', icon: DollarSign },
-    { id: 'pr_mou_maker', label: 'MoU Agreements', icon: FileText },
-    { id: 'pr_earnings', label: 'My Earnings', icon: TrendingUp },
-    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
-    ...(currentUser.role === 'pr_head'
-      ? [{ id: 'pr_team', label: 'PR Team Roster', icon: Users }]
-      : []),
-  ];
-
-  // Teacher Navigation Links
-  const teacherNavItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { 
-      id: 'recording_status', 
-      label: 'Recording Status', 
-      icon: Clock,
-      badge: teacherActiveExtensions > 0 
-        ? `${teacherActiveExtensions} Ext` 
-        : (backlogInfo && backlogInfo.yesterdayUnfulfilledMinutes > 0 ? 'Backlog' : undefined),
-      badgeColor: teacherActiveExtensions > 0 
-        ? 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold' 
-        : 'bg-amber-500/20 text-amber-300',
-    },
-    { 
-      id: 'wallet', 
-      label: 'Time Wallet', 
-      icon: Wallet,
-      badge: teacherWalletInfo && teacherWalletInfo.balance > 0 
-        ? `+${teacherWalletInfo.balance}m` 
-        : undefined,
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold',
-    },
-    { 
-      id: 'syllabus', 
-      label: 'Syllabus & Topics', 
-      icon: Layers,
-      badge: teacherRevisionCount > 0 
-        ? `${teacherRevisionCount} Revision` 
-        : (teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount} New` : undefined),
-      badgeColor: teacherRevisionCount > 0 
-        ? 'bg-rose-600 text-white font-black animate-pulse shadow-md shadow-rose-600/40' 
-        : 'bg-amber-500/20 text-amber-300',
-    },
-    { 
-      id: 'ppt_requests', 
-      label: 'PYQ Slide Decks', 
-      icon: BookMarked,
-      badge: teacherPptReadyCount > 0 ? `${teacherPptReadyCount} Ready` : undefined,
-    },
-    { id: 'lectures', label: 'Delivered Lectures', icon: Video },
-    { 
-      id: 'resources', 
-      label: 'Study Resources', 
-      icon: BookMarked,
-      badge: teacherResourcesCount > 0 ? `${teacherResourcesCount} Res` : undefined,
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold',
-    },
-    { 
-      id: 'directives', 
-      label: 'Admin Directives', 
-      icon: MessageSquare,
-      badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount} New` : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 font-bold',
-    },
-    { 
-      id: 'org_leaderboard', 
-      label: 'Company Leaderboard', 
-      icon: Trophy,
-      badge: 'Honor Roll',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
-    },
-  ];
-
-  // Super Admin verification
-  const isSuperAdmin = currentUser.role === 'admin' && (
-    currentUser.adminTier === 'super_admin' || 
-    !currentUser.adminTier || 
-    currentUser.teacherId.toUpperCase() === 'ADMIN-01' || 
-    currentUser.teacherId.toUpperCase() === 'ADMIN'
-  );
-
-  // Admin Navigation Links (Bifurcated by Collapsible Department Module)
-  const adminNavItems = [
-    // 1. Command Center & Roster
-    { id: 'admin_dashboard', label: 'Overview & Modules Hub', icon: LayoutDashboard, sectionTitle: '🏛️ Command Center & Roster', moduleId: 'command_center' },
-    { id: 'admin_faculty', label: 'Staff & Faculty Roster', icon: Users, moduleId: 'command_center' },
-    ...(isSuperAdmin ? [{
-      id: 'super_admin_panel',
-      label: 'Super Admin Console',
-      icon: ShieldAlert,
-      badge: 'Root Access',
-      badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono font-bold',
-      moduleId: 'command_center',
-    }] : []),
-    { 
-      id: 'org_leaderboard', 
-      label: 'Company Leaderboard', 
-      icon: Trophy,
-      badge: 'All Staff',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
-      moduleId: 'command_center',
-    },
-
-    // 2. Teacher & Academic Module
-    { 
-      id: 'admin_syllabus', 
-      label: 'Syllabus & Deadlines', 
-      icon: Layers,
-      badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
-      sectionTitle: '🎓 Teacher & Academic Module',
-      moduleId: 'teacher_module',
-    },
-    { 
-      id: 'admin_lectures', 
-      label: 'Lecture Audits', 
-      icon: Video,
-      badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold',
-      moduleId: 'teacher_module',
-    },
-    { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked, moduleId: 'teacher_module' },
-    { 
-      id: 'admin_wallet', 
-      label: 'Faculty Wallets', 
-      icon: Wallet,
-      moduleId: 'teacher_module',
-    },
-    { 
-      id: 'admin_leaves', 
-      label: 'Day Offs & Leaves', 
-      icon: Calendar,
-      badge: StorageService.getDayOffGrants().filter(g => g.date >= StorageService.toLocalDateKey(new Date())).length > 0
-        ? `${StorageService.getDayOffGrants().filter(g => g.date >= StorageService.toLocalDateKey(new Date())).length} Active`
-        : undefined,
-      badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/60 font-bold',
-      moduleId: 'teacher_module',
-    },
-    { 
-      id: 'admin_extensions', 
-      label: 'Extension Windows', 
-      icon: Clock,
-      badge: adminActiveExtensions > 0 ? `${adminActiveExtensions} Active` : undefined,
-      badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold',
-      moduleId: 'teacher_module',
-    },
-    { 
-      id: 'ppt_generator', 
-      label: 'PYQ PPT Generator', 
-      icon: FileSpreadsheet,
-      badge: adminPptRequestsQueueCount > 0 ? `${adminPptRequestsQueueCount} Req` : undefined,
-      moduleId: 'teacher_module',
-    },
-    { 
-      id: 'thumbnail_generator', 
-      label: '16:9 Thumbnail Studio', 
-      icon: ImageIcon,
-      moduleId: 'teacher_module',
-    },
-
-    // 3. PR & Sponsorship Module
-    { 
-      id: 'admin_pr', 
-      label: 'PR Team & Gamification', 
-      icon: Award,
-      badge: adminPrSubmissionsCount > 0 ? `${adminPrSubmissionsCount} Sub` : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
-      sectionTitle: '🤝 PR & Sponsorship Module',
-      moduleId: 'pr_module',
-    },
-
-    // 4. Sales & CRM Module
-    { 
-      id: 'admin_sales_crm', 
-      label: 'Sales CRM & Leads', 
-      icon: PhoneCall,
-      badge: adminTodayCallsDueCount > 0 ? `${adminTodayCallsDueCount} Due` : (allSalesLeads.length > 0 ? `${allSalesLeads.length}` : undefined),
-      badgeColor: adminTodayCallsDueCount > 0 
-        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
-        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
-      sectionTitle: '📞 Sales & CRM Module',
-      moduleId: 'sales_module',
-    },
-
-    // 5. Web Dev & Tech Module
-    { 
-      id: 'admin_web_dev', 
-      label: 'Web Dev War Room', 
-      icon: Code2,
-      badge: 'All Work',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
-      sectionTitle: '💻 Web Dev & Tech Module',
-      moduleId: 'webdev_module',
-    },
-  ];
-
-  interface NavItem {
-    id: string;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    badge?: string;
-    badgeColor?: string;
-    sectionTitle?: string;
-    moduleId?: string;
-  }
-
   // Web Dev counts & badges
   const wdmMyActiveTasks = currentUser.role === 'web_dev_manager'
     ? WebDevService.getTasks({ assigneeId: currentUser.teacherId }).filter((t) => t.status !== 'completed' && t.status !== 'not_done').length
@@ -365,236 +167,419 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ? WebDevService.getTasks({ assigneeId: currentUser.teacherId }).filter((t) => t.status !== 'completed').length
     : 0;
 
-  // Web Dev Manager Navigation Links
-  const wdmNavItems: NavItem[] = [
-    { 
-      id: 'wdm_my_tasks', 
-      label: 'My Tasks', 
-      icon: CheckCircle2,
-      badge: wdmMyActiveTasks > 0 ? `${wdmMyActiveTasks} Active` : undefined,
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30',
-    },
-    { 
-      id: 'wdm_review', 
-      label: 'Review Desk', 
-      icon: Shield,
-      badge: wdmPendingReviews > 0 ? `${wdmPendingReviews} Pending` : undefined,
-      badgeColor: 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30',
-    },
-    { id: 'wdm_tasks', label: 'All Tasks', icon: ListTodo },
-    { id: 'wdm_projects', label: 'Projects & Roadmap', icon: Briefcase },
-    { 
-      id: 'wdm_bounties', 
-      label: 'Bounties Desk', 
-      icon: Target,
-      badge: wdmOpenBounties > 0 ? `${wdmOpenBounties} Open` : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
-    },
-    { id: 'wdm_awards', label: 'Award & XP Thresholds', icon: Gift },
-    { id: 'wdm_team', label: 'Engineering Roster', icon: Users },
-    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
-    { id: 'wdm_audit', label: 'Audit Trail', icon: FileText },
-  ];
+  // Super Admin verification
+  const isSuperAdmin = currentUser.role === 'admin' && (
+    currentUser.adminTier === 'super_admin' || 
+    !currentUser.adminTier || 
+    currentUser.teacherId.toUpperCase() === 'ADMIN-01' || 
+    currentUser.teacherId.toUpperCase() === 'ADMIN'
+  );
 
-  // Web Developer Navigation Links
-  const devNavItems: NavItem[] = [
-    { 
-      id: 'dev_tasks', 
-      label: 'My Tasks', 
-      icon: ListTodo,
-      badge: devActiveTasks > 0 ? `${devActiveTasks} Active` : undefined,
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30',
-    },
-    { id: 'dev_projects', label: 'Projects Roadmap', icon: Briefcase },
-    { 
-      id: 'dev_bounties', 
-      label: 'Open Bounties', 
-      icon: Target,
-      badge: wdmOpenBounties > 0 ? `${wdmOpenBounties} New` : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
-    },
-    { id: 'org_leaderboard', label: 'Company Leaderboard', icon: Trophy },
-    { id: 'dev_achievements', label: 'Achievements & Badges', icon: Sparkles },
-    { id: 'dev_rewards', label: 'Awards & Certificates', icon: Award },
-    { id: 'dev_ledger', label: 'XP Ledger', icon: Clock },
-    { id: 'dev_team', label: 'Team & Kudos', icon: Users },
-  ];
+  const navCategories = useMemo<NavCategory[]>(() => {
+    if (currentUser.role === 'admin') {
+      const perms = currentUser.adminPermissions || [];
+      const hasPerm = (p: string) => isSuperAdmin || perms.includes(p as any);
 
-  // Dedicated Sales Representative Navigation
-  const salesNavItems: NavItem[] = [
-    { 
-      id: 'sales_crm', 
-      label: 'Sales CRM Desk', 
-      icon: PhoneCall,
-      badge: myTodayCallsDueCount > 0 ? `${myTodayCallsDueCount} Due` : (myAssignedLeads.length > 0 ? `${myAssignedLeads.length} Leads` : undefined),
-      badgeColor: myTodayCallsDueCount > 0 
-        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
-        : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold font-mono',
-    },
-    { 
-      id: 'org_leaderboard', 
-      label: 'Company Leaderboard', 
-      icon: Trophy,
-    },
-  ];
+      const teacherChildren: SubNavItem[] = [
+        ...(hasPerm('manage_faculty') || hasPerm('manage_credentials') ? [{ id: 'admin_faculty', label: 'Faculty & Staff Roster' }] : []),
+        ...(hasPerm('manage_syllabus') ? [{ 
+          id: 'admin_syllabus', 
+          label: 'Syllabus & Deadlines',
+          badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
+        }] : []),
+        ...(hasPerm('manage_lectures') ? [{ 
+          id: 'admin_lectures', 
+          label: 'Lecture Audits',
+          badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold',
+        }] : []),
+        ...(hasPerm('manage_syllabus') ? [{ id: 'admin_resources', label: 'Subject Resources' }] : []),
+        { id: 'admin_wallet', label: 'Faculty Wallets' },
+        ...(hasPerm('manage_leaves') ? [{ 
+          id: 'admin_leaves', 
+          label: 'Day Offs & Leaves',
+          badge: StorageService.getDayOffGrants().filter(g => g.date >= StorageService.toLocalDateKey(new Date())).length > 0
+            ? `${StorageService.getDayOffGrants().filter(g => g.date >= StorageService.toLocalDateKey(new Date())).length} Active`
+            : undefined,
+          badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/60 font-bold',
+        }] : []),
+        ...(hasPerm('manage_leaves') ? [{ 
+          id: 'admin_extensions', 
+          label: 'Extension Windows',
+          badge: adminActiveExtensions > 0 ? `${adminActiveExtensions} Active` : undefined,
+          badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold',
+        }] : []),
+        ...(hasPerm('manage_syllabus') ? [{ 
+          id: 'ppt_generator', 
+          label: 'PYQ PPT Generator',
+          badge: adminPptRequestsQueueCount > 0 ? `${adminPptRequestsQueueCount} Req` : undefined,
+        }] : []),
+        ...(hasPerm('manage_syllabus') || hasPerm('manage_faculty') ? [{ id: 'thumbnail_generator', label: '16:9 Thumbnail Studio' }] : []),
+      ];
 
-  // Filter admin items according to admin permissions scope
-  const filteredAdminNavItems = useMemo(() => {
-    if (currentUser.role !== 'admin') return adminNavItems;
-    if (!currentUser.adminPermissions || isSuperAdmin) {
-      return adminNavItems;
-    }
-    const perms = currentUser.adminPermissions;
-    return adminNavItems.filter((item) => {
-      if (item.id === 'super_admin_panel') return isSuperAdmin;
-      if (item.id === 'admin_overview' || item.id === 'admin_dashboard') return true;
-      if (item.id === 'org_leaderboard') return true;
-      if (item.id === 'admin_faculty') return perms.includes('manage_faculty') || perms.includes('manage_credentials');
-      if (item.id === 'admin_syllabus') return perms.includes('manage_syllabus');
-      if (item.id === 'ppt_generator') return perms.includes('manage_syllabus');
-      if (item.id === 'thumbnail_generator') return perms.includes('manage_syllabus') || perms.includes('manage_faculty');
-      if (item.id === 'admin_resources') return perms.includes('manage_syllabus');
-      if (item.id === 'admin_lectures') return perms.includes('manage_lectures');
-      if (item.id === 'admin_extensions') return perms.includes('manage_leaves');
-      if (item.id === 'admin_pr') return perms.includes('manage_pr');
-      if (item.id === 'admin_web_dev') return perms.includes('manage_webdev');
-      if (item.id === 'admin_sales_crm') return perms.includes('manage_sales');
-      return true;
-    });
-  }, [currentUser, adminNavItems, isSuperAdmin]);
+      const prChildren: SubNavItem[] = [
+        ...(hasPerm('manage_pr') ? [{ 
+          id: 'admin_pr', 
+          label: 'PR War Room & Tasks',
+          badge: adminPrSubmissionsCount > 0 ? `${adminPrSubmissionsCount} Sub` : undefined,
+          badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+        }] : []),
+      ];
 
-  // Dynamic cross-role features granted by Super Admin Console
-  const customGrantedNavItems = useMemo<NavItem[]>(() => {
-    if (!currentUser.customFeatures || currentUser.customFeatures.length === 0) return [];
-    const granted: NavItem[] = [];
-
-    // PR Portal features granted to Teacher / Dev / Staff
-    if (currentUser.customFeatures.includes('pr_portal') && currentUser.role !== 'pr_intern' && currentUser.role !== 'pr_head') {
-      granted.push(
-        { id: 'pr_dashboard', label: 'PR Mission Control', icon: Award, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
-        { id: 'pr_leads', label: 'PR Leads Pipeline', icon: DollarSign, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
-        { id: 'pr_mou_maker', label: 'PR MoU Agreements', icon: FileText, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
-        { id: 'pr_tasks', label: 'PR Tasks & XP', icon: CheckCircle2, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' },
-        { id: 'pr_earnings', label: 'PR Earnings', icon: TrendingUp, badge: 'PR Grant', badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono' }
-      );
-    }
-
-    // Sales CRM granted
-    if (currentUser.customFeatures.includes('sales_crm') && currentUser.role !== 'sales' && currentUser.role !== 'admin') {
-      granted.push({
-        id: 'sales_crm',
-        label: 'Sales CRM Desk',
-        icon: PhoneCall,
-        badge: myTodayCallsDueCount > 0 ? `${myTodayCallsDueCount} Due` : (myAssignedLeads.length > 0 ? `${myAssignedLeads.length}` : 'CRM Grant'),
-        badgeColor: myTodayCallsDueCount > 0 
-          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
-          : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold font-mono',
-      });
-    }
-
-    // PPT Generator granted
-    if (currentUser.customFeatures.includes('ppt_generator') && currentUser.role !== 'admin') {
-      granted.push({
-        id: 'ppt_generator',
-        label: 'PYQ PPT Generator',
-        icon: FileSpreadsheet,
-        badge: 'PPT Grant',
-        badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
-      });
-    }
-
-    // Thumbnail Studio granted
-    if (currentUser.customFeatures.includes('thumbnail_studio') && currentUser.role !== 'admin') {
-      granted.push({
-        id: 'thumbnail_generator',
-        label: '16:9 Thumbnail Studio',
-        icon: ImageIcon,
-        badge: 'Studio Grant',
-        badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold font-mono',
-      });
-    }
-
-    // WebDev Portal granted
-    if (currentUser.customFeatures.includes('webdev_portal') && currentUser.role !== 'web_developer' && currentUser.role !== 'web_dev_manager' && currentUser.role !== 'admin') {
-      granted.push({
-        id: 'webdev_portal',
-        label: 'WebDev Tasks & Bounties',
-        icon: Code2,
-        badge: 'Dev Hub',
-        badgeColor: 'bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold font-mono',
-      });
-    }
-
-    // Syllabus Curriculum granted
-    if (currentUser.customFeatures.includes('syllabus_manager') && currentUser.role !== 'admin') {
-      granted.push({
-        id: 'admin_syllabus',
-        label: 'Curriculum & Deadlines',
-        icon: Layers,
-        badge: 'Curriculum',
-        badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold font-mono',
-      });
-    }
-
-    // Academic Audits granted
-    if (currentUser.customFeatures.includes('academic_audits') && currentUser.role !== 'admin') {
-      granted.push({
-        id: 'admin_lectures',
-        label: 'Lecture Audits',
-        icon: Video,
-        badge: 'Audits',
-        badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold font-mono',
-      });
-    }
-
-    // Faculty Wallets management granted
-    if (currentUser.customFeatures.includes('time_wallet_grants') && currentUser.role !== 'admin') {
-      granted.push({
-        id: 'admin_wallet',
-        label: 'Faculty Wallets',
-        icon: Wallet,
-        badge: 'Wallets',
-        badgeColor: 'bg-violet-500/20 text-violet-300 border border-violet-500/30 font-bold font-mono',
-      });
-    }
-
-    return granted;
-  }, [currentUser, myTodayCallsDueCount, myAssignedLeads.length]);
-
-  const baseNavItems: NavItem[] = currentUser.role === 'admin' 
-    ? filteredAdminNavItems 
-    : currentUser.role === 'sales'
-    ? salesNavItems
-    : (currentUser.role === 'pr_intern' || currentUser.role === 'pr_head')
-    ? prNavItems
-    : currentUser.role === 'web_dev_manager'
-    ? wdmNavItems
-    : currentUser.role === 'web_developer'
-    ? devNavItems
-    : teacherNavItems;
-
-  const navItems = useMemo<NavItem[]>(() => {
-    const list = [...baseNavItems];
-    if (hasEmployeeCrmAccess && currentUser.role !== 'admin' && currentUser.role !== 'sales') {
-      if (!list.some(i => i.id === 'sales_crm')) {
-        list.push({
-          id: 'sales_crm',
-          label: 'Sales CRM Desk',
-          icon: PhoneCall,
-          badge: myTodayCallsDueCount > 0 ? `${myTodayCallsDueCount} Due` : (myAssignedLeads.length > 0 ? `${myAssignedLeads.length}` : undefined),
-          badgeColor: myTodayCallsDueCount > 0 
+      const salesChildren: SubNavItem[] = [
+        ...(hasPerm('manage_sales') ? [{ 
+          id: 'admin_sales_crm', 
+          label: 'Sales CRM & Leads',
+          badge: adminTodayCallsDueCount > 0 ? `${adminTodayCallsDueCount} Due` : (allSalesLeads.length > 0 ? `${allSalesLeads.length}` : undefined),
+          badgeColor: adminTodayCallsDueCount > 0 
             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
             : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
-        });
-      }
+        }] : []),
+      ];
+
+      const webdevChildren: SubNavItem[] = [
+        ...(hasPerm('manage_webdev') ? [{ 
+          id: 'admin_web_dev', 
+          label: 'Web Dev War Room',
+          badge: 'All Work',
+          badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+        }] : []),
+      ];
+
+      return [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: LayoutDashboard,
+          directPageId: 'admin_dashboard',
+        },
+        ...(teacherChildren.length > 0 ? [{
+          id: 'teacher_module',
+          label: 'Teacher Module',
+          icon: GraduationCap,
+          children: teacherChildren,
+        }] : []),
+        ...(prChildren.length > 0 ? [{
+          id: 'pr_module',
+          label: 'PR Module',
+          icon: Award,
+          children: prChildren,
+        }] : []),
+        ...(salesChildren.length > 0 ? [{
+          id: 'sales_module',
+          label: 'Sales Module',
+          icon: PhoneCall,
+          children: salesChildren,
+        }] : []),
+        ...(webdevChildren.length > 0 ? [{
+          id: 'webdev_module',
+          label: 'Web Dev Module',
+          icon: Code2,
+          children: webdevChildren,
+        }] : []),
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: Trophy,
+          children: [
+            { 
+              id: 'org_leaderboard', 
+              label: 'Company Leaderboard',
+              badge: 'All Staff',
+              badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+            },
+          ],
+        },
+        ...(isSuperAdmin ? [{
+          id: 'settings',
+          label: 'Settings',
+          icon: Shield,
+          children: [
+            {
+              id: 'super_admin_panel',
+              label: 'Super Admin Console',
+              badge: 'Root Access',
+              badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono font-bold',
+            },
+          ],
+        }] : []),
+      ];
     }
-    for (const item of customGrantedNavItems) {
-      if (!list.some(i => i.id === item.id)) {
-        list.push(item);
+
+    if (currentUser.role === 'teacher') {
+      const customItems: SubNavItem[] = [];
+      if (currentUser.customFeatures?.includes('ppt_generator')) {
+        customItems.push({ id: 'ppt_generator', label: 'PYQ PPT Generator' });
       }
+      if (currentUser.customFeatures?.includes('thumbnail_studio')) {
+        customItems.push({ id: 'thumbnail_generator', label: '16:9 Thumbnail Studio' });
+      }
+
+      return [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: LayoutDashboard,
+          directPageId: 'dashboard',
+        },
+        {
+          id: 'academic',
+          label: 'Academic Work',
+          icon: GraduationCap,
+          children: [
+            { 
+              id: 'recording_status', 
+              label: 'Recording Status',
+              badge: teacherActiveExtensions > 0 
+                ? `${teacherActiveExtensions} Ext` 
+                : (backlogInfo && backlogInfo.yesterdayUnfulfilledMinutes > 0 ? 'Backlog' : undefined),
+              badgeColor: teacherActiveExtensions > 0 
+                ? 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold' 
+                : 'bg-amber-500/20 text-amber-300',
+            },
+            { 
+              id: 'syllabus', 
+              label: 'Syllabus & Topics',
+              badge: teacherRevisionCount > 0 
+                ? `${teacherRevisionCount} Revision` 
+                : (teacherActionRequiredCount > 0 ? `${teacherActionRequiredCount} New` : undefined),
+              badgeColor: teacherRevisionCount > 0 
+                ? 'bg-rose-600 text-white font-black animate-pulse shadow-md shadow-rose-600/40' 
+                : 'bg-amber-500/20 text-amber-300',
+            },
+            { id: 'lectures', label: 'Delivered Lectures' },
+            { 
+              id: 'resources', 
+              label: 'Study Resources',
+              badge: teacherResourcesCount > 0 ? `${teacherResourcesCount} Res` : undefined,
+              badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold',
+            },
+            { 
+              id: 'ppt_requests', 
+              label: 'PYQ Slide Decks',
+              badge: teacherPptReadyCount > 0 ? `${teacherPptReadyCount} Ready` : undefined,
+            },
+            { 
+              id: 'directives', 
+              label: 'Admin Directives',
+              badge: teacherUnacknowledgedDirectivesCount > 0 ? `${teacherUnacknowledgedDirectivesCount} New` : undefined,
+              badgeColor: 'bg-amber-500/20 text-amber-300 font-bold',
+            },
+          ],
+        },
+        {
+          id: 'finance',
+          label: 'Finance',
+          icon: Wallet,
+          children: [
+            { 
+              id: 'wallet', 
+              label: 'Time Wallet',
+              badge: teacherWalletInfo && teacherWalletInfo.balance > 0 
+                ? `+${teacherWalletInfo.balance}m` 
+                : undefined,
+              badgeColor: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono font-bold',
+            },
+          ],
+        },
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: Trophy,
+          children: [
+            { 
+              id: 'org_leaderboard', 
+              label: 'Company Leaderboard',
+              badge: 'Honor Roll',
+              badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
+            },
+          ],
+        },
+        ...(customItems.length > 0 ? [{
+          id: 'custom_sections',
+          label: 'Custom Sections',
+          icon: Sparkles,
+          children: customItems,
+        }] : []),
+      ];
     }
-    return list;
-  }, [baseNavItems, hasEmployeeCrmAccess, currentUser.role, customGrantedNavItems, myTodayCallsDueCount, myAssignedLeads.length]);
+
+    if (currentUser.role === 'pr_intern' || currentUser.role === 'pr_head') {
+      return [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: LayoutDashboard,
+          directPageId: 'pr_dashboard',
+        },
+        {
+          id: 'pr_ops',
+          label: 'PR Operations',
+          icon: Award,
+          children: [
+            { 
+              id: 'pr_tasks', 
+              label: 'Tasks & XP',
+              badge: prPendingTasksCount > 0 ? `${prPendingTasksCount} New` : undefined,
+              badgeColor: 'bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30 font-mono',
+            },
+            { id: 'pr_leads', label: 'Leads Pipeline' },
+            { id: 'pr_mou_maker', label: 'MoU Agreements' },
+            { id: 'pr_earnings', label: 'My Earnings' },
+            ...(currentUser.role === 'pr_head' ? [{ id: 'pr_team', label: 'PR Team Roster' }] : []),
+          ],
+        },
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: Trophy,
+          children: [
+            { id: 'org_leaderboard', label: 'Company Leaderboard' },
+          ],
+        },
+      ];
+    }
+
+    if (currentUser.role === 'web_dev_manager') {
+      return [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: LayoutDashboard,
+          directPageId: 'wdm_my_tasks',
+        },
+        {
+          id: 'sprints',
+          label: 'Sprints & Work',
+          icon: Code2,
+          children: [
+            { 
+              id: 'wdm_review', 
+              label: 'Review Desk',
+              badge: wdmPendingReviews > 0 ? `${wdmPendingReviews} Pending` : undefined,
+              badgeColor: 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30',
+            },
+            { id: 'wdm_tasks', label: 'All Tasks' },
+            { id: 'wdm_projects', label: 'Projects & Roadmap' },
+            { 
+              id: 'wdm_bounties', 
+              label: 'Bounties Desk',
+              badge: wdmOpenBounties > 0 ? `${wdmOpenBounties} Open` : undefined,
+              badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
+            },
+            { id: 'wdm_awards', label: 'Award & XP Thresholds' },
+            { id: 'wdm_team', label: 'Engineering Roster' },
+            { id: 'wdm_audit', label: 'Audit Trail' },
+          ],
+        },
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: Trophy,
+          children: [
+            { id: 'org_leaderboard', label: 'Company Leaderboard' },
+          ],
+        },
+      ];
+    }
+
+    if (currentUser.role === 'web_developer') {
+      return [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: LayoutDashboard,
+          directPageId: 'dev_tasks',
+        },
+        {
+          id: 'engineering',
+          label: 'Engineering Work',
+          icon: Code2,
+          children: [
+            { id: 'dev_projects', label: 'Projects Roadmap' },
+            { 
+              id: 'dev_bounties', 
+              label: 'Open Bounties',
+              badge: wdmOpenBounties > 0 ? `${wdmOpenBounties} New` : undefined,
+              badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold',
+            },
+            { id: 'dev_achievements', label: 'Achievements & Badges' },
+            { id: 'dev_rewards', label: 'Awards & Certificates' },
+            { id: 'dev_ledger', label: 'XP Ledger' },
+            { id: 'dev_team', label: 'Team & Kudos' },
+          ],
+        },
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: Trophy,
+          children: [
+            { id: 'org_leaderboard', label: 'Company Leaderboard' },
+          ],
+        },
+      ];
+    }
+
+    // Sales role
+    return [
+      {
+        id: 'dashboard',
+        label: 'Dashboard',
+        icon: PhoneCall,
+        directPageId: 'sales_crm',
+        badge: myTodayCallsDueCount > 0 ? `${myTodayCallsDueCount} Due` : (myAssignedLeads.length > 0 ? `${myAssignedLeads.length} Leads` : undefined),
+        badgeColor: myTodayCallsDueCount > 0 
+          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
+          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
+      },
+      {
+        id: 'reports',
+        label: 'Reports',
+        icon: Trophy,
+        children: [
+          { id: 'org_leaderboard', label: 'Company Leaderboard' },
+        ],
+      },
+    ];
+  }, [
+    currentUser,
+    isSuperAdmin,
+    pendingApprovalsCount,
+    adminRemarkStats,
+    adminActiveExtensions,
+    adminPptRequestsQueueCount,
+    adminPrSubmissionsCount,
+    adminTodayCallsDueCount,
+    allSalesLeads.length,
+    teacherActiveExtensions,
+    backlogInfo,
+    teacherRevisionCount,
+    teacherActionRequiredCount,
+    teacherResourcesCount,
+    teacherPptReadyCount,
+    teacherUnacknowledgedDirectivesCount,
+    teacherWalletInfo,
+    prPendingTasksCount,
+    wdmMyActiveTasks,
+    wdmPendingReviews,
+    wdmOpenBounties,
+    devActiveTasks,
+    myTodayCallsDueCount,
+    myAssignedLeads.length,
+  ]);
+
+  // Keep the category containing currentPage expanded automatically
+  useEffect(() => {
+    const activeCat = navCategories.find((cat: NavCategory) =>
+      cat.children?.some((child: SubNavItem) => child.id === currentPage)
+    );
+    if (activeCat) {
+      setExpandedCategories((prev) => ({
+        ...prev,
+        [activeCat.id]: true,
+      }));
+    }
+  }, [currentPage, navCategories]);
 
   const handleNavClick = (id: string) => {
     onPageChange(id);
@@ -651,155 +636,134 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* MIDDLE NAVIGATION ITEMS */}
-        <div className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-          {currentUser.role === 'admin' ? (() => {
-            const adminModules = [
-              { id: 'command_center', title: '🏛️ Command Center & Roster', color: 'border-indigo-500/30 bg-indigo-500/5 text-indigo-300' },
-              { id: 'teacher_module', title: '🎓 Teacher & Academic Module', color: 'border-purple-500/30 bg-purple-500/5 text-purple-300' },
-              { id: 'pr_module', title: '🤝 PR & Sponsorship Module', color: 'border-amber-500/30 bg-amber-500/5 text-amber-300' },
-              { id: 'sales_module', title: '📞 Sales & CRM Module', color: 'border-blue-500/30 bg-blue-500/5 text-blue-300' },
-              { id: 'webdev_module', title: '💻 Web Dev & Tech Module', color: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-300' },
-            ];
+        {/* MIDDLE NAVIGATION ITEMS - Clean, Sleek Tree View (Matches Reference Screenshot) */}
+        <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {navCategories.map((cat) => {
+            const Icon = cat.icon;
+            const hasChildren = Boolean(cat.children && cat.children.length > 0);
+            const isDirectActive = cat.directPageId === currentPage;
+            const hasActiveChild = Boolean(cat.children?.some((child: SubNavItem) => child.id === currentPage));
+            const isExpanded = Boolean(expandedCategories[cat.id]);
 
-            const allExpanded = adminModules.every((m) => expandedAdminModules[m.id]);
-
-            return (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-2 pb-1">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
-                    Department Modules
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextVal = !allExpanded;
-                      setExpandedAdminModules({
-                        command_center: nextVal,
-                        teacher_module: nextVal,
-                        pr_module: nextVal,
-                        sales_module: nextVal,
-                        webdev_module: nextVal,
-                      });
-                    }}
-                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 cursor-pointer"
-                  >
-                    {allExpanded ? 'Collapse All' : 'Expand All'}
-                  </button>
-                </div>
-
-                {adminModules.map((mod) => {
-                  const moduleItems = navItems.filter((item) => (item as any).moduleId === mod.id);
-                  if (moduleItems.length === 0) return null;
-                  const hasActivePage = moduleItems.some((item) => item.id === currentPage);
-                  const isExpanded = Boolean(expandedAdminModules[mod.id]);
-
-                  return (
-                    <div key={mod.id} className="rounded-2xl border border-slate-800/80 bg-slate-950/40 overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => toggleAdminModule(mod.id)}
-                        className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors cursor-pointer ${
-                          hasActivePage
-                            ? 'bg-slate-800/90 text-white'
-                            : 'hover:bg-slate-800/40 text-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {isExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                          ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                          )}
-                          <span className="text-[11px] font-extrabold truncate">{mod.title}</span>
-                        </div>
-                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-slate-900 text-slate-400 border border-slate-800 shrink-0">
-                          {moduleItems.length}
-                        </span>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="p-1.5 pt-1 space-y-1 border-t border-slate-800/60 bg-slate-900/40">
-                          {moduleItems.map((item) => {
-                            const Icon = item.icon;
-                            const isActive = currentPage === item.id;
-                            const requiredPerm = ADMIN_PAGE_PERMISSIONS[item.id];
-                            const isRestricted =
-                              currentUser.role === 'admin' &&
-                              currentUser.adminTier &&
-                              currentUser.adminTier !== 'super_admin' &&
-                              Array.isArray(currentUser.adminPermissions) &&
-                              requiredPerm &&
-                              !currentUser.adminPermissions.includes(requiredPerm as any);
-
-                            return (
-                              <button
-                                key={item.id}
-                                onClick={() => handleNavClick(item.id)}
-                                className={`w-full px-3 py-2 rounded-xl text-xs transition-colors flex items-center justify-between cursor-pointer ${
-                                  isActive
-                                    ? 'bg-indigo-600/20 border border-indigo-500/40 text-white font-bold shadow-sm'
-                                    : isRestricted
-                                    ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 opacity-75 font-medium'
-                                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium'
-                                }`}
-                                title={isRestricted ? `${item.label} (Access Restricted)` : item.label}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-indigo-400' : isRestricted ? 'text-slate-500' : 'text-slate-400'}`} />
-                                  <span className="truncate">{item.label}</span>
-                                  {isRestricted && (
-                                    <Lock className="w-3 h-3 text-amber-500/70 ml-1 inline shrink-0" />
-                                  )}
-                                </div>
-
-                                {item.badge && (
-                                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold shrink-0 ${
-                                    (item as any).badgeColor || 'bg-amber-500/20 text-amber-300'
-                                  }`}>
-                                    {item.badge}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })() : (
-            navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentPage === item.id;
+            if (!hasChildren) {
+              // Direct Top-Level Link (e.g. Dashboard - No Chevron)
               return (
                 <button
-                  key={item.id}
-                  onClick={() => handleNavClick(item.id)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
-                    isActive
-                      ? 'bg-slate-800 text-white font-bold shadow-sm'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium'
+                  key={cat.id}
+                  type="button"
+                  onClick={() => cat.directPageId && handleNavClick(cat.directPageId)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer group ${
+                    isDirectActive
+                      ? 'text-white font-semibold bg-slate-800/80 shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
-                    <span className="truncate">{item.label}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                      isDirectActive ? 'text-indigo-400' : 'text-slate-400 group-hover:text-slate-200'
+                    }`} />
+                    <span className="truncate">{cat.label}</span>
                   </div>
 
-                  {item.badge && (
+                  {cat.badge && (
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      (item as any).badgeColor || 'bg-amber-500/20 text-amber-300'
+                      cat.badgeColor || 'bg-amber-500/20 text-amber-300'
                     }`}>
-                      {item.badge}
+                      {cat.badge}
                     </span>
                   )}
                 </button>
               );
-            })
-          )}
+            }
+
+            // Expandable Category (e.g. Teacher Module, PR Module, Reports, Settings)
+            return (
+              <div key={cat.id} className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(cat.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer group ${
+                    hasActiveChild
+                      ? 'text-white font-semibold'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                      hasActiveChild ? 'text-indigo-400' : 'text-slate-400 group-hover:text-slate-200'
+                    }`} />
+                    <span className="truncate">{cat.label}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {cat.badge && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        cat.badgeColor || 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {cat.badge}
+                      </span>
+                    )}
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Sub-items with clean vertical guide line (like screenshot) */}
+                {isExpanded && cat.children && (
+                  <div className="relative pl-7 ml-3 my-1 space-y-0.5 animate-in fade-in duration-150">
+                    {/* The sleek vertical guide line */}
+                    <div className="absolute left-2.5 top-1 bottom-1 w-[2px] bg-slate-700/60 rounded-full" />
+
+                    {cat.children.map((child: SubNavItem) => {
+                      const isChildActive = currentPage === child.id;
+                      const requiredPerm = ADMIN_PAGE_PERMISSIONS[child.id];
+                      const isRestricted =
+                        currentUser.role === 'admin' &&
+                        currentUser.adminTier &&
+                        currentUser.adminTier !== 'super_admin' &&
+                        Array.isArray(currentUser.adminPermissions) &&
+                        requiredPerm &&
+                        !currentUser.adminPermissions.includes(requiredPerm as any);
+
+                      return (
+                        <button
+                          key={child.id}
+                          type="button"
+                          onClick={() => handleNavClick(child.id)}
+                          className={`w-full text-left py-1.5 px-2.5 rounded-lg text-[13px] transition-colors cursor-pointer flex items-center justify-between ${
+                            isChildActive
+                              ? 'text-white font-semibold bg-slate-800/70 shadow-sm'
+                              : isRestricted
+                              ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/20 opacity-75'
+                              : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/30 font-normal'
+                          }`}
+                          title={isRestricted ? `${child.label} (Access Restricted)` : child.label}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">{child.label}</span>
+                            {isRestricted && (
+                              <Lock className="w-3 h-3 text-amber-500/70 shrink-0 inline ml-1" />
+                            )}
+                          </div>
+
+                          {child.badge && (
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold shrink-0 ${
+                              child.badgeColor || 'bg-amber-500/20 text-amber-300'
+                            }`}>
+                              {child.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* BOTTOM USER PROFILE & LOGOUT */}
