@@ -26,6 +26,7 @@ import {
   Plus,
   BookOpen,
   AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 import type { User, UserRole, PrTier, AdminRoleTier, AdminPermissionKey } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -131,6 +132,12 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
   initialData,
 }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole>(initialData?.role || 'teacher');
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    step1: true,
+    step2: true,
+    step3: true,
+    step4: true,
+  });
   const [employeeId, setEmployeeId] = useState('');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
@@ -640,339 +647,417 @@ Portal URL: ${window.location.origin}`;
                   Provision employee accounts, assign department roles, set access scopes, and issue credentials.
                 </p>
               </div>
-              <button
-                onClick={onClose}
-                className="p-2 text-slate-400 hover:text-slate-100 rounded-xl hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allOpen = Object.values(expandedSections).every(Boolean);
+                    setExpandedSections({
+                      step1: !allOpen,
+                      step2: !allOpen,
+                      step3: !allOpen,
+                      step4: !allOpen,
+                    });
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      Object.values(expandedSections).every(Boolean) ? 'rotate-180 text-indigo-400' : 'text-slate-400'
+                    }`}
+                  />
+                  <span>{Object.values(expandedSections).every(Boolean) ? 'Collapse Sections' : 'Expand All'}</span>
+                </button>
+                <button
+                  onClick={onClose}
+                  className="p-2 text-slate-400 hover:text-slate-100 rounded-xl hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6 text-xs">
+            <form onSubmit={handleSubmit} className="space-y-5 text-xs">
               
               {/* 1. BIFURCATED DEPARTMENT MODULE PICKER */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setExpandedSections((prev) => ({ ...prev, step1: !prev.step1 }))}
+                  className="w-full flex items-center justify-between text-left cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                     <span>1. Choose Department Module</span>
-                  </label>
-                  <span className="text-[10px] font-mono text-indigo-400">Bifurcated by Department</span>
-                </div>
-
-                {/* 5 Clean Department Module Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {[
-                    {
-                      id: 'teacher_mod',
-                      title: 'Teacher Module',
-                      sub: 'Faculty / SME',
-                      icon: GraduationCap,
-                      defaultRole: 'teacher' as UserRole,
-                      isActive: selectedRole === 'teacher',
-                      color: 'text-purple-400',
-                      activeRing: 'bg-purple-600/20 border-purple-500 ring-2 ring-purple-500/40',
-                    },
-                    {
-                      id: 'pr_mod',
-                      title: 'PR Module',
-                      sub: 'Sponsorship & MoUs',
-                      icon: Award,
-                      defaultRole: (selectedRole === 'pr_head' ? 'pr_head' : 'pr_intern') as UserRole,
-                      isActive: selectedRole === 'pr_intern' || selectedRole === 'pr_head',
-                      color: 'text-amber-400',
-                      activeRing: 'bg-amber-600/20 border-amber-500 ring-2 ring-amber-500/40',
-                    },
-                    {
-                      id: 'sales_mod',
-                      title: 'Sales Module',
-                      sub: 'Admissions CRM',
-                      icon: PhoneCall,
-                      defaultRole: 'sales' as UserRole,
-                      isActive: selectedRole === 'sales',
-                      color: 'text-blue-400',
-                      activeRing: 'bg-blue-600/20 border-blue-500 ring-2 ring-blue-500/40',
-                    },
-                    {
-                      id: 'webdev_mod',
-                      title: 'Web Dev Module',
-                      sub: 'Engineering Squad',
-                      icon: Code2,
-                      defaultRole: (selectedRole === 'web_dev_manager' ? 'web_dev_manager' : 'web_developer') as UserRole,
-                      isActive: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager',
-                      color: 'text-emerald-400',
-                      activeRing: 'bg-emerald-600/20 border-emerald-500 ring-2 ring-emerald-500/40',
-                    },
-                    {
-                      id: 'admin_mod',
-                      title: 'Admin Module',
-                      sub: 'Ops & Governance',
-                      icon: ShieldCheck,
-                      defaultRole: 'admin' as UserRole,
-                      isActive: selectedRole === 'admin',
-                      color: 'text-rose-400',
-                      activeRing: 'bg-rose-600/20 border-rose-500 ring-2 ring-rose-500/40',
-                    },
-                  ].map((mod) => {
-                    const ModIcon = mod.icon;
-                    return (
-                      <button
-                        key={mod.id}
-                        type="button"
-                        onClick={() => setSelectedRole(mod.defaultRole)}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                          mod.isActive
-                            ? `${mod.activeRing} text-slate-100 shadow-lg`
-                            : 'bg-slate-950/70 border-slate-800/80 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-xs text-slate-100 flex items-center gap-1.5">
-                            <ModIcon className={`w-3.5 h-3.5 shrink-0 ${mod.color}`} />
-                            <span>{mod.title}</span>
-                          </span>
-                          {mod.isActive && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                        </div>
-                        <span className="text-[10px] text-slate-400">{mod.sub}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Sub-Role Picker for PR Module */}
-                {(selectedRole === 'pr_intern' || selectedRole === 'pr_head') && (
-                  <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-amber-400" /> Select PR Module Designation:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRole('pr_intern')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          selectedRole === 'pr_intern'
-                            ? 'bg-amber-500 text-slate-950 shadow-md'
-                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
-                        }`}
-                      >
-                        <Award className="w-3.5 h-3.5" /> PR Representative (PR-XX)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRole('pr_head')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          selectedRole === 'pr_head'
-                            ? 'bg-purple-600 text-white shadow-md'
-                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
-                        }`}
-                      >
-                        <Crown className="w-3.5 h-3.5" /> PR Head (PRH-XX)
-                      </button>
-                    </div>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-indigo-400">Bifurcated by Department</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-indigo-400 transition-transform duration-200 ${
+                        expandedSections.step1 ? 'rotate-180' : ''
+                      }`}
+                    />
                   </div>
-                )}
+                </button>
 
-                {/* Sub-Role Picker for Web Dev Module */}
-                {(selectedRole === 'web_developer' || selectedRole === 'web_dev_manager') && (
-                  <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
-                      <Code2 className="w-3.5 h-3.5 text-emerald-400" /> Select Web Dev Module Designation:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRole('web_developer')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          selectedRole === 'web_developer'
-                            ? 'bg-emerald-500 text-slate-950 shadow-md'
-                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
-                        }`}
-                      >
-                        <Code2 className="w-3.5 h-3.5" /> Web Developer (DEV-XX)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRole('web_dev_manager')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          selectedRole === 'web_dev_manager'
-                            ? 'bg-sky-500 text-slate-950 shadow-md'
-                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
-                        }`}
-                      >
-                        <Layers className="w-3.5 h-3.5" /> Dev Lead / Architect (WDM-XX)
-                      </button>
+                {expandedSections.step1 && (
+                  <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                    {/* 5 Clean Department Module Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {[
+                        {
+                          id: 'teacher_mod',
+                          title: 'Teacher Module',
+                          sub: 'Faculty / SME',
+                          icon: GraduationCap,
+                          defaultRole: 'teacher' as UserRole,
+                          isActive: selectedRole === 'teacher',
+                          color: 'text-purple-400',
+                          activeRing: 'bg-purple-600/20 border-purple-500 ring-2 ring-purple-500/40',
+                        },
+                        {
+                          id: 'pr_mod',
+                          title: 'PR Module',
+                          sub: 'Sponsorship & MoUs',
+                          icon: Award,
+                          defaultRole: (selectedRole === 'pr_head' ? 'pr_head' : 'pr_intern') as UserRole,
+                          isActive: selectedRole === 'pr_intern' || selectedRole === 'pr_head',
+                          color: 'text-amber-400',
+                          activeRing: 'bg-amber-600/20 border-amber-500 ring-2 ring-amber-500/40',
+                        },
+                        {
+                          id: 'sales_mod',
+                          title: 'Sales Module',
+                          sub: 'Admissions CRM',
+                          icon: PhoneCall,
+                          defaultRole: 'sales' as UserRole,
+                          isActive: selectedRole === 'sales',
+                          color: 'text-blue-400',
+                          activeRing: 'bg-blue-600/20 border-blue-500 ring-2 ring-blue-500/40',
+                        },
+                        {
+                          id: 'webdev_mod',
+                          title: 'Web Dev Module',
+                          sub: 'Engineering Squad',
+                          icon: Code2,
+                          defaultRole: (selectedRole === 'web_dev_manager' ? 'web_dev_manager' : 'web_developer') as UserRole,
+                          isActive: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager',
+                          color: 'text-emerald-400',
+                          activeRing: 'bg-emerald-600/20 border-emerald-500 ring-2 ring-emerald-500/40',
+                        },
+                        {
+                          id: 'admin_mod',
+                          title: 'Admin Module',
+                          sub: 'Ops & Governance',
+                          icon: ShieldCheck,
+                          defaultRole: 'admin' as UserRole,
+                          isActive: selectedRole === 'admin',
+                          color: 'text-rose-400',
+                          activeRing: 'bg-rose-600/20 border-rose-500 ring-2 ring-rose-500/40',
+                        },
+                      ].map((mod) => {
+                        const ModIcon = mod.icon;
+                        return (
+                          <button
+                            key={mod.id}
+                            type="button"
+                            onClick={() => setSelectedRole(mod.defaultRole)}
+                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                              mod.isActive
+                                ? `${mod.activeRing} text-slate-100 shadow-lg`
+                                : 'bg-slate-950/70 border-slate-800/80 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-xs text-slate-100 flex items-center gap-1.5">
+                                <ModIcon className={`w-3.5 h-3.5 shrink-0 ${mod.color}`} />
+                                <span>{mod.title}</span>
+                              </span>
+                              {mod.isActive && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                            </div>
+                            <span className="text-[10px] text-slate-400">{mod.sub}</span>
+                          </button>
+                        );
+                      })}
                     </div>
+
+                    {/* Sub-Role Picker for PR Module */}
+                    {(selectedRole === 'pr_intern' || selectedRole === 'pr_head') && (
+                      <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-amber-400" /> Select PR Module Designation:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRole('pr_intern')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              selectedRole === 'pr_intern'
+                                ? 'bg-amber-500 text-slate-950 shadow-md'
+                                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Award className="w-3.5 h-3.5" /> PR Representative (PR-XX)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRole('pr_head')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              selectedRole === 'pr_head'
+                                ? 'bg-purple-600 text-white shadow-md'
+                                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Crown className="w-3.5 h-3.5" /> PR Head (PRH-XX)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sub-Role Picker for Web Dev Module */}
+                    {(selectedRole === 'web_developer' || selectedRole === 'web_dev_manager') && (
+                      <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                          <Code2 className="w-3.5 h-3.5 text-emerald-400" /> Select Web Dev Module Designation:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRole('web_developer')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              selectedRole === 'web_developer'
+                                ? 'bg-emerald-500 text-slate-950 shadow-md'
+                                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Code2 className="w-3.5 h-3.5" /> Web Developer (DEV-XX)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRole('web_dev_manager')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              selectedRole === 'web_dev_manager'
+                                ? 'bg-sky-500 text-slate-950 shadow-md'
+                                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                            }`}
+                          >
+                            <Layers className="w-3.5 h-3.5" /> Dev Lead / Architect (WDM-XX)
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* 2. EMPLOYEE IDENTIFICATION */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-4">
-                <div className="font-bold text-slate-200 text-xs flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setExpandedSections((prev) => ({ ...prev, step2: !prev.step2 }))}
+                  className="w-full font-bold text-slate-200 text-xs flex items-center justify-between text-left cursor-pointer"
+                >
                   <span className="flex items-center gap-1.5">
                     <UserIcon className="w-4 h-4 text-emerald-400" /> 2. Profile & Identification
                   </span>
-                  <span className="text-[10px] text-slate-500 font-mono">System ID</span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-500 font-mono">System ID</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-emerald-400 transition-transform duration-200 ${
+                        expandedSections.step2 ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-semibold text-slate-400">Employee ID *</label>
-                      <button
-                        type="button"
-                        onClick={handleRegenerateId}
-                        className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                      >
-                        <RefreshCw className="w-2.5 h-2.5" /> Auto-Gen
-                      </button>
+                {expandedSections.step2 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-slate-800/80">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-semibold text-slate-400">Employee ID *</label>
+                        <button
+                          type="button"
+                          onClick={handleRegenerateId}
+                          className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                        >
+                          <RefreshCw className="w-2.5 h-2.5" /> Auto-Gen
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={employeeId}
+                        onChange={(e) => setEmployeeId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-indigo-300 font-mono font-bold uppercase focus:outline-none focus:border-indigo-500"
+                        required
+                      />
                     </div>
-                    <input
-                      type="text"
-                      value={employeeId}
-                      onChange={(e) => setEmployeeId(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-indigo-300 font-mono font-bold uppercase focus:outline-none focus:border-indigo-500"
-                      required
-                    />
-                  </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Full Name *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Dr. Harish Mehta, Rohan Verma"
-                      value={name}
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-bold focus:outline-none focus:border-indigo-500"
-                      required
-                    />
-                  </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-400">Full Name *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Dr. Harish Mehta, Rohan Verma"
+                        value={name}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-bold focus:outline-none focus:border-indigo-500"
+                        required
+                      />
+                    </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Email Address *</label>
-                    <input
-                      type="email"
-                      placeholder="e.g. employee@aew.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                      required
-                    />
-                  </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-400">Email Address *</label>
+                      <input
+                        type="email"
+                        placeholder="e.g. employee@aew.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                        required
+                      />
+                    </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Contact Phone Number</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. +91 98765 43210"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-400">Contact Phone Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. +91 98765 43210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* 3. LOGIN CREDENTIALS CONFIGURATION */}
               <div className="bg-slate-950/80 border border-indigo-500/30 rounded-2xl p-4 space-y-3">
-                <div className="font-bold text-indigo-300 text-xs flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setExpandedSections((prev) => ({ ...prev, step3: !prev.step3 }))}
+                  className="w-full font-bold text-indigo-300 text-xs flex items-center justify-between text-left cursor-pointer"
+                >
                   <span className="flex items-center gap-1.5">
                     <Key className="w-3.5 h-3.5 text-indigo-400" /> 3. Portal Credentials Configuration
                   </span>
-                  <span className="text-[10px] text-indigo-400 font-mono">Secure Access</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Login Username *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. harish_mehta"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
-                      required
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-indigo-400 font-mono">Secure Access</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-indigo-400 transition-transform duration-200 ${
+                        expandedSections.step3 ? 'rotate-180' : ''
+                      }`}
                     />
                   </div>
+                </button>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Login Password (Normal Words) *</label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Enter readable password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl pl-3.5 pr-10 py-2 text-emerald-300 font-mono font-bold focus:outline-none focus:border-emerald-400"
-                        required
-                      />
+                {expandedSections.step3 && (
+                  <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-400">Login Username *</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. harish_mehta"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-400">Login Password (Normal Words) *</label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter readable password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl pl-3.5 pr-10 py-2 text-emerald-300 font-mono font-bold focus:outline-none focus:border-emerald-400"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                          >
+                            {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
+                      <span className="text-[10px] text-slate-400 font-semibold mr-1">Quick Normal-Word Presets:</span>
+                      {name.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const first = name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+                            setPassword(`${first}123`);
+                            setShowPassword(true);
+                          }}
+                          className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold cursor-pointer"
+                        >
+                          {(name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user')}123
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                        onClick={() => {
+                          const defMap: Record<UserRole, string> = {
+                            teacher: 'teach123',
+                            pr_intern: 'intern123',
+                            pr_head: 'head123',
+                            web_developer: 'dev123',
+                            web_dev_manager: 'dev123',
+                            sales: 'sales123',
+                            admin: 'admin123',
+                          };
+                          setPassword(defMap[selectedRole]);
+                          setShowPassword(true);
+                        }}
+                        className="px-2 py-0.5 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] cursor-pointer"
                       >
-                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        Role Default
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPassword('aew2026');
+                          setShowPassword(true);
+                        }}
+                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+                      >
+                        aew2026
                       </button>
                     </div>
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
-                  <span className="text-[10px] text-slate-400 font-semibold mr-1">Quick Normal-Word Presets:</span>
-                  {name.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const first = name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
-                        setPassword(`${first}123`);
-                        setShowPassword(true);
-                      }}
-                      className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold cursor-pointer"
-                    >
-                      {(name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user')}123
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const defMap: Record<UserRole, string> = {
-                        teacher: 'teach123',
-                        pr_intern: 'intern123',
-                        pr_head: 'head123',
-                        web_developer: 'dev123',
-                        web_dev_manager: 'dev123',
-                        sales: 'sales123',
-                        admin: 'admin123',
-                      };
-                      setPassword(defMap[selectedRole]);
-                      setShowPassword(true);
-                    }}
-                    className="px-2 py-0.5 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] cursor-pointer"
-                  >
-                    Role Default
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPassword('aew2026');
-                      setShowPassword(true);
-                    }}
-                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
-                  >
-                    aew2026
-                  </button>
-                </div>
+                )}
               </div>
 
               {/* 4. ROLE-SPECIFIC PARAMETERS */}
               <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-4">
-                <div className="font-bold text-slate-200 text-xs flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setExpandedSections((prev) => ({ ...prev, step4: !prev.step4 }))}
+                  className="w-full font-bold text-slate-200 text-xs flex items-center justify-between text-left cursor-pointer"
+                >
                   <span className="flex items-center gap-1.5">
                     <Building className="w-4 h-4 text-purple-400" /> 4. Role Specific Parameters
                   </span>
-                  <span className="text-[10px] text-purple-400 font-mono uppercase">{selectedRole}</span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-purple-400 font-mono uppercase">{selectedRole}</span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-purple-400 transition-transform duration-200 ${
+                        expandedSections.step4 ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
 
-                {/* General Department & Subject */}
-                {selectedRole === 'teacher' ? (
+                {expandedSections.step4 && (
+                  <div className="space-y-4 pt-2 border-t border-slate-800/80">
+                    {/* General Department & Subject */}
+                    {selectedRole === 'teacher' ? (
                   <div className="space-y-3.5">
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-slate-400">Department</label>
@@ -1376,6 +1461,8 @@ Portal URL: ${window.location.origin}`;
                         })}
                       </div>
                     </div>
+                  </div>
+                )}
                   </div>
                 )}
 

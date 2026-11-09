@@ -7,7 +7,7 @@ import {
   Users, Menu, X, FileSpreadsheet, Image as ImageIcon, Clock, Wallet,
   Award, CheckCircle2, DollarSign, Star, TrendingUp, FileText,
   Code2, Trophy, Target, Sparkles, Shield, Gift, ListTodo, Briefcase, PhoneCall, Key, Lock,
-  ShieldAlert
+  ShieldAlert, ChevronDown, ChevronRight
 } from 'lucide-react';
 import { ChangePasswordModal } from './Common/ChangePasswordModal';
 
@@ -37,6 +37,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [expandedAdminModules, setExpandedAdminModules] = useState<Record<string, boolean>>({
+    command_center: true,
+    teacher_module: false,
+    pr_module: false,
+    sales_module: false,
+    webdev_module: false,
+  });
+
+  const toggleAdminModule = (modId: string) => {
+    setExpandedAdminModules((prev) => ({
+      ...prev,
+      [modId]: !prev[modId],
+    }));
+  };
 
   if (!currentUser) return null;
 
@@ -213,17 +227,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     currentUser.teacherId.toUpperCase() === 'ADMIN'
   );
 
-  // Admin Navigation Links (Bifurcated by Department Module)
+  // Admin Navigation Links (Bifurcated by Collapsible Department Module)
   const adminNavItems = [
     // 1. Command Center & Roster
-    { id: 'admin_dashboard', label: 'Overview & Modules Hub', icon: LayoutDashboard, sectionTitle: '🏛️ Command Center & Roster' },
-    { id: 'admin_faculty', label: 'Staff & Faculty Roster', icon: Users },
+    { id: 'admin_dashboard', label: 'Overview & Modules Hub', icon: LayoutDashboard, sectionTitle: '🏛️ Command Center & Roster', moduleId: 'command_center' },
+    { id: 'admin_faculty', label: 'Staff & Faculty Roster', icon: Users, moduleId: 'command_center' },
     ...(isSuperAdmin ? [{
       id: 'super_admin_panel',
       label: 'Super Admin Console',
       icon: ShieldAlert,
       badge: 'Root Access',
       badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono font-bold',
+      moduleId: 'command_center',
     }] : []),
     { 
       id: 'org_leaderboard', 
@@ -231,6 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Trophy,
       badge: 'All Staff',
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+      moduleId: 'command_center',
     },
 
     // 2. Teacher & Academic Module
@@ -240,6 +256,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Layers,
       badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
       sectionTitle: '🎓 Teacher & Academic Module',
+      moduleId: 'teacher_module',
     },
     { 
       id: 'admin_lectures', 
@@ -247,12 +264,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Video,
       badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
       badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold',
+      moduleId: 'teacher_module',
     },
-    { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
+    { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked, moduleId: 'teacher_module' },
     { 
       id: 'admin_wallet', 
       label: 'Faculty Wallets', 
       icon: Wallet,
+      moduleId: 'teacher_module',
     },
     { 
       id: 'admin_leaves', 
@@ -262,6 +281,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ? `${StorageService.getDayOffGrants().filter(g => g.date >= StorageService.toLocalDateKey(new Date())).length} Active`
         : undefined,
       badgeColor: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/60 font-bold',
+      moduleId: 'teacher_module',
     },
     { 
       id: 'admin_extensions', 
@@ -269,17 +289,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Clock,
       badge: adminActiveExtensions > 0 ? `${adminActiveExtensions} Active` : undefined,
       badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold',
+      moduleId: 'teacher_module',
     },
     { 
       id: 'ppt_generator', 
       label: 'PYQ PPT Generator', 
       icon: FileSpreadsheet,
       badge: adminPptRequestsQueueCount > 0 ? `${adminPptRequestsQueueCount} Req` : undefined,
+      moduleId: 'teacher_module',
     },
     { 
       id: 'thumbnail_generator', 
       label: '16:9 Thumbnail Studio', 
       icon: ImageIcon,
+      moduleId: 'teacher_module',
     },
 
     // 3. PR & Sponsorship Module
@@ -290,6 +313,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: adminPrSubmissionsCount > 0 ? `${adminPrSubmissionsCount} Sub` : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
       sectionTitle: '🤝 PR & Sponsorship Module',
+      moduleId: 'pr_module',
     },
 
     // 4. Sales & CRM Module
@@ -302,6 +326,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
         : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
       sectionTitle: '📞 Sales & CRM Module',
+      moduleId: 'sales_module',
     },
 
     // 5. Web Dev & Tech Module
@@ -312,6 +337,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'All Work',
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
       sectionTitle: '💻 Web Dev & Tech Module',
+      moduleId: 'webdev_module',
     },
   ];
 
@@ -322,6 +348,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     badge?: string;
     badgeColor?: string;
     sectionTitle?: string;
+    moduleId?: string;
   }
 
   // Web Dev counts & badges
@@ -625,43 +652,141 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* MIDDLE NAVIGATION ITEMS */}
-        <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item, idx) => {
-            const Icon = item.icon;
-            const isActive = currentPage === item.id;
-            const requiredPerm = ADMIN_PAGE_PERMISSIONS[item.id];
-            const isRestricted =
-              currentUser.role === 'admin' &&
-              currentUser.adminTier &&
-              currentUser.adminTier !== 'super_admin' &&
-              Array.isArray(currentUser.adminPermissions) &&
-              requiredPerm &&
-              !currentUser.adminPermissions.includes(requiredPerm as any);
+        <div className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+          {currentUser.role === 'admin' ? (() => {
+            const adminModules = [
+              { id: 'command_center', title: '🏛️ Command Center & Roster', color: 'border-indigo-500/30 bg-indigo-500/5 text-indigo-300' },
+              { id: 'teacher_module', title: '🎓 Teacher & Academic Module', color: 'border-purple-500/30 bg-purple-500/5 text-purple-300' },
+              { id: 'pr_module', title: '🤝 PR & Sponsorship Module', color: 'border-amber-500/30 bg-amber-500/5 text-amber-300' },
+              { id: 'sales_module', title: '📞 Sales & CRM Module', color: 'border-blue-500/30 bg-blue-500/5 text-blue-300' },
+              { id: 'webdev_module', title: '💻 Web Dev & Tech Module', color: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-300' },
+            ];
+
+            const allExpanded = adminModules.every((m) => expandedAdminModules[m.id]);
 
             return (
-              <React.Fragment key={item.id}>
-                {(item as any).sectionTitle && (
-                  <div className={`px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-500 ${idx > 0 ? 'pt-3 mt-1.5 border-t border-slate-800/70' : ''}`}>
-                    {(item as any).sectionTitle}
-                  </div>
-                )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-2 pb-1">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                    Department Modules
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !allExpanded;
+                      setExpandedAdminModules({
+                        command_center: nextVal,
+                        teacher_module: nextVal,
+                        pr_module: nextVal,
+                        sales_module: nextVal,
+                        webdev_module: nextVal,
+                      });
+                    }}
+                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                  >
+                    {allExpanded ? 'Collapse All' : 'Expand All'}
+                  </button>
+                </div>
+
+                {adminModules.map((mod) => {
+                  const moduleItems = navItems.filter((item) => (item as any).moduleId === mod.id);
+                  if (moduleItems.length === 0) return null;
+                  const hasActivePage = moduleItems.some((item) => item.id === currentPage);
+                  const isExpanded = Boolean(expandedAdminModules[mod.id]);
+
+                  return (
+                    <div key={mod.id} className="rounded-2xl border border-slate-800/80 bg-slate-950/40 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleAdminModule(mod.id)}
+                        className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors cursor-pointer ${
+                          hasActivePage
+                            ? 'bg-slate-800/90 text-white'
+                            : 'hover:bg-slate-800/40 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          )}
+                          <span className="text-[11px] font-extrabold truncate">{mod.title}</span>
+                        </div>
+                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-slate-900 text-slate-400 border border-slate-800 shrink-0">
+                          {moduleItems.length}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="p-1.5 pt-1 space-y-1 border-t border-slate-800/60 bg-slate-900/40">
+                          {moduleItems.map((item) => {
+                            const Icon = item.icon;
+                            const isActive = currentPage === item.id;
+                            const requiredPerm = ADMIN_PAGE_PERMISSIONS[item.id];
+                            const isRestricted =
+                              currentUser.role === 'admin' &&
+                              currentUser.adminTier &&
+                              currentUser.adminTier !== 'super_admin' &&
+                              Array.isArray(currentUser.adminPermissions) &&
+                              requiredPerm &&
+                              !currentUser.adminPermissions.includes(requiredPerm as any);
+
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => handleNavClick(item.id)}
+                                className={`w-full px-3 py-2 rounded-xl text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                                  isActive
+                                    ? 'bg-indigo-600/20 border border-indigo-500/40 text-white font-bold shadow-sm'
+                                    : isRestricted
+                                    ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 opacity-75 font-medium'
+                                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium'
+                                }`}
+                                title={isRestricted ? `${item.label} (Access Restricted)` : item.label}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-indigo-400' : isRestricted ? 'text-slate-500' : 'text-slate-400'}`} />
+                                  <span className="truncate">{item.label}</span>
+                                  {isRestricted && (
+                                    <Lock className="w-3 h-3 text-amber-500/70 ml-1 inline shrink-0" />
+                                  )}
+                                </div>
+
+                                {item.badge && (
+                                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold shrink-0 ${
+                                    (item as any).badgeColor || 'bg-amber-500/20 text-amber-300'
+                                  }`}>
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })() : (
+            navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentPage === item.id;
+              return (
                 <button
+                  key={item.id}
                   onClick={() => handleNavClick(item.id)}
                   className={`w-full px-3.5 py-2.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
                     isActive
                       ? 'bg-slate-800 text-white font-bold shadow-sm'
-                      : isRestricted
-                      ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 opacity-75 font-medium'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium'
                   }`}
-                  title={isRestricted ? `${item.label} (Access Restricted)` : item.label}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : isRestricted ? 'text-slate-500' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
                     <span className="truncate">{item.label}</span>
-                    {isRestricted && (
-                      <Lock className="w-3 h-3 text-amber-500/70 ml-1 inline" />
-                    )}
                   </div>
 
                   {item.badge && (
@@ -672,9 +797,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </span>
                   )}
                 </button>
-              </React.Fragment>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
         {/* BOTTOM USER PROFILE & LOGOUT */}

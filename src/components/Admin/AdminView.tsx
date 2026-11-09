@@ -50,6 +50,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [allEmployees, setAllEmployees] = useState<User[]>(() => StorageService.getUsers());
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_module' | 'pr_head' | 'pr_intern' | 'web_developer' | 'sales' | 'admin' | 'offboarded'>('all');
   const [showAllPasswords, setShowAllPasswords] = useState<boolean>(true);
+  const [expandedDashboardModules, setExpandedDashboardModules] = useState<Record<string, boolean>>({
+    teacher_mod: true,
+    pr_mod: false,
+    sales_mod: false,
+    webdev_mod: false,
+    admin_mod: false,
+  });
+  const [expandedEmployeeCardIds, setExpandedEmployeeCardIds] = useState<Record<string, boolean>>({});
+  const [expandAllEmployeeCards, setExpandAllEmployeeCards] = useState<boolean>(false);
+  const [expandedEditSections, setExpandedEditSections] = useState<Record<string, boolean>>({
+    credentials: true,
+    profile: true,
+    moduleSpecific: true,
+  });
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [onboardInitialData, setOnboardInitialData] = useState<Partial<User> | undefined>(undefined);
 
@@ -1525,7 +1539,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           </div>
 
-          {/* ─── BIFURCATED DEPARTMENT MODULES COMMAND HUB ───────────────────────── */}
+          {/* ─── BIFURCATED & COLLAPSIBLE DEPARTMENT MODULES COMMAND HUB ───────────────────────── */}
           {(() => {
             const activeStaffList = allEmployees.filter((u) => !u.isOffboarded);
             const modTeacherCount = activeStaffList.filter((u) => u.role === 'teacher').length;
@@ -1534,319 +1548,529 @@ export const AdminView: React.FC<AdminViewProps> = ({
             const modWebDevCount = activeStaffList.filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager').length;
             const modAdminCount = activeStaffList.filter((u) => u.role === 'admin').length;
 
+            const allModsExpanded = ['teacher_mod', 'pr_mod', 'sales_mod', 'webdev_mod', 'admin_mod'].every(
+              (k) => expandedDashboardModules[k]
+            );
+
+            const toggleDashMod = (modKey: string) => {
+              setExpandedDashboardModules((prev) => ({
+                ...prev,
+                [modKey]: !prev[modKey],
+              }));
+            };
+
             return (
               <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-4 shadow-xl">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3.5">
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-mono font-bold uppercase tracking-wider mb-1">
-                      <Grid className="w-3 h-3" /> Bifurcated Department Workspaces
+                      <Grid className="w-3 h-3" /> Collapsible Department Workspaces
                     </div>
                     <h3 className="text-base md:text-lg font-black text-slate-100 flex items-center gap-2">
-                      Quick-Access Department Modules
+                      Department Modules (Click Any Module to Expand / Collapse All Its Parts)
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Each department is cleanly separated into its own module for 1-click navigation, roster management, and employee onboarding.
+                      Click any department module header below to reveal or collapse all tools, sub-sections, rosters, and onboarding actions inside that module.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmployeeRoleFilter('all');
-                      onPageChange('admin_faculty');
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer self-start sm:self-auto"
-                  >
-                    <Users className="w-3.5 h-3.5 text-indigo-400" /> Full Directory & Passwords ({activeStaffList.length}) ➔
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextVal = !allModsExpanded;
+                        setExpandedDashboardModules({
+                          teacher_mod: nextVal,
+                          pr_mod: nextVal,
+                          sales_mod: nextVal,
+                          webdev_mod: nextVal,
+                          admin_mod: nextVal,
+                        });
+                      }}
+                      className="px-3 py-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      {allModsExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      <span>{allModsExpanded ? 'Collapse All Modules' : 'Expand All Modules'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmployeeRoleFilter('all');
+                        onPageChange('admin_faculty');
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Users className="w-3.5 h-3.5 text-indigo-400" /> Full Directory ({activeStaffList.length}) ➔
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3.5">
-                  {/* 1. TEACHER / ACADEMIC MODULE */}
-                  <div className="bg-slate-950/90 border border-purple-500/30 hover:border-purple-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3.5 items-start">
+                  {/* 1. TEACHER / ACADEMIC MODULE (COLLAPSIBLE) */}
+                  <div className="bg-slate-950/90 border border-purple-500/30 hover:border-purple-500/60 rounded-2xl overflow-hidden transition-all shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => toggleDashMod('teacher_mod')}
+                      className="w-full p-4 flex items-center justify-between text-left hover:bg-purple-950/20 transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <span className="px-2.5 py-1 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 font-extrabold text-[11px] inline-flex items-center gap-1.5">
                           <GraduationCap className="w-3.5 h-3.5 text-purple-400" /> 🎓 Teacher Module
                         </span>
-                        <span className="font-mono text-xs font-black text-purple-300">{modTeacherCount} SMEs</span>
+                        <div className="text-[11px] text-slate-400 pl-0.5">
+                          {modTeacherCount} SMEs • 8 Sub-Parts
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Faculty roster, syllabus deadlines, video lecture audits, leaves, extensions & time wallets.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('admin_syllabus')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          📚 Syllabus ({assignedTopics.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('admin_lectures')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          🎬 Lectures ({lectures.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('admin_leaves')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          🏖️ Leaves
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('admin_wallet')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          🏦 Wallets
-                        </button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-purple-300 font-bold">
+                          {expandedDashboardModules.teacher_mod ? 'Hide' : 'Open'}
+                        </span>
+                        {expandedDashboardModules.teacher_mod ? (
+                          <ChevronUp className="w-4 h-4 text-purple-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
                       </div>
-                    </div>
-                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEmployeeRoleFilter('teacher');
-                          onPageChange('admin_faculty');
-                        }}
-                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 font-bold text-[11px] transition-colors cursor-pointer"
-                      >
-                        Faculty Roster
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOnboardInitialData({ role: 'teacher' });
-                          setShowOnboardModal(true);
-                        }}
-                        className="py-1.5 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
-                        title="Onboard New Teacher / SME"
-                      >
-                        + Onboard
-                      </button>
-                    </div>
+                    </button>
+
+                    {expandedDashboardModules.teacher_mod && (
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-800/80 space-y-3 animate-in fade-in duration-150">
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          All Teacher & Academic sub-modules:
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_syllabus')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            📚 Syllabus ({assignedTopics.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_lectures')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🎬 Lectures ({lectures.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_resources')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            📖 Resources ({subjectReferences.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_wallet')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🏦 Time Wallets
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_leaves')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🏖️ Leaves & Offs
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_extensions')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            ⏱️ Extensions
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (teachers.length === 0) {
+                                alert('Please onboard at least one faculty member first.');
+                                return;
+                              }
+                              setAssignTeacherId(teachers[0]?.teacherId || '');
+                              setShowAssignModal(true);
+                            }}
+                            className="col-span-2 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-[10px] font-bold text-amber-300 cursor-pointer transition-colors text-center"
+                          >
+                            📌 + Assign Syllabus Topics
+                          </button>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmployeeRoleFilter('teacher');
+                              onPageChange('admin_faculty');
+                            }}
+                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            Faculty Roster
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOnboardInitialData({ role: 'teacher' });
+                              setShowOnboardModal(true);
+                            }}
+                            className="py-1.5 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                          >
+                            + Onboard
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* 2. PR & SPONSORSHIP MODULE */}
-                  <div className="bg-slate-950/90 border border-amber-500/30 hover:border-amber-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                  {/* 2. PR & SPONSORSHIP MODULE (COLLAPSIBLE) */}
+                  <div className="bg-slate-950/90 border border-amber-500/30 hover:border-amber-500/60 rounded-2xl overflow-hidden transition-all shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => toggleDashMod('pr_mod')}
+                      className="w-full p-4 flex items-center justify-between text-left hover:bg-amber-950/20 transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-extrabold text-[11px] inline-flex items-center gap-1.5">
                           <Award className="w-3.5 h-3.5 text-amber-400" /> 🤝 PR Module
                         </span>
-                        <span className="font-mono text-xs font-black text-amber-300">{modPrCount} Members</span>
+                        <div className="text-[11px] text-slate-400 pl-0.5">
+                          {modPrCount} Members • 5 Sub-Parts
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Hackathon sponsorships, college society MoUs, PR tasks, star rewards & commission tiers.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('admin_pr')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          🚀 PR War Room
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEmployeeRoleFilter('pr_module');
-                            onPageChange('admin_faculty');
-                          }}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          💰 Commission Rates
-                        </button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-amber-300 font-bold">
+                          {expandedDashboardModules.pr_mod ? 'Hide' : 'Open'}
+                        </span>
+                        {expandedDashboardModules.pr_mod ? (
+                          <ChevronUp className="w-4 h-4 text-amber-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
                       </div>
-                    </div>
-                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onPageChange('admin_pr')}
-                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-200 font-bold text-[11px] transition-colors cursor-pointer"
-                      >
-                        Open PR Desk
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOnboardInitialData({ role: 'pr_intern' });
-                          setShowOnboardModal(true);
-                        }}
-                        className="py-1.5 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[11px] transition-colors cursor-pointer shrink-0"
-                        title="Onboard PR Intern or PR Head"
-                      >
-                        + Onboard
-                      </button>
-                    </div>
+                    </button>
+
+                    {expandedDashboardModules.pr_mod && (
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-800/80 space-y-3 animate-in fade-in duration-150">
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          All PR & Sponsorship sub-modules:
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_pr')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🚀 PR War Room
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_pr')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            📜 College MoUs
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_pr')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            ⭐ Tasks & Stars
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmployeeRoleFilter('pr_module');
+                              onPageChange('admin_faculty');
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            💰 Commission %
+                          </button>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmployeeRoleFilter('pr_module');
+                              onPageChange('admin_faculty');
+                            }}
+                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-200 font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            PR Roster
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOnboardInitialData({ role: 'pr_intern' });
+                              setShowOnboardModal(true);
+                            }}
+                            className="py-1.5 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[11px] transition-colors cursor-pointer shrink-0"
+                          >
+                            + Onboard
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* 3. SALES & CRM MODULE */}
-                  <div className="bg-slate-950/90 border border-blue-500/30 hover:border-blue-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                  {/* 3. SALES & CRM MODULE (COLLAPSIBLE) */}
+                  <div className="bg-slate-950/90 border border-blue-500/30 hover:border-blue-500/60 rounded-2xl overflow-hidden transition-all shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => toggleDashMod('sales_mod')}
+                      className="w-full p-4 flex items-center justify-between text-left hover:bg-blue-950/20 transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <span className="px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 font-extrabold text-[11px] inline-flex items-center gap-1.5">
                           <PhoneCall className="w-3.5 h-3.5 text-blue-400" /> 📞 Sales Module
                         </span>
-                        <span className="font-mono text-xs font-black text-blue-300">{modSalesCount} Reps</span>
+                        <div className="text-[11px] text-slate-400 pl-0.5">
+                          {modSalesCount} Reps • 4 Sub-Parts
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Course admissions counseling, student lead pipeline, daily call logs & revenue tracking.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('admin_sales_crm')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          📊 CRM Leads Desk
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEmployeeRoleFilter('sales');
-                            onPageChange('admin_faculty');
-                          }}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          👥 Sales Team
-                        </button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-blue-300 font-bold">
+                          {expandedDashboardModules.sales_mod ? 'Hide' : 'Open'}
+                        </span>
+                        {expandedDashboardModules.sales_mod ? (
+                          <ChevronUp className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
                       </div>
-                    </div>
-                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onPageChange('admin_sales_crm')}
-                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-200 font-bold text-[11px] transition-colors cursor-pointer"
-                      >
-                        Open Sales CRM
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOnboardInitialData({ role: 'sales' });
-                          setShowOnboardModal(true);
-                        }}
-                        className="py-1.5 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
-                        title="Onboard Sales Representative"
-                      >
-                        + Onboard
-                      </button>
-                    </div>
+                    </button>
+
+                    {expandedDashboardModules.sales_mod && (
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-800/80 space-y-3 animate-in fade-in duration-150">
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          All Sales & Admissions CRM sub-modules:
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_sales_crm')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            📊 Leads Pipeline
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_sales_crm')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            📞 Call Logs
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_sales_crm')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            📅 Follow-Ups
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmployeeRoleFilter('sales');
+                              onPageChange('admin_faculty');
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            👥 Sales Team
+                          </button>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_sales_crm')}
+                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-200 font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            Open Sales CRM
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOnboardInitialData({ role: 'sales' });
+                              setShowOnboardModal(true);
+                            }}
+                            className="py-1.5 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                          >
+                            + Onboard
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* 4. WEB DEV & ENGINEERING MODULE */}
-                  <div className="bg-slate-950/90 border border-emerald-500/30 hover:border-emerald-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                  {/* 4. WEB DEV & ENGINEERING MODULE (COLLAPSIBLE) */}
+                  <div className="bg-slate-950/90 border border-emerald-500/30 hover:border-emerald-500/60 rounded-2xl overflow-hidden transition-all shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => toggleDashMod('webdev_mod')}
+                      className="w-full p-4 flex items-center justify-between text-left hover:bg-emerald-950/20 transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-extrabold text-[11px] inline-flex items-center gap-1.5">
                           <Code2 className="w-3.5 h-3.5 text-emerald-400" /> 💻 Web Dev Module
                         </span>
-                        <span className="font-mono text-xs font-black text-emerald-300">{modWebDevCount} Devs</span>
+                        <div className="text-[11px] text-slate-400 pl-0.5">
+                          {modWebDevCount} Devs • 4 Sub-Parts
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Engineering sprint tasks, open bounties, code review desk, developer XP & squad projects.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('admin_web_dev')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          ⚡ Dev War Room
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEmployeeRoleFilter('web_developer');
-                            onPageChange('admin_faculty');
-                          }}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          👨‍💻 Dev Squad
-                        </button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-emerald-300 font-bold">
+                          {expandedDashboardModules.webdev_mod ? 'Hide' : 'Open'}
+                        </span>
+                        {expandedDashboardModules.webdev_mod ? (
+                          <ChevronUp className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
                       </div>
-                    </div>
-                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onPageChange('admin_web_dev')}
-                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-200 font-bold text-[11px] transition-colors cursor-pointer"
-                      >
-                        Open Dev Hub
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOnboardInitialData({ role: 'web_developer' });
-                          setShowOnboardModal(true);
-                        }}
-                        className="py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
-                        title="Onboard Web Developer or Dev Lead"
-                      >
-                        + Onboard
-                      </button>
-                    </div>
+                    </button>
+
+                    {expandedDashboardModules.webdev_mod && (
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-800/80 space-y-3 animate-in fade-in duration-150">
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          All Web Dev & Engineering sub-modules:
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_web_dev')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            ⚡ Dev War Room
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_web_dev')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🎯 Bounties Desk
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_web_dev')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🗺️ Roadmap
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmployeeRoleFilter('web_developer');
+                              onPageChange('admin_faculty');
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            👨‍💻 Dev Squad
+                          </button>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('admin_web_dev')}
+                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-200 font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            Open Dev Hub
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOnboardInitialData({ role: 'web_developer' });
+                              setShowOnboardModal(true);
+                            }}
+                            className="py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                          >
+                            + Onboard
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* 5. ADMIN, STUDIOS & GOVERNANCE MODULE */}
-                  <div className="bg-slate-950/90 border border-rose-500/30 hover:border-rose-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                  {/* 5. ADMIN, STUDIOS & GOVERNANCE MODULE (COLLAPSIBLE) */}
+                  <div className="bg-slate-950/90 border border-rose-500/30 hover:border-rose-500/60 rounded-2xl overflow-hidden transition-all shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => toggleDashMod('admin_mod')}
+                      className="w-full p-4 flex items-center justify-between text-left hover:bg-rose-950/20 transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <span className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 font-extrabold text-[11px] inline-flex items-center gap-1.5">
                           <ShieldCheck className="w-3.5 h-3.5 text-rose-400" /> 🛡️ Admin & Studios
                         </span>
-                        <span className="font-mono text-xs font-black text-rose-300">{modAdminCount} Admins</span>
+                        <div className="text-[11px] text-slate-400 pl-0.5">
+                          {modAdminCount} Admins • 6 Sub-Parts
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Super Admin feature entitlements, PYQ PPT studio, 16:9 thumbnail studio & leaderboard.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('ppt_generator')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          📊 PPT Studio
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('thumbnail_generator')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          🖼️ Thumbnails
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onPageChange('org_leaderboard')}
-                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
-                        >
-                          🏆 Leaderboard
-                        </button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-rose-300 font-bold">
+                          {expandedDashboardModules.admin_mod ? 'Hide' : 'Open'}
+                        </span>
+                        {expandedDashboardModules.admin_mod ? (
+                          <ChevronUp className="w-4 h-4 text-rose-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
                       </div>
-                    </div>
-                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onPageChange('super_admin_panel')}
-                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-200 font-bold text-[11px] transition-colors cursor-pointer"
-                      >
-                        Super Admin
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOnboardInitialData({ role: 'admin' });
-                          setShowOnboardModal(true);
-                        }}
-                        className="py-1.5 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
-                        title="Onboard Operations Admin"
-                      >
-                        + Onboard
-                      </button>
-                    </div>
+                    </button>
+
+                    {expandedDashboardModules.admin_mod && (
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-800/80 space-y-3 animate-in fade-in duration-150">
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          All Admin, Studios & System sub-modules:
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('ppt_generator')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            📊 PPT Studio
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('thumbnail_generator')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🖼️ Thumbnails
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('org_leaderboard')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🏆 Leaderboard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAdminAccessGuide(true)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors text-left"
+                          >
+                            🔐 Access Matrix
+                          </button>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onPageChange('super_admin_panel')}
+                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-200 font-bold text-[11px] transition-colors cursor-pointer"
+                          >
+                            Super Admin
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOnboardInitialData({ role: 'admin' });
+                              setShowOnboardModal(true);
+                            }}
+                            className="py-1.5 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                          >
+                            + Onboard
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3788,6 +4012,24 @@ Portal URL: ${window.location.origin}`;
 
                 <button
                   type="button"
+                  onClick={() => {
+                    const nextExpand = !expandAllEmployeeCards;
+                    setExpandAllEmployeeCards(nextExpand);
+                    setExpandedEmployeeCardIds({});
+                  }}
+                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                    expandAllEmployeeCards
+                      ? 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border-indigo-500/30'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
+                  title="Expand or collapse all smaller module details inside employee cards"
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${expandAllEmployeeCards ? 'rotate-180 text-indigo-400' : 'text-slate-400'}`} />
+                  <span>{expandAllEmployeeCards ? 'Collapse Card Details' : 'Expand All Details'}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setShowAdminAccessGuide(true)}
                   className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                   title="View What All Admins Can Access Across Portal"
@@ -4138,221 +4380,271 @@ Portal URL: ${window.location.origin}`;
                           )}
                         </div>
 
-                        {/* ROLE-SPECIFIC INFO */}
-                        {isTeacher && (
-                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-400 font-medium">Daily Min Target:</span>
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  onClick={() => handleUpdateTargetMinutes(t.teacherId, -15)}
-                                  className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center cursor-pointer"
-                                  title="Decrease by 15 mins"
-                                >
-                                  -15m
-                                </button>
-                                <span className="font-mono font-black text-amber-400 text-xs px-1">
-                                  {t.dailyTargetMinutes || 120} min
+                        {/* COLLAPSIBLE MODULE DETAILS & ACTIONS ACCORDION */}
+                        {(() => {
+                          const cardKey = t.id || t.teacherId;
+                          const isCardExpanded =
+                            expandedEmployeeCardIds[cardKey] !== undefined
+                              ? expandedEmployeeCardIds[cardKey]
+                              : expandAllEmployeeCards;
+                          return (
+                            <div className="space-y-2.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedEmployeeCardIds((prev) => ({
+                                    ...prev,
+                                    [cardKey]: !isCardExpanded,
+                                  }))
+                                }
+                                className="w-full px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-[11px] font-bold text-slate-300 flex items-center justify-between transition-all cursor-pointer"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Layers className="w-3 h-3 text-indigo-400" />
+                                  <span>
+                                    {isTeacher
+                                      ? 'Teacher Module Quotas & Details'
+                                      : isPr || isPrHead
+                                      ? 'PR Module Tier, Commission & Revenue'
+                                      : isSales
+                                      ? 'Sales CRM Desk Details'
+                                      : isDev
+                                      ? 'Web Dev Stack & Role Details'
+                                      : 'Admin Permissions & Scope'}
+                                  </span>
                                 </span>
-                                <button
-                                  onClick={() => handleUpdateTargetMinutes(t.teacherId, 15)}
-                                  className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center cursor-pointer"
-                                  title="Increase by 15 mins"
-                                >
-                                  +15m
-                                </button>
-                              </div>
-                            </div>
+                                <span className="flex items-center gap-1 text-[10px] font-mono text-indigo-400">
+                                  <span>{isCardExpanded ? 'Hide' : 'Show'}</span>
+                                  <ChevronDown
+                                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                      isCardExpanded ? 'rotate-180' : ''
+                                    }`}
+                                  />
+                                </span>
+                              </button>
 
-                            <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/60">
-                              <span className="text-slate-400 font-medium">Daily Max Limit:</span>
-                              <span className="font-mono font-black text-indigo-300 text-xs">
-                                {t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240)} min
-                              </span>
-                            </div>
+                              {isCardExpanded && (
+                                <div className="space-y-2.5 animate-in fade-in duration-150">
+                                  {/* ROLE-SPECIFIC INFO */}
+                                  {isTeacher && (
+                                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2">
+                                      <div className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-400 font-medium">Daily Min Target:</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            onClick={() => handleUpdateTargetMinutes(t.teacherId, -15)}
+                                            className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center cursor-pointer"
+                                            title="Decrease by 15 mins"
+                                          >
+                                            -15m
+                                          </button>
+                                          <span className="font-mono font-black text-amber-400 text-xs px-1">
+                                            {t.dailyTargetMinutes || 120} min
+                                          </span>
+                                          <button
+                                            onClick={() => handleUpdateTargetMinutes(t.teacherId, 15)}
+                                            className="px-1.5 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 text-xs flex items-center justify-center cursor-pointer"
+                                            title="Increase by 15 mins"
+                                          >
+                                            +15m
+                                          </button>
+                                        </div>
+                                      </div>
 
-                            {(() => {
-                              const backlog = StorageService.getPreviousDayBacklog(t.teacherId);
-                              const recorded = StorageService.getMinutesRecordedToday(t.teacherId);
-                              const target = t.dailyTargetMinutes || 120;
-                              const isMet = recorded >= target;
+                                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/60">
+                                        <span className="text-slate-400 font-medium">Daily Max Limit:</span>
+                                        <span className="font-mono font-black text-indigo-300 text-xs">
+                                          {t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240)} min
+                                        </span>
+                                      </div>
 
-                              return (
-                                <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
-                                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                                    <span>Recorded Today:</span>
-                                    <span className={isMet ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>
-                                      {recorded} / {target} min {isMet ? '✓' : ''}
-                                    </span>
-                                  </div>
-                                  {!backlog.isYesterdayFulfilled && (
-                                    <div className="text-[10px] text-amber-400 font-bold">
-                                      ⚠️ Yesterday incomplete ({backlog.yesterdayUnfulfilledMinutes}m)
+                                      {(() => {
+                                        const backlog = StorageService.getPreviousDayBacklog(t.teacherId);
+                                        const recorded = StorageService.getMinutesRecordedToday(t.teacherId);
+                                        const target = t.dailyTargetMinutes || 120;
+                                        const isMet = recorded >= target;
+
+                                        return (
+                                          <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                                            <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                                              <span>Recorded Today:</span>
+                                              <span className={isMet ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>
+                                                {recorded} / {target} min {isMet ? '✓' : ''}
+                                              </span>
+                                            </div>
+                                            {!backlog.isYesterdayFulfilled && (
+                                              <div className="text-[10px] text-amber-400 font-bold">
+                                                ⚠️ Yesterday incomplete ({backlog.yesterdayUnfulfilledMinutes}m)
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   )}
+
+                                  {(isPr || isPrHead) && (
+                                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400 font-medium">PR Tier & Rate:</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                            t.prTier === 'Premium' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
+                                            t.prTier === 'Gold' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                                            'bg-slate-800 text-slate-300 border-slate-700'
+                                          }`}>
+                                            {t.prTier || 'Silver'}
+                                          </span>
+                                          <span className="font-mono font-bold text-emerald-400 text-xs">
+                                            {StorageService.getTierCommissionRate(t.prTier || 'Silver', t)}%
+                                          </span>
+                                        </div>
+                                      </div>
+                                      {t.prCustomCommissionRate !== undefined && (
+                                        <div className="text-[10px] text-amber-300 font-mono flex items-center justify-between bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                          <span>★ Flat Override Rate:</span>
+                                          <span className="font-bold">{t.prCustomCommissionRate}%</span>
+                                        </div>
+                                      )}
+                                      {t.prCustomTierPercentages && !t.prCustomCommissionRate && (
+                                        <div className="text-[9px] text-indigo-300 font-mono flex items-center justify-between bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                          <span>Custom Tiers:</span>
+                                          <span>S:{t.prCustomTierPercentages.Silver ?? 3.3}% G:{t.prCustomTierPercentages.Gold ?? 7}% P:{t.prCustomTierPercentages.Premium ?? 12}%</span>
+                                        </div>
+                                      )}
+                                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                        <span>Points & Stars:</span>
+                                        <span className="font-mono font-bold text-slate-200">
+                                          {t.prPoints || 0} pts • {t.prStars || 0} ⭐
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/80">
+                                        <span>Sponsor Revenue:</span>
+                                        <span className="font-bold text-emerald-400 font-mono">
+                                          ₹{(t.totalSponsorshipRevenue || 0).toLocaleString('en-IN')}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {isDev && (
+                                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400 font-medium">Job Title:</span>
+                                        <span className="font-bold text-slate-200 text-[11px] truncate max-w-[150px]">
+                                          {t.webDevTitle || 'Full Stack Developer'}
+                                        </span>
+                                      </div>
+                                      {t.skills && t.skills.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 pt-1">
+                                          {t.skills.slice(0, 3).map((s) => (
+                                            <span key={s} className="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-emerald-300 font-mono">
+                                              {s}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {isSales && (
+                                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400 font-medium">CRM Role:</span>
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                                          {t.crmRole === 'sales_manager' ? 'Sales Desk Manager' : 'Sales Representative'}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-slate-400">
+                                        Admissions Counselor • Lead Follow-ups
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {isAdmin && (
+                                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2 text-xs">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400 font-medium">Access Scope:</span>
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-300 border border-rose-500/30">
+                                          {t.adminTier === 'super_admin' || !t.adminPermissions
+                                            ? 'SUPER ADMIN (Full 9)'
+                                            : `${t.adminPermissions.length} / 9 Modules`}
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowAdminAccessGuide(true)}
+                                        className="text-[10px] text-rose-400 hover:text-rose-300 underline block cursor-pointer"
+                                      >
+                                        Inspect All Active Admin Permissions →
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Joining Date */}
+                                  <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                                    <span className="text-slate-400">Joining Date:</span>
+                                    <span className="font-mono font-bold text-indigo-300">
+                                      {t.joiningDate || t.firstLoginDate || '2026-08-25'}
+                                    </span>
+                                  </div>
+
+                                  {/* Super Admin Granted Features Badge */}
+                                  {t.customFeatures && t.customFeatures.length > 0 && (
+                                    <div className="bg-amber-950/20 p-2.5 rounded-xl border border-amber-500/30 flex items-center justify-between text-xs">
+                                      <span className="text-amber-300 font-bold flex items-center gap-1.5 text-[11px]">
+                                        <Crown className="w-3.5 h-3.5 text-amber-400" /> Super Admin Grants:
+                                      </span>
+                                      <span className="font-mono font-bold text-amber-300 text-[10px] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                        {t.customFeatures.length} Feature{t.customFeatures.length > 1 ? 's' : ''}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  <div className="space-y-1.5 pt-1">
+                                    <button
+                                      onClick={() => handleOpenEditTeacher(t)}
+                                      className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                                    >
+                                      <Key className="w-3.5 h-3.5" /> Edit Password & Profile
+                                    </button>
+
+                                    {isTeacher && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setRefreshingTeacher(t)}
+                                        className="w-full py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                                        title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
+                                      >
+                                        <RotateCcw className="w-3.5 h-3.5 text-emerald-400" /> Portal Refresh (Start from 0)
+                                      </button>
+                                    )}
+
+                                    {(!activeAdminUser.adminTier || activeAdminUser.adminTier === 'super_admin' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN-01' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onPageChange('super_admin_panel')}
+                                        className="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                                      >
+                                        <ShieldAlert className="w-3.5 h-3.5 text-rose-400" /> Feature Entitlements
+                                      </button>
+                                    )}
+
+                                    {t.teacherId.toUpperCase() !== 'ADMIN-01' && t.teacherId.toUpperCase() !== activeAdminUser.teacherId.toUpperCase() && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenOffboardOrDelete(t, 'delete')}
+                                        className="w-full py-1.5 bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-red-300 font-bold text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-red-400" /> Delete / Offboard Employee
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-
-                        {(isPr || isPrHead) && (
-                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-medium">PR Tier & Rate:</span>
-                              <div className="flex items-center gap-1.5">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                                  t.prTier === 'Premium' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
-                                  t.prTier === 'Gold' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                                  'bg-slate-800 text-slate-300 border-slate-700'
-                                }`}>
-                                  {t.prTier || 'Silver'}
-                                </span>
-                                <span className="font-mono font-bold text-emerald-400 text-xs">
-                                  {StorageService.getTierCommissionRate(t.prTier || 'Silver', t)}%
-                                </span>
-                              </div>
+                              )}
                             </div>
-                            {t.prCustomCommissionRate !== undefined && (
-                              <div className="text-[10px] text-amber-300 font-mono flex items-center justify-between bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                                <span>★ Flat Override Rate:</span>
-                                <span className="font-bold">{t.prCustomCommissionRate}%</span>
-                              </div>
-                            )}
-                            {t.prCustomTierPercentages && !t.prCustomCommissionRate && (
-                              <div className="text-[9px] text-indigo-300 font-mono flex items-center justify-between bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                                <span>Custom Tiers:</span>
-                                <span>S:{t.prCustomTierPercentages.Silver ?? 3.3}% G:{t.prCustomTierPercentages.Gold ?? 7}% P:{t.prCustomTierPercentages.Premium ?? 12}%</span>
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between text-[11px] text-slate-400">
-                              <span>Points & Stars:</span>
-                              <span className="font-mono font-bold text-slate-200">
-                                {t.prPoints || 0} pts • {t.prStars || 0} ⭐
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/80">
-                              <span>Sponsor Revenue:</span>
-                              <span className="font-bold text-emerald-400 font-mono">
-                                ₹{(t.totalSponsorshipRevenue || 0).toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {isDev && (
-                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-medium">Job Title:</span>
-                              <span className="font-bold text-slate-200 text-[11px] truncate max-w-[150px]">
-                                {t.webDevTitle || 'Full Stack Developer'}
-                              </span>
-                            </div>
-                            {t.skills && t.skills.length > 0 && (
-                              <div className="flex flex-wrap gap-1 pt-1">
-                                {t.skills.slice(0, 3).map((s) => (
-                                  <span key={s} className="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-emerald-300 font-mono">
-                                    {s}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {isSales && (
-                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-medium">CRM Role:</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                                {t.crmRole === 'sales_manager' ? 'Sales Desk Manager' : 'Sales Representative'}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-slate-400">
-                              Admissions Counselor • Lead Follow-ups
-                            </div>
-                          </div>
-                        )}
-
-                        {isAdmin && (
-                          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 space-y-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-slate-400 font-medium">Access Scope:</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-300 border border-rose-500/30">
-                                {t.adminTier === 'super_admin' || !t.adminPermissions
-                                  ? 'SUPER ADMIN (Full 9)'
-                                  : `${t.adminPermissions.length} / 9 Modules`}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setShowAdminAccessGuide(true)}
-                              className="text-[10px] text-rose-400 hover:text-rose-300 underline block cursor-pointer"
-                            >
-                              Inspect All Active Admin Permissions →
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Joining Date */}
-                        <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                          <span className="text-slate-400">Joining Date:</span>
-                          <span className="font-mono font-bold text-indigo-300">
-                            {t.joiningDate || t.firstLoginDate || '2026-08-25'}
-                          </span>
-                        </div>
-
-                        {/* Super Admin Granted Features Badge */}
-                        {t.customFeatures && t.customFeatures.length > 0 && (
-                          <div className="bg-amber-950/20 p-2.5 rounded-xl border border-amber-500/30 flex items-center justify-between text-xs">
-                            <span className="text-amber-300 font-bold flex items-center gap-1.5 text-[11px]">
-                              <Crown className="w-3.5 h-3.5 text-amber-400" /> Super Admin Grants:
-                            </span>
-                            <span className="font-mono font-bold text-amber-300 text-[10px] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                              {t.customFeatures.length} Feature{t.customFeatures.length > 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5 mt-2">
-                        <button
-                          onClick={() => handleOpenEditTeacher(t)}
-                          className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                        >
-                          <Key className="w-3.5 h-3.5" /> Edit Password & Profile
-                        </button>
-
-                        {isTeacher && (
-                          <button
-                            type="button"
-                            onClick={() => setRefreshingTeacher(t)}
-                            className="w-full py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                            title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5 text-emerald-400" /> Portal Refresh (Start from 0)
-                          </button>
-                        )}
-
-                        {(!activeAdminUser.adminTier || activeAdminUser.adminTier === 'super_admin' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN-01' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN') && (
-                          <button
-                            type="button"
-                            onClick={() => onPageChange('super_admin_panel')}
-                            className="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                          >
-                            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" /> Feature Entitlements
-                          </button>
-                        )}
-
-                        {t.teacherId.toUpperCase() !== 'ADMIN-01' && t.teacherId.toUpperCase() !== activeAdminUser.teacherId.toUpperCase() && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenOffboardOrDelete(t, 'delete')}
-                            className="w-full py-1.5 bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-red-300 font-bold text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" /> Delete / Offboard Employee
-                          </button>
-                        )}
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -5469,150 +5761,190 @@ Portal URL: ${window.location.origin}`;
 
               <form onSubmit={handleSaveEditTeacher} className="space-y-4 text-xs">
                 <div className="p-4 bg-slate-950 border border-indigo-500/30 rounded-2xl space-y-3.5">
-                  <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedEditSections((prev) => ({
+                        ...prev,
+                        credentials: !prev.credentials,
+                      }))
+                    }
+                    className="w-full flex items-center justify-between text-left cursor-pointer"
+                  >
                     <div className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5 text-indigo-400" /> 1. Login Credentials (Normal Words)
                     </div>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      Readable Plain-Word Mode
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Username *</label>
-                      <input
-                        type="text"
-                        value={editUsername}
-                        onChange={(e) => setEditUsername(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
-                        required
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        Readable Plain-Word Mode
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-indigo-400 transition-transform duration-200 ${
+                          expandedEditSections.credentials ? 'rotate-180' : ''
+                        }`}
                       />
                     </div>
+                  </button>
 
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-slate-300 font-semibold">Password (Normal Words) *</label>
+                  {expandedEditSections.credentials && (
+                    <div className="space-y-3.5 pt-2 border-t border-slate-800/80">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-slate-300 font-semibold mb-1">Username *</label>
+                          <input
+                            type="text"
+                            value={editUsername}
+                            onChange={(e) => setEditUsername(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-slate-300 font-semibold">Password (Normal Words) *</label>
+                            <button
+                              type="button"
+                              onClick={() => setShowEditPassword(!showEditPassword)}
+                              className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                            >
+                              {showEditPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              {showEditPassword ? 'Hide' : 'Show'}
+                            </button>
+                          </div>
+                          <input
+                            type={showEditPassword ? 'text' : 'password'}
+                            value={editPassword}
+                            onChange={(e) => setEditPassword(e.target.value)}
+                            placeholder="Type readable password (e.g. teach123)"
+                            className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl px-3.5 py-2.5 text-emerald-300 font-mono font-bold focus:outline-none focus:border-emerald-400 text-xs"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Quick 1-click readable password presets */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
+                        <span className="text-[10px] text-slate-400 font-semibold mr-1">Quick Reset To:</span>
                         <button
                           type="button"
-                          onClick={() => setShowEditPassword(!showEditPassword)}
-                          className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                          onClick={() => {
+                            setEditPassword(moduleTag.defaultPass);
+                            setShowEditPassword(true);
+                          }}
+                          className="px-2 py-0.5 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] font-bold cursor-pointer"
                         >
-                          {showEditPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          {showEditPassword ? 'Hide' : 'Show'}
+                          Default ({moduleTag.defaultPass})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cleanName = (editName || editingTeacher.name).split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+                            setEditPassword(`${cleanName}123`);
+                            setShowEditPassword(true);
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+                        >
+                          {((editName || editingTeacher.name).split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user')}123
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditPassword('aew2026');
+                            setShowEditPassword(true);
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+                        >
+                          aew2026
                         </button>
                       </div>
-                      <input
-                        type={showEditPassword ? 'text' : 'password'}
-                        value={editPassword}
-                        onChange={(e) => setEditPassword(e.target.value)}
-                        placeholder="Type readable password (e.g. teach123)"
-                        className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl px-3.5 py-2.5 text-emerald-300 font-mono font-bold focus:outline-none focus:border-emerald-400 text-xs"
-                        required
-                      />
                     </div>
-                  </div>
-
-                  {/* Quick 1-click readable password presets */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
-                    <span className="text-[10px] text-slate-400 font-semibold mr-1">Quick Reset To:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditPassword(moduleTag.defaultPass);
-                        setShowEditPassword(true);
-                      }}
-                      className="px-2 py-0.5 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] font-bold cursor-pointer"
-                    >
-                      Default ({moduleTag.defaultPass})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cleanName = (editName || editingTeacher.name).split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
-                        setEditPassword(`${cleanName}123`);
-                        setShowEditPassword(true);
-                      }}
-                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
-                    >
-                      {((editName || editingTeacher.name).split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user')}123
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditPassword('aew2026');
-                        setShowEditPassword(true);
-                      }}
-                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
-                    >
-                      aew2026
-                    </button>
-                  </div>
+                  )}
                 </div>
 
                 {/* 2. PROFILE & MODULE DETAILS */}
                 <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3.5">
-                  <div className="font-bold text-slate-200 text-xs flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedEditSections((prev) => ({
+                        ...prev,
+                        profile: !prev.profile,
+                      }))
+                    }
+                    className="w-full font-bold text-slate-200 text-xs flex items-center justify-between text-left cursor-pointer"
+                  >
                     <span>2. Employee Profile & Department</span>
-                    <span className="text-[10px] font-mono text-slate-400 uppercase">{editingTeacher.role.replace('_', ' ')}</span>
-                  </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-slate-400 uppercase">{editingTeacher.role.replace('_', ' ')}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                          expandedEditSections.profile ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
+                  </button>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Full Name *</label>
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-purple-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
-                      <input
-                        type="email"
-                        value={editEmail}
-                        onChange={(e) => setEditEmail(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none"
-                      />
-                    </div>
-                  </div>
+                  {expandedEditSections.profile && (
+                    <div className="space-y-3.5 pt-2 border-t border-slate-800/80">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-slate-300 font-semibold mb-1">Full Name *</label>
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-purple-500"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
+                          <input
+                            type="email"
+                            value={editEmail}
+                            onChange={(e) => setEditEmail(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Department</label>
-                      <input
-                        type="text"
-                        value={editDept}
-                        onChange={(e) => setEditDept(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-300 font-semibold mb-1">
-                        {isEditingTeacherRole ? 'Joining Date (Backlog Origin)' : 'Official Joining Date'}
-                      </label>
-                      <input
-                        type="date"
-                        value={editJoiningDate}
-                        onChange={(e) => setEditJoiningDate(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-slate-300 font-semibold mb-1">Department</label>
+                          <input
+                            type="text"
+                            value={editDept}
+                            onChange={(e) => setEditDept(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-300 font-semibold mb-1">
+                            {isEditingTeacherRole ? 'Joining Date (Backlog Origin)' : 'Official Joining Date'}
+                          </label>
+                          <input
+                            type="date"
+                            value={editJoiningDate}
+                            onChange={(e) => setEditJoiningDate(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
 
-                  {!isEditingTeacherRole && (
-                    <div>
-                      <label className="block text-slate-300 font-semibold mb-1">
-                        {isEditingPrRole ? 'PR Outreach Focus / Portfolio' : isEditingSalesRole ? 'Sales Desk / Counseling Scope' : isEditingDevRole ? 'Engineering Focus / Stack' : 'Admin Operational Scope'}
-                      </label>
-                      <input
-                        type="text"
-                        value={editSubject}
-                        onChange={(e) => setEditSubject(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                      />
+                      {!isEditingTeacherRole && (
+                        <div>
+                          <label className="block text-slate-300 font-semibold mb-1">
+                            {isEditingPrRole ? 'PR Outreach Focus / Portfolio' : isEditingSalesRole ? 'Sales Desk / Counseling Scope' : isEditingDevRole ? 'Engineering Focus / Stack' : 'Admin Operational Scope'}
+                          </label>
+                          <input
+                            type="text"
+                            value={editSubject}
+                            onChange={(e) => setEditSubject(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -5620,145 +5952,163 @@ Portal URL: ${window.location.origin}`;
                 {/* 3. TEACHER MODULE ONLY: MULTI-SUBJECT ASSIGNMENT & DAILY TARGET */}
                 {isEditingTeacherRole && (
                   <div className="p-3.5 bg-slate-950 border border-purple-500/30 rounded-2xl space-y-3">
-                    <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedEditSections((prev) => ({
+                          ...prev,
+                          moduleSpecific: !prev.moduleSpecific,
+                        }))
+                      }
+                      className="w-full flex items-center justify-between text-left cursor-pointer"
+                    >
                       <div className="font-bold text-purple-300 text-xs flex items-center gap-1.5">
                         <BookOpen className="w-3.5 h-3.5 text-purple-400" />
                         <span>3. Teacher Module: Subjects & Recording Quota ({editSubjects.length} Assigned)</span>
                       </div>
-                    </div>
+                      <ChevronDown
+                        className={`w-4 h-4 text-purple-400 transition-transform duration-200 ${
+                          expandedEditSections.moduleSpecific ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
 
-                    <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-800/80">
-                      <div>
-                        <label className="block text-slate-300 font-semibold mb-1">Daily Target (Min)</label>
-                        <input
-                          type="number"
-                          min={15}
-                          max={480}
-                          step={15}
-                          value={editTargetMinutes}
-                          onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-slate-300 font-semibold mb-1">Daily Max Limit (Min)</label>
-                        <input
-                          type="number"
-                          min={60}
-                          max={600}
-                          step={30}
-                          value={editMaxDailyMinutes}
-                          onChange={(e) => setEditMaxDailyMinutes(parseInt(e.target.value) || 240)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Active Subject Tags */}
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] text-slate-400 font-medium block">
-                        Currently Assigned Subjects (Click ✕ to remove):
-                      </label>
-                      {editSubjects.length === 0 ? (
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-                          <span>No subjects assigned yet. Please add at least 1 subject below.</span>
+                    {expandedEditSections.moduleSpecific && (
+                      <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                        <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-800/80">
+                          <div>
+                            <label className="block text-slate-300 font-semibold mb-1">Daily Target (Min)</label>
+                            <input
+                              type="number"
+                              min={15}
+                              max={480}
+                              step={15}
+                              value={editTargetMinutes}
+                              onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-300 font-semibold mb-1">Daily Max Limit (Min)</label>
+                            <input
+                              type="number"
+                              min={60}
+                              max={600}
+                              step={30}
+                              value={editMaxDailyMinutes}
+                              onChange={(e) => setEditMaxDailyMinutes(parseInt(e.target.value) || 240)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                            />
+                          </div>
                         </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
-                          {editSubjects.map((s, idx) => (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 group"
-                            >
-                              {idx === 0 && (
-                                <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-400/20 text-indigo-300 font-mono font-bold" title="Primary subject">
-                                  ★ Primary
+
+                        {/* Active Subject Tags */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-slate-400 font-medium block">
+                            Currently Assigned Subjects (Click ✕ to remove):
+                          </label>
+                          {editSubjects.length === 0 ? (
+                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                              <span>No subjects assigned yet. Please add at least 1 subject below.</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
+                              {editSubjects.map((s, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 group"
+                                >
+                                  {idx === 0 && (
+                                    <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-400/20 text-indigo-300 font-mono font-bold" title="Primary subject">
+                                      ★ Primary
+                                    </span>
+                                  )}
+                                  <span>{s}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveEditSubject(s)}
+                                    className="text-slate-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
+                                    title={`Remove ${s}`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
                                 </span>
-                              )}
-                              <span>{s}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveEditSubject(s)}
-                                className="text-slate-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
-                                title={`Remove ${s}`}
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          ))}
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    {/* Add Custom Subject Input */}
-                    <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
-                      <label className="text-[11px] text-slate-300 font-semibold block">
-                        Add Custom Subject:
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Type any custom subject name..."
-                          value={editCustomSubjectInput}
-                          onChange={(e) => setEditCustomSubjectInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddEditSubject(editCustomSubjectInput);
-                            }
-                          }}
-                          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 text-xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleAddEditSubject(editCustomSubjectInput)}
-                          disabled={!editCustomSubjectInput.trim()}
-                          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Select from Standard / Department Curriculum */}
-                    <div className="space-y-1 pt-1 border-t border-slate-800/80">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <label className="text-slate-400 font-medium">
-                          Or pick from curriculum subjects:
-                        </label>
-                        <span className="text-[10px] text-slate-500 font-mono">Click to toggle</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-1">
-                        {availableCurriculumSubjects.map((subName) => {
-                          const isSelected = editSubjects.some(
-                            (s) => s.toLowerCase() === subName.toLowerCase()
-                          );
-                          return (
-                            <button
-                              key={subName}
-                              type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  handleRemoveEditSubject(subName);
-                                } else {
-                                  handleAddEditSubject(subName);
+                        {/* Add Custom Subject Input */}
+                        <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                          <label className="text-[11px] text-slate-300 font-semibold block">
+                            Add Custom Subject:
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Type any custom subject name..."
+                              value={editCustomSubjectInput}
+                              onChange={(e) => setEditCustomSubjectInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddEditSubject(editCustomSubjectInput);
                                 }
                               }}
-                              className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
-                                isSelected
-                                  ? 'bg-indigo-500 text-slate-950 font-bold shadow-sm'
-                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-indigo-500/40'
-                              }`}
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleAddEditSubject(editCustomSubjectInput)}
+                              disabled={!editCustomSubjectInput.trim()}
+                              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
                             >
-                              {isSelected ? '✓ ' : '+ '}
-                              {subName}
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Add</span>
                             </button>
-                          );
-                        })}
+                          </div>
+                        </div>
+
+                        {/* Select from Standard / Department Curriculum */}
+                        <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <label className="text-slate-400 font-medium">
+                              Or pick from curriculum subjects:
+                            </label>
+                            <span className="text-[10px] text-slate-500 font-mono">Click to toggle</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-1">
+                            {availableCurriculumSubjects.map((subName) => {
+                              const isSelected = editSubjects.some(
+                                (s) => s.toLowerCase() === subName.toLowerCase()
+                              );
+                              return (
+                                <button
+                                  key={subName}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      handleRemoveEditSubject(subName);
+                                    } else {
+                                      handleAddEditSubject(subName);
+                                    }
+                                  }}
+                                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                                    isSelected
+                                      ? 'bg-indigo-500 text-slate-950 font-bold shadow-sm'
+                                      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-indigo-500/40'
+                                  }`}
+                                >
+                                  {isSelected ? '✓ ' : '+ '}
+                                  {subName}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
