@@ -112,7 +112,7 @@ export const PortalRefreshModal: React.FC<PortalRefreshModalProps> = ({
               Portal Refresh for {teacher.name}
             </h2>
             <p className="text-xs text-slate-400">
-              Start your delivery metrics, on-time submission rate, and backlog origin from 0 without deleting any of your submitted videos.
+              Start faculty delivery metrics, on-time submission rate, and backlog origin from 0 without deleting any submitted videos.
             </p>
           </div>
         </div>
@@ -124,7 +124,7 @@ export const PortalRefreshModal: React.FC<PortalRefreshModalProps> = ({
             <span>Guaranteed: All Submitted Videos Stay 100% Safe</span>
           </div>
           <p className="text-emerald-200/90 leading-relaxed text-[11px]">
-            Your existing library of <strong className="text-emerald-300 font-mono font-bold">{totalPreservedVideos} submitted lecture{totalPreservedVideos === 1 ? '' : 's'}</strong> ({totalPreservedMinutes} recording minutes), video links, lesson titles, DPPs, and remarks are <strong className="text-white underline">never deleted</strong>. You can continue reviewing and playing all historical videos in your library.
+            The faculty member&apos;s existing library of <strong className="text-emerald-300 font-mono font-bold">{totalPreservedVideos} submitted lecture{totalPreservedVideos === 1 ? '' : 's'}</strong> ({totalPreservedMinutes} recording minutes), video links, lesson titles, DPPs, and remarks are <strong className="text-white underline">never deleted</strong>. Historical submissions remain fully intact and accessible.
           </p>
         </div>
 

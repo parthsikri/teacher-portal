@@ -2960,6 +2960,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             >
                               ⏱️ Extension
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setRefreshingTeacher(t)}
+                              className="px-2.5 py-1 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-800/50 text-emerald-300 text-[10px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                              title="Reset faculty delivery metrics and backlogs to 0 for a fresh cycle (keeps videos safe)"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5 text-emerald-400" />
+                              <span>Refresh</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -3708,15 +3717,17 @@ Portal URL: ${window.location.origin}`;
                             >
                               Reset / Edit
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setRefreshingTeacher(t)}
-                              className="px-2 py-1 rounded text-[10px] font-medium text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40 border border-emerald-900/40 transition-colors cursor-pointer flex items-center gap-1"
-                              title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
-                            >
-                              <RotateCcw className="w-2.5 h-2.5 text-emerald-400" />
-                              <span>Refresh</span>
-                            </button>
+                            {isTeacher && (
+                              <button
+                                type="button"
+                                onClick={() => setRefreshingTeacher(t)}
+                                className="px-2 py-1 rounded text-[10px] font-medium text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40 border border-emerald-900/40 transition-colors cursor-pointer flex items-center gap-1"
+                                title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5 text-emerald-400" />
+                                <span>Refresh</span>
+                              </button>
+                            )}
                           </div>
                           {welcomeEmailToast && welcomeEmailToast.id === (t.id || t.teacherId) && (
                             <div className={`text-[10px] px-2.5 py-1 rounded-lg mt-1 font-mono flex items-center justify-between animate-in fade-in duration-150 ${
@@ -3912,14 +3923,16 @@ Portal URL: ${window.location.origin}`;
                           <Key className="w-3.5 h-3.5" /> Edit Password & Profile
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setRefreshingTeacher(t)}
-                          className="w-full py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                          title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5 text-emerald-400" /> Portal Refresh (Start from 0)
-                        </button>
+                        {isTeacher && (
+                          <button
+                            type="button"
+                            onClick={() => setRefreshingTeacher(t)}
+                            className="w-full py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                            title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-emerald-400" /> Portal Refresh (Start from 0)
+                          </button>
+                        )}
 
                         {(!activeAdminUser.adminTier || activeAdminUser.adminTier === 'super_admin' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN-01' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN') && (
                           <button
@@ -6811,6 +6824,14 @@ Portal URL: ${window.location.origin}`;
               teacherId={adminInspectDailyLogsTeacherId}
               onOpenWalletModal={() => {
                 setAdminInspectDailyLogsTeacherId(null);
+              }}
+              onOpenPortalRefresh={() => {
+                const targetTeacher = teachers.find(
+                  (t) => t.teacherId.toUpperCase() === adminInspectDailyLogsTeacherId.toUpperCase()
+                );
+                if (targetTeacher) {
+                  setRefreshingTeacher(targetTeacher);
+                }
               }}
               onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
               isCompactModalView={false}

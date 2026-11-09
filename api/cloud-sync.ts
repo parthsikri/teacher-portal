@@ -115,11 +115,20 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
           }
         }
 
+        const portalRefreshedAt = callerRole === 'admin'
+          ? (u.portalRefreshedAt !== undefined ? u.portalRefreshedAt : existing?.portalRefreshedAt)
+          : existing?.portalRefreshedAt;
+        const portalRefreshHistory = callerRole === 'admin'
+          ? (u.portalRefreshHistory !== undefined ? u.portalRefreshHistory : existing?.portalRefreshHistory)
+          : existing?.portalRefreshHistory;
+
         userMap.set(u.teacherId.toUpperCase(), {
           ...existing,
           ...u,
           password: passwordToStore,
           email: resolvedEmail,
+          portalRefreshedAt,
+          portalRefreshHistory,
         });
       }
     });
