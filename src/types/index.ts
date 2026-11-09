@@ -29,6 +29,7 @@ export interface User {
   teacherId: string;
   username?: string;
   password?: string;
+  plainPassword?: string;
   name: string;
   email: string;
   role: UserRole;

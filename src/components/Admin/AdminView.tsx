@@ -48,7 +48,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   } as User);
   const [teachers, setTeachers] = useState<User[]>(StorageService.getTeachers());
   const [allEmployees, setAllEmployees] = useState<User[]>(() => StorageService.getUsers());
-  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_head' | 'pr_intern' | 'web_developer' | 'sales' | 'admin' | 'offboarded'>('all');
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'teacher' | 'pr_module' | 'pr_head' | 'pr_intern' | 'web_developer' | 'sales' | 'admin' | 'offboarded'>('all');
+  const [showAllPasswords, setShowAllPasswords] = useState<boolean>(true);
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [onboardInitialData, setOnboardInitialData] = useState<Partial<User> | undefined>(undefined);
 
@@ -588,11 +589,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     refreshState();
   };
 
-  // Open Edit Credentials Modal for a teacher
+  // Open Edit Credentials Modal for any employee / teacher
   const handleOpenEditTeacher = (t: User) => {
     setEditingTeacher(t);
     setEditUsername(t.username || t.teacherId.toLowerCase());
-    setEditPassword(''); // Blank indicates keep current password unless a new one is typed
+    setEditPassword(StorageService.getReadablePassword(t));
     setEditName(t.name);
     setEditEmail(t.email);
     setEditDept(t.department);
@@ -604,7 +605,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setEditTargetMinutes(t.dailyTargetMinutes || 120);
     setEditMaxDailyMinutes(t.maxDailyMinutes || (t.dailyTargetMinutes ? t.dailyTargetMinutes * 2 : 240));
     setEditJoiningDate(t.joiningDate || t.firstLoginDate || '2026-08-25');
-    setShowEditPassword(false);
+    setShowEditPassword(true);
   };
 
   // Save Updated Credentials
@@ -612,7 +613,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     e.preventDefault();
     if (!editingTeacher) return;
 
-    const finalSubjects = editSubjects.length > 0 ? editSubjects : [editSubject.trim() || 'Engineering'];
+    const isTeacherRole = editingTeacher.role === 'teacher';
+    const finalSubjects = isTeacherRole
+      ? (editSubjects.length > 0 ? editSubjects : [editSubject.trim() || 'Engineering'])
+      : [editSubject.trim() || editingTeacher.subject || 'General'];
     const primarySubject = finalSubjects[0];
 
     const updates: Partial<User> = {
@@ -621,13 +625,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
       email: editEmail.trim(),
       department: editDept.trim(),
       subject: primarySubject,
-      subjects: finalSubjects,
-      dailyTargetMinutes: editTargetMinutes || 120,
-      maxDailyMinutes: editMaxDailyMinutes || 240,
+      ...(isTeacherRole ? {
+        subjects: finalSubjects,
+        dailyTargetMinutes: editTargetMinutes || 120,
+        maxDailyMinutes: editMaxDailyMinutes || 240,
+      } : {}),
       joiningDate: editJoiningDate || undefined,
     };
     if (editPassword.trim()) {
       updates.password = editPassword.trim();
+      updates.plainPassword = editPassword.trim();
     }
 
     StorageService.updateUser(editingTeacher.id, updates);
@@ -641,10 +648,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const adminUser = StorageService.getUsers().find((u) => u.role === 'admin') || StorageService.getCurrentUser();
     if (adminUser) {
       setAdminUsername(adminUser.username || 'admin');
-      setAdminPassword('');
+      setAdminPassword(StorageService.getReadablePassword(adminUser));
       setAdminName(adminUser.name || 'Academic Operations Admin');
       setAdminEmail(adminUser.email || 'admin@aew.com');
     }
+    setShowAdminPassword(true);
     setShowAdminProfileModal(true);
   };
 
@@ -1516,6 +1524,334 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </button>
             </div>
           </div>
+
+          {/* ─── BIFURCATED DEPARTMENT MODULES COMMAND HUB ───────────────────────── */}
+          {(() => {
+            const activeStaffList = allEmployees.filter((u) => !u.isOffboarded);
+            const modTeacherCount = activeStaffList.filter((u) => u.role === 'teacher').length;
+            const modPrCount = activeStaffList.filter((u) => u.role === 'pr_intern' || u.role === 'pr_head').length;
+            const modSalesCount = activeStaffList.filter((u) => u.role === 'sales').length;
+            const modWebDevCount = activeStaffList.filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager').length;
+            const modAdminCount = activeStaffList.filter((u) => u.role === 'admin').length;
+
+            return (
+              <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-4 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3.5">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-mono font-bold uppercase tracking-wider mb-1">
+                      <Grid className="w-3 h-3" /> Bifurcated Department Workspaces
+                    </div>
+                    <h3 className="text-base md:text-lg font-black text-slate-100 flex items-center gap-2">
+                      Quick-Access Department Modules
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Each department is cleanly separated into its own module for 1-click navigation, roster management, and employee onboarding.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmployeeRoleFilter('all');
+                      onPageChange('admin_faculty');
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer self-start sm:self-auto"
+                  >
+                    <Users className="w-3.5 h-3.5 text-indigo-400" /> Full Directory & Passwords ({activeStaffList.length}) ➔
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3.5">
+                  {/* 1. TEACHER / ACADEMIC MODULE */}
+                  <div className="bg-slate-950/90 border border-purple-500/30 hover:border-purple-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-1 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                          <GraduationCap className="w-3.5 h-3.5 text-purple-400" /> 🎓 Teacher Module
+                        </span>
+                        <span className="font-mono text-xs font-black text-purple-300">{modTeacherCount} SMEs</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Faculty roster, syllabus deadlines, video lecture audits, leaves, extensions & time wallets.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('admin_syllabus')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          📚 Syllabus ({assignedTopics.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('admin_lectures')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          🎬 Lectures ({lectures.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('admin_leaves')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          🏖️ Leaves
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('admin_wallet')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-purple-950/50 border border-slate-800 hover:border-purple-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          🏦 Wallets
+                        </button>
+                      </div>
+                    </div>
+                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmployeeRoleFilter('teacher');
+                          onPageChange('admin_faculty');
+                        }}
+                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Faculty Roster
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOnboardInitialData({ role: 'teacher' });
+                          setShowOnboardModal(true);
+                        }}
+                        className="py-1.5 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                        title="Onboard New Teacher / SME"
+                      >
+                        + Onboard
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. PR & SPONSORSHIP MODULE */}
+                  <div className="bg-slate-950/90 border border-amber-500/30 hover:border-amber-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-amber-400" /> 🤝 PR Module
+                        </span>
+                        <span className="font-mono text-xs font-black text-amber-300">{modPrCount} Members</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Hackathon sponsorships, college society MoUs, PR tasks, star rewards & commission tiers.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('admin_pr')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          🚀 PR War Room
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmployeeRoleFilter('pr_module');
+                            onPageChange('admin_faculty');
+                          }}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          💰 Commission Rates
+                        </button>
+                      </div>
+                    </div>
+                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onPageChange('admin_pr')}
+                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-200 font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Open PR Desk
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOnboardInitialData({ role: 'pr_intern' });
+                          setShowOnboardModal(true);
+                        }}
+                        className="py-1.5 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[11px] transition-colors cursor-pointer shrink-0"
+                        title="Onboard PR Intern or PR Head"
+                      >
+                        + Onboard
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. SALES & CRM MODULE */}
+                  <div className="bg-slate-950/90 border border-blue-500/30 hover:border-blue-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                          <PhoneCall className="w-3.5 h-3.5 text-blue-400" /> 📞 Sales Module
+                        </span>
+                        <span className="font-mono text-xs font-black text-blue-300">{modSalesCount} Reps</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Course admissions counseling, student lead pipeline, daily call logs & revenue tracking.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('admin_sales_crm')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          📊 CRM Leads Desk
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmployeeRoleFilter('sales');
+                            onPageChange('admin_faculty');
+                          }}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-blue-950/50 border border-slate-800 hover:border-blue-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          👥 Sales Team
+                        </button>
+                      </div>
+                    </div>
+                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onPageChange('admin_sales_crm')}
+                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-200 font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Open Sales CRM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOnboardInitialData({ role: 'sales' });
+                          setShowOnboardModal(true);
+                        }}
+                        className="py-1.5 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                        title="Onboard Sales Representative"
+                      >
+                        + Onboard
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. WEB DEV & ENGINEERING MODULE */}
+                  <div className="bg-slate-950/90 border border-emerald-500/30 hover:border-emerald-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                          <Code2 className="w-3.5 h-3.5 text-emerald-400" /> 💻 Web Dev Module
+                        </span>
+                        <span className="font-mono text-xs font-black text-emerald-300">{modWebDevCount} Devs</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Engineering sprint tasks, open bounties, code review desk, developer XP & squad projects.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('admin_web_dev')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          ⚡ Dev War Room
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmployeeRoleFilter('web_developer');
+                            onPageChange('admin_faculty');
+                          }}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          👨‍💻 Dev Squad
+                        </button>
+                      </div>
+                    </div>
+                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onPageChange('admin_web_dev')}
+                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-200 font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Open Dev Hub
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOnboardInitialData({ role: 'web_developer' });
+                          setShowOnboardModal(true);
+                        }}
+                        className="py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                        title="Onboard Web Developer or Dev Lead"
+                      >
+                        + Onboard
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 5. ADMIN, STUDIOS & GOVERNANCE MODULE */}
+                  <div className="bg-slate-950/90 border border-rose-500/30 hover:border-rose-500/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all shadow-md">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 font-extrabold text-[11px] flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-rose-400" /> 🛡️ Admin & Studios
+                        </span>
+                        <span className="font-mono text-xs font-black text-rose-300">{modAdminCount} Admins</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Super Admin feature entitlements, PYQ PPT studio, 16:9 thumbnail studio & leaderboard.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('ppt_generator')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          📊 PPT Studio
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('thumbnail_generator')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          🖼️ Thumbnails
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPageChange('org_leaderboard')}
+                          className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-500/40 text-[10px] font-bold text-slate-200 cursor-pointer transition-colors"
+                        >
+                          🏆 Leaderboard
+                        </button>
+                      </div>
+                    </div>
+                    <div className="pt-2.5 border-t border-slate-800/80 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onPageChange('super_admin_panel')}
+                        className="flex-1 py-1.5 px-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-200 font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Super Admin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOnboardInitialData({ role: 'admin' });
+                          setShowOnboardModal(true);
+                        }}
+                        className="py-1.5 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                        title="Onboard Operations Admin"
+                      >
+                        + Onboard
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* METRICS STATS OVERVIEW */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -3296,19 +3632,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
         const teachersCount = activeStaff.filter((u) => u.role === 'teacher').length;
         const prHeadCount = activeStaff.filter((u) => u.role === 'pr_head').length;
         const prInternCount = activeStaff.filter((u) => u.role === 'pr_intern').length;
+        const prTotalCount = prHeadCount + prInternCount;
         const webDevCount = activeStaff.filter((u) => u.role === 'web_developer' || u.role === 'web_dev_manager').length;
         const salesCount = activeStaff.filter((u) => u.role === 'sales').length;
         const adminCount = activeStaff.filter((u) => u.role === 'admin').length;
         const offboardedCount = allEmployees.filter((u) => u.isOffboarded).length;
 
         const roleTabs = [
-          { id: 'all' as const, label: 'All Active', count: activeStaff.length, icon: Users },
-          { id: 'teacher' as const, label: 'Faculty / SMEs', count: teachersCount, icon: GraduationCap },
-          { id: 'pr_head' as const, label: 'PR Heads', count: prHeadCount, icon: Crown },
-          { id: 'pr_intern' as const, label: 'PR Reps', count: prInternCount, icon: Award },
-          { id: 'web_developer' as const, label: 'Web Devs', count: webDevCount, icon: Code2 },
-          { id: 'sales' as const, label: 'Sales Reps', count: salesCount, icon: PhoneCall },
-          { id: 'admin' as const, label: 'Operations Admins', count: adminCount, icon: ShieldCheck },
+          { id: 'all' as const, label: '🌐 All Modules', count: activeStaff.length, icon: Users },
+          { id: 'teacher' as const, label: '🎓 Teacher Module', count: teachersCount, icon: GraduationCap },
+          { id: 'pr_module' as const, label: '🤝 PR Module', count: prTotalCount, icon: Award },
+          { id: 'sales' as const, label: '📞 Sales Module', count: salesCount, icon: PhoneCall },
+          { id: 'web_developer' as const, label: '💻 Web Dev Module', count: webDevCount, icon: Code2 },
+          { id: 'admin' as const, label: '🛡️ Admin Module', count: adminCount, icon: ShieldCheck },
           ...(offboardedCount > 0 ? [{ id: 'offboarded' as const, label: 'Offboarded / Left', count: offboardedCount, icon: UserX }] : []),
         ];
 
@@ -3320,6 +3656,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
             if (employeeRoleFilter !== 'all') {
               if (employeeRoleFilter === 'web_developer') {
                 if (emp.role !== 'web_developer' && emp.role !== 'web_dev_manager') return false;
+              } else if (employeeRoleFilter === 'pr_module') {
+                if (emp.role !== 'pr_intern' && emp.role !== 'pr_head') return false;
               } else if (emp.role !== employeeRoleFilter) {
                 return false;
               }
@@ -3337,18 +3675,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
         });
 
         const handleCopyUserCredentials = (u: User) => {
-          const defaultPassword = 
-            u.role === 'admin' ? 'admin123' :
-            u.role === 'pr_intern' ? 'intern123' :
-            u.role === 'sales' ? 'sales123' :
-            (u.role === 'web_developer' || u.role === 'web_dev_manager') ? 'dev123' : 'teach123';
+          const readablePassword = StorageService.getReadablePassword(u);
           
           const text = `AEW Portal Login Credentials:
 Name: ${u.name}
 Role: ${u.role.toUpperCase()} (${u.department})
 Employee ID: ${u.teacherId}
 Username: ${u.username || u.teacherId.toLowerCase()}
-Password: ${u.password || defaultPassword}
+Password: ${readablePassword}
 Portal URL: ${window.location.origin}`;
 
           navigator.clipboard.writeText(text).then(() => {
@@ -3362,11 +3696,7 @@ Portal URL: ${window.location.origin}`;
           setSendingWelcomeEmailId(u.id || u.teacherId);
           
           try {
-            const defaultPassword = 
-              u.role === 'admin' ? 'admin123' :
-              u.role === 'pr_intern' ? 'intern123' :
-              u.role === 'sales' ? 'sales123' :
-              (u.role === 'web_developer' || u.role === 'web_dev_manager') ? 'dev123' : 'teach123';
+            const readablePassword = StorageService.getReadablePassword(u);
 
             const res = await notificationService.notifyEmployeeWelcome({
               employeeEmail: empEmail,
@@ -3376,7 +3706,7 @@ Portal URL: ${window.location.origin}`;
               department: u.department,
               subject: u.subject,
               username: u.username || u.teacherId.toLowerCase(),
-              password: u.password || defaultPassword,
+              password: readablePassword,
               joiningDate: u.joiningDate,
               adminTier: u.adminTier,
               adminPermissions: u.adminPermissions,
@@ -3441,6 +3771,23 @@ Portal URL: ${window.location.origin}`;
 
                 <button
                   type="button"
+                  onClick={() => {
+                    setShowAllPasswords(!showAllPasswords);
+                    setRevealedPasswordId(null);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                    showAllPasswords
+                      ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
+                  title="Toggle showing all employee passwords in readable normal words"
+                >
+                  {showAllPasswords ? <Eye className="w-4 h-4 text-emerald-400" /> : <EyeOff className="w-4 h-4 text-slate-400" />}
+                  <span>{showAllPasswords ? 'Passwords: Normal Words' : 'Show Passwords'}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setShowAdminAccessGuide(true)}
                   className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                   title="View What All Admins Can Access Across Portal"
@@ -3451,42 +3798,103 @@ Portal URL: ${window.location.origin}`;
                 <button
                   type="button"
                   onClick={() => {
-                    setOnboardInitialData(undefined);
+                    const defaultRoleForFilter =
+                      employeeRoleFilter === 'teacher' ? 'teacher' :
+                      employeeRoleFilter === 'pr_module' || employeeRoleFilter === 'pr_intern' ? 'pr_intern' :
+                      employeeRoleFilter === 'pr_head' ? 'pr_head' :
+                      employeeRoleFilter === 'sales' ? 'sales' :
+                      employeeRoleFilter === 'web_developer' ? 'web_developer' :
+                      employeeRoleFilter === 'admin' ? 'admin' : undefined;
+                    setOnboardInitialData(defaultRoleForFilter ? { role: defaultRoleForFilter } : undefined);
                     setShowOnboardModal(true);
                   }}
                   className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs rounded-xl shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer hover:scale-[1.02] transition-all"
                 >
-                  <UserPlus className="w-4 h-4" /> + Onboard Employee
+                  <UserPlus className="w-4 h-4" />
+                  <span>
+                    {employeeRoleFilter === 'teacher' ? '+ Onboard Teacher' :
+                     employeeRoleFilter === 'pr_module' || employeeRoleFilter === 'pr_intern' || employeeRoleFilter === 'pr_head' ? '+ Onboard PR Member' :
+                     employeeRoleFilter === 'sales' ? '+ Onboard Sales Rep' :
+                     employeeRoleFilter === 'web_developer' ? '+ Onboard Developer' :
+                     employeeRoleFilter === 'admin' ? '+ Onboard Admin' : '+ Onboard Employee'}
+                  </span>
                 </button>
               </div>
             </div>
 
-            {/* Role Filter Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-              {roleTabs.map((tab) => {
-                const Icon = tab.icon;
-                const isSelected = employeeRoleFilter === tab.id;
-                return (
+            {/* Bifurcated Module Filter Tabs */}
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {roleTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isSelected =
+                    employeeRoleFilter === tab.id ||
+                    (tab.id === 'pr_module' && (employeeRoleFilter === 'pr_head' || employeeRoleFilter === 'pr_intern'));
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setEmployeeRoleFilter(tab.id)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer border ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/20'
+                          : 'bg-slate-950/70 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{tab.label}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                        isSelected ? 'bg-indigo-800 text-indigo-100' : 'bg-slate-900 text-slate-400'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Sub-filter when PR Module is active */}
+              {(employeeRoleFilter === 'pr_module' || employeeRoleFilter === 'pr_head' || employeeRoleFilter === 'pr_intern') && (
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-amber-950/20 border border-amber-500/30 rounded-2xl text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-amber-300 text-[11px] px-2">🤝 PR Module Breakdown:</span>
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeRoleFilter('pr_module')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                        employeeRoleFilter === 'pr_module' ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      All PR ({prTotalCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeRoleFilter('pr_head')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                        employeeRoleFilter === 'pr_head' ? 'bg-purple-500 text-white' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      👑 PR Heads ({prHeadCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeRoleFilter('pr_intern')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                        employeeRoleFilter === 'pr_intern' ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      🎖️ PR Representatives ({prInternCount})
+                    </button>
+                  </div>
                   <button
-                    key={tab.id}
                     type="button"
-                    onClick={() => setEmployeeRoleFilter(tab.id)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer border ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/20'
-                        : 'bg-slate-950/70 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
-                    }`}
+                    onClick={() => onPageChange('admin_pr')}
+                    className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold text-[11px] cursor-pointer"
                   >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{tab.label}</span>
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                      isSelected ? 'bg-indigo-800 text-indigo-100' : 'bg-slate-900 text-slate-400'
-                    }`}>
-                      {tab.count}
-                    </span>
+                    Open PR War Room ➔
                   </button>
-                );
-              })}
+                </div>
+              )}
             </div>
 
             {filteredEmployees.length === 0 ? (
@@ -3517,14 +3925,10 @@ Portal URL: ${window.location.origin}`;
                   const isSales = t.role === 'sales';
                   const isAdmin = t.role === 'admin';
 
-                  const defaultPassword = 
-                    isAdmin ? 'admin123' :
-                    isPrHead ? 'head123' :
-                    isPr ? 'intern123' :
-                    isSales ? 'sales123' :
-                    isDev ? 'dev123' : 'teach123';
-                  const displayPassword = t.password || defaultPassword;
-                  const isPasswordRevealed = revealedPasswordId === (t.id || t.teacherId);
+                  const displayPassword = StorageService.getReadablePassword(t);
+                  const isPasswordRevealed = showAllPasswords
+                    ? revealedPasswordId !== (t.id || t.teacherId)
+                    : revealedPasswordId === (t.id || t.teacherId);
                   const isCopied = copiedEmployeeId === (t.id || t.teacherId);
 
                   const roleBadgeConfig = {
@@ -3645,14 +4049,16 @@ Portal URL: ${window.location.origin}`;
                               <Lock className="w-3 h-3 text-purple-400" /> Password:
                             </span>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-slate-300 text-[11px] font-bold select-all">
+                              <span className="font-mono text-emerald-300 text-[11px] font-bold select-all px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
                                 {isPasswordRevealed ? displayPassword : '••••••••'}
                               </span>
                               <button
                                 type="button"
-                                onClick={() => setRevealedPasswordId(isPasswordRevealed ? null : (t.id || t.teacherId))}
+                                onClick={() => setRevealedPasswordId(
+                                  revealedPasswordId === (t.id || t.teacherId) ? null : (t.id || t.teacherId)
+                                )}
                                 className="text-slate-400 hover:text-slate-200 p-0.5 cursor-pointer"
-                                title={isPasswordRevealed ? 'Hide password' : 'Peek password'}
+                                title={isPasswordRevealed ? 'Hide password' : 'Show password in normal words'}
                               >
                                 {isPasswordRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                               </button>
@@ -5027,249 +5433,371 @@ Portal URL: ${window.location.origin}`;
         </div>
       )}
 
-      {/* MODAL 2: EDIT TEACHER CREDENTIALS & PASSWORD */}
-      {editingTeacher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-7 space-y-5 my-8">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-100">Edit Login Credentials & Password</h3>
-                <p className="text-xs text-slate-400">{editingTeacher.name} ({editingTeacher.teacherId})</p>
+      {/* MODAL 2: EDIT EMPLOYEE CREDENTIALS, PASSWORD & MODULE PROFILE */}
+      {editingTeacher && (() => {
+        const isEditingTeacherRole = editingTeacher.role === 'teacher';
+        const isEditingPrRole = editingTeacher.role === 'pr_intern' || editingTeacher.role === 'pr_head';
+        const isEditingSalesRole = editingTeacher.role === 'sales';
+        const isEditingDevRole = editingTeacher.role === 'web_developer' || editingTeacher.role === 'web_dev_manager';
+        const isEditingAdminRole = editingTeacher.role === 'admin';
+
+        const moduleTag = isEditingTeacherRole
+          ? { label: '🎓 Teacher / Academic Module', color: 'bg-purple-500/15 text-purple-300 border-purple-500/30', defaultPass: 'teach123' }
+          : isEditingPrRole
+          ? { label: '🤝 PR & Sponsorship Module', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30', defaultPass: editingTeacher.role === 'pr_head' ? 'head123' : 'intern123' }
+          : isEditingSalesRole
+          ? { label: '📞 Sales & CRM Module', color: 'bg-blue-500/15 text-blue-300 border-blue-500/30', defaultPass: 'sales123' }
+          : isEditingDevRole
+          ? { label: '💻 Web Dev & Engineering Module', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', defaultPass: 'dev123' }
+          : { label: '🛡️ Admin & Governance Module', color: 'bg-rose-500/15 text-rose-300 border-rose-500/30', defaultPass: 'admin123' };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+            <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 md:p-7 space-y-5 my-8 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between border-b border-slate-800 pb-3.5">
+                <div className="space-y-1">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${moduleTag.color}`}>
+                    {moduleTag.label}
+                  </span>
+                  <h3 className="text-base font-extrabold text-slate-100">Edit Credentials, Password & Profile</h3>
+                  <p className="text-xs text-slate-400">
+                    {editingTeacher.name} • <span className="font-mono text-indigo-300 font-bold">{editingTeacher.teacherId}</span>
+                  </p>
+                </div>
+                <button onClick={() => setEditingTeacher(null)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800">✕</button>
               </div>
-              <button onClick={() => setEditingTeacher(null)} className="text-slate-400 hover:text-slate-100">✕</button>
-            </div>
 
-            <form onSubmit={handleSaveEditTeacher} className="space-y-4 text-xs">
-              <div className="p-3.5 bg-slate-950 border border-indigo-500/30 rounded-2xl space-y-3">
-                <div className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-indigo-400" /> Login Credentials
-                </div>
+              <form onSubmit={handleSaveEditTeacher} className="space-y-4 text-xs">
+                <div className="p-4 bg-slate-950 border border-indigo-500/30 rounded-2xl space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-indigo-400" /> 1. Login Credentials (Normal Words)
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      Readable Plain-Word Mode
+                    </span>
+                  </div>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Username *</label>
-                  <input
-                    type="text"
-                    value={editUsername}
-                    onChange={(e) => setEditUsername(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
-                    required
-                  />
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Username *</label>
+                      <input
+                        type="text"
+                        value={editUsername}
+                        onChange={(e) => setEditUsername(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                        required
+                      />
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-slate-300 font-semibold">New Password (Optional)</label>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-slate-300 font-semibold">Password (Normal Words) *</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowEditPassword(!showEditPassword)}
+                          className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                        >
+                          {showEditPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          {showEditPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                      <input
+                        type={showEditPassword ? 'text' : 'password'}
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="Type readable password (e.g. teach123)"
+                        className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl px-3.5 py-2.5 text-emerald-300 font-mono font-bold focus:outline-none focus:border-emerald-400 text-xs"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick 1-click readable password presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 font-semibold mr-1">Quick Reset To:</span>
                     <button
                       type="button"
-                      onClick={() => setShowEditPassword(!showEditPassword)}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                      onClick={() => {
+                        setEditPassword(moduleTag.defaultPass);
+                        setShowEditPassword(true);
+                      }}
+                      className="px-2 py-0.5 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] font-bold cursor-pointer"
                     >
-                      {showEditPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      {showEditPassword ? 'Hide' : 'Reveal'}
+                      Default ({moduleTag.defaultPass})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cleanName = (editName || editingTeacher.name).split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+                        setEditPassword(`${cleanName}123`);
+                        setShowEditPassword(true);
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+                    >
+                      {((editName || editingTeacher.name).split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user')}123
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditPassword('aew2026');
+                        setShowEditPassword(true);
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+                    >
+                      aew2026
                     </button>
                   </div>
-                  <input
-                    type={showEditPassword ? 'text' : 'password'}
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder="Leave blank to keep existing password"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:outline-none focus:border-indigo-500 text-xs"
-                  />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Faculty Name *</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-purple-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Department</label>
-                <input
-                  type="text"
-                  value={editDept}
-                  onChange={(e) => setEditDept(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                />
-              </div>
-
-              {/* MULTI-SUBJECT ASSIGNMENT & CUSTOM SUBJECT */}
-              <div className="p-3.5 bg-slate-950 border border-indigo-500/30 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Assigned Subjects ({editSubjects.length} Assigned)</span>
+                {/* 2. PROFILE & MODULE DETAILS */}
+                <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3.5">
+                  <div className="font-bold text-slate-200 text-xs flex items-center justify-between">
+                    <span>2. Employee Profile & Department</span>
+                    <span className="text-[10px] font-mono text-slate-400 uppercase">{editingTeacher.role.replace('_', ' ')}</span>
                   </div>
-                  <span className="text-[10px] text-indigo-300/80 font-mono">
-                    Multiple subjects enabled
-                  </span>
-                </div>
 
-                {/* Active Subject Tags */}
-                <div className="space-y-1.5">
-                  <label className="text-[11px] text-slate-400 font-medium block">
-                    Currently Assigned Subjects (Click ✕ to remove):
-                  </label>
-                  {editSubjects.length === 0 ? (
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-                      <span>No subjects assigned yet. Please add at least 1 subject below.</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Full Name *</label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-purple-500"
+                        required
+                      />
                     </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
-                      {editSubjects.map((s, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 group"
-                        >
-                          {idx === 0 && (
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-400/20 text-indigo-300 font-mono font-bold" title="Primary subject">
-                              ★ Primary
-                            </span>
-                          )}
-                          <span>{s}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveEditSubject(s)}
-                            className="text-slate-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
-                            title={`Remove ${s}`}
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
+                      <input
+                        type="email"
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Department</label>
+                      <input
+                        type="text"
+                        value={editDept}
+                        onChange={(e) => setEditDept(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">
+                        {isEditingTeacherRole ? 'Joining Date (Backlog Origin)' : 'Official Joining Date'}
+                      </label>
+                      <input
+                        type="date"
+                        value={editJoiningDate}
+                        onChange={(e) => setEditJoiningDate(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  {!isEditingTeacherRole && (
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">
+                        {isEditingPrRole ? 'PR Outreach Focus / Portfolio' : isEditingSalesRole ? 'Sales Desk / Counseling Scope' : isEditingDevRole ? 'Engineering Focus / Stack' : 'Admin Operational Scope'}
+                      </label>
+                      <input
+                        type="text"
+                        value={editSubject}
+                        onChange={(e) => setEditSubject(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
+                      />
                     </div>
                   )}
                 </div>
 
-                {/* Add Custom Subject Input */}
-                <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
-                  <label className="text-[11px] text-slate-300 font-semibold block">
-                    Add Custom Subject (Type any custom subject name):
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Type any custom subject name (e.g. Embedded IoT, Power Plant Engg)..."
-                      value={editCustomSubjectInput}
-                      onChange={(e) => setEditCustomSubjectInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddEditSubject(editCustomSubjectInput);
-                        }
-                      }}
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddEditSubject(editCustomSubjectInput)}
-                      disabled={!editCustomSubjectInput.trim()}
-                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add Subject</span>
-                    </button>
-                  </div>
-                </div>
+                {/* 3. TEACHER MODULE ONLY: MULTI-SUBJECT ASSIGNMENT & DAILY TARGET */}
+                {isEditingTeacherRole && (
+                  <div className="p-3.5 bg-slate-950 border border-purple-500/30 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-purple-300 text-xs flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                        <span>3. Teacher Module: Subjects & Recording Quota ({editSubjects.length} Assigned)</span>
+                      </div>
+                    </div>
 
-                {/* Select from Standard / Department Curriculum */}
-                <div className="space-y-1 pt-1 border-t border-slate-800/80">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <label className="text-slate-400 font-medium">
-                      Or pick from existing curriculum subjects:
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">Click to toggle</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-1">
-                    {availableCurriculumSubjects.map((subName) => {
-                      const isSelected = editSubjects.some(
-                        (s) => s.toLowerCase() === subName.toLowerCase()
-                      );
-                      return (
-                        <button
-                          key={subName}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              handleRemoveEditSubject(subName);
-                            } else {
-                              handleAddEditSubject(subName);
+                    <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-800/80">
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">Daily Target (Min)</label>
+                        <input
+                          type="number"
+                          min={15}
+                          max={480}
+                          step={15}
+                          value={editTargetMinutes}
+                          onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">Daily Max Limit (Min)</label>
+                        <input
+                          type="number"
+                          min={60}
+                          max={600}
+                          step={30}
+                          value={editMaxDailyMinutes}
+                          onChange={(e) => setEditMaxDailyMinutes(parseInt(e.target.value) || 240)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Active Subject Tags */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] text-slate-400 font-medium block">
+                        Currently Assigned Subjects (Click ✕ to remove):
+                      </label>
+                      {editSubjects.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                          <span>No subjects assigned yet. Please add at least 1 subject below.</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
+                          {editSubjects.map((s, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 group"
+                            >
+                              {idx === 0 && (
+                                <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-400/20 text-indigo-300 font-mono font-bold" title="Primary subject">
+                                  ★ Primary
+                                </span>
+                              )}
+                              <span>{s}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEditSubject(s)}
+                                className="text-slate-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
+                                title={`Remove ${s}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add Custom Subject Input */}
+                    <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                      <label className="text-[11px] text-slate-300 font-semibold block">
+                        Add Custom Subject:
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Type any custom subject name..."
+                          value={editCustomSubjectInput}
+                          onChange={(e) => setEditCustomSubjectInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddEditSubject(editCustomSubjectInput);
                             }
                           }}
-                          className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
-                            isSelected
-                              ? 'bg-indigo-500 text-slate-950 font-bold shadow-sm'
-                              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-indigo-500/40'
-                          }`}
+                          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddEditSubject(editCustomSubjectInput)}
+                          disabled={!editCustomSubjectInput.trim()}
+                          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
                         >
-                          {isSelected ? '✓ ' : '+ '}
-                          {subName}
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add</span>
                         </button>
-                      );
-                    })}
+                      </div>
+                    </div>
+
+                    {/* Select from Standard / Department Curriculum */}
+                    <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <label className="text-slate-400 font-medium">
+                          Or pick from curriculum subjects:
+                        </label>
+                        <span className="text-[10px] text-slate-500 font-mono">Click to toggle</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-1">
+                        {availableCurriculumSubjects.map((subName) => {
+                          const isSelected = editSubjects.some(
+                            (s) => s.toLowerCase() === subName.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={subName}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  handleRemoveEditSubject(subName);
+                                } else {
+                                  handleAddEditSubject(subName);
+                                }
+                              }}
+                              className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                                isSelected
+                                  ? 'bg-indigo-500 text-slate-950 font-bold shadow-sm'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-indigo-500/40'
+                              }`}
+                            >
+                              {isSelected ? '✓ ' : '+ '}
+                              {subName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Daily Target (Min)</label>
-                  <input
-                    type="number"
-                    min={15}
-                    max={480}
-                    step={15}
-                    value={editTargetMinutes}
-                    onChange={(e) => setEditTargetMinutes(parseInt(e.target.value) || 120)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono font-bold focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Joining Date (Backlog Origin)</label>
-                  <input
-                    type="date"
-                    value={editJoiningDate}
-                    onChange={(e) => setEditJoiningDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
+                {isEditingAdminRole && (
+                  <div className="p-3 bg-rose-950/20 border border-rose-500/30 rounded-2xl text-[11px] text-rose-200 flex items-center justify-between">
+                    <span>Need to customize cross-module feature entitlements?</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingTeacher(null);
+                        onPageChange('super_admin_panel');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] cursor-pointer"
+                    >
+                      Super Admin Console ➔
+                    </button>
+                  </div>
+                )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setEditingTeacher(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-slate-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl shadow-md"
-                >
-                  Save New Password & Info
-                </button>
-              </div>
-            </form>
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTeacher(null)}
+                    className="px-4 py-2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl shadow-md cursor-pointer"
+                  >
+                    Save Password & Profile
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL 3: ADMIN ASSIGNS TOPICS (COMMA-SEPARATED SUPPORT) */}
       {showAssignModal && (

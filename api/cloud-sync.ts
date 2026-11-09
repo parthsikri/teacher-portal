@@ -98,19 +98,30 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
         const resolvedEmail = isIncomingRealEmail ? u.email : (isExistingRealEmail ? existing?.email : (u.email || existing?.email));
 
         let passwordToStore = existing?.password;
+        let plainPasswordToStore = existing?.plainPassword || (existing?.password && !String(existing.password).startsWith('scrypt:') ? existing.password : undefined);
         const incomingChangedAt = u.lastPasswordChangedAt ? new Date(u.lastPasswordChangedAt).getTime() : 0;
         const existingChangedAt = existing?.lastPasswordChangedAt ? new Date(existing.lastPasswordChangedAt).getTime() : 0;
 
+        const incomingPlain =
+          (u.plainPassword && typeof u.plainPassword === 'string' && !u.plainPassword.trim().startsWith('scrypt:') ? u.plainPassword.trim() : undefined) ||
+          (u.password && typeof u.password === 'string' && !u.password.trim().startsWith('scrypt:') ? u.password.trim() : undefined);
+
         if (!existing?.password) {
-          if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
-            const cleanU = u.password.trim();
-            passwordToStore = cleanU.startsWith('scrypt:') ? cleanU : hashPassword(cleanU);
+          if (incomingPlain) {
+            passwordToStore = incomingPlain;
+            plainPasswordToStore = incomingPlain;
+          } else if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
+            passwordToStore = u.password.trim();
           }
-        } else if (incomingChangedAt > existingChangedAt) {
-          // Incoming password change is strictly newer than cloud state
-          if (u.password && typeof u.password === 'string' && u.password.trim() !== '') {
-            const cleanU = u.password.trim();
-            passwordToStore = cleanU.startsWith('scrypt:') ? cleanU : hashPassword(cleanU);
+        } else if (incomingChangedAt >= existingChangedAt && incomingPlain) {
+          passwordToStore = incomingPlain;
+          plainPasswordToStore = incomingPlain;
+        } else if (incomingChangedAt > existingChangedAt && u.password && typeof u.password === 'string' && u.password.trim() !== '') {
+          passwordToStore = u.password.trim();
+        } else if (!plainPasswordToStore && incomingPlain) {
+          plainPasswordToStore = incomingPlain;
+          if (String(passwordToStore || '').startsWith('scrypt:')) {
+            passwordToStore = incomingPlain;
           }
         }
 
@@ -124,7 +135,8 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
         userMap.set(u.teacherId.toUpperCase(), {
           ...existing,
           ...u,
-          password: passwordToStore,
+          password: plainPasswordToStore || passwordToStore,
+          ...(plainPasswordToStore ? { plainPassword: plainPasswordToStore } : {}),
           email: resolvedEmail,
           portalRefreshedAt,
           portalRefreshHistory,

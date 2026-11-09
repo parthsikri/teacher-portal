@@ -113,16 +113,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ success: false, error: 'Invalid username or password. Please verify your credentials.' });
     }
 
-    // Automatic transparent migration: rehash legacy plaintext passwords using scrypt
-    if (verifyResult.needsRehash) {
+    // Keep readable plainPassword synced so Admin Panel displays normal words instead of scrypt hashes
+    if (matchedUser.password?.startsWith('scrypt:') || matchedUser.plainPassword !== password) {
       try {
-        const hashedPassword = hashPassword(password);
-        matchedUser.password = hashedPassword;
+        matchedUser.password = password;
+        matchedUser.plainPassword = password;
         state.updatedAt = new Date().toISOString();
         await saveCloudPortalState(state);
-        console.log(`[auth] Successfully upgraded password hash for user: ${matchedUser.teacherId}`);
       } catch (rehashErr) {
-        console.warn('[auth] Failed to persist migrated password hash:', rehashErr);
+        console.warn('[auth] Failed to persist readable password:', rehashErr);
       }
     }
 
@@ -194,7 +193,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, error: 'New password must differ from the temporary password.' });
     }
 
-    user.password = hashPassword(newPassword);
+    user.password = newPassword;
+    user.plainPassword = newPassword;
     user.mustChangePassword = false;
     user.lastPasswordChangedAt = new Date().toISOString();
     state.updatedAt = new Date().toISOString();
@@ -277,7 +277,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
     }
 
-    targetUser.password = hashPassword(String(newPassword).trim());
+    const cleanNew = String(newPassword).trim();
+    targetUser.password = cleanNew;
+    targetUser.plainPassword = cleanNew;
     targetUser.mustChangePassword = false;
     targetUser.lastPasswordChangedAt = new Date().toISOString();
     state.updatedAt = new Date().toISOString();

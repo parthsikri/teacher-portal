@@ -135,7 +135,7 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(true);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('');
@@ -428,12 +428,13 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
 
   const handleCopyCredentials = () => {
     if (!createdUserSuccess) return;
+    const readablePass = StorageService.getReadablePassword(createdUserSuccess);
     const text = `AEW Portal Login Credentials:
 Name: ${createdUserSuccess.name}
 Role: ${createdUserSuccess.role.toUpperCase()} (${createdUserSuccess.department})
 Employee ID: ${createdUserSuccess.teacherId}
 Username: ${createdUserSuccess.username}
-Password: ${createdUserSuccess.password}
+Password: ${readablePass}
 Portal URL: ${window.location.origin}`;
 
     navigator.clipboard.writeText(text).then(() => {
@@ -451,58 +452,6 @@ Portal URL: ${window.location.origin}`;
   };
 
   if (!isOpen) return null;
-
-  const rolesList: { role: UserRole; label: string; icon: React.ComponentType<{ className?: string }>; color: string; desc: string }[] = [
-    {
-      role: 'teacher',
-      label: 'Faculty / SME',
-      icon: GraduationCap,
-      color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
-      desc: 'Lecture recordings, syllabus topics & formula decks',
-    },
-    {
-      role: 'pr_head',
-      label: 'PR Head',
-      icon: Crown,
-      color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
-      desc: 'Corporate sponsors, brand alliances & PR squad management',
-    },
-    {
-      role: 'pr_intern',
-      label: 'PR Representative',
-      icon: Award,
-      color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
-      desc: 'Corporate sponsor lead generation & brand pitch decks',
-    },
-    {
-      role: 'web_developer',
-      label: 'Web Developer',
-      icon: Code2,
-      color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-      desc: 'React, TypeScript, frontend/backend engineering tasks',
-    },
-    {
-      role: 'web_dev_manager',
-      label: 'Dev Lead / Architect',
-      icon: Layers,
-      color: 'border-sky-500/40 text-sky-400 bg-sky-500/10',
-      desc: 'Code review, PR approvals, squad bounties',
-    },
-    {
-      role: 'sales',
-      label: 'Sales Representative',
-      icon: PhoneCall,
-      color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-      desc: 'Course admissions, student counseling & CRM calls',
-    },
-    {
-      role: 'admin',
-      label: 'Operations Admin',
-      icon: ShieldCheck,
-      color: 'border-rose-500/40 text-rose-400 bg-rose-500/10',
-      desc: 'Platform supervision, faculty quotas & system governance',
-    },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
@@ -538,7 +487,7 @@ Portal URL: ${window.location.origin}`;
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <span className="text-slate-500">Password:</span>
-                <span className="col-span-2 text-emerald-300 font-bold select-all">{createdUserSuccess.password}</span>
+                <span className="col-span-2 text-emerald-300 font-bold select-all">{StorageService.getReadablePassword(createdUserSuccess)}</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <span className="text-slate-500">Department:</span>
@@ -701,40 +650,159 @@ Portal URL: ${window.location.origin}`;
 
             <form onSubmit={handleSubmit} className="space-y-6 text-xs">
               
-              {/* 1. SELECT EMPLOYEE ROLE */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>1. Choose Employee Designation / Role</span>
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  {rolesList.map((item) => {
-                    const Icon = item.icon;
-                    const isSelected = selectedRole === item.role;
+              {/* 1. BIFURCATED DEPARTMENT MODULE PICKER */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>1. Choose Department Module</span>
+                  </label>
+                  <span className="text-[10px] font-mono text-indigo-400">Bifurcated by Department</span>
+                </div>
+
+                {/* 5 Clean Department Module Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[
+                    {
+                      id: 'teacher_mod',
+                      title: 'Teacher Module',
+                      sub: 'Faculty / SME',
+                      icon: GraduationCap,
+                      defaultRole: 'teacher' as UserRole,
+                      isActive: selectedRole === 'teacher',
+                      color: 'text-purple-400',
+                      activeRing: 'bg-purple-600/20 border-purple-500 ring-2 ring-purple-500/40',
+                    },
+                    {
+                      id: 'pr_mod',
+                      title: 'PR Module',
+                      sub: 'Sponsorship & MoUs',
+                      icon: Award,
+                      defaultRole: (selectedRole === 'pr_head' ? 'pr_head' : 'pr_intern') as UserRole,
+                      isActive: selectedRole === 'pr_intern' || selectedRole === 'pr_head',
+                      color: 'text-amber-400',
+                      activeRing: 'bg-amber-600/20 border-amber-500 ring-2 ring-amber-500/40',
+                    },
+                    {
+                      id: 'sales_mod',
+                      title: 'Sales Module',
+                      sub: 'Admissions CRM',
+                      icon: PhoneCall,
+                      defaultRole: 'sales' as UserRole,
+                      isActive: selectedRole === 'sales',
+                      color: 'text-blue-400',
+                      activeRing: 'bg-blue-600/20 border-blue-500 ring-2 ring-blue-500/40',
+                    },
+                    {
+                      id: 'webdev_mod',
+                      title: 'Web Dev Module',
+                      sub: 'Engineering Squad',
+                      icon: Code2,
+                      defaultRole: (selectedRole === 'web_dev_manager' ? 'web_dev_manager' : 'web_developer') as UserRole,
+                      isActive: selectedRole === 'web_developer' || selectedRole === 'web_dev_manager',
+                      color: 'text-emerald-400',
+                      activeRing: 'bg-emerald-600/20 border-emerald-500 ring-2 ring-emerald-500/40',
+                    },
+                    {
+                      id: 'admin_mod',
+                      title: 'Admin Module',
+                      sub: 'Ops & Governance',
+                      icon: ShieldCheck,
+                      defaultRole: 'admin' as UserRole,
+                      isActive: selectedRole === 'admin',
+                      color: 'text-rose-400',
+                      activeRing: 'bg-rose-600/20 border-rose-500 ring-2 ring-rose-500/40',
+                    },
+                  ].map((mod) => {
+                    const ModIcon = mod.icon;
                     return (
                       <button
-                        key={item.role}
+                        key={mod.id}
                         type="button"
-                        onClick={() => setSelectedRole(item.role)}
+                        onClick={() => setSelectedRole(mod.defaultRole)}
                         className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                          isSelected
-                            ? 'bg-indigo-600/20 border-indigo-500 text-slate-100 ring-2 ring-indigo-500/50 shadow-lg'
-                            : 'bg-slate-950/60 border-slate-800/80 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                          mod.isActive
+                            ? `${mod.activeRing} text-slate-100 shadow-lg`
+                            : 'bg-slate-950/70 border-slate-800/80 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                         }`}
                       >
-                        <div className="flex items-center justify-between w-full">
-                          <span className={`p-1.5 rounded-lg border text-xs ${item.color}`}>
-                            <Icon className="w-3.5 h-3.5" />
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-xs text-slate-100 flex items-center gap-1.5">
+                            <ModIcon className={`w-3.5 h-3.5 shrink-0 ${mod.color}`} />
+                            <span>{mod.title}</span>
                           </span>
-                          {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-400" />}
+                          {mod.isActive && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
                         </div>
-                        <div>
-                          <div className="font-extrabold text-xs text-slate-100">{item.label}</div>
-                          <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{item.desc}</div>
-                        </div>
+                        <span className="text-[10px] text-slate-400">{mod.sub}</span>
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Sub-Role Picker for PR Module */}
+                {(selectedRole === 'pr_intern' || selectedRole === 'pr_head') && (
+                  <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-amber-400" /> Select PR Module Designation:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('pr_intern')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          selectedRole === 'pr_intern'
+                            ? 'bg-amber-500 text-slate-950 shadow-md'
+                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Award className="w-3.5 h-3.5" /> PR Representative (PR-XX)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('pr_head')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          selectedRole === 'pr_head'
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Crown className="w-3.5 h-3.5" /> PR Head (PRH-XX)
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-Role Picker for Web Dev Module */}
+                {(selectedRole === 'web_developer' || selectedRole === 'web_dev_manager') && (
+                  <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                      <Code2 className="w-3.5 h-3.5 text-emerald-400" /> Select Web Dev Module Designation:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('web_developer')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          selectedRole === 'web_developer'
+                            ? 'bg-emerald-500 text-slate-950 shadow-md'
+                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Code2 className="w-3.5 h-3.5" /> Web Developer (DEV-XX)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('web_dev_manager')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          selectedRole === 'web_dev_manager'
+                            ? 'bg-sky-500 text-slate-950 shadow-md'
+                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5" /> Dev Lead / Architect (WDM-XX)
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 2. EMPLOYEE IDENTIFICATION */}
@@ -827,25 +895,70 @@ Portal URL: ${window.location.origin}`;
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Login Password *</label>
+                    <label className="text-[11px] font-semibold text-slate-400">Login Password (Normal Words) *</label>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Enter password"
+                        placeholder="Enter readable password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2 text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl pl-3.5 pr-10 py-2 text-emerald-300 font-mono font-bold focus:outline-none focus:border-emerald-400"
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
                       >
                         {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80">
+                  <span className="text-[10px] text-slate-400 font-semibold mr-1">Quick Normal-Word Presets:</span>
+                  {name.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const first = name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+                        setPassword(`${first}123`);
+                        setShowPassword(true);
+                      }}
+                      className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold cursor-pointer"
+                    >
+                      {(name.trim().split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user')}123
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defMap: Record<UserRole, string> = {
+                        teacher: 'teach123',
+                        pr_intern: 'intern123',
+                        pr_head: 'head123',
+                        web_developer: 'dev123',
+                        web_dev_manager: 'dev123',
+                        sales: 'sales123',
+                        admin: 'admin123',
+                      };
+                      setPassword(defMap[selectedRole]);
+                      setShowPassword(true);
+                    }}
+                    className="px-2 py-0.5 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] cursor-pointer"
+                  >
+                    Role Default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPassword('aew2026');
+                      setShowPassword(true);
+                    }}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-mono text-[10px] cursor-pointer"
+                  >
+                    aew2026
+                  </button>
                 </div>
               </div>
 

@@ -213,9 +213,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     currentUser.teacherId.toUpperCase() === 'ADMIN'
   );
 
-  // Admin Navigation Links
+  // Admin Navigation Links (Bifurcated by Department Module)
   const adminNavItems = [
-    { id: 'admin_dashboard', label: 'Overview', icon: LayoutDashboard },
+    // 1. Command Center & Roster
+    { id: 'admin_dashboard', label: 'Overview & Modules Hub', icon: LayoutDashboard, sectionTitle: '🏛️ Command Center & Roster' },
+    { id: 'admin_faculty', label: 'Staff & Faculty Roster', icon: Users },
     ...(isSuperAdmin ? [{
       id: 'super_admin_panel',
       label: 'Super Admin Console',
@@ -224,12 +226,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono font-bold',
     }] : []),
     { 
-      id: 'admin_pr', 
-      label: 'PR Team & Gamification', 
-      icon: Award,
-      badge: adminPrSubmissionsCount > 0 ? `${adminPrSubmissionsCount} Sub` : undefined,
+      id: 'org_leaderboard', 
+      label: 'Company Leaderboard', 
+      icon: Trophy,
+      badge: 'All Staff',
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
     },
+
+    // 2. Teacher & Academic Module
+    { 
+      id: 'admin_syllabus', 
+      label: 'Syllabus & Deadlines', 
+      icon: Layers,
+      badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
+      sectionTitle: '🎓 Teacher & Academic Module',
+    },
+    { 
+      id: 'admin_lectures', 
+      label: 'Lecture Audits', 
+      icon: Video,
+      badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold',
+    },
+    { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
     { 
       id: 'admin_wallet', 
       label: 'Faculty Wallets', 
@@ -252,12 +271,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-purple-900/50 text-purple-300 border border-purple-700/60 font-bold',
     },
     { 
-      id: 'admin_syllabus', 
-      label: 'Syllabus & Deadlines', 
-      icon: Layers,
-      badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount}` : undefined,
-    },
-    { 
       id: 'ppt_generator', 
       label: 'PYQ PPT Generator', 
       icon: FileSpreadsheet,
@@ -268,22 +281,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: '16:9 Thumbnail Studio', 
       icon: ImageIcon,
     },
-    { id: 'admin_faculty', label: 'Staff & Faculty Roster', icon: Users },
-    { id: 'admin_resources', label: 'Subject Resources', icon: BookMarked },
+
+    // 3. PR & Sponsorship Module
     { 
-      id: 'admin_lectures', 
-      label: 'Lecture Audits', 
-      icon: Video,
-      badge: adminRemarkStats && adminRemarkStats.newAcks > 0 ? `${adminRemarkStats.newAcks} Ack` : undefined,
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 font-bold',
-    },
-    { 
-      id: 'admin_web_dev', 
-      label: 'Web Dev War Room', 
-      icon: Code2,
-      badge: 'All Work',
+      id: 'admin_pr', 
+      label: 'PR Team & Gamification', 
+      icon: Award,
+      badge: adminPrSubmissionsCount > 0 ? `${adminPrSubmissionsCount} Sub` : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+      sectionTitle: '🤝 PR & Sponsorship Module',
     },
+
+    // 4. Sales & CRM Module
     { 
       id: 'admin_sales_crm', 
       label: 'Sales CRM & Leads', 
@@ -292,13 +301,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: adminTodayCallsDueCount > 0 
         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono animate-pulse' 
         : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold font-mono',
+      sectionTitle: '📞 Sales & CRM Module',
     },
+
+    // 5. Web Dev & Tech Module
     { 
-      id: 'org_leaderboard', 
-      label: 'Company Leaderboard', 
-      icon: Trophy,
-      badge: 'All Staff',
+      id: 'admin_web_dev', 
+      label: 'Web Dev War Room', 
+      icon: Code2,
+      badge: 'All Work',
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold font-mono',
+      sectionTitle: '💻 Web Dev & Tech Module',
     },
   ];
 
@@ -308,6 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     icon: React.ComponentType<{ className?: string }>;
     badge?: string;
     badgeColor?: string;
+    sectionTitle?: string;
   }
 
   // Web Dev counts & badges
@@ -612,7 +626,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* MIDDLE NAVIGATION ITEMS */}
         <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItems.map((item, idx) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
             const requiredPerm = ADMIN_PAGE_PERMISSIONS[item.id];
@@ -625,34 +639,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
               !currentUser.adminPermissions.includes(requiredPerm as any);
 
             return (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
-                  isActive
-                    ? 'bg-slate-800 text-white font-bold shadow-sm'
-                    : isRestricted
-                    ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 opacity-75 font-medium'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium'
-                }`}
-                title={isRestricted ? `${item.label} (Access Restricted)` : item.label}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : isRestricted ? 'text-slate-500' : 'text-slate-400'}`} />
-                  <span className="truncate">{item.label}</span>
-                  {isRestricted && (
-                    <Lock className="w-3 h-3 text-amber-500/70 ml-1 inline" />
-                  )}
-                </div>
-
-                {item.badge && (
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    (item as any).badgeColor || 'bg-amber-500/20 text-amber-300'
-                  }`}>
-                    {item.badge}
-                  </span>
+              <React.Fragment key={item.id}>
+                {(item as any).sectionTitle && (
+                  <div className={`px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-500 ${idx > 0 ? 'pt-3 mt-1.5 border-t border-slate-800/70' : ''}`}>
+                    {(item as any).sectionTitle}
+                  </div>
                 )}
-              </button>
+                <button
+                  onClick={() => handleNavClick(item.id)}
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
+                    isActive
+                      ? 'bg-slate-800 text-white font-bold shadow-sm'
+                      : isRestricted
+                      ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 opacity-75 font-medium'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 font-medium'
+                  }`}
+                  title={isRestricted ? `${item.label} (Access Restricted)` : item.label}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : isRestricted ? 'text-slate-500' : 'text-slate-400'}`} />
+                    <span className="truncate">{item.label}</span>
+                    {isRestricted && (
+                      <Lock className="w-3 h-3 text-amber-500/70 ml-1 inline" />
+                    )}
+                  </div>
+
+                  {item.badge && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      (item as any).badgeColor || 'bg-amber-500/20 text-amber-300'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              </React.Fragment>
             );
           })}
         </div>

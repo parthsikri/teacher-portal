@@ -381,7 +381,9 @@ export function sanitizePortalState(state: any, role?: string): any {
   if (!state || typeof state !== 'object') return state;
   const clone = { ...state };
   if (Array.isArray(clone.users)) {
-    clone.users = clone.users.filter((u: any) => !isHardcodedMockUser(u)).map(sanitizeUser);
+    clone.users = clone.users
+      .filter((u: any) => !isHardcodedMockUser(u))
+      .map((u: any) => (role === 'admin' ? { ...u } : sanitizeUser(u)));
   }
   // If caller is not admin, scrub sensitive SMTP passwords & API keys
   if (role !== 'admin' && clone.emailConfig) {

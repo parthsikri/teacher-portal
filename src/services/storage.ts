@@ -1,5 +1,5 @@
 import { notificationService } from './notificationService';
-import { verifyPasswordClient, hashPasswordClient, getDefaultPasswordForRole } from './authCrypto';
+import { verifyPasswordClient, getDefaultPasswordForRole } from './authCrypto';
 import type {
   DayOffGrant,
   User, UserRole, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem,
@@ -457,6 +457,23 @@ export const StorageService = {
     return this.getUsers().filter((u) => u.role === 'teacher');
   },
 
+  getReadablePassword(user?: Partial<User> | null): string {
+    if (!user) return 'teach123';
+    if (user.plainPassword && typeof user.plainPassword === 'string' && user.plainPassword.trim() && !user.plainPassword.trim().startsWith('scrypt:')) {
+      return user.plainPassword.trim();
+    }
+    if (user.password && typeof user.password === 'string' && user.password.trim() && !user.password.trim().startsWith('scrypt:')) {
+      return user.password.trim();
+    }
+    const role = user.role;
+    if (role === 'admin') return 'sikri_parth@2';
+    if (role === 'pr_head') return 'head123';
+    if (role === 'pr_intern') return 'intern123';
+    if (role === 'sales') return 'sales123';
+    if (role === 'web_developer' || role === 'web_dev_manager') return 'dev123';
+    return 'teach123';
+  },
+
   getNextEmployeeId(role: UserRole): string {
     const users = this.getUsers();
     const deletedIds = this.getDeletedIds();
@@ -563,6 +580,7 @@ export const StorageService = {
       teacherId: cleanId,
       username: cleanUsername,
       password: defaultPassword,
+      plainPassword: defaultPassword,
       name: employee.name.trim(),
       email: employee.email?.trim() || `${cleanUsername}@aew.com`,
       phone: employee.phone?.trim() || undefined,
@@ -701,6 +719,7 @@ export const StorageService = {
       teacherId: cleanTeacherId,
       username: cleanUsername,
       password: cleanPassword,
+      plainPassword: cleanPassword,
       name: newTeacher.name.trim(),
       email: newTeacher.email.trim() || `${cleanTeacherId.toLowerCase()}@aew.com`,
       department: newTeacher.department.trim() || 'Engineering',
@@ -738,6 +757,7 @@ export const StorageService = {
       teacherId: cleanId,
       username: cleanUsername,
       password: cleanPassword,
+      plainPassword: cleanPassword,
       name: newIntern.name.trim(),
       email: newIntern.email.trim() || `${cleanId.toLowerCase()}@aew.com`,
       department: newIntern.department?.trim() || 'Public Relations & Sponsorship',
@@ -794,6 +814,9 @@ export const StorageService = {
       teacherId: updates.teacherId ? updates.teacherId.trim().toUpperCase() : users[index].teacherId,
       username: updates.username ? updates.username.trim().toLowerCase().replace(/\s+/g, '_') : users[index].username,
       password: rawPass || users[index].password,
+      plainPassword: rawPass && !rawPass.startsWith('scrypt:')
+        ? rawPass
+        : (users[index].plainPassword || (users[index].password && !users[index].password!.startsWith('scrypt:') ? users[index].password : undefined)),
       ...(hasNewPass ? { lastPasswordChangedAt: nowIso } : {}),
       subject: updatedSubject,
       subjects: updatedSubjects,
@@ -821,15 +844,8 @@ export const StorageService = {
       this.setCurrentUser(updatedUser);
     }
 
-    if (hasNewPass && rawPass) {
-      const isScrypt = rawPass.startsWith('scrypt:');
-      const hashPromise = isScrypt ? Promise.resolve(rawPass) : hashPasswordClient(rawPass);
-      hashPromise.then((hashed) => {
-        updatedUser.password = hashed;
-        this.saveUsers(this.getUsers().map((u) => (u.id === updatedUser.id ? updatedUser : u)));
-        this.persistUserCredentialToDb(updatedUser);
-      });
-    }
+    // Persist directly to Supabase cloud database in readable normal words
+    this.persistUserCredentialToDb(updatedUser).catch(() => {});
 
     return updatedUser;
   },
@@ -923,6 +939,7 @@ export const StorageService = {
       ...users[adminIndex],
       username: data.username ? data.username.trim().toLowerCase().replace(/\s+/g, '_') : users[adminIndex].username,
       password: cleanPass || users[adminIndex].password,
+      plainPassword: cleanPass || users[adminIndex].plainPassword || (users[adminIndex].password && !users[adminIndex].password!.startsWith('scrypt:') ? users[adminIndex].password : undefined),
       name: data.name ? data.name.trim() : users[adminIndex].name,
       email: data.email ? data.email.trim() : users[adminIndex].email,
       ...(cleanPass ? { lastPasswordChangedAt: nowIso } : {}),
@@ -936,13 +953,7 @@ export const StorageService = {
       this.setCurrentUser(updatedAdmin);
     }
 
-    if (cleanPass) {
-      hashPasswordClient(cleanPass).then((hashed) => {
-        updatedAdmin.password = hashed;
-        this.saveUsers(this.getUsers().map((u) => (u.id === updatedAdmin.id ? updatedAdmin : u)));
-        this.persistUserCredentialToDb(updatedAdmin);
-      });
-    }
+    this.persistUserCredentialToDb(updatedAdmin).catch(() => {});
 
     return updatedAdmin;
   },
@@ -1376,6 +1387,15 @@ export const StorageService = {
       return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
     }
 
+    // Automatically restore readable plainPassword if account was previously stored as scrypt hash
+    if (user.password?.startsWith('scrypt:') || user.plainPassword !== cleanPass) {
+      user.password = cleanPass;
+      user.plainPassword = cleanPass;
+      const updatedUsers = this.getUsers().map((u) => (u.id === user!.id || u.teacherId.toUpperCase() === user!.teacherId.toUpperCase() ? user! : u));
+      localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+      this.persistUserCredentialToDb(user).catch(() => {});
+    }
+
     return { success: true, user };
   },
 
@@ -1441,19 +1461,24 @@ export const StorageService = {
       }
 
       const nowIso = user.lastPasswordChangedAt || new Date().toISOString();
+      const readablePass =
+        (user.plainPassword && !user.plainPassword.startsWith('scrypt:') ? user.plainPassword : undefined) ||
+        (user.password && !user.password.startsWith('scrypt:') ? user.password : undefined);
 
       if (uIdx !== -1) {
         cloudState.users[uIdx] = {
           ...cloudState.users[uIdx],
           ...user,
-          password: user.password,
+          password: readablePass || user.password || cloudState.users[uIdx]?.password,
+          ...(readablePass ? { plainPassword: readablePass } : {}),
           mustChangePassword: user.mustChangePassword !== undefined ? user.mustChangePassword : false,
           lastPasswordChangedAt: nowIso,
         };
       } else {
         cloudState.users.push({
           ...user,
-          password: user.password,
+          password: readablePass || user.password,
+          ...(readablePass ? { plainPassword: readablePass } : {}),
           mustChangePassword: user.mustChangePassword !== undefined ? user.mustChangePassword : false,
           lastPasswordChangedAt: nowIso,
         });
@@ -1637,11 +1662,11 @@ export const StorageService = {
       return { success: false, error: 'Current password is incorrect.' };
     }
 
-    const newHashed = await hashPasswordClient(cleanNew);
     const nowIso = new Date().toISOString();
 
-    // 1. Mirror change locally first
-    targetUser.password = newHashed;
+    // 1. Mirror change locally first (in readable normal words)
+    targetUser.password = cleanNew;
+    targetUser.plainPassword = cleanNew;
     targetUser.mustChangePassword = false;
     targetUser.lastPasswordChangedAt = nowIso;
     users[userIndex] = targetUser;
@@ -1651,7 +1676,8 @@ export const StorageService = {
     if (curr && (curr.id === targetUser.id || curr.teacherId === targetUser.teacherId)) {
       this.setCurrentUser({
         ...curr,
-        password: newHashed,
+        password: cleanNew,
+        plainPassword: cleanNew,
         mustChangePassword: false,
         lastPasswordChangedAt: nowIso,
       });
@@ -1715,14 +1741,14 @@ export const StorageService = {
     }
 
     const nowIso = new Date().toISOString();
-    const newHashed = await hashPasswordClient(cleanNew);
     let targetUser: User;
     if (userIndex === -1) {
       targetUser = {
         id: cleanId.startsWith('u-') ? cleanId : `u-${Date.now()}`,
         teacherId: cleanId.toUpperCase(),
         username: cleanId.toLowerCase(),
-        password: newHashed,
+        password: cleanNew,
+        plainPassword: cleanNew,
         name: cleanId,
         email: `${cleanId.toLowerCase()}@aew.com`,
         department: 'Operations & Academic Growth',
@@ -1737,7 +1763,8 @@ export const StorageService = {
     } else {
       targetUser = {
         ...users[userIndex],
-        password: newHashed,
+        password: cleanNew,
+        plainPassword: cleanNew,
         mustChangePassword: false,
         lastPasswordChangedAt: nowIso,
       };
@@ -1750,7 +1777,8 @@ export const StorageService = {
     if (curr && (curr.id === targetUser.id || curr.teacherId === targetUser.teacherId)) {
       this.setCurrentUser({
         ...curr,
-        password: newHashed,
+        password: cleanNew,
+        plainPassword: cleanNew,
         mustChangePassword: false,
         lastPasswordChangedAt: nowIso,
       });
@@ -5337,17 +5365,22 @@ export const StorageService = {
             (isCloudReal ? u.email : (isExistingReal ? existing?.email : (u.email || existing?.email || `${u.teacherId.toLowerCase()}@aew.com`))) ||
             `${u.teacherId.toLowerCase()}@aew.com`;
 
-          // Preserve local password: sanitizeUser() strips passwords from cloud responses.
-          // Never overwrite a known local password with an absent/undefined value.
+          // Preserve readable plainPassword & never overwrite a readable local password with an scrypt hash
           const cloudPassword = (u as any).password;
-          const resolvedPassword: string | undefined = cloudPassword || existing?.password;
+          const cloudPlainPassword = (u as any).plainPassword;
+          const existingPlain = existing?.plainPassword || (existing?.password && !existing.password.startsWith('scrypt:') ? existing.password : undefined);
+          const resolvedPlainPassword: string | undefined =
+            (cloudPlainPassword && !String(cloudPlainPassword).startsWith('scrypt:') ? cloudPlainPassword : undefined) ||
+            (cloudPassword && !String(cloudPassword).startsWith('scrypt:') ? cloudPassword : undefined) ||
+            existingPlain;
+          const resolvedPassword: string | undefined = resolvedPlainPassword || cloudPassword || existing?.password;
 
           userMap.set(u.teacherId.toUpperCase(), {
             ...existing,
             ...u,
             email: resolvedEmail,
-            // Restore password if cloud response had it stripped
             ...(resolvedPassword ? { password: resolvedPassword } : {}),
+            ...(resolvedPlainPassword ? { plainPassword: resolvedPlainPassword } : {}),
           });
         }
       });
