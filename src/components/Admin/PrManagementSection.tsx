@@ -845,6 +845,23 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                       >
                         <Percent className="w-3.5 h-3.5 text-amber-400" /> Rates
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Permanently delete PR intern ${intern.name} (${intern.teacherId})?`)) {
+                            const res = StorageService.deleteEmployee(intern.teacherId || intern.id);
+                            if (!res.success) {
+                              alert(res.error || 'Failed to delete PR intern.');
+                            } else {
+                              reloadData();
+                            }
+                          }
+                        }}
+                        className="px-2.5 py-2 bg-red-600/15 hover:bg-red-600/25 text-red-400 hover:text-red-300 border border-red-500/30 rounded-xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer"
+                        title="Permanently Delete PR Intern"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 );

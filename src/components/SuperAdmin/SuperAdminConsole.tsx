@@ -20,7 +20,8 @@ import {
   Clock,
   Video,
   Lock,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -477,12 +478,34 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => handleOpenConfig(user)}
-                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs border border-slate-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer hover:border-slate-600"
-                        >
-                          <KeyRound className="w-3.5 h-3.5 text-rose-400" /> Configure Access
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenConfig(user)}
+                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs border border-slate-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer hover:border-slate-600"
+                          >
+                            <KeyRound className="w-3.5 h-3.5 text-rose-400" /> Configure Access
+                          </button>
+                          {!isCurrentSuper && user.teacherId.toUpperCase() !== 'ADMIN-01' && user.teacherId.toUpperCase() !== 'ADMIN' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Permanently delete employee ${user.name} (${user.teacherId})?`)) {
+                                  const res = StorageService.deleteEmployee(user.teacherId || user.id);
+                                  if (!res.success) {
+                                    alert(res.error || 'Failed to delete employee.');
+                                  } else {
+                                    setUsers(StorageService.getUsers());
+                                    showToast(`✓ Permanently deleted ${user.name} (${user.teacherId})`);
+                                  }
+                                }
+                              }}
+                              className="p-1.5 rounded-xl bg-red-600/15 hover:bg-red-600/25 text-red-400 hover:text-red-300 border border-red-500/30 transition-colors cursor-pointer"
+                              title="Permanently Delete Employee"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

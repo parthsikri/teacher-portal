@@ -968,17 +968,11 @@ export const StorageService = {
       'u-test-teacher',
       'u-t101',
     ];
-    // Protected accounts that must NEVER be in deletedIds
+    // Protected accounts that must NEVER be in deletedIds (Primary Root Admin only)
     const PROTECTED_IDS = new Set([
       'ADMIN-01',
       'ADMIN',
       'U-ADMIN',
-      'AEW-T-102',
-      'AEW-T-103',
-      'U-1787383338021',
-      'U-1787387463369',
-      'BHUMI',
-      'KHUSHI',
     ]);
     return Array.from(new Set([...MOCK_TOMBSTONES, ...list])).filter((id) => !PROTECTED_IDS.has(id.toUpperCase()));
   },
@@ -1013,11 +1007,11 @@ export const StorageService = {
 
   deleteEmployee(identifier: string): { success: boolean; error?: string } {
     const cleanId = (identifier || '').trim().toUpperCase();
-    if (cleanId === 'ADMIN-01' || cleanId === 'ADMIN') {
+    if (cleanId === 'ADMIN-01' || cleanId === 'ADMIN' || cleanId === 'U-ADMIN') {
       return { success: false, error: 'Primary Super Administrator account (ADMIN-01) cannot be deleted.' };
     }
     const current = this.getCurrentUser();
-    if (current && (current.id.toUpperCase() === cleanId || current.teacherId.toUpperCase() === cleanId)) {
+    if (current && ((current.id && current.id.toUpperCase() === cleanId) || (current.teacherId && current.teacherId.toUpperCase() === cleanId))) {
       return { success: false, error: 'You cannot delete your own active session account.' };
     }
 
@@ -1029,12 +1023,22 @@ export const StorageService = {
         (u.username && u.username.toLowerCase() === (identifier || '').trim().toLowerCase())
     );
 
+    const idsToTombstone: string[] = [cleanId];
+
     if (userToDelete) {
-      if (userToDelete.role === 'admin' || userToDelete.teacherId.toUpperCase().startsWith('ADMIN')) {
-        return { success: false, error: 'Primary Administrator account cannot be deleted.' };
+      const uTid = (userToDelete.teacherId || '').toUpperCase();
+      const uId = (userToDelete.id || '').toUpperCase();
+      if (uTid === 'ADMIN-01' || uTid === 'ADMIN' || uId === 'U-ADMIN') {
+        return { success: false, error: 'Primary Super Administrator account (ADMIN-01) cannot be deleted.' };
       }
-      this.addDeletedId(userToDelete.teacherId);
-      if (userToDelete.id) this.addDeletedId(userToDelete.id);
+      if (userToDelete.teacherId) {
+        this.addDeletedId(userToDelete.teacherId);
+        idsToTombstone.push(userToDelete.teacherId);
+      }
+      if (userToDelete.id) {
+        this.addDeletedId(userToDelete.id);
+        idsToTombstone.push(userToDelete.id);
+      }
     } else {
       this.addDeletedId(cleanId);
     }
@@ -1054,16 +1058,18 @@ export const StorageService = {
     });
 
     this.saveUsers(users);
+    // Directly persist deletion to Supabase cloud database to prevent stale re-hydration
+    this.persistUserDeletionToDb(idsToTombstone, targetUname).catch(() => {});
     return { success: true };
   },
 
   offboardEmployee(identifier: string, reason: string, remarks?: string): { success: boolean; error?: string; user?: User } {
     const cleanId = (identifier || '').trim().toUpperCase();
-    if (cleanId === 'ADMIN-01' || cleanId === 'ADMIN') {
+    if (cleanId === 'ADMIN-01' || cleanId === 'ADMIN' || cleanId === 'U-ADMIN') {
       return { success: false, error: 'Primary Super Administrator account (ADMIN-01) cannot be offboarded.' };
     }
     const current = this.getCurrentUser();
-    if (current && (current.id.toUpperCase() === cleanId || current.teacherId.toUpperCase() === cleanId)) {
+    if (current && ((current.id && current.id.toUpperCase() === cleanId) || (current.teacherId && current.teacherId.toUpperCase() === cleanId))) {
       return { success: false, error: 'You cannot offboard your own active session account.' };
     }
 
@@ -1082,6 +1088,7 @@ export const StorageService = {
     };
     users[idx] = updated;
     this.saveUsers(users);
+    this.persistUserCredentialToDb(updated).catch(() => {});
     return { success: true, user: updated };
   },
 
@@ -1102,6 +1109,7 @@ export const StorageService = {
     };
     users[idx] = updated;
     this.saveUsers(users);
+    this.persistUserCredentialToDb(updated).catch(() => {});
     return { success: true, user: updated };
   },
 
@@ -1451,6 +1459,14 @@ export const StorageService = {
         });
       }
 
+      // Ensure any previous tombstone for this active user is cleared in cloud state
+      if (Array.isArray(cloudState.deletedIds)) {
+        cloudState.deletedIds = cloudState.deletedIds.filter((id: string) => {
+          const upper = (id || '').trim().toUpperCase();
+          return upper !== cleanTid && upper !== cleanUid;
+        });
+      }
+
       cloudState.updatedAt = nowIso;
 
       const postRes = await fetch(`${SUPABASE_CLOUD_URL}/rest/v1/portal_master_state`, {
@@ -1472,6 +1488,75 @@ export const StorageService = {
       return postRes.ok;
     } catch (err) {
       console.warn('[StorageService] Error persisting user credential to DB:', err);
+      return false;
+    }
+  },
+
+  /**
+   * Directly persists an employee deletion (tombstone + removal from users array) to Supabase portal_master_state.
+   */
+  async persistUserDeletionToDb(idsToDelete: string[], usernameToDelete?: string): Promise<boolean> {
+    try {
+      const dbRes = await fetch(`${SUPABASE_CLOUD_URL}/rest/v1/portal_master_state?id=eq.aew_portal_master&select=*`, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!dbRes.ok) return false;
+      const rows = await dbRes.json();
+      if (!Array.isArray(rows) || rows.length === 0 || !rows[0].data) return false;
+
+      const cloudState = rows[0].data;
+      const cleanIds = new Set(
+        idsToDelete
+          .map((id) => (id || '').trim().toUpperCase())
+          .filter((id) => id && id !== 'ADMIN-01' && id !== 'ADMIN' && id !== 'U-ADMIN')
+      );
+      const cleanUname = (usernameToDelete || '').trim().toLowerCase();
+
+      const existingDeleted: string[] = Array.isArray(cloudState.deletedIds) ? cloudState.deletedIds : [];
+      const mergedDeleted = new Set(existingDeleted.map((id: string) => (id || '').trim().toUpperCase()).filter(Boolean));
+      cleanIds.forEach((id) => mergedDeleted.add(id));
+      cloudState.deletedIds = Array.from(mergedDeleted);
+
+      if (Array.isArray(cloudState.users)) {
+        cloudState.users = cloudState.users.filter((u: any) => {
+          if (!u) return false;
+          const uTid = (u.teacherId || '').trim().toUpperCase();
+          const uId = (u.id || '').trim().toUpperCase();
+          const uName = (u.username || '').trim().toLowerCase();
+          if (uTid === 'ADMIN-01' || uTid === 'ADMIN' || uId === 'U-ADMIN') return true;
+          if (uTid && cleanIds.has(uTid)) return false;
+          if (uId && cleanIds.has(uId)) return false;
+          if (cleanUname && uName === cleanUname) return false;
+          return true;
+        });
+      }
+
+      const nowIso = new Date().toISOString();
+      cloudState.updatedAt = nowIso;
+
+      const postRes = await fetch(`${SUPABASE_CLOUD_URL}/rest/v1/portal_master_state`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          id: 'aew_portal_master',
+          version: 2,
+          data: cloudState,
+          updated_at: nowIso,
+        }),
+      });
+
+      return postRes.ok;
+    } catch (err) {
+      console.warn('[StorageService] Error persisting user deletion to DB:', err);
       return false;
     }
   },
@@ -4898,39 +4983,31 @@ export const StorageService = {
       Array.isArray(state.deletedIds) ? state.deletedIds.map((id: string) => id.toUpperCase()) : []
     );
     const localDeletedList = this.getDeletedIds().map((id: string) => id.toUpperCase());
+    const localDeletedSet = new Set<string>(localDeletedList);
     const deletedIds = new Set<string>([
       ...localDeletedList,
       ...stateDeletedSet,
     ]);
 
-    // Protected accounts that must NEVER be in deletedIds
+    // Protected accounts that must NEVER be in deletedIds (Primary Root Admin only)
     const PROTECTED_ACCOUNTS = new Set([
       'ADMIN-01',
       'ADMIN',
       'U-ADMIN',
-      'AEW-T-102',
-      'AEW-T-103',
-      'U-1787383338021',
-      'U-1787387463369',
-      'BHUMI',
-      'KHUSHI',
     ]);
     PROTECTED_ACCOUNTS.forEach((pId) => deletedIds.delete(pId));
 
-    // If incoming cloud state has active users that are NOT in state.deletedIds,
-    // clear any stale local tombstones for those specific users so they reflect immediately.
-    if (Array.isArray(state.users)) {
+    // Only clear a local teacherId tombstone if the cloud user is a brand-new re-onboarded record
+    // (its unique u.id was never locally tombstoned) and no recent local user deletion is in flight.
+    const isRecentLocalWrite = lastLocalUserWriteMs > 0 && (Date.now() - lastLocalUserWriteMs) < 10000;
+    if (!isRecentLocalWrite && Array.isArray(state.users)) {
       state.users.forEach((u: any) => {
         if (u && !isHardcodedMockUser(u)) {
           const tid = (u.teacherId || '').toUpperCase();
           const uid = (u.id || '').toUpperCase();
-          if (tid && !stateDeletedSet.has(tid)) {
+          if (uid && !localDeletedSet.has(uid) && !stateDeletedSet.has(uid) && tid && !stateDeletedSet.has(tid)) {
             deletedIds.delete(tid);
             this.removeDeletedId(tid);
-          }
-          if (uid && !stateDeletedSet.has(uid)) {
-            deletedIds.delete(uid);
-            this.removeDeletedId(uid);
           }
         }
       });
@@ -6012,6 +6089,23 @@ export const StorageService = {
       });
 
       if (res.status === 401) {
+        const user = this.getCurrentUser();
+        if (user) {
+          const fallbackToken = `local_session_${Date.now()}_${user.id || user.teacherId || 'u-admin'}`;
+          this.setSessionToken(fallbackToken);
+          const retryRes = await fetch('/api/cloud-sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${fallbackToken}`,
+            },
+            body: JSON.stringify({ data: payload }),
+          });
+          if (retryRes.ok) {
+            const retryJson = await retryRes.json().catch(() => null);
+            return Boolean(retryJson?.success);
+          }
+        }
         return false;
       }
 

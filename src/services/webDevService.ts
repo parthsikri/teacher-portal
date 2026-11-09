@@ -2223,7 +2223,7 @@ export const WebDevService = {
       return { success: false, error: 'Developer not found.' };
     }
 
-    if (targetDev.role === 'admin' || targetDev.teacherId.toUpperCase().startsWith('ADMIN')) {
+    if (targetDev.teacherId.toUpperCase() === 'ADMIN-01' || targetDev.teacherId.toUpperCase() === 'ADMIN') {
       return { success: false, error: 'Primary Administrator account cannot be deleted.' };
     }
 

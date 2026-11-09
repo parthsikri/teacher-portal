@@ -20,30 +20,28 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
   if (!current) current = DEFAULT_STATE;
   if (!incoming) return current || DEFAULT_STATE;
 
+  const currentDeletedSet = new Set<string>(
+    Array.isArray(current.deletedIds) ? current.deletedIds.map((id: string) => id.toUpperCase()) : []
+  );
+  const incomingDeletedSet = new Set<string>(
+    Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []
+  );
+
   const deletedIds = new Set<string>([
-    ...(Array.isArray(current.deletedIds) ? current.deletedIds.map((id: string) => id.toUpperCase()) : []),
-    ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []),
+    ...currentDeletedSet,
+    ...incomingDeletedSet,
   ]);
 
-  // Protected accounts that must NEVER be tombstoned or deleted
+  // Protected accounts that must NEVER be tombstoned or deleted (Primary Root Admin only)
   const PROTECTED_ACCOUNTS = new Set([
     'ADMIN-01',
     'ADMIN',
     'U-ADMIN',
-    'AEW-T-102',
-    'AEW-T-103',
-    'U-1787383338021',
-    'U-1787387463369',
-    'BHUMI',
-    'KHUSHI',
   ]);
   PROTECTED_ACCOUNTS.forEach((pId) => deletedIds.delete(pId));
 
-  // If incoming contains active users being added or updated by authorized callers,
-  // ensure their IDs are not blocked by stale deletedIds in state, UNLESS they are explicitly in incoming.deletedIds.
-  const incomingDeletedSet = new Set<string>(
-    Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []
-  );
+  // If incoming contains newly onboarded users added by authorized callers (whose unique u.id is NOT tombstoned),
+  // ensure their teacherId is not blocked by an older tombstone from a previous employee.
   const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head' || callerRole === 'teacher';
   if (canMutateUsers && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
@@ -60,9 +58,10 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
         if (canMutateThisRole) {
           const tid = u.teacherId ? u.teacherId.toUpperCase() : '';
           const uid = u.id ? u.id.toUpperCase() : '';
-          // Only clear tombstone if the caller did NOT tombstone this user in this request
-          if (tid && !incomingDeletedSet.has(tid)) deletedIds.delete(tid);
-          if (uid && !incomingDeletedSet.has(uid)) deletedIds.delete(uid);
+          // Only clear a teacherId tombstone if this user record's unique id was NEVER tombstoned
+          if (uid && !currentDeletedSet.has(uid) && !incomingDeletedSet.has(uid)) {
+            if (tid && !incomingDeletedSet.has(tid)) deletedIds.delete(tid);
+          }
         }
       }
     });

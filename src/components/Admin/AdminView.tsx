@@ -56,8 +56,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [employeeToOffboardOrDelete, setEmployeeToOffboardOrDelete] = useState<User | null>(null);
   const [offboardReason, setOffboardReason] = useState('Resigned / End of Tenure');
   const [offboardRemarks, setOffboardRemarks] = useState('');
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [offboardActionType, setOffboardActionType] = useState<'offboard' | 'delete'>('offboard');
+  const [offboardActionType, setOffboardActionType] = useState<'offboard' | 'delete'>('delete');
 
   // PR Commission Settings Modal State
   const [adjustingPrUser, setAdjustingPrUser] = useState<User | null>(null);
@@ -925,21 +924,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   // Open Offboard or Delete modal
-  const handleOpenOffboardOrDelete = (emp: User) => {
+  const handleOpenOffboardOrDelete = (emp: User, defaultAction: 'offboard' | 'delete' = 'delete') => {
     setEmployeeToOffboardOrDelete(emp);
-    setOffboardActionType(emp.isOffboarded ? 'delete' : 'offboard');
+    setOffboardActionType(defaultAction);
     setOffboardReason(emp.offboardReason || 'Resigned / End of Tenure');
     setOffboardRemarks(emp.offboardRemarks || '');
-    setDeleteConfirmText('');
   };
 
   // Confirm Offboard or Delete
   const handleConfirmOffboardOrDelete = () => {
     if (!employeeToOffboardOrDelete) return;
+    const targetName = employeeToOffboardOrDelete.name;
+    const targetTid = employeeToOffboardOrDelete.teacherId || employeeToOffboardOrDelete.id;
 
     if (offboardActionType === 'offboard') {
       const res = StorageService.offboardEmployee(
-        employeeToOffboardOrDelete.teacherId,
+        targetTid,
         offboardReason,
         offboardRemarks
       );
@@ -949,21 +949,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
       }
       setEmployeeToOffboardOrDelete(null);
       refreshState();
-      alert(`✓ ${employeeToOffboardOrDelete.name} (${employeeToOffboardOrDelete.teacherId}) has been offboarded. Portal login disabled, historical activity retained.`);
     } else {
       // Permanent Delete
-      if (deleteConfirmText.trim().toUpperCase() !== employeeToOffboardOrDelete.teacherId.toUpperCase()) {
-        alert(`Please type "${employeeToOffboardOrDelete.teacherId}" in the confirmation box to confirm permanent deletion.`);
-        return;
-      }
-      const res = StorageService.deleteEmployee(employeeToOffboardOrDelete.teacherId);
+      const res = StorageService.deleteEmployee(targetTid);
       if (!res.success) {
-        alert(res.error || 'Failed to delete employee.');
+        alert(res.error || `Failed to delete ${targetName}.`);
         return;
       }
       setEmployeeToOffboardOrDelete(null);
       refreshState();
-      alert(`✓ Employee record for ${employeeToOffboardOrDelete.name} (${employeeToOffboardOrDelete.teacherId}) permanently deleted.`);
     }
   };
 
@@ -3941,6 +3935,16 @@ Portal URL: ${window.location.origin}`;
                             className="w-full py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                           >
                             <ShieldAlert className="w-3.5 h-3.5 text-rose-400" /> Feature Entitlements
+                          </button>
+                        )}
+
+                        {t.teacherId.toUpperCase() !== 'ADMIN-01' && t.teacherId.toUpperCase() !== activeAdminUser.teacherId.toUpperCase() && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenOffboardOrDelete(t, 'delete')}
+                            className="w-full py-1.5 bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-red-300 font-bold text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-400" /> Delete / Offboard Employee
                           </button>
                         )}
                       </div>
@@ -7154,24 +7158,11 @@ Portal URL: ${window.location.origin}`;
                   <div className="space-y-4 text-xs">
                     <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-200 leading-relaxed space-y-2">
                       <p className="font-bold text-red-400 flex items-center gap-1.5">
-                        <AlertTriangle className="w-4 h-4 text-red-400" /> Irreversible Permanent Action
+                        <AlertTriangle className="w-4 h-4 text-red-400" /> Permanent Deletion
                       </p>
                       <p>
-                        This will permanently remove this employee from the roster. A persistent tombstone will prevent this ID from ever being re-seeded.
+                        This will permanently remove <strong>{employeeToOffboardOrDelete.name}</strong> (<span className="font-mono">{employeeToOffboardOrDelete.teacherId}</span>) from the employee directory and revoke their login credentials across all devices.
                       </p>
-                      <p className="text-[11px] text-red-300/80 font-mono">
-                        To confirm, please type <span className="font-bold text-white underline">{employeeToOffboardOrDelete.teacherId}</span> below:
-                      </p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <input
-                        type="text"
-                        value={deleteConfirmText}
-                        onChange={(e) => setDeleteConfirmText(e.target.value)}
-                        placeholder={`Type "${employeeToOffboardOrDelete.teacherId}" to confirm`}
-                        className="w-full bg-slate-950 border border-red-500/40 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:border-red-500 outline-none uppercase placeholder:normal-case"
-                      />
                     </div>
 
                     <div className="flex items-center justify-end gap-3 pt-2">
@@ -7185,11 +7176,10 @@ Portal URL: ${window.location.origin}`;
                       <button
                         type="button"
                         onClick={handleConfirmOffboardOrDelete}
-                        disabled={deleteConfirmText.trim().toUpperCase() !== employeeToOffboardOrDelete.teacherId.toUpperCase()}
-                        className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-red-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                        className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-600/20 transition-all cursor-pointer flex items-center gap-1.5"
                       >
                         <Trash2 className="w-4 h-4" />
-                        <span>Permanently Delete</span>
+                        <span>Permanently Delete Employee</span>
                       </button>
                     </div>
                   </div>
