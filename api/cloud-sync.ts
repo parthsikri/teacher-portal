@@ -16,7 +16,7 @@ import {
 // In-memory fallback cache
 let inMemoryStateCache: any = null;
 
-function mergeMasterStates(current: any, incoming: any, callerRole: string = 'admin'): any {
+function mergeMasterStates(current: any, incoming: any, callerRole: string = 'admin', callerId: string = ''): any {
   if (!current) current = DEFAULT_STATE;
   if (!incoming) return current || DEFAULT_STATE;
 
@@ -44,14 +44,19 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
   const incomingDeletedSet = new Set<string>(
     Array.isArray(incoming.deletedIds) ? incoming.deletedIds.map((id: string) => id.toUpperCase()) : []
   );
-  const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head';
+  const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head' || callerRole === 'teacher';
   if (canMutateUsers && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
       if (u) {
+        const isSelf = Boolean(callerId && (
+          (u.teacherId && u.teacherId.toUpperCase() === callerId.toUpperCase()) ||
+          (u.id && u.id.toUpperCase() === callerId.toUpperCase())
+        ));
         const canMutateThisRole =
           callerRole === 'admin' ||
           (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
-          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head'));
+          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head')) ||
+          (callerRole === 'teacher' && isSelf);
         if (canMutateThisRole) {
           const tid = u.teacherId ? u.teacherId.toUpperCase() : '';
           const uid = u.id ? u.id.toUpperCase() : '';
@@ -63,7 +68,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     });
   }
 
-  // 1. Merge Users — AUTHORIZED: Admin, Web Dev Lead, PR Head
+  // 1. Merge Users — AUTHORIZED: Admin, Web Dev Lead, PR Head, or Teacher for their own account
   const userMap = new Map<string, any>();
   if (Array.isArray(current.users)) {
     current.users.forEach((u: any) => {
@@ -76,10 +81,15 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
   if (canMutateUsers && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
       if (u && u.teacherId && !isHardcodedMockUser(u) && !deletedIds.has(u.teacherId.toUpperCase()) && !deletedIds.has(u.id?.toUpperCase())) {
+        const isSelf = Boolean(callerId && (
+          (u.teacherId && u.teacherId.toUpperCase() === callerId.toUpperCase()) ||
+          (u.id && u.id.toUpperCase() === callerId.toUpperCase())
+        ));
         const allowed =
           callerRole === 'admin' ||
           (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
-          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head'));
+          (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head')) ||
+          (callerRole === 'teacher' && isSelf);
 
         if (!allowed) return;
 
@@ -921,7 +931,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // fallback to memory cache
       }
 
-      const mergedData = mergeMasterStates(currentCloudData, incomingData, callerRole);
+      const callerId = auth.user?.teacherId || auth.user?.sub || '';
+      const mergedData = mergeMasterStates(currentCloudData, incomingData, callerRole, callerId);
       inMemoryStateCache = mergedData;
 
       // Update Supabase PostgreSQL table

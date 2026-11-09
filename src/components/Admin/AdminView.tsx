@@ -6,6 +6,7 @@ import { VideoModal } from '../Common/VideoModal';
 import { DatabaseSettingsModal } from '../Common/DatabaseSettingsModal';
 import { EmailSettingsModal } from '../Common/EmailSettingsModal';
 import { DailyBacklogLogsView } from '../Teacher/DailyBacklogLogsView';
+import { PortalRefreshModal } from '../Teacher/PortalRefreshModal';
 import { PrManagementSection } from './PrManagementSection';
 import { AdminWebDevSection } from '../WebDev/Admin/AdminWebDevSection';
 import { AdminSalesCrmSection } from './AdminSalesCrmSection';
@@ -20,7 +21,7 @@ import {
   ArrowUp, ArrowDown, ArrowLeft, Sparkles, BookOpen, Grid, ChevronRight, Wallet, Mail,
   Shield, Check, Copy, Award, Code2, PhoneCall, GraduationCap, Loader2,
   Crown, UserX, Percent, AlertTriangle, CheckCheck, ExternalLink, ShieldAlert,
-  Plus
+  Plus, RotateCcw
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -240,6 +241,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editMaxDailyMinutes, setEditMaxDailyMinutes] = useState(240);
   const [editJoiningDate, setEditJoiningDate] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [refreshingTeacher, setRefreshingTeacher] = useState<User | null>(null);
 
   // Subject helpers for Add Teacher Modal
   const handleAddNewSubject = (subjToAdd: string) => {
@@ -3706,6 +3708,15 @@ Portal URL: ${window.location.origin}`;
                             >
                               Reset / Edit
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setRefreshingTeacher(t)}
+                              className="px-2 py-1 rounded text-[10px] font-medium text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/40 border border-emerald-900/40 transition-colors cursor-pointer flex items-center gap-1"
+                              title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5 text-emerald-400" />
+                              <span>Refresh</span>
+                            </button>
                           </div>
                           {welcomeEmailToast && welcomeEmailToast.id === (t.id || t.teacherId) && (
                             <div className={`text-[10px] px-2.5 py-1 rounded-lg mt-1 font-mono flex items-center justify-between animate-in fade-in duration-150 ${
@@ -3899,6 +3910,15 @@ Portal URL: ${window.location.origin}`;
                           className="w-full py-2 bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                         >
                           <Key className="w-3.5 h-3.5" /> Edit Password & Profile
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRefreshingTeacher(t)}
+                          className="w-full py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          title="Refresh faculty portal metrics: resets on-time submission rate & backlogs to 0 while keeping submitted videos safe"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-emerald-400" /> Portal Refresh (Start from 0)
                         </button>
 
                         {(!activeAdminUser.adminTier || activeAdminUser.adminTier === 'super_admin' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN-01' || activeAdminUser.teacherId.toUpperCase() === 'ADMIN') && (
@@ -7368,6 +7388,20 @@ Portal URL: ${window.location.origin}`;
             </form>
           </div>
         </div>
+      )}
+
+      {/* ─── FACULTY PORTAL METRICS REFRESH MODAL (ADMIN TRIGGERED) ─── */}
+      {refreshingTeacher && (
+        <PortalRefreshModal
+          isOpen={!!refreshingTeacher}
+          onClose={() => setRefreshingTeacher(null)}
+          teacher={refreshingTeacher}
+          performedBy={activeAdminUser.name || 'Academic Operations Admin'}
+          onSuccess={(_msg) => {
+            setRefreshingTeacher(null);
+            refreshState();
+          }}
+        />
       )}
 
     </div>

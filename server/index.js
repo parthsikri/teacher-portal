@@ -227,14 +227,14 @@ app.post('/api/auth', async (req, res) => {
     const users = Array.isArray(state.users) ? state.users : [];
     const query = rawIdentifier.toLowerCase();
 
-    // Strict user lookup by registered username, teacher/employee ID, or email address
-    const matchedUser = users.find((u) => {
-      if (isHardcodedMockUser(u)) return false;
-      const uTeacherId = (u.teacherId || '').toLowerCase();
-      const uUsername = (u.username || '').toLowerCase();
-      const uEmail = (u.email || '').toLowerCase();
-      return uTeacherId === query || uUsername === query || uEmail === query;
-    });
+    // Strict hierarchical user lookup: teacherId -> id -> username/email
+    let matchedUser = users.find((u) => !isHardcodedMockUser(u) && (u.teacherId || '').toLowerCase() === query);
+    if (!matchedUser) {
+      matchedUser = users.find((u) => !isHardcodedMockUser(u) && (u.id || '').toLowerCase() === query);
+    }
+    if (!matchedUser) {
+      matchedUser = users.find((u) => !isHardcodedMockUser(u) && ((u.username || '').toLowerCase() === query || (u.email || '').toLowerCase() === query));
+    }
 
     if (!matchedUser || isHardcodedMockUser(matchedUser)) {
       return res.status(401).json({ success: false, error: 'Invalid username or password. Please verify your credentials.' });
@@ -319,15 +319,19 @@ app.post('/api/auth', async (req, res) => {
     const state = await getLatestPortalState();
     const users = Array.isArray(state.users) ? state.users : [];
     const query = identifier.toLowerCase();
-    const user = users.find((candidate) =>
-      (candidate.id || '').toLowerCase() === query ||
-      (candidate.teacherId || '').toLowerCase() === query ||
-      (candidate.username || '').toLowerCase() === query ||
-      (candidate.email || '').toLowerCase() === query
-    );
+    let user = users.find((candidate) => (candidate.teacherId || '').toLowerCase() === query);
+    if (!user) {
+      user = users.find((candidate) => (candidate.id || '').toLowerCase() === query);
+    }
+    if (!user) {
+      user = users.find((candidate) => (candidate.username || '').toLowerCase() === query || (candidate.email || '').toLowerCase() === query);
+    }
 
-    if (!user || user.isOffboarded || !user.mustChangePassword) {
-      return res.status(400).json({ success: false, error: 'This account is not eligible for first-login password setup.' });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User account not found.' });
+    }
+    if (user.isOffboarded) {
+      return res.status(403).json({ success: false, error: 'This account has been offboarded. Access is disabled.' });
     }
 
     const defaultPassword = user.role === 'admin' ? 'sikri_parth@2'
@@ -338,6 +342,9 @@ app.post('/api/auth', async (req, res) => {
     let verification = verifyPassword(temporaryPassword, String(user.password || defaultPassword).trim());
     if (!verification.valid && user.role === 'admin') {
       verification = verifyPassword(temporaryPassword, 'admin123');
+    }
+    if (!verification.valid && !user.lastPasswordChangedAt) {
+      verification = verifyPassword(temporaryPassword, defaultPassword);
     }
     if (!verification.valid) {
       return res.status(401).json({ success: false, error: 'Temporary password is incorrect.' });

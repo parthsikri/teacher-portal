@@ -63,13 +63,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const users: any[] = Array.isArray(state.users) ? state.users : [];
     const query = rawIdentifier.toLowerCase();
 
-    // Strict user lookup by registered username, teacher/employee ID, or email address
-    const matchedUser = users.find((u) => {
-      const uTeacherId = (u.teacherId || '').toLowerCase();
-      const uUsername = (u.username || '').toLowerCase();
-      const uEmail = (u.email || '').toLowerCase();
-      return uTeacherId === query || uUsername === query || uEmail === query;
-    });
+    // Strict hierarchical user lookup: teacherId -> id -> username/email
+    let matchedUser = users.find((u) => (u.teacherId || '').toLowerCase() === query);
+    if (!matchedUser) {
+      matchedUser = users.find((u) => (u.id || '').toLowerCase() === query);
+    }
+    if (!matchedUser) {
+      matchedUser = users.find((u) => (u.username || '').toLowerCase() === query || (u.email || '').toLowerCase() === query);
+    }
 
     if (!matchedUser) {
       return res.status(401).json({ success: false, error: 'Invalid username or password. Please verify your credentials.' });
@@ -158,12 +159,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const state = await getCloudPortalState();
     const users: any[] = Array.isArray(state.users) ? state.users : [];
     const query = identifier.toLowerCase();
-    const user = users.find((candidate) =>
-      (candidate.id || '').toLowerCase() === query ||
-      (candidate.teacherId || '').toLowerCase() === query ||
-      (candidate.username || '').toLowerCase() === query ||
-      (candidate.email || '').toLowerCase() === query
-    );
+    let user = users.find((candidate) => (candidate.teacherId || '').toLowerCase() === query);
+    if (!user) {
+      user = users.find((candidate) => (candidate.id || '').toLowerCase() === query);
+    }
+    if (!user) {
+      user = users.find((candidate) => (candidate.username || '').toLowerCase() === query || (candidate.email || '').toLowerCase() === query);
+    }
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User account not found.' });
@@ -171,15 +173,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (user.isOffboarded) {
       return res.status(403).json({ success: false, error: 'This account has been offboarded. Access is disabled.' });
-    }
-
-    // If password setup was already completed, smoothly allow user to enter portal
-    if (!user.mustChangePassword) {
-      return res.status(200).json({
-        success: true,
-        token: createSessionToken(user),
-        user: sanitizeUser(user),
-      });
     }
 
     const defaultPassword = user.role === 'admin' ? 'sikri_parth@2'
@@ -190,6 +183,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let verification = verifyPassword(temporaryPassword, String(user.password || defaultPassword).trim());
     if (!verification.valid && user.role === 'admin') {
       verification = verifyPassword(temporaryPassword, 'admin123');
+    }
+    if (!verification.valid && !user.lastPasswordChangedAt) {
+      verification = verifyPassword(temporaryPassword, defaultPassword);
     }
     if (!verification.valid) {
       return res.status(401).json({ success: false, error: 'Temporary password is incorrect.' });

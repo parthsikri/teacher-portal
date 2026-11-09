@@ -5,13 +5,14 @@ import {
   Clock, CheckCircle2, AlertTriangle, 
   ChevronDown, ChevronRight, Search, Wallet, 
   Plus, Video, ExternalLink, Play, Sparkles, 
-  ArrowUpDown, ShieldCheck, Info, RefreshCw
+  ArrowUpDown, ShieldCheck, Info, RefreshCw, RotateCcw
 } from 'lucide-react';
 
 interface DailyBacklogLogsViewProps {
   teacherId: string;
   onOpenUpload?: (prefillTopic?: any) => void;
   onOpenWalletModal?: () => void;
+  onOpenPortalRefresh?: () => void;
   onPreviewLecture?: (lecture: Lecture) => void;
   onReuploadLecture?: (lecture: Lecture) => void;
   isCompactModalView?: boolean;
@@ -21,6 +22,7 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
   teacherId,
   onOpenUpload,
   onOpenWalletModal,
+  onOpenPortalRefresh,
   onPreviewLecture,
   onReuploadLecture,
   isCompactModalView = false,
@@ -124,9 +126,16 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
                         🚀 Tracking Since: {dailyLogsInfo.joiningDate}
                       </span>
                     )}
+                    {dailyLogsInfo.effectiveStartDate && dailyLogsInfo.effectiveStartDate !== dailyLogsInfo.joiningDate && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono font-bold flex items-center gap-1">
+                        <RotateCcw className="w-3 h-3 text-emerald-400" /> Cycle Refreshed: {dailyLogsInfo.effectiveStartDate}
+                      </span>
+                    )}
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Day-by-day audit starting from your official joining date ({dailyLogsInfo.joiningDate || 'onboarding'}). Dates prior to joining are excluded, and approved leaves are excused with zero backlog debt.
+                    {dailyLogsInfo.effectiveStartDate && dailyLogsInfo.effectiveStartDate !== dailyLogsInfo.joiningDate
+                      ? `Day-by-day audit in current cycle starting from refresh date (${dailyLogsInfo.effectiveStartDate}). All submitted videos are preserved.`
+                      : `Day-by-day audit starting from your official joining date (${dailyLogsInfo.joiningDate || 'onboarding'}). Dates prior to joining are excluded, and approved leaves are excused with zero backlog debt.`}
                   </p>
                   <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-950/80 border border-indigo-500/30 text-[11px] text-slate-300">
                     <span className="text-indigo-400 font-bold">📌 Note:</span>
@@ -137,6 +146,16 @@ export const DailyBacklogLogsView: React.FC<DailyBacklogLogsViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {onOpenPortalRefresh && (
+                <button
+                  type="button"
+                  onClick={onOpenPortalRefresh}
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/40 text-slate-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  title="Refresh portal cycle: reset backlogs and on-time metrics to 0 while keeping submitted videos safe"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-400" /> Portal Refresh
+                </button>
+              )}
               {onOpenWalletModal && (
                 <button
                   type="button"

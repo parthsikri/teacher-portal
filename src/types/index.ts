@@ -74,6 +74,22 @@ export interface User {
   offboardedAt?: string;         // ISO timestamp of departure
   offboardReason?: string;       // Reason for departure (e.g. "Tenure Completed", "Resigned", "Contract Ended")
   offboardRemarks?: string;      // Optional administrative notes upon offboarding
+  // Faculty Portal Metrics Cycle Refresh
+  portalRefreshedAt?: string;    // ISO timestamp of latest portal metrics refresh (clean slate origin)
+  portalRefreshHistory?: PortalRefreshRecord[]; // Audit trail of all cycle refreshes
+}
+
+export interface PortalRefreshRecord {
+  refreshedAt: string;        // ISO timestamp of refresh
+  refreshedBy: string;        // Name or role of person who triggered it ('teacher' | 'admin' | string)
+  reason?: string;            // Description e.g. "Monthly cycle reset", "Teacher requested clean slate"
+  statsSnapshot?: {
+    onTimePercentage: number;
+    totalDeliveredMinutes: number;
+    totalLectures: number;
+    remainingBacklogMinutes: number;
+    walletBalance: number;
+  };
 }
 
 export interface DailyCommitment {

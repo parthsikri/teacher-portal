@@ -5,6 +5,7 @@ import { VideoModal } from '../Common/VideoModal';
 import { PptRequestPortal } from './PptRequestPortal';
 import { DailyBacklogLogsView } from './DailyBacklogLogsView';
 import { ReuploadVideoModal } from './ReuploadVideoModal';
+import { PortalRefreshModal } from './PortalRefreshModal';
 import confetti from 'canvas-confetti';
 import { 
   Search, FileText, Plus, Play,
@@ -13,7 +14,7 @@ import {
   FileSpreadsheet, Award, Folder,
   CheckCircle2, MessageCircle, Video,
   ArrowUp, ArrowDown, Trash2,
-  BookOpen, BookMarked, Filter, ArrowLeft, Layers, Grid, Sparkles, Wallet, Calendar, RefreshCw
+  BookOpen, BookMarked, Filter, ArrowLeft, Layers, Grid, Sparkles, Wallet, Calendar, RefreshCw, RotateCcw
 } from 'lucide-react';
 
 interface TeacherViewProps {
@@ -118,6 +119,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
   const [topicFilter, setTopicFilter] = useState<'all' | 'revision_needed' | 'needs_action' | 'in_review' | 'ready_to_deliver' | 'completed'>('all');
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
   const [reuploadingLecture, setReuploadingLecture] = useState<Lecture | null>(null);
+  const [showPortalRefreshModal, setShowPortalRefreshModal] = useState(false);
 
   // Step-by-Step Subject & Unit Square Card Selection State for Syllabus
   const [selectedSubjectSyllabus, setSelectedSubjectSyllabus] = useState<string | null>(null);
@@ -846,6 +848,16 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
 
               <button
+                type="button"
+                onClick={() => setShowPortalRefreshModal(true)}
+                className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-indigo-500/40 text-slate-300 hover:text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="Start a fresh cycle: resets on-time submission rate & backlogs to 0 while keeping all submitted videos safe"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Portal Refresh</span>
+              </button>
+
+              <button
                 onClick={() => onOpenUpload()}
                 className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-md"
               >
@@ -1305,6 +1317,27 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                     )}
                   </div>
                 )}
+                <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-slate-800/80">
+                  {onTimeStats.isPortalRefreshed ? (
+                    <span className="text-emerald-400 font-mono text-[9px] flex items-center gap-1 font-semibold">
+                      <RotateCcw className="w-2.5 h-2.5 text-emerald-400" />
+                      Cycle: {onTimeStats.cycleStartDate}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 text-[9px]">All-time baseline</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPortalRefreshModal(true);
+                    }}
+                    className="text-[9px] text-indigo-400 hover:text-indigo-300 font-bold underline cursor-pointer"
+                    title="Refresh on-time rate and backlogs to 0"
+                  >
+                    Portal Refresh ➔
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1679,6 +1712,15 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               <p className="text-xs text-slate-400">Your daily quota, cumulative flexible balance pool, and approved extension windows.</p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPortalRefreshModal(true)}
+                className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/40 text-slate-300 hover:text-white font-medium text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                title="Start a fresh cycle: resets on-time submission rate & backlogs to 0 while keeping all submitted videos safe"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Portal Refresh</span>
+              </button>
               <button onClick={() => onOpenUpload()} className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5" /> Upload lecture
               </button>
@@ -1911,6 +1953,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               teacherId={teacher.teacherId}
               onOpenUpload={onOpenUpload}
               onOpenWalletModal={() => setShowWalletModal(true)}
+              onOpenPortalRefresh={() => setShowPortalRefreshModal(true)}
               onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
               onReuploadLecture={(lec) => setReuploadingLecture(lec)}
             />
@@ -1944,6 +1987,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPortalRefreshModal(true)}
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/40 text-slate-300 hover:text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  title="Reset cycle metrics and start from 0 while keeping submitted videos safe"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-400" /> Portal Refresh
+                </button>
                 <button
                   onClick={() => onOpenUpload()}
                   className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
@@ -2137,6 +2188,7 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                   teacherId={teacher.teacherId}
                   onOpenUpload={onOpenUpload}
                   onOpenWalletModal={() => setShowWalletModal(true)}
+                  onOpenPortalRefresh={() => setShowPortalRefreshModal(true)}
                   onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
                   onReuploadLecture={(lec) => setReuploadingLecture(lec)}
                 />
@@ -4254,6 +4306,10 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                 setShowDailyLogsModal(false);
                 setShowWalletModal(true);
               }}
+              onOpenPortalRefresh={() => {
+                setShowDailyLogsModal(false);
+                setShowPortalRefreshModal(true);
+              }}
               onPreviewLecture={(lec) => setSelectedLectureForPreview(lec)}
               onReuploadLecture={(lec) => {
                 setShowDailyLogsModal(false);
@@ -4279,6 +4335,19 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
           }}
         />
       )}
+
+      {/* ─── TEACHER PORTAL METRICS REFRESH MODAL ─── */}
+      <PortalRefreshModal
+        isOpen={showPortalRefreshModal}
+        onClose={() => setShowPortalRefreshModal(false)}
+        teacher={teacher}
+        performedBy={teacher.name}
+        onSuccess={(msg) => {
+          setCopiedToast(msg);
+          setTimeout(() => setCopiedToast(null), 4000);
+          setRefreshKey((k) => k + 1);
+        }}
+      />
     </div>
   );
 };

@@ -2162,7 +2162,11 @@ export const WebDevService = {
   ): User {
     const role = devData.role || 'web_developer';
     const cleanId = StorageService.getNextEmployeeId(role);
-    const cleanUsername = (devData.username || devData.email.split('@')[0] || cleanId.toLowerCase()).toLowerCase().replace(/\s+/g, '_');
+    const existingUsers = StorageService.getUsers();
+    let cleanUsername = (devData.username || devData.email.split('@')[0] || cleanId.toLowerCase()).toLowerCase().replace(/\s+/g, '_');
+    if (existingUsers.some((u) => (u.username || '').toLowerCase() === cleanUsername && u.teacherId !== cleanId)) {
+      cleanUsername = `${cleanUsername}_${cleanId.replace(/[^0-9]/g, '') || Math.floor(100 + Math.random() * 900)}`;
+    }
     
     const newDev = StorageService.onboardEmployee({
       name: devData.name.trim(),

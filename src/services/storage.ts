@@ -4,7 +4,7 @@ import type {
   DayOffGrant,
   User, UserRole, Lecture, AdminRemark, AssignedTopic, SubjectReference, SubtopicItem, DailyCommitment, PptRequest, LectureExtension, WalletTransaction, TimeWalletInfo, DailyBacklogLog, TeacherDailyLogsInfo, DailyLogStatus, EmailConfig, EmailLogItem,
   PrTask, PrLead, PrMouRequest, PrCollege, PrTier, PrLeadStage, PrMouStatus,
-  SalesLead, SalesActivityLog, CustomFeatureKey } from '../types';
+  SalesLead, SalesActivityLog, CustomFeatureKey, PortalRefreshRecord } from '../types';
 
 
 const LECTURES_KEY = 'aew_portal_lectures_prod_v2';
@@ -659,6 +659,9 @@ export const StorageService = {
     if (created.id) this.removeDeletedId(created.id);
     this.saveUsers(filtered);
 
+    // Directly persist newly onboarded employee credentials to Supabase DB
+    this.persistUserCredentialToDb(created).catch(() => {});
+
     // Guarantee newly onboarded employees start with a completely fresh slate (no dummy or stale test records)
     const cleanLeads = this.getPrLeads().filter((l) => (l.internId || '').trim().toUpperCase() !== cleanId);
     this.savePrLeads(cleanLeads);
@@ -714,6 +717,7 @@ export const StorageService = {
     this.removeDeletedId(cleanTeacherId);
     if (created.id) this.removeDeletedId(created.id);
     this.saveUsers(filtered);
+    this.persistUserCredentialToDb(created).catch(() => {});
     return created;
   },
 
@@ -754,6 +758,7 @@ export const StorageService = {
     this.removeDeletedId(cleanId);
     if (created.id) this.removeDeletedId(created.id);
     this.saveUsers(filtered);
+    this.persistUserCredentialToDb(created).catch(() => {});
     return created;
   },
 
@@ -805,6 +810,8 @@ export const StorageService = {
       customFeatures: updates.customFeatures !== undefined ? updates.customFeatures : users[index].customFeatures,
       hasCrmAccess: updates.hasCrmAccess !== undefined ? updates.hasCrmAccess : users[index].hasCrmAccess,
       crmRole: updates.crmRole !== undefined ? updates.crmRole : users[index].crmRole,
+      portalRefreshedAt: updates.portalRefreshedAt !== undefined ? updates.portalRefreshedAt : users[index].portalRefreshedAt,
+      portalRefreshHistory: updates.portalRefreshHistory !== undefined ? updates.portalRefreshHistory : users[index].portalRefreshHistory,
     };
     users[index] = updatedUser;
     this.saveUsers(users);
@@ -864,6 +871,9 @@ export const StorageService = {
     const user = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
     const todayStr = this.toLocalDateKey(new Date());
 
+    if (user?.portalRefreshedAt) {
+      return this.toLocalDateKey(user.portalRefreshedAt);
+    }
     if (user?.joiningDate) {
       return user.joiningDate;
     }
@@ -1135,6 +1145,96 @@ export const StorageService = {
     this.updateTeacherTargetMinutes(teacherId, limit * 30);
   },
 
+  // ─── TEACHER PORTAL METRICS CYCLE REFRESH ──────────────────────────────────
+  portalRefreshTeacher(
+    teacherId: string,
+    performedBy: string = 'Teacher',
+    reason: string = 'Faculty requested portal metrics cycle refresh'
+  ): {
+    success: boolean;
+    refreshedAt: string;
+    message: string;
+    teacher: User | null;
+  } {
+    const cleanId = (teacherId || '').trim().toUpperCase();
+    const users = this.getUsers();
+    const index = users.findIndex((u) => u.teacherId.toUpperCase() === cleanId || u.id === teacherId);
+    if (index === -1) {
+      return { success: false, refreshedAt: '', message: 'Teacher not found', teacher: null };
+    }
+
+    const currentTeacher = users[index];
+    const nowIso = new Date().toISOString();
+
+    // Capture snapshot of current metrics prior to refresh for historical audit
+    let snapshot;
+    try {
+      const stats = this.getOnTimeSubmissionStats(cleanId);
+      const backlog = this.getLateBacklogInfo(cleanId);
+      const wallet = this.getTimeWalletInfo(cleanId);
+      snapshot = {
+        onTimePercentage: stats.onTimePercentage,
+        totalDeliveredMinutes: stats.totalDeliveredMinutes,
+        totalLectures: stats.totalLectures,
+        remainingBacklogMinutes: backlog.remainingBacklogMinutes,
+        walletBalance: wallet.balance,
+      };
+    } catch {
+      snapshot = {
+        onTimePercentage: 100,
+        totalDeliveredMinutes: 0,
+        totalLectures: 0,
+        remainingBacklogMinutes: 0,
+        walletBalance: 0,
+      };
+    }
+
+    const newRecord: PortalRefreshRecord = {
+      refreshedAt: nowIso,
+      refreshedBy: performedBy,
+      reason,
+      statsSnapshot: snapshot,
+    };
+
+    const existingHistory = Array.isArray(currentTeacher.portalRefreshHistory)
+      ? currentTeacher.portalRefreshHistory
+      : [];
+
+    const updatedUser = this.updateUser(currentTeacher.id, {
+      portalRefreshedAt: nowIso,
+      portalRefreshHistory: [newRecord, ...existingHistory],
+    });
+
+    // Close or expire any lingering active lecture extensions
+    try {
+      const extensions = this.getExtensions();
+      const updatedExtensions = extensions.map((ext: LectureExtension) => {
+        if (ext.teacherId.toUpperCase() === cleanId && new Date(ext.endWindow).getTime() > Date.now()) {
+          return { ...ext, endWindow: nowIso, notes: `${ext.notes || ''} [Closed by portal refresh]`.trim() };
+        }
+        return ext;
+      });
+      this.saveExtensions(updatedExtensions);
+    } catch {
+      // Non-fatal
+    }
+
+    // Broadcast update events across all windows & components
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aew_users_updated', { detail: { users: this.getUsers() } }));
+      window.dispatchEvent(new CustomEvent('portal_storage_update'));
+      window.dispatchEvent(new CustomEvent('aew_cloud_data_synced'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    return {
+      success: true,
+      refreshedAt: nowIso,
+      message: 'Portal refreshed successfully! All metrics have restarted from 0. Submitted videos remain preserved.',
+      teacher: updatedUser,
+    };
+  },
+
   getCurrentUser(): User | null {
     const data = localStorage.getItem(CURRENT_USER_KEY);
     if (!data) return null;
@@ -1159,13 +1259,14 @@ export const StorageService = {
 
     const users = this.getUsers();
 
-    // Strict user lookup by registered username, teacher/employee ID, or email address
-    const user = users.find(u => {
-      const uTeacherId = (u.teacherId || '').toLowerCase();
-      const uUsername = (u.username || '').toLowerCase();
-      const uEmail = (u.email || '').toLowerCase();
-      return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
-    });
+    // Strict hierarchical user lookup: teacherId -> id -> username/email
+    let user = users.find(u => (u.teacherId || '').toLowerCase() === cleanId);
+    if (!user) {
+      user = users.find(u => (u.id || '').toLowerCase() === cleanId);
+    }
+    if (!user) {
+      user = users.find(u => (u.username || '').toLowerCase() === cleanId || (u.email || '').toLowerCase() === cleanId);
+    }
 
     if (!user) {
       return { success: false, error: 'Invalid username or password. Please verify your credentials.' };
@@ -1209,23 +1310,25 @@ export const StorageService = {
     }
 
     let users = this.getUsers();
-    let user = users.find(u => {
-      const uTeacherId = (u.teacherId || '').toLowerCase();
-      const uUsername = (u.username || '').toLowerCase();
-      const uEmail = (u.email || '').toLowerCase();
-      return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
-    });
+    let user = users.find(u => (u.teacherId || '').toLowerCase() === cleanId);
+    if (!user) {
+      user = users.find(u => (u.id || '').toLowerCase() === cleanId);
+    }
+    if (!user) {
+      user = users.find(u => (u.username || '').toLowerCase() === cleanId || (u.email || '').toLowerCase() === cleanId);
+    }
 
     // If user not in local storage, perform immediate sync directly from database
     if (!user) {
       await this.syncCredentialsFromDb().catch(() => {});
       users = this.getUsers();
-      user = users.find(u => {
-        const uTeacherId = (u.teacherId || '').toLowerCase();
-        const uUsername = (u.username || '').toLowerCase();
-        const uEmail = (u.email || '').toLowerCase();
-        return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
-      });
+      user = users.find(u => (u.teacherId || '').toLowerCase() === cleanId);
+      if (!user) {
+        user = users.find(u => (u.id || '').toLowerCase() === cleanId);
+      }
+      if (!user) {
+        user = users.find(u => (u.username || '').toLowerCase() === cleanId || (u.email || '').toLowerCase() === cleanId);
+      }
     }
 
     if (!user) {
@@ -1246,12 +1349,13 @@ export const StorageService = {
     if (!isValid) {
       await this.syncCredentialsFromDb().catch(() => {});
       const freshUsers = this.getUsers();
-      const freshUser = freshUsers.find(u => {
-        const uTeacherId = (u.teacherId || '').toLowerCase();
-        const uUsername = (u.username || '').toLowerCase();
-        const uEmail = (u.email || '').toLowerCase();
-        return uTeacherId === cleanId || uUsername === cleanId || uEmail === cleanId;
-      });
+      let freshUser = freshUsers.find(u => (u.teacherId || '').toLowerCase() === cleanId);
+      if (!freshUser) {
+        freshUser = freshUsers.find(u => (u.id || '').toLowerCase() === cleanId);
+      }
+      if (!freshUser) {
+        freshUser = freshUsers.find(u => (u.username || '').toLowerCase() === cleanId || (u.email || '').toLowerCase() === cleanId);
+      }
       if (freshUser) {
         isValid = await verifyPasswordClient(cleanPass, freshUser.password, freshUser.role, freshUser.lastPasswordChangedAt);
         if (isValid) {
@@ -1316,12 +1420,17 @@ export const StorageService = {
       const cleanUid = (user.id || '').toUpperCase();
       const cleanUsername = (user.username || '').toLowerCase();
 
-      const uIdx = cloudState.users.findIndex(
-        (u: any) =>
-          (cleanTid && u.teacherId && u.teacherId.toUpperCase() === cleanTid) ||
-          (cleanUid && u.id && u.id.toUpperCase() === cleanUid) ||
-          (cleanUsername && u.username && u.username.toLowerCase() === cleanUsername)
-      );
+      // Hierarchical matching: teacherId takes top priority, then id, then username
+      let uIdx = -1;
+      if (cleanTid) {
+        uIdx = cloudState.users.findIndex((u: any) => u.teacherId && u.teacherId.toUpperCase() === cleanTid);
+      }
+      if (uIdx === -1 && cleanUid) {
+        uIdx = cloudState.users.findIndex((u: any) => u.id && u.id.toUpperCase() === cleanUid);
+      }
+      if (uIdx === -1 && cleanUsername) {
+        uIdx = cloudState.users.findIndex((u: any) => u.username && u.username.toLowerCase() === cleanUsername);
+      }
 
       const nowIso = user.lastPasswordChangedAt || new Date().toISOString();
 
@@ -1330,14 +1439,14 @@ export const StorageService = {
           ...cloudState.users[uIdx],
           ...user,
           password: user.password,
-          mustChangePassword: user.mustChangePassword ?? false,
+          mustChangePassword: user.mustChangePassword !== undefined ? user.mustChangePassword : false,
           lastPasswordChangedAt: nowIso,
         };
       } else {
         cloudState.users.push({
           ...user,
           password: user.password,
-          mustChangePassword: user.mustChangePassword ?? false,
+          mustChangePassword: user.mustChangePassword !== undefined ? user.mustChangePassword : false,
           lastPasswordChangedAt: nowIso,
         });
       }
@@ -1392,24 +1501,24 @@ export const StorageService = {
     }
 
     let users = this.getUsers();
-    let userIndex = users.findIndex(
-      (u) =>
-        (u.id && u.id.toLowerCase() === cleanId) ||
-        (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
-        (u.username && u.username.toLowerCase() === cleanId) ||
-        (u.email && u.email.toLowerCase() === cleanId)
-    );
+    let userIndex = users.findIndex((u) => u.teacherId && u.teacherId.toLowerCase() === cleanId);
+    if (userIndex === -1) {
+      userIndex = users.findIndex((u) => u.id && u.id.toLowerCase() === cleanId);
+    }
+    if (userIndex === -1) {
+      userIndex = users.findIndex((u) => (u.username && u.username.toLowerCase() === cleanId) || (u.email && u.email.toLowerCase() === cleanId));
+    }
 
     if (userIndex === -1) {
       await this.syncCredentialsFromDb().catch(() => {});
       users = this.getUsers();
-      userIndex = users.findIndex(
-        (u) =>
-          (u.id && u.id.toLowerCase() === cleanId) ||
-          (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
-          (u.username && u.username.toLowerCase() === cleanId) ||
-          (u.email && u.email.toLowerCase() === cleanId)
-      );
+      userIndex = users.findIndex((u) => u.teacherId && u.teacherId.toLowerCase() === cleanId);
+      if (userIndex === -1) {
+        userIndex = users.findIndex((u) => u.id && u.id.toLowerCase() === cleanId);
+      }
+      if (userIndex === -1) {
+        userIndex = users.findIndex((u) => (u.username && u.username.toLowerCase() === cleanId) || (u.email && u.email.toLowerCase() === cleanId));
+      }
     }
 
     if (userIndex === -1) {
@@ -1423,13 +1532,13 @@ export const StorageService = {
     if (!isCurrentValid) {
       await this.syncCredentialsFromDb().catch(() => {});
       const freshUsers = this.getUsers();
-      const freshUser = freshUsers.find(
-        (u) =>
-          (u.id && u.id.toLowerCase() === cleanId) ||
-          (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
-          (u.username && u.username.toLowerCase() === cleanId) ||
-          (u.email && u.email.toLowerCase() === cleanId)
-      );
+      let freshUser = freshUsers.find((u) => u.teacherId && u.teacherId.toLowerCase() === cleanId);
+      if (!freshUser) {
+        freshUser = freshUsers.find((u) => u.id && u.id.toLowerCase() === cleanId);
+      }
+      if (!freshUser) {
+        freshUser = freshUsers.find((u) => (u.username && u.username.toLowerCase() === cleanId) || (u.email && u.email.toLowerCase() === cleanId));
+      }
       if (freshUser) {
         isCurrentValid = await verifyPasswordClient(cleanCurrent, freshUser.password, freshUser.role, freshUser.lastPasswordChangedAt);
         if (isCurrentValid) {
@@ -1511,13 +1620,14 @@ export const StorageService = {
     }
 
     const users = this.getUsers();
-    const userIndex = users.findIndex(
-      (u) =>
-        (u.id && u.id.toLowerCase() === cleanId) ||
-        (u.teacherId && u.teacherId.toLowerCase() === cleanId) ||
-        (u.username && u.username.toLowerCase() === cleanId) ||
-        (u.email && u.email.toLowerCase() === cleanId)
-    );
+    // Hierarchical lookup: teacherId -> id -> username/email
+    let userIndex = users.findIndex((u) => u.teacherId && u.teacherId.toLowerCase() === cleanId);
+    if (userIndex === -1) {
+      userIndex = users.findIndex((u) => u.id && u.id.toLowerCase() === cleanId);
+    }
+    if (userIndex === -1) {
+      userIndex = users.findIndex((u) => (u.username && u.username.toLowerCase() === cleanId) || (u.email && u.email.toLowerCase() === cleanId));
+    }
 
     const nowIso = new Date().toISOString();
     const newHashed = await hashPasswordClient(cleanNew);
@@ -1540,10 +1650,12 @@ export const StorageService = {
       };
       users.push(targetUser);
     } else {
-      targetUser = users[userIndex];
-      targetUser.password = newHashed;
-      targetUser.mustChangePassword = false;
-      targetUser.lastPasswordChangedAt = nowIso;
+      targetUser = {
+        ...users[userIndex],
+        password: newHashed,
+        mustChangePassword: false,
+        lastPasswordChangedAt: nowIso,
+      };
       users[userIndex] = targetUser;
     }
 
@@ -1559,8 +1671,13 @@ export const StorageService = {
       });
     }
 
-    // Persist to Supabase database directly
-    await this.persistUserCredentialToDb(targetUser).catch(() => {});
+    // Persist to Supabase database directly (with retry)
+    let persisted = await this.persistUserCredentialToDb(targetUser).catch(() => false);
+    if (!persisted) {
+      console.warn('[StorageService] First attempt to persist to DB failed, retrying...');
+      await new Promise((r) => setTimeout(r, 600));
+      persisted = await this.persistUserCredentialToDb(targetUser).catch(() => false);
+    }
 
     try {
       await this.syncToCloud().catch(() => {});
@@ -3020,18 +3137,33 @@ export const StorageService = {
     pendingLateMinutesToday: number;
     flexibleBalanceMinutes: number;
     onTimePercentage: number;
+    lifetimeDeliveredMinutes: number;
+    lifetimeLecturesCount: number;
+    cycleStartDate?: string;
+    isPortalRefreshed: boolean;
   } {
     const cleanId = (teacherId || '').toUpperCase();
-    const teacherLectures = this.getLectures().filter(
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
+    const refreshTimestamp = teacher?.portalRefreshedAt ? new Date(teacher.portalRefreshedAt).getTime() : 0;
+    const isPortalRefreshed = refreshTimestamp > 0;
+
+    const allTeacherLectures = this.getLectures().filter(
       (l) => l.teacherId.toUpperCase() === cleanId
     );
+    const lifetimeLecturesCount = allTeacherLectures.length;
+    const lifetimeDeliveredMinutes = allTeacherLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
+
+    // Only lectures recorded AFTER portal refresh count towards current cycle's on-time rate
+    const teacherLectures = isPortalRefreshed
+      ? allTeacherLectures.filter((l) => new Date(l.createdAt).getTime() >= refreshTimestamp)
+      : allTeacherLectures;
+
     const totalLectures = teacherLectures.length;
     const onTimeLectures = teacherLectures.filter((l) => l.status === 'on_time').length;
     const extendedLectures = teacherLectures.filter((l) => l.status === 'extended').length;
     const delayedLectures = teacherLectures.filter((l) => l.status === 'overdue' || l.status === 'late' || l.status === 'extended').length;
 
-    const users = this.getUsers();
-    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
     const dailyTarget = teacher?.dailyTargetMinutes || 120;
 
     let totalOnTimeMinutes = 0;
@@ -3082,6 +3214,10 @@ export const StorageService = {
       pendingLateMinutesToday,
       flexibleBalanceMinutes,
       onTimePercentage,
+      lifetimeDeliveredMinutes,
+      lifetimeLecturesCount,
+      cycleStartDate: teacher?.portalRefreshedAt ? this.toLocalDateKey(teacher.portalRefreshedAt) : undefined,
+      isPortalRefreshed,
     };
   },
 
@@ -3156,11 +3292,16 @@ export const StorageService = {
   // Total recording minutes completed today by the teacher (Timezone aware)
   getMinutesRecordedToday(teacherId: string): number {
     const cleanId = (teacherId || '').toUpperCase();
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
+    const refreshTimestamp = teacher?.portalRefreshedAt ? new Date(teacher.portalRefreshedAt).getTime() : 0;
+
     const lectures = this.getLectures();
     const todayLocal = this.toLocalDateKey(new Date());
 
     const todayLectures = lectures.filter((l) => {
       if (l.teacherId.toUpperCase() !== cleanId) return false;
+      if (refreshTimestamp > 0 && new Date(l.createdAt).getTime() < refreshTimestamp) return false;
       return this.toLocalDateKey(l.createdAt) === todayLocal;
     });
 
@@ -3169,11 +3310,16 @@ export const StorageService = {
 
   getUploadsToday(teacherId: string): number {
     const cleanId = (teacherId || '').toUpperCase();
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
+    const refreshTimestamp = teacher?.portalRefreshedAt ? new Date(teacher.portalRefreshedAt).getTime() : 0;
+
     const lectures = this.getLectures();
     const todayLocal = this.toLocalDateKey(new Date());
 
     return lectures.filter((l) => {
       if (l.teacherId.toUpperCase() !== cleanId) return false;
+      if (refreshTimestamp > 0 && new Date(l.createdAt).getTime() < refreshTimestamp) return false;
       return this.toLocalDateKey(l.createdAt) === todayLocal;
     }).length;
   },
@@ -3181,10 +3327,16 @@ export const StorageService = {
   // Total recording minutes completed on a specific date (YYYY-MM-DD)
   getMinutesRecordedOnDate(teacherId: string, targetDateStr: string): number {
     const cleanId = (teacherId || '').toUpperCase();
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
+    const refreshTimestamp = teacher?.portalRefreshedAt ? new Date(teacher.portalRefreshedAt).getTime() : 0;
+    const refreshDateKey = teacher?.portalRefreshedAt ? this.toLocalDateKey(teacher.portalRefreshedAt) : '';
+
     const lectures = this.getLectures();
     return lectures
       .filter((l) => {
         if (l.teacherId.toUpperCase() !== cleanId) return false;
+        if (refreshTimestamp > 0 && targetDateStr === refreshDateKey && new Date(l.createdAt).getTime() < refreshTimestamp) return false;
         return this.toLocalDateKey(l.createdAt) === targetDateStr;
       })
       .reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
@@ -3269,7 +3421,15 @@ export const StorageService = {
     const cleanId = (teacherId || '').trim().toUpperCase();
     if (!cleanId) return;
 
-    const teacherLectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
+    const refreshTimestamp = teacher?.portalRefreshedAt ? new Date(teacher.portalRefreshedAt).getTime() : 0;
+
+    const teacherLectures = this.getLectures().filter((l) => {
+      if (l.teacherId.toUpperCase() !== cleanId) return false;
+      if (refreshTimestamp > 0 && new Date(l.createdAt).getTime() < refreshTimestamp) return false;
+      return true;
+    });
     const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
 
     // Group lectures by date
@@ -3353,9 +3513,16 @@ export const StorageService = {
       return { balance: 0, totalSurplusEarned: 0, totalAppliedToBacklog: 0, transactions: [] };
     }
 
+    const users = this.getUsers();
+    const teacher = users.find((u) => u.teacherId.toUpperCase() === cleanId);
+    const refreshTimestamp = teacher?.portalRefreshedAt ? new Date(teacher.portalRefreshedAt).getTime() : 0;
+
     this.syncLectureSurplusDeposits(cleanId);
 
-    const txs = this.getWalletTransactions(cleanId);
+    const txs = this.getWalletTransactions(cleanId).filter((tx) => {
+      if (refreshTimestamp > 0 && new Date(tx.createdAt).getTime() < refreshTimestamp) return false;
+      return true;
+    });
     let totalSurplusEarned = 0;
     let totalAppliedToBacklog = 0;
     let manualAdjustments = 0;
@@ -3388,28 +3555,41 @@ export const StorageService = {
 
     const teacher = this.getUsers().find((u) => u.teacherId.toUpperCase() === cleanId);
     const standardDailyTarget = teacher?.dailyTargetMinutes || 120;
+    const refreshTimestamp = teacher?.portalRefreshedAt ? new Date(teacher.portalRefreshedAt).getTime() : 0;
+    const isPortalRefreshed = refreshTimestamp > 0;
+    const refreshDateKey = teacher?.portalRefreshedAt ? this.toLocalDateKey(teacher.portalRefreshedAt) : '';
 
-    const teacherLectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
+    const allTeacherLectures = this.getLectures().filter((l) => l.teacherId.toUpperCase() === cleanId);
+    const teacherLectures = isPortalRefreshed
+      ? allTeacherLectures.filter((l) => new Date(l.createdAt).getTime() >= refreshTimestamp)
+      : allTeacherLectures;
     const commitments = this.getDailyCommitments().filter((c) => c.teacherId.toUpperCase() === cleanId);
     const dayOffGrants = this.getDayOffGrants().filter((g) => g.teacherId.toUpperCase() === cleanId);
 
-    // Backlog tracking begins from the official joining date or first login date
+    // Backlog tracking begins from the official joining date or first login date (or portal refresh date)
     const startDateStr = this.getTeacherEffectiveStartDate(cleanId);
 
-    // Generate EVERY single continuous calendar date from startDateStr up to todayStr
+    // Generate continuous calendar dates from startDateStr up to todayStr
     const allDates = new Set<string>();
     const iterDate = new Date(startDateStr + 'T12:00:00');
     const todayDateObj = new Date(todayStr + 'T12:00:00');
 
-    // Ensure today and yesterday are included
     allDates.add(todayStr);
-    allDates.add(yesterdayStr);
-
-    // If teacher recorded lectures before startDateStr, include those dates as well
-    teacherLectures.forEach((l) => {
-      const d = this.toLocalDateKey(l.createdAt);
-      if (d) allDates.add(d);
-    });
+    if (!isPortalRefreshed) {
+      allDates.add(yesterdayStr);
+      allTeacherLectures.forEach((l) => {
+        const d = this.toLocalDateKey(l.createdAt);
+        if (d) allDates.add(d);
+      });
+    } else {
+      if (yesterdayStr >= startDateStr) {
+        allDates.add(yesterdayStr);
+      }
+      teacherLectures.forEach((l) => {
+        const d = this.toLocalDateKey(l.createdAt);
+        if (d && d >= startDateStr) allDates.add(d);
+      });
+    }
 
     let safetyCount = 180;
     while (iterDate <= todayDateObj && safetyCount > 0) {
@@ -3419,7 +3599,7 @@ export const StorageService = {
     }
 
     const lecturesByDate = new Map<string, Lecture[]>();
-    teacherLectures.forEach((l) => {
+    allTeacherLectures.forEach((l) => {
       const d = this.toLocalDateKey(l.createdAt);
       if (d) {
         if (!lecturesByDate.has(d)) lecturesByDate.set(d, []);
@@ -3439,7 +3619,10 @@ export const StorageService = {
     const logs: DailyBacklogLog[] = sortedDatesDesc.map((date) => {
       const isToday = date === todayStr;
       const isYesterday = date === yesterdayStr;
-      const dayLectures = lecturesByDate.get(date) || [];
+      const rawDayLectures = lecturesByDate.get(date) || [];
+      const dayLectures = (date === refreshDateKey && isPortalRefreshed)
+        ? rawDayLectures.filter((l) => new Date(l.createdAt).getTime() >= refreshTimestamp)
+        : rawDayLectures;
       const recordedMinutes = dayLectures.reduce((sum, l) => sum + (l.durationMinutes || 45), 0);
       
       const isDayOff = this.isDayOff(cleanId, date);
@@ -5632,7 +5815,8 @@ export const StorageService = {
     const minutesRecordedToday = this.getMinutesRecordedToday(cleanId);
     const isTodayTargetMet = (isTodayDayOff || isPreJoining) || (minutesRecordedToday >= effectiveTodayTarget);
     const todayPendingMinutes = Math.max(0, effectiveTodayTarget - minutesRecordedToday);
-    const todayOverdueDeficit = isPassedCutoff ? todayPendingMinutes : 0;
+    const isRefreshedToday = Boolean(teacher?.portalRefreshedAt && this.toLocalDateKey(teacher.portalRefreshedAt) === todayDateKey);
+    const todayOverdueDeficit = (isPassedCutoff && !isRefreshedToday) ? todayPendingMinutes : 0;
 
     // 3. DECOUPLED TIME WALLET & LATE BACKLOG (Surplus does NOT auto-cancel backlog!)
     const walletInfo = this.getTimeWalletInfo(cleanId);

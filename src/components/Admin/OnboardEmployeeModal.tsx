@@ -295,7 +295,12 @@ export const OnboardEmployeeModal: React.FC<OnboardEmployeeModalProps> = ({
   const handleNameChange = (val: string) => {
     setName(val);
     if (!username || username === name.toLowerCase().replace(/[^a-z0-9]/g, '_')) {
-      const suggested = val.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+      let suggested = val.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+      const existingUsers = StorageService.getUsers();
+      if (existingUsers.some((u) => (u.username || '').toLowerCase() === suggested && u.teacherId !== employeeId)) {
+        const idSuffix = employeeId ? employeeId.replace(/[^0-9]/g, '') : '';
+        suggested = `${suggested}_${idSuffix || Math.floor(100 + Math.random() * 900)}`;
+      }
       setUsername(suggested);
       if (!email || email.includes('@aew.com')) {
         setEmail(`${suggested}@aew.com`);
