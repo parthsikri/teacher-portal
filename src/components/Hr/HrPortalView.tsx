@@ -428,7 +428,7 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                 Admin-Allotted Scope:
               </span>
               {(freshCurrentUser.hrAssignedTeams || []).length === 0 &&
-              (freshCurrentUser.hrAssignedMemberIds || []).length === 0 ? (
+                (freshCurrentUser.hrAssignedMemberIds || []).length === 0 ? (
                 <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
                   No teams or members allotted by Admin yet
                 </span>
@@ -535,11 +535,10 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('admin_allocation')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'admin_allocation'
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeTab === 'admin_allocation'
                 ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/25'
                 : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-            }`}
+              }`}
           >
             <ShieldCheck className="w-4 h-4" />
             <span>Admin: Allot Teams & Members to HR ({hrManagers.length})</span>
@@ -552,11 +551,10 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
             setActiveTab('tasks');
             if (!isAdmin && onPageChange) onPageChange('hr_tasks');
           }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'tasks'
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeTab === 'tasks'
               ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25'
               : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-          }`}
+            }`}
         >
           <ClipboardCheck className="w-4 h-4" />
           <span>Allot & Manage Tasks ({visibleTasks.length})</span>
@@ -568,11 +566,10 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
             setActiveTab('submissions');
             if (!isAdmin && onPageChange) onPageChange('hr_submissions');
           }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'submissions'
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeTab === 'submissions'
               ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/25'
               : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-          }`}
+            }`}
         >
           <Clock className="w-4 h-4" />
           <span>Check Submissions</span>
@@ -589,11 +586,10 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
             setActiveTab('members');
             if (!isAdmin && onPageChange) onPageChange('hr_members');
           }}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'members'
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${activeTab === 'members'
               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25'
               : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-          }`}
+            }`}
         >
           <Award className="w-4 h-4" />
           <span>Allotted Teams & Give Points ({allottedMembers.length})</span>
@@ -654,11 +650,10 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                       <div
                         key={hr.id}
                         onClick={() => setSelectedHrForAllocationId(hr.teacherId)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2.5 ${
-                          isSelected
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2.5 ${isSelected
                             ? 'bg-pink-950/25 border-pink-500 ring-1 ring-pink-500/40 shadow-lg'
                             : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -780,17 +775,16 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                           <div
                             key={teamKey}
                             onClick={() => handleToggleAllocTeam(teamKey)}
-                            className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                              isChecked
+                            className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${isChecked
                                 ? `${meta.cardClass} text-slate-100 shadow-md`
                                 : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center gap-3">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => {}}
+                                onChange={() => { }}
                                 className="rounded border-slate-700 text-pink-600 focus:ring-0 pointer-events-none"
                               />
                               <div>
@@ -875,17 +869,16 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                             <div
                               key={member.id}
                               onClick={() => handleToggleAllocMember(member.teacherId)}
-                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
-                                isEffective
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${isEffective
                                   ? 'bg-slate-950 border-pink-500/50 text-slate-100'
                                   : 'bg-slate-950/40 border-slate-800/80 text-slate-400 hover:border-slate-700'
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <input
                                   type="checkbox"
                                   checked={isEffective}
-                                  onChange={() => {}}
+                                  onChange={() => { }}
                                   className="rounded border-slate-700 text-pink-600 focus:ring-0 pointer-events-none"
                                 />
                                 <div className="min-w-0">
@@ -1039,11 +1032,10 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                         key={tf}
                         type="button"
                         onClick={() => setTaskTeamFilter(tf)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
-                          taskTeamFilter === tf
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${taskTeamFilter === tf
                             ? 'bg-indigo-600 text-white'
                             : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
-                        }`}
+                          }`}
                       >
                         {tf === 'all' ? 'All Allotted' : TEAM_CATEGORY_META[tf].shortLabel}
                       </button>
@@ -1077,16 +1069,15 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                       <div
                         key={member.id}
                         onClick={() => handleToggleAssignee(member.teacherId)}
-                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
-                          isSel
+                        className={`p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${isSel
                             ? 'bg-indigo-950/40 border-indigo-500 text-slate-100'
                             : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
+                          }`}
                       >
                         <input
                           type="checkbox"
                           checked={isSel}
-                          onChange={() => {}}
+                          onChange={() => { }}
                           className="rounded border-slate-700 text-indigo-600 pointer-events-none"
                         />
                         <div className="min-w-0">
@@ -1129,11 +1120,10 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                   key={tf}
                   type="button"
                   onClick={() => setBoardTeamFilter(tf)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${
-                    boardTeamFilter === tf
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${boardTeamFilter === tf
                       ? 'bg-indigo-600 text-white'
                       : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
-                  }`}
+                    }`}
                 >
                   {tf === 'all' ? 'All Teams' : TEAM_CATEGORY_META[tf].shortLabel}
                 </button>
@@ -1195,15 +1185,14 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                             {teamMeta.shortLabel}
                           </span>
                           <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                              task.status === 'approved'
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${task.status === 'approved'
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                 : task.status === 'submitted'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
-                                : task.status === 'revision_requested'
-                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                : 'bg-slate-800 text-slate-300'
-                            }`}
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                                  : task.status === 'revision_requested'
+                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                    : 'bg-slate-800 text-slate-300'
+                              }`}
                           >
                             {task.status.replace('_', ' ')}
                           </span>
@@ -1288,19 +1277,18 @@ export const HrPortalView: React.FC<HrPortalViewProps> = ({
                       <button
                         type="button"
                         onClick={() => openReviewModal(task)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-                          task.status === 'submitted'
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${task.status === 'submitted'
                             ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md'
                             : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                        }`}
+                          }`}
                       >
                         <Award className="w-3.5 h-3.5" />
                         <span>
                           {task.status === 'submitted'
                             ? 'Check Submission & Give Points'
                             : task.status === 'approved'
-                            ? 'Adjust Points / Feedback'
-                            : 'Verify & Award Points'}
+                              ? 'Adjust Points / Feedback'
+                              : 'Verify & Award Points'}
                         </span>
                       </button>
                     </div>

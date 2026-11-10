@@ -184,7 +184,12 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
   const [tasks, setTasks] = useState<PrTask[]>(() => StorageService.getPrTasks());
   const [leads, setLeads] = useState<PrLead[]>(() => StorageService.getPrLeads());
   const [mous, setMous] = useState<PrMouRequest[]>(() => StorageService.getPrMous());
-  const [currentUser, setCurrentUser] = useState<User>(() => StorageService.getCurrentUser() || intern);
+  const [currentUser, setCurrentUser] = useState<User>(
+    () =>
+      StorageService.getUsers().find((u) => u.teacherId.toUpperCase() === intern.teacherId.toUpperCase()) ||
+      StorageService.getCurrentUser() ||
+      intern
+  );
   const [allUsers, setAllUsers] = useState<User[]>(() => StorageService.getUsers());
 
   // Task Filters & Submission Modal
@@ -301,19 +306,25 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
     };
 
     handleSync();
+    StorageService.syncFromCloud(true).catch(() => {});
+
     window.addEventListener('aew_pr_tasks_updated', handleSync);
     window.addEventListener('aew_pr_leads_updated', handleSync);
     window.addEventListener('aew_pr_mous_updated', handleSync);
     window.addEventListener('aew_users_updated', handleSync);
     window.addEventListener('aew_cloud_data_synced', handleSync);
+    window.addEventListener('portal_storage_update', handleSync);
     window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
     return () => {
       window.removeEventListener('aew_pr_tasks_updated', handleSync);
       window.removeEventListener('aew_pr_leads_updated', handleSync);
       window.removeEventListener('aew_pr_mous_updated', handleSync);
       window.removeEventListener('aew_users_updated', handleSync);
       window.removeEventListener('aew_cloud_data_synced', handleSync);
+      window.removeEventListener('portal_storage_update', handleSync);
       window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
     };
   }, [refreshTrigger, intern.teacherId]);
 
@@ -338,10 +349,26 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
     const targetTier: PrTier = isSilver ? 'Gold' : 'Premium';
     const targetXp = isSilver ? 100 : 300;
     const targetStars = isSilver ? 5 : 15;
-    const nextCommission = isSilver ? 7.0 : 12.0;
+
+    const silverRate =
+      currentUser.prCustomTierPercentages?.Silver !== undefined ? currentUser.prCustomTierPercentages.Silver : 3.3;
+    const goldRate =
+      currentUser.prCustomTierPercentages?.Gold !== undefined ? currentUser.prCustomTierPercentages.Gold : 7.0;
+    const premiumRate =
+      currentUser.prCustomTierPercentages?.Premium !== undefined ? currentUser.prCustomTierPercentages.Premium : 12.0;
+
+    const nextCommission =
+      currentUser.prCustomCommissionRate !== undefined && currentUser.prCustomCommissionRate > 0
+        ? currentUser.prCustomCommissionRate
+        : isSilver
+        ? goldRate
+        : premiumRate;
 
     const currentTierCommission = commissionRate;
-    const commissionSurgePercent = Math.round(((nextCommission - currentTierCommission) / currentTierCommission) * 100);
+    const commissionSurgePercent =
+      currentTierCommission > 0
+        ? Math.max(0, Math.round(((nextCommission - currentTierCommission) / currentTierCommission) * 100))
+        : 0;
 
     const xpRemaining = Math.max(0, targetXp - xp);
     const starsRemaining = Math.max(0, targetStars - stars);
@@ -355,6 +382,9 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       targetTier,
       targetXp,
       targetStars,
+      silverRate,
+      goldRate,
+      premiumRate,
       nextCommission,
       currentTierCommission,
       commissionSurgePercent,
@@ -365,7 +395,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
       overallPercent,
       isMax: isPremium,
     };
-  }, [currentTier, xp, stars, commissionRate]);
+  }, [currentTier, xp, stars, commissionRate, currentUser]);
 
   // Tasks assigned to this intern
   const myTasks = useMemo(() => {
@@ -1132,7 +1162,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 max-w-2xl">
                   {tierProgressDetails.isMax
-                    ? '🎉 Maximum PR Tier unlocked! You enjoy top 12.0% commission share, VIP deal escalation, and premium recommendation badges.'
+                    ? `🎉 Maximum PR Tier unlocked! You enjoy top ${commissionRate}% commission share, VIP deal escalation, and premium recommendation badges.`
                     : `Every task delivered on time and every college/sponsor lead closed directly awards Stars & XP to upgrade you to ${tierProgressDetails.targetTier} Tier (${tierProgressDetails.nextCommission}% commission)!`}
                 </p>
               </div>
@@ -1220,7 +1250,15 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                 <div>
                   <h4 className="text-xs font-bold text-white">Higher Commission Payout</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Jump from 3.3% ➔ <strong>7.0% (Gold)</strong> or <strong>12.0% (Premium)</strong> — more than double your cash earnings per closed deal!
+                    {currentUser.prCustomCommissionRate !== undefined && currentUser.prCustomCommissionRate > 0 ? (
+                      <>
+                        Enjoy your custom <strong>{commissionRate}%</strong> commission share on every closed brand sponsorship deal!
+                      </>
+                    ) : (
+                      <>
+                        Jump from {tierProgressDetails.silverRate}% ➔ <strong>{tierProgressDetails.goldRate}% (Gold)</strong> or <strong>{tierProgressDetails.premiumRate}% (Premium)</strong> — maximize your cash earnings per closed deal!
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -2242,7 +2280,7 @@ export const PrInternView: React.FC<PrInternViewProps> = ({
                     <div className="text-xs text-slate-400">{member.email}</div>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">
-                    {member.prTier || 'Silver'}
+                    {member.prTier || 'Silver'} ({StorageService.getTierCommissionRate(member.prTier || 'Silver', member)}%)
                   </span>
                 </div>
                 <div className="pt-2 border-t border-slate-800 flex justify-between text-xs text-slate-400">

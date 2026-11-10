@@ -202,9 +202,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
 
   const finalizeLogin = async (user: User, token: string | null) => {
     StorageService.setSessionToken(token || `session_${Date.now()}_${user.id}`);
-    StorageService.setCurrentUser(user);
 
-    // Keep local roster synchronized with the authenticated user
+    // Keep local roster synchronized with the authenticated user while preserving newer local updates
     const users = StorageService.getUsers();
     const idx = users.findIndex(
       (u) =>
@@ -212,10 +211,43 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
         (u.teacherId && user.teacherId && u.teacherId.toUpperCase() === user.teacherId.toUpperCase()) ||
         (u.username && user.username && u.username.toLowerCase() === user.username.toLowerCase())
     );
+    let effectiveUser = user;
     if (idx !== -1) {
-      users[idx] = { ...users[idx], ...user };
+      const localRecord = users[idx];
+      const localTime = localRecord.updatedAt ? new Date(localRecord.updatedAt).getTime() : 0;
+      const incomingTime = user.updatedAt ? new Date(user.updatedAt).getTime() : 0;
+      const preferLocal = localTime > incomingTime;
+
+      effectiveUser = preferLocal
+        ? {
+            ...user,
+            ...localRecord,
+            prTier: localRecord.prTier ?? user.prTier,
+            prCustomTierPercentages: localRecord.prCustomTierPercentages ?? user.prCustomTierPercentages,
+            prCustomCommissionRate: localRecord.prCustomCommissionRate,
+            updatedAt: localRecord.updatedAt,
+          }
+        : {
+            ...localRecord,
+            ...user,
+            prTier: user.prTier ?? localRecord.prTier,
+            prCustomTierPercentages: user.prCustomTierPercentages ?? localRecord.prCustomTierPercentages,
+            prCustomCommissionRate:
+              user.prCustomCommissionRate !== undefined
+                ? user.prCustomCommissionRate
+                : incomingTime > 0
+                  ? undefined
+                  : localRecord.prCustomCommissionRate,
+          };
+
+      users[idx] = effectiveUser;
       StorageService.saveUsers(users);
+      if (preferLocal) {
+        StorageService.persistUserCredentialToDb(effectiveUser);
+      }
     }
+
+    StorageService.setCurrentUser(effectiveUser);
 
     try {
       await StorageService.syncFromCloud();
@@ -223,12 +255,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
       // ignore
     }
 
-    if (user.role === 'teacher') {
-      StorageService.recordTeacherLogin(user.teacherId);
+    // Re-read freshest user after cloud sync
+    const syncedUser =
+      StorageService.getUsers().find(
+        (u) =>
+          (u.id && effectiveUser.id && u.id.toLowerCase() === effectiveUser.id.toLowerCase()) ||
+          (u.teacherId && effectiveUser.teacherId && u.teacherId.toUpperCase() === effectiveUser.teacherId.toUpperCase())
+      ) ||
+      StorageService.getCurrentUser() ||
+      effectiveUser;
+
+    StorageService.setCurrentUser(syncedUser);
+
+    if (syncedUser.role === 'teacher') {
+      StorageService.recordTeacherLogin(syncedUser.teacherId);
     }
 
     setIsAuthenticating(false);
-    onLoginSuccess(user);
+    onLoginSuccess(syncedUser);
   };
 
   const handleForcePasswordSubmit = async (e: React.FormEvent) => {

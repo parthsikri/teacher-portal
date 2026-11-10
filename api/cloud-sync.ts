@@ -42,7 +42,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
 
   // If incoming contains newly onboarded users added by authorized callers (whose unique u.id is NOT tombstoned),
   // ensure their teacherId is not blocked by an older tombstone from a previous employee.
-  const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head' || callerRole === 'teacher';
+  const canMutateUsers = callerRole === 'admin' || callerRole === 'web_dev_manager' || callerRole === 'pr_head' || callerRole === 'teacher' || callerRole === 'hr';
   if (canMutateUsers && Array.isArray(incoming.users)) {
     incoming.users.forEach((u: any) => {
       if (u) {
@@ -54,6 +54,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
           callerRole === 'admin' ||
           (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
           (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head')) ||
+          (callerRole === 'hr' && u.role !== 'admin') ||
           (callerRole === 'teacher' && isSelf);
         if (canMutateThisRole) {
           const tid = u.teacherId ? u.teacherId.toUpperCase() : '';
@@ -88,6 +89,7 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
           callerRole === 'admin' ||
           (callerRole === 'web_dev_manager' && (u.role === 'web_developer' || u.role === 'web_dev_manager')) ||
           (callerRole === 'pr_head' && (u.role === 'pr_intern' || u.role === 'pr_head')) ||
+          (callerRole === 'hr' && u.role !== 'admin') ||
           (callerRole === 'teacher' && isSelf);
 
         if (!allowed) return;
@@ -132,15 +134,31 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
           ? (u.portalRefreshHistory !== undefined ? u.portalRefreshHistory : existing?.portalRefreshHistory)
           : existing?.portalRefreshHistory;
 
-        userMap.set(u.teacherId.toUpperCase(), {
-          ...existing,
-          ...u,
+        const existingTime = existing?.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const incomingTime = u?.updatedAt ? new Date(u.updatedAt).getTime() : 0;
+        const isExistingNewer = Boolean(existing && existingTime > incomingTime);
+        const baseUser = isExistingNewer ? { ...u, ...existing } : { ...existing, ...u };
+        const winnerUser = isExistingNewer ? existing : u;
+
+        const mergedCloudUser: any = {
+          ...baseUser,
+          prTier: winnerUser.prTier || existing?.prTier || u.prTier,
+          prCustomTierPercentages:
+            winnerUser.prCustomTierPercentages !== undefined
+              ? winnerUser.prCustomTierPercentages
+              : (existing?.prCustomTierPercentages || u.prCustomTierPercentages),
+          prCustomCommissionRate: winnerUser.prCustomCommissionRate,
           password: plainPasswordToStore || passwordToStore,
           ...(plainPasswordToStore ? { plainPassword: plainPasswordToStore } : {}),
           email: resolvedEmail,
           portalRefreshedAt,
           portalRefreshHistory,
-        });
+        };
+        if (winnerUser.prCustomCommissionRate === undefined) {
+          delete mergedCloudUser.prCustomCommissionRate;
+        }
+
+        userMap.set(u.teacherId.toUpperCase(), mergedCloudUser);
       }
     });
   }
@@ -816,6 +834,40 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     ...(incoming.crmPermissions || {}),
   };
 
+  // 31. HR Tasks & HR Point Logs
+  const hrTaskMap = new Map<string, any>();
+  if (Array.isArray(current.hrTasks)) {
+    current.hrTasks.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) hrTaskMap.set(t.id, t);
+    });
+  }
+  if (Array.isArray(incoming.hrTasks)) {
+    incoming.hrTasks.forEach((t: any) => {
+      if (t && t.id && !deletedIds.has(t.id.toUpperCase())) {
+        const existing = hrTaskMap.get(t.id);
+        if (!existing) {
+          hrTaskMap.set(t.id, t);
+        } else {
+          const exTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const inTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+          hrTaskMap.set(t.id, inTime >= exTime ? { ...existing, ...t } : { ...t, ...existing });
+        }
+      }
+    });
+  }
+
+  const hrPointLogMap = new Map<string, any>();
+  if (Array.isArray(current.hrPointLogs)) {
+    current.hrPointLogs.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) hrPointLogMap.set(l.id, l);
+    });
+  }
+  if (Array.isArray(incoming.hrPointLogs)) {
+    incoming.hrPointLogs.forEach((l: any) => {
+      if (l && l.id && !deletedIds.has(l.id.toUpperCase())) hrPointLogMap.set(l.id, l);
+    });
+  }
+
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
@@ -835,6 +887,8 @@ function mergeMasterStates(current: any, incoming: any, callerRole: string = 'ad
     prColleges: Array.from(prCollegeMap.values()),
     salesLeads: Array.from(salesLeadMap.values()),
     crmPermissions: mergedCrmPermissions,
+    hrTasks: Array.from(hrTaskMap.values()),
+    hrPointLogs: Array.from(hrPointLogMap.values()),
     webDevProjects: Array.from(webDevProjectMap.values()),
     webDevMilestones: Array.from(webDevMilestoneMap.values()),
     webDevTasks: Array.from(webDevTaskMap.values()),

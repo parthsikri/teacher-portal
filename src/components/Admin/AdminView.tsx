@@ -76,6 +76,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // PR Commission Settings Modal State
   const [adjustingPrUser, setAdjustingPrUser] = useState<User | null>(null);
+  const [customActiveTier, setCustomActiveTier] = useState<'Silver' | 'Gold' | 'Premium'>('Silver');
   const [customSilverRate, setCustomSilverRate] = useState(3.3);
   const [customGoldRate, setCustomGoldRate] = useState(7.0);
   const [customPremiumRate, setCustomPremiumRate] = useState(12.0);
@@ -1000,6 +1001,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Open PR Tier Commission modal
   const handleOpenAdjustPrCommission = (emp: User) => {
     setAdjustingPrUser(emp);
+    setCustomActiveTier(emp.prTier || 'Silver');
     setCustomSilverRate(emp.prCustomTierPercentages?.Silver ?? 3.3);
     setCustomGoldRate(emp.prCustomTierPercentages?.Gold ?? 7.0);
     setCustomPremiumRate(emp.prCustomTierPercentages?.Premium ?? 12.0);
@@ -1013,18 +1015,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     const flatVal = customFlatOverride.trim() ? parseFloat(customFlatOverride) : undefined;
     const settings = {
+      prTier: customActiveTier,
       customTierPercentages: {
-        Silver: Math.max(0, Number(customSilverRate) || 3.3),
-        Gold: Math.max(0, Number(customGoldRate) || 7.0),
-        Premium: Math.max(0, Number(customPremiumRate) || 12.0),
+        Silver: !isNaN(Number(customSilverRate)) ? Math.max(0, Number(customSilverRate)) : 3.3,
+        Gold: !isNaN(Number(customGoldRate)) ? Math.max(0, Number(customGoldRate)) : 7.0,
+        Premium: !isNaN(Number(customPremiumRate)) ? Math.max(0, Number(customPremiumRate)) : 12.0,
       },
-      customCommissionRate: (flatVal !== undefined && !isNaN(flatVal)) ? flatVal : undefined,
+      customCommissionRate: (flatVal !== undefined && !isNaN(flatVal) && flatVal > 0) ? flatVal : undefined,
     };
 
     StorageService.updatePrEmployeeCommissionSettings(adjustingPrUser.teacherId, settings);
     setAdjustingPrUser(null);
     refreshState();
-    alert(`✓ PR commission settings updated for ${adjustingPrUser.name}!`);
+    alert(`✓ PR commission settings & tier updated for ${adjustingPrUser.name}!`);
   };
 
 
@@ -4647,6 +4650,16 @@ Portal URL: ${window.location.origin}`;
                                       <Key className="w-3.5 h-3.5" /> Edit Password & Profile
                                     </button>
 
+                                    {(isPr || isPrHead) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenAdjustPrCommission(t)}
+                                        className="w-full py-2 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                                      >
+                                        <Award className="w-3.5 h-3.5 text-amber-400" /> Adjust Commission % & Tier ({StorageService.getTierCommissionRate(t.prTier || 'Silver', t)}%)
+                                      </button>
+                                    )}
+
                                     {isTeacher && (
                                       <button
                                         type="button"
@@ -6147,6 +6160,28 @@ Portal URL: ${window.location.origin}`;
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {(editingTeacher.role === 'pr_intern' || editingTeacher.role === 'pr_head') && (
+                  <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-2xl text-[11px] text-amber-200 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold block">PR Tier & Commission Share</span>
+                      <span className="text-[10px] text-amber-300/80">
+                        Active Tier: <strong>{editingTeacher.prTier || 'Silver'}</strong> • Effective Rate: <strong>{StorageService.getTierCommissionRate(editingTeacher.prTier || 'Silver', editingTeacher)}%</strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetEmp = editingTeacher;
+                        setEditingTeacher(null);
+                        handleOpenAdjustPrCommission(targetEmp);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] cursor-pointer shrink-0"
+                    >
+                      Adjust Commission % ➔
+                    </button>
                   </div>
                 )}
 
@@ -8137,12 +8172,18 @@ Portal URL: ${window.location.origin}`;
             <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-slate-950 border border-slate-800 text-center text-xs">
               <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold">Active Tier</span>
-                <span className="text-xs font-bold text-amber-300">{adjustingPrUser.prTier || 'Silver'}</span>
+                <span className="text-xs font-bold text-amber-300">{customActiveTier}</span>
               </div>
               <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold">Effective Rate</span>
                 <span className="text-xs font-mono font-bold text-emerald-400">
-                  {StorageService.getTierCommissionRate(adjustingPrUser.prTier || 'Silver', adjustingPrUser)}%
+                  {customFlatOverride.trim() && !isNaN(parseFloat(customFlatOverride)) && parseFloat(customFlatOverride) > 0
+                    ? parseFloat(customFlatOverride)
+                    : customActiveTier === 'Premium'
+                    ? customPremiumRate
+                    : customActiveTier === 'Gold'
+                    ? customGoldRate
+                    : customSilverRate}%
                 </span>
               </div>
               <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
@@ -8154,6 +8195,33 @@ Portal URL: ${window.location.origin}`;
             </div>
 
             <form onSubmit={handleSavePrCommissionSettings} className="space-y-4 text-xs">
+              {/* Active PR Tier Selector */}
+              <div className="space-y-1.5">
+                <label className="text-slate-200 font-bold block text-xs">
+                  Active PR Tier
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Silver', 'Gold', 'Premium'] as const).map((tierOption) => (
+                    <button
+                      key={tierOption}
+                      type="button"
+                      onClick={() => setCustomActiveTier(tierOption)}
+                      className={`py-2 px-3 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                        customActiveTier === tierOption
+                          ? tierOption === 'Premium'
+                            ? 'bg-purple-600/20 border-purple-500 text-purple-300 shadow'
+                            : tierOption === 'Gold'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow'
+                            : 'bg-slate-700 border-slate-500 text-white shadow'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      {tierOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Option 1: Custom Tier Percentages */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

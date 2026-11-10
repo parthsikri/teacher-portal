@@ -101,6 +101,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
   // Commission Adjustment Modal State
   const [adjustingPrUser, setAdjustingPrUser] = useState<User | null>(null);
+  const [customActiveTier, setCustomActiveTier] = useState<PrTier>('Silver');
   const [customSilverRate, setCustomSilverRate] = useState<number>(3.3);
   const [customGoldRate, setCustomGoldRate] = useState<number>(7.0);
   const [customPremiumRate, setCustomPremiumRate] = useState<number>(12.0);
@@ -108,6 +109,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
 
   const handleOpenAdjustCommission = (user: User) => {
     setAdjustingPrUser(user);
+    setCustomActiveTier(user.prTier || 'Silver');
     setCustomSilverRate(user.prCustomTierPercentages?.Silver ?? 3.3);
     setCustomGoldRate(user.prCustomTierPercentages?.Gold ?? 7.0);
     setCustomPremiumRate(user.prCustomTierPercentages?.Premium ?? 12.0);
@@ -119,16 +121,17 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
     if (!adjustingPrUser) return;
     const flatVal = customFlatOverride.trim() ? parseFloat(customFlatOverride) : undefined;
     StorageService.updatePrEmployeeCommissionSettings(adjustingPrUser.teacherId, {
+      prTier: customActiveTier,
       customTierPercentages: {
-        Silver: Math.max(0, Number(customSilverRate) || 3.3),
-        Gold: Math.max(0, Number(customGoldRate) || 7.0),
-        Premium: Math.max(0, Number(customPremiumRate) || 12.0),
+        Silver: !isNaN(Number(customSilverRate)) ? Math.max(0, Number(customSilverRate)) : 3.3,
+        Gold: !isNaN(Number(customGoldRate)) ? Math.max(0, Number(customGoldRate)) : 7.0,
+        Premium: !isNaN(Number(customPremiumRate)) ? Math.max(0, Number(customPremiumRate)) : 12.0,
       },
-      customCommissionRate: (flatVal !== undefined && !isNaN(flatVal)) ? flatVal : undefined,
+      customCommissionRate: (flatVal !== undefined && !isNaN(flatVal) && flatVal > 0) ? flatVal : undefined,
     });
     setAdjustingPrUser(null);
     reloadData();
-    alert(`✓ Commission rates updated for ${adjustingPrUser.name}!`);
+    alert(`✓ Commission rates & tier updated for ${adjustingPrUser.name}!`);
   };
 
   // Synchronize with external changes
@@ -819,7 +822,7 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
                         )}
                         {isPremium && (
                           <div className="text-center text-[11px] font-bold text-purple-300 py-1 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                            👑 Apex PR Intern (Maximum 12.0% Commission)
+                            👑 Apex PR Intern (Maximum {commissionRate}% Commission)
                           </div>
                         )}
                       </div>
@@ -2316,12 +2319,18 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
             <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-slate-950 border border-slate-800 text-center text-xs">
               <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold">Active Tier</span>
-                <span className="text-xs font-bold text-amber-300">{adjustingPrUser.prTier || 'Silver'}</span>
+                <span className="text-xs font-bold text-amber-300">{customActiveTier}</span>
               </div>
               <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold">Effective Rate</span>
                 <span className="text-xs font-mono font-bold text-emerald-400">
-                  {StorageService.getTierCommissionRate(adjustingPrUser.prTier || 'Silver', adjustingPrUser)}%
+                  {customFlatOverride.trim() && !isNaN(parseFloat(customFlatOverride)) && parseFloat(customFlatOverride) > 0
+                    ? parseFloat(customFlatOverride)
+                    : customActiveTier === 'Premium'
+                    ? customPremiumRate
+                    : customActiveTier === 'Gold'
+                    ? customGoldRate
+                    : customSilverRate}%
                 </span>
               </div>
               <div className="p-2 rounded-xl bg-slate-900 border border-slate-800/60">
@@ -2333,6 +2342,33 @@ export const PrManagementSection: React.FC<PrManagementSectionProps> = ({
             </div>
 
             <form onSubmit={handleSaveCommission} className="space-y-4 text-xs">
+              {/* Active PR Tier Selector */}
+              <div className="space-y-1.5">
+                <label className="text-slate-200 font-bold block text-xs">
+                  Active PR Tier
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Silver', 'Gold', 'Premium'] as PrTier[]).map((tierOption) => (
+                    <button
+                      key={tierOption}
+                      type="button"
+                      onClick={() => setCustomActiveTier(tierOption)}
+                      className={`py-2 px-3 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                        customActiveTier === tierOption
+                          ? tierOption === 'Premium'
+                            ? 'bg-purple-600/20 border-purple-500 text-purple-300 shadow'
+                            : tierOption === 'Gold'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow'
+                            : 'bg-slate-700 border-slate-500 text-white shadow'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      {tierOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Option 1: Custom Tier Percentages */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

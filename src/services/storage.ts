@@ -371,6 +371,7 @@ export const StorageService = {
                 joiningDate: u.joiningDate || existing.joiningDate || undefined,
                 firstLoginDate: u.firstLoginDate || existing.firstLoginDate,
                 createdAt: u.createdAt || existing.createdAt || new Date().toISOString(),
+                updatedAt: u.updatedAt || existing.updatedAt,
                 prTier: u.prTier || existing.prTier || (cleanId.startsWith('AEW-PRH') ? 'Premium' : cleanId.startsWith('AEW-PR') ? 'Silver' : undefined),
                 prPoints: u.prPoints !== undefined ? u.prPoints : (existing.prPoints !== undefined ? existing.prPoints : (cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-PRH') ? 0 : undefined)),
                 prStars: u.prStars !== undefined ? u.prStars : (existing.prStars !== undefined ? existing.prStars : (cleanId.startsWith('AEW-PR') || cleanId.startsWith('AEW-PRH') ? 0 : undefined)),
@@ -857,6 +858,9 @@ export const StorageService = {
       prStars: updates.prStars !== undefined ? updates.prStars : users[index].prStars,
       totalSponsorshipRevenue: updates.totalSponsorshipRevenue !== undefined ? updates.totalSponsorshipRevenue : users[index].totalSponsorshipRevenue,
       totalCommissionEarned: updates.totalCommissionEarned !== undefined ? updates.totalCommissionEarned : users[index].totalCommissionEarned,
+      prCustomTierPercentages: 'prCustomTierPercentages' in updates ? updates.prCustomTierPercentages : users[index].prCustomTierPercentages,
+      prCustomCommissionRate: 'prCustomCommissionRate' in updates ? updates.prCustomCommissionRate : users[index].prCustomCommissionRate,
+      updatedAt: nowIso,
       adminTier: updates.adminTier !== undefined ? updates.adminTier : users[index].adminTier,
       adminPermissions: updates.adminPermissions !== undefined ? updates.adminPermissions : users[index].adminPermissions,
       customFeatures: updates.customFeatures !== undefined ? updates.customFeatures : users[index].customFeatures,
@@ -1160,6 +1164,7 @@ export const StorageService = {
   updatePrEmployeeCommissionSettings(
     employeeId: string,
     settings: {
+      prTier?: PrTier;
       customTierPercentages?: Record<PrTier, number>;
       customCommissionRate?: number;
     }
@@ -1169,12 +1174,98 @@ export const StorageService = {
     const idx = users.findIndex((u) => u.id === employeeId || u.teacherId.toUpperCase() === cleanId);
     if (idx === -1) return null;
 
-    users[idx] = {
+    const nowIso = new Date().toISOString();
+    const hasCustomRateKey = 'customCommissionRate' in settings;
+    const resolvedFlatRate = hasCustomRateKey
+      ? (typeof settings.customCommissionRate === 'number' && !isNaN(settings.customCommissionRate)
+          ? settings.customCommissionRate
+          : undefined)
+      : users[idx].prCustomCommissionRate;
+
+    const updatedUser: User = {
       ...users[idx],
-      prCustomTierPercentages: settings.customTierPercentages !== undefined ? settings.customTierPercentages : users[idx].prCustomTierPercentages,
-      prCustomCommissionRate: settings.customCommissionRate !== undefined ? settings.customCommissionRate : users[idx].prCustomCommissionRate,
+      prTier: settings.prTier !== undefined ? settings.prTier : users[idx].prTier,
+      prCustomTierPercentages:
+        settings.customTierPercentages !== undefined
+          ? settings.customTierPercentages
+          : users[idx].prCustomTierPercentages,
+      prCustomCommissionRate: resolvedFlatRate,
+      updatedAt: nowIso,
     };
+
+    if (resolvedFlatRate === undefined) {
+      delete updatedUser.prCustomCommissionRate;
+    }
+
+    users[idx] = updatedUser;
+
+    // Recalculate existing PR leads for this employee so pipeline & earnings immediately reflect the new rate
+    try {
+      const activeTier: PrTier = updatedUser.prTier || 'Silver';
+      const newEffectiveRate =
+        typeof updatedUser.prCustomCommissionRate === 'number' && !isNaN(updatedUser.prCustomCommissionRate)
+          ? Number(updatedUser.prCustomCommissionRate)
+          : updatedUser.prCustomTierPercentages && typeof updatedUser.prCustomTierPercentages[activeTier] === 'number'
+          ? Number(updatedUser.prCustomTierPercentages[activeTier])
+          : activeTier === 'Premium'
+          ? 12.0
+          : activeTier === 'Gold'
+          ? 7.0
+          : 3.3;
+
+      const allLeads = this.getPrLeads();
+      let leadsChanged = false;
+      let totalWonCommission = 0;
+      let hasWonLeads = false;
+
+      const updatedLeads = allLeads.map((lead) => {
+        if ((lead.internId || '').trim().toUpperCase() !== updatedUser.teacherId.toUpperCase()) {
+          return lead;
+        }
+        leadsChanged = true;
+        const isWon = lead.stage === 'closed_won';
+        const dealAmt = (isWon ? (lead.closedAmount ?? lead.expectedSponsorshipAmount) : lead.expectedSponsorshipAmount) || 0;
+        const updatedCommEarned = isWon ? Math.round((dealAmt * newEffectiveRate) / 100) : lead.commissionEarned;
+        if (isWon) {
+          hasWonLeads = true;
+          totalWonCommission += updatedCommEarned || 0;
+        }
+        return {
+          ...lead,
+          internTierAtClosure: activeTier,
+          commissionRate: newEffectiveRate,
+          ...(isWon ? { commissionEarned: updatedCommEarned } : {}),
+          updatedAt: nowIso,
+        };
+      });
+
+      if (leadsChanged) {
+        if (hasWonLeads) {
+          users[idx] = {
+            ...users[idx],
+            totalCommissionEarned: totalWonCommission,
+          };
+        }
+        this.savePrLeads(updatedLeads);
+      }
+    } catch {
+      // non-fatal
+    }
+
     this.saveUsers(users);
+
+    const current = this.getCurrentUser();
+    if (
+      current &&
+      (current.id === users[idx].id ||
+        (current.teacherId && current.teacherId.toUpperCase() === users[idx].teacherId.toUpperCase()))
+    ) {
+      this.setCurrentUser(users[idx]);
+    }
+
+    // Directly persist updated PR commission settings & tier to Supabase cloud DB
+    this.persistUserCredentialToDb(users[idx]).catch(() => {});
+
     return users[idx];
   },
 
@@ -1493,28 +1584,38 @@ export const StorageService = {
         uIdx = cloudState.users.findIndex((u: any) => u.username && u.username.toLowerCase() === cleanUsername);
       }
 
-      const nowIso = user.lastPasswordChangedAt || new Date().toISOString();
+      const nowIso = user.updatedAt || user.lastPasswordChangedAt || new Date().toISOString();
       const readablePass =
         (user.plainPassword && !user.plainPassword.startsWith('scrypt:') ? user.plainPassword : undefined) ||
         (user.password && !user.password.startsWith('scrypt:') ? user.password : undefined);
 
       if (uIdx !== -1) {
-        cloudState.users[uIdx] = {
+        const mergedCloudUser: any = {
           ...cloudState.users[uIdx],
           ...user,
           password: readablePass || user.password || cloudState.users[uIdx]?.password,
           ...(readablePass ? { plainPassword: readablePass } : {}),
           mustChangePassword: user.mustChangePassword !== undefined ? user.mustChangePassword : false,
-          lastPasswordChangedAt: nowIso,
+          lastPasswordChangedAt: user.lastPasswordChangedAt || cloudState.users[uIdx]?.lastPasswordChangedAt || nowIso,
+          updatedAt: nowIso,
         };
+        if (user.prCustomCommissionRate === undefined) {
+          delete mergedCloudUser.prCustomCommissionRate;
+        }
+        cloudState.users[uIdx] = mergedCloudUser;
       } else {
-        cloudState.users.push({
+        const newCloudUser: any = {
           ...user,
           password: readablePass || user.password,
           ...(readablePass ? { plainPassword: readablePass } : {}),
           mustChangePassword: user.mustChangePassword !== undefined ? user.mustChangePassword : false,
           lastPasswordChangedAt: nowIso,
-        });
+          updatedAt: nowIso,
+        };
+        if (user.prCustomCommissionRate === undefined) {
+          delete newCloudUser.prCustomCommissionRate;
+        }
+        cloudState.users.push(newCloudUser);
       }
 
       // Ensure any previous tombstone for this active user is cleared in cloud state
@@ -4344,12 +4445,49 @@ export const StorageService = {
   // ─── PR INTERNS TIER & GAMIFICATION HELPERS ─────────────────────────────────
 
   getTierCommissionRate(tier: PrTier = 'Silver', user?: User | null): number {
-    if (user) {
-      if (typeof user.prCustomCommissionRate === 'number' && !isNaN(user.prCustomCommissionRate)) {
-        return Number(user.prCustomCommissionRate);
+    let resolvedUser: Partial<User> | null | undefined = user;
+    try {
+      const targetUser = user || this.getCurrentUser();
+      if (targetUser && (targetUser.role === 'pr_intern' || targetUser.role === 'pr_head' || user)) {
+        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(USERS_KEY) : null;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const tid = (targetUser.teacherId || '').trim().toUpperCase();
+            const uid = (targetUser.id || '').trim();
+            const fresh = parsed.find(
+              (u: any) =>
+                (tid && u.teacherId && String(u.teacherId).trim().toUpperCase() === tid) ||
+                (uid && u.id && String(u.id).trim() === uid)
+            );
+            if (fresh) {
+              resolvedUser = { ...targetUser, ...fresh };
+              if (fresh.prCustomCommissionRate === undefined) {
+                delete (resolvedUser as any).prCustomCommissionRate;
+              }
+            }
+          }
+        }
       }
-      if (user.prCustomTierPercentages && typeof user.prCustomTierPercentages[tier] === 'number') {
-        return Number(user.prCustomTierPercentages[tier]);
+    } catch {
+      // fallback to passed user
+    }
+
+    if (resolvedUser) {
+      if (
+        typeof resolvedUser.prCustomCommissionRate === 'number' &&
+        !isNaN(resolvedUser.prCustomCommissionRate) &&
+        resolvedUser.prCustomCommissionRate >= 0
+      ) {
+        return Number(resolvedUser.prCustomCommissionRate);
+      }
+      const effectiveTier: PrTier = tier || (resolvedUser.prTier as PrTier) || 'Silver';
+      if (
+        resolvedUser.prCustomTierPercentages &&
+        typeof resolvedUser.prCustomTierPercentages[effectiveTier] === 'number' &&
+        !isNaN(resolvedUser.prCustomTierPercentages[effectiveTier])
+      ) {
+        return Number(resolvedUser.prCustomTierPercentages[effectiveTier]);
       }
     }
     switch (tier) {
@@ -5410,20 +5548,42 @@ export const StorageService = {
             existingPlain;
           const resolvedPassword: string | undefined = resolvedPlainPassword || cloudPassword || existing?.password;
 
-          userMap.set(u.teacherId.toUpperCase(), {
-            ...existing,
-            ...u,
+          const existingTime = existing?.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const cloudTime = u?.updatedAt ? new Date(u.updatedAt).getTime() : 0;
+          const isLocalNewer = Boolean(
+            existing &&
+            (existingTime > cloudTime || (lastLocalUserWriteMs > 0 && (Date.now() - lastLocalUserWriteMs) < 10000))
+          );
+
+          const baseUser = isLocalNewer ? { ...u, ...existing } : { ...existing, ...u };
+          const winnerUser = isLocalNewer ? existing! : u;
+
+          // Ensure PR custom commission settings & tier from the newer record are strictly respected
+          const mergedUser: User = {
+            ...baseUser,
+            prTier: winnerUser.prTier || existing?.prTier || u.prTier,
+            prCustomTierPercentages:
+              winnerUser.prCustomTierPercentages !== undefined
+                ? winnerUser.prCustomTierPercentages
+                : (existing?.prCustomTierPercentages || u.prCustomTierPercentages),
+            prCustomCommissionRate: winnerUser.prCustomCommissionRate,
             email: resolvedEmail,
             ...(resolvedPassword ? { password: resolvedPassword } : {}),
             ...(resolvedPlainPassword ? { plainPassword: resolvedPlainPassword } : {}),
-          });
+          };
+
+          if (winnerUser.prCustomCommissionRate === undefined) {
+            delete mergedUser.prCustomCommissionRate;
+          }
+
+          userMap.set(u.teacherId.toUpperCase(), mergedUser);
         }
       });
 
-      // Stale-write guard: if saveUsers() was called in the last 3 s (while
+      // Stale-write guard: if saveUsers() was called in the last 10 s (while
       // this async syncFromCloud was in flight), re-read localStorage one more
-      // time so we don't drop the just-added employee.
-      const isRecentLocalWrite = lastLocalUserWriteMs > 0 && (Date.now() - lastLocalUserWriteMs) < 3000;
+      // time so we don't drop or revert a just-added or just-edited employee.
+      const isRecentLocalWrite = lastLocalUserWriteMs > 0 && (Date.now() - lastLocalUserWriteMs) < 10000;
       if (isRecentLocalWrite) {
         const freshRaw = localStorage.getItem(USERS_KEY);
         const fresh: User[] = freshRaw
@@ -5435,16 +5595,26 @@ export const StorageService = {
               !deletedIds.has((u.id || '').toUpperCase()) &&
               !isHardcodedMockUser(u)) {
             const key = u.teacherId.toUpperCase();
-            if (!userMap.has(key)) {
-              // Employee was saved after the cloud fetch started — preserve them
-              userMap.set(key, u);
-            }
+            userMap.set(key, u);
           }
         });
       }
 
       const finalUsers = Array.from(userMap.values()).filter((u) => !isHardcodedMockUser(u));
       localStorage.setItem(USERS_KEY, JSON.stringify(finalUsers));
+
+      // Keep active session user synchronized with the merged user roster
+      const current = this.getCurrentUser();
+      if (current) {
+        const matchedCurrent = finalUsers.find(
+          (fu) =>
+            (current.id && fu.id && fu.id === current.id) ||
+            (current.teacherId && fu.teacherId && fu.teacherId.toUpperCase() === current.teacherId.toUpperCase())
+        );
+        if (matchedCurrent) {
+          this.setCurrentUser(matchedCurrent);
+        }
+      }
     }
 
     if (Array.isArray(state.assignedTopics)) {

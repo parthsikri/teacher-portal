@@ -884,11 +884,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* BOTTOM USER PROFILE & LOGOUT */}
         <div className="p-4 border-t border-slate-800/60 space-y-3 text-xs">
-          {currentUser.role === 'pr_intern' && (
+          {(currentUser.role === 'pr_intern' || currentUser.role === 'pr_head') && (
             <div className="space-y-2">
               <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Intern Tier:</span>
+                  <span className="text-slate-400">{currentUser.role === 'pr_head' ? 'PR Tier:' : 'Intern Tier:'}</span>
                   <span className="font-extrabold text-amber-300 flex items-center gap-1">
                     <Award className="w-3.5 h-3.5 text-amber-400" />
                     {currentUser.prTier || 'Silver'}
@@ -897,7 +897,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex items-center justify-between text-[11px] font-mono">
                   <span className="text-slate-400">Take-Home Share:</span>
                   <span className="font-bold text-emerald-400">
-                    {StorageService.getTierCommissionRate(currentUser.prTier || 'Silver')}%
+                    {StorageService.getTierCommissionRate(currentUser.prTier || 'Silver', currentUser)}%
                   </span>
                 </div>
                 <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono">

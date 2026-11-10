@@ -30,6 +30,8 @@ export const DEFAULT_STATE: any = {
   ],
   salesLeads: [],
   crmPermissions: {},
+  hrTasks: [],
+  hrPointLogs: [],
   assignedTopics: [],
   lectures: [],
   subjectReferences: [],
@@ -202,7 +204,7 @@ export interface SessionPayload {
   sub: string;           // User ID
   teacherId: string;     // Teacher ID or ADMIN-01 or AEW-PR-01 or AEW-DEV-01
   username?: string;
-  role: 'admin' | 'teacher' | 'pr_intern' | 'pr_head' | 'web_dev_manager' | 'web_developer' | 'sales';
+  role: 'admin' | 'teacher' | 'pr_intern' | 'pr_head' | 'web_dev_manager' | 'web_developer' | 'sales' | 'hr';
   name?: string;
   iat: number;
   exp: number;

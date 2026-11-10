@@ -61,9 +61,22 @@ export const App: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.user) {
-            StorageService.setCurrentUser(data.user);
-            setCurrentUser(data.user);
-            setCurrentPage(getDefaultPageForUser(data.user));
+            const localMatch = StorageService.getUsers().find(
+              (u) =>
+                (u.id && data.user.id && u.id.toLowerCase() === data.user.id.toLowerCase()) ||
+                (u.teacherId && data.user.teacherId && u.teacherId.toUpperCase() === data.user.teacherId.toUpperCase())
+            );
+            const localTime = localMatch?.updatedAt ? new Date(localMatch.updatedAt).getTime() : 0;
+            const serverTime = data.user.updatedAt ? new Date(data.user.updatedAt).getTime() : 0;
+            const resolvedUser =
+              localMatch && localTime > serverTime
+                ? { ...data.user, ...localMatch }
+                : localMatch
+                ? { ...localMatch, ...data.user }
+                : data.user;
+            StorageService.setCurrentUser(resolvedUser);
+            setCurrentUser(resolvedUser);
+            setCurrentPage(getDefaultPageForUser(resolvedUser));
             return;
           }
         }
@@ -94,21 +107,30 @@ export const App: React.FC = () => {
     validateActiveSession();
 
     // Initialize real-time cross-device cloud sync
-    const cleanup = StorageService.initCloudSync(() => {
+    const syncActiveUserFromStorage = () => {
       const user = StorageService.getCurrentUser();
       if (user) {
+        const freshMatch = StorageService.getUsers().find(
+          (u) =>
+            (u.id && user.id && u.id.toLowerCase() === user.id.toLowerCase()) ||
+            (u.teacherId && user.teacherId && u.teacherId.toUpperCase() === user.teacherId.toUpperCase())
+        );
+        const nextUser = freshMatch || user;
         setCurrentUser((prevUser) => {
-          if (prevUser && prevUser.role !== user.role) {
-            setCurrentPage(getDefaultPageForUser(user));
+          if (prevUser && prevUser.role !== nextUser.role) {
+            setCurrentPage(getDefaultPageForUser(nextUser));
           }
-          return user;
+          return nextUser;
         });
       } else {
         setCurrentUser(null);
         setCurrentPage('dashboard');
       }
       setRefreshKey((prev) => prev + 1);
-    });
+    };
+
+    const cleanup = StorageService.initCloudSync(syncActiveUserFromStorage);
+    window.addEventListener('aew_users_updated', syncActiveUserFromStorage);
 
     const user = StorageService.getCurrentUser();
     setCurrentUser(user);
@@ -125,6 +147,7 @@ export const App: React.FC = () => {
 
     return () => {
       cleanup();
+      window.removeEventListener('aew_users_updated', syncActiveUserFromStorage);
     };
   }, []);
 

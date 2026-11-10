@@ -47,6 +47,7 @@ export interface User {
   joiningDate?: string;          // Official faculty onboarding / joining date (YYYY-MM-DD) for backlog calculation origin
   firstLoginDate?: string;       // Date when faculty first logged in (YYYY-MM-DD)
   createdAt?: string;            // Account creation timestamp
+  updatedAt?: string;            // Last profile/credential/commission update timestamp
   phone?: string;
   // Admin specific access & permissions
   adminTier?: AdminRoleTier;
