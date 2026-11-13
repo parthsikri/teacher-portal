@@ -2773,6 +2773,25 @@ export const StorageService = {
     const unitNumber = lecture.unitNumber || topic?.unitNumber || undefined;
     const nowIso = new Date().toISOString();
 
+    const normalizedParts = Array.isArray(lecture.videoParts) && lecture.videoParts.length > 0
+      ? lecture.videoParts.filter((v) => v && v.url && v.url.trim())
+      : undefined;
+
+    const computedDuration = normalizedParts
+      ? normalizedParts.reduce((sum, part) => sum + Math.max(1, Number(part.durationMinutes) || 0), 0)
+      : (lecture.durationMinutes || 45);
+
+    const primaryYt = normalizedParts?.find((v) => v.linkType === 'youtube')?.url || lecture.youtubeUrl;
+    const primaryDrive = normalizedParts?.find((v) => v.linkType === 'drive')?.url || lecture.driveUrl;
+
+    const normalizedLectureData = {
+      ...lecture,
+      videoParts: normalizedParts,
+      youtubeUrl: primaryYt,
+      driveUrl: primaryDrive,
+      durationMinutes: Math.max(5, computedDuration || 45),
+    };
+
     const existingIndex = lecture.assignedTopicId 
       ? lectures.findIndex((l) => l.assignedTopicId === lecture.assignedTopicId) 
       : -1;
@@ -2780,13 +2799,12 @@ export const StorageService = {
     if (existingIndex !== -1) {
       // Edit / Update existing lecture
       const existingLec = lectures[existingIndex];
-      const diffDuration = (lecture.durationMinutes || 45) - (existingLec.durationMinutes || 45);
+      const diffDuration = normalizedLectureData.durationMinutes - (existingLec.durationMinutes || 45);
 
       const updatedLec: Lecture = {
         ...existingLec,
-        ...lecture,
+        ...normalizedLectureData,
         unitNumber,
-        durationMinutes: lecture.durationMinutes || 45,
         updatedAt: nowIso,
       };
       lectures[existingIndex] = updatedLec;
@@ -2804,9 +2822,8 @@ export const StorageService = {
     } else {
       // New upload
       const newLec: Lecture = {
-        ...lecture,
+        ...normalizedLectureData,
         unitNumber,
-        durationMinutes: lecture.durationMinutes || 45,
         targetMinutesAtSubmission: lecture.targetMinutesAtSubmission || teacherTarget,
         id: `lec-${Date.now()}`,
         adminRemarks: [],

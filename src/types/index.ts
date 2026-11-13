@@ -178,6 +178,16 @@ export interface AssignedTopic {
   displayOrder?: number;                // Curriculum order within unit
 }
 
+export interface LectureVideoItem {
+  id: string;
+  partTitle: string;          // Clear title for this specific video (e.g. "Part 1: Theory & Concepts")
+  linkType: 'youtube' | 'drive';
+  url: string;
+  durationMinutes: number;    // Individual duration of this video in minutes
+  coveredSubtopics?: string[];// Subtopics covered in this specific video
+  description?: string;       // Accurate summary / notes for this video
+}
+
 export interface Lecture {
   id: string;
   teacherId: string;
@@ -193,6 +203,7 @@ export interface Lecture {
   status: 'on_time' | 'late' | 'overdue' | 'extended';
   youtubeUrl?: string;
   driveUrl?: string;
+  videoParts?: LectureVideoItem[]; // Multiple video links with per-video metadata inside a topic
   notesUrl?: string;
   dppUrl?: string;
   localFileUrl?: string;

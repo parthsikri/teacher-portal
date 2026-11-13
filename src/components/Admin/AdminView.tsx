@@ -5127,6 +5127,14 @@ Portal URL: ${window.location.origin}`;
 
                                           <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-0.5">
                                             <span className="font-semibold text-slate-300">Topic: {lec.primaryTopic}</span>
+                                            {lec.videoParts && lec.videoParts.length > 1 && (
+                                              <>
+                                                <span className="text-slate-600">•</span>
+                                                <span className="px-2 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-[11px] font-bold text-indigo-300">
+                                                  🎬 {lec.videoParts.length} Videos Uploaded
+                                                </span>
+                                              </>
+                                            )}
                                             {lec.subtopics && lec.subtopics.length > 0 && (
                                               <>
                                                 <span className="text-slate-600">•</span>
@@ -5138,6 +5146,49 @@ Portal URL: ${window.location.origin}`;
                                               </>
                                             )}
                                           </div>
+
+                                          {/* Multi-Video Per-Part Details */}
+                                          {lec.videoParts && lec.videoParts.length > 0 && (
+                                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                              {lec.videoParts.map((vp, vIdx) => (
+                                                <div
+                                                  key={vp.id || vIdx}
+                                                  className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1 text-[11px]"
+                                                >
+                                                  <div className="flex items-center justify-between gap-2">
+                                                    <span className="font-bold text-slate-100 truncate">
+                                                      #{vIdx + 1} {vp.partTitle}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                      <span className="font-mono text-emerald-400 font-bold text-[10px]">
+                                                        {vp.durationMinutes}m
+                                                      </span>
+                                                      <a
+                                                        href={vp.url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-semibold text-[10px]"
+                                                      >
+                                                        {vp.linkType === 'youtube' ? 'YouTube' : 'Drive'} ↗
+                                                      </a>
+                                                    </div>
+                                                  </div>
+                                                  {vp.description && (
+                                                    <p className="text-[11px] text-slate-400 leading-snug">{vp.description}</p>
+                                                  )}
+                                                  {vp.coveredSubtopics && vp.coveredSubtopics.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 pt-0.5">
+                                                      {vp.coveredSubtopics.map((st) => (
+                                                        <span key={st} className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[9px]">
+                                                          {st}
+                                                        </span>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
 
                                           {lec.reuploadReason && (
                                             <div className="text-[11px] text-purple-300 bg-purple-950/40 border border-purple-500/30 rounded-xl px-3 py-1.5 flex items-center gap-1.5 w-fit">

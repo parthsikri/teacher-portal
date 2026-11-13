@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { User, AssignedTopic } from './types';
+import type { User, AssignedTopic, Lecture } from './types';
 import { StorageService } from './services/storage';
 import { Sidebar } from './components/Sidebar';
 import { LoginModal } from './components/Auth/LoginModal';
@@ -36,6 +36,7 @@ export const App: React.FC = () => {
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
   const [showCommitmentModal, setShowCommitmentModal] = useState<boolean>(false);
   const [activePrefillTopic, setActivePrefillTopic] = useState<AssignedTopic | null>(null);
+  const [activePrefillLecture, setActivePrefillLecture] = useState<Lecture | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
   useEffect(() => {
@@ -194,8 +195,9 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleOpenUpload = (topic?: AssignedTopic) => {
+  const handleOpenUpload = (topic?: AssignedTopic, lecture?: Lecture) => {
     setActivePrefillTopic(topic || null);
+    setActivePrefillLecture(lecture || null);
     setShowUploadModal(true);
   };
 
@@ -342,13 +344,16 @@ export const App: React.FC = () => {
             <UploadLectureModal
               teacher={currentUser}
               prefillTopic={activePrefillTopic}
+              prefillLecture={activePrefillLecture}
               onClose={() => {
                 setShowUploadModal(false);
                 setActivePrefillTopic(null);
+                setActivePrefillLecture(null);
               }}
               onSuccess={() => {
                 setShowUploadModal(false);
                 setActivePrefillTopic(null);
+                setActivePrefillLecture(null);
                 handleRefreshData();
               }}
             />

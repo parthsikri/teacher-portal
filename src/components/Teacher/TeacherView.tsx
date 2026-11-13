@@ -20,7 +20,7 @@ interface TeacherViewProps {
   teacher: User;
   currentPage: string;
   onPageChange: (page: string) => void;
-  onOpenUpload: (prefillTopic?: AssignedTopic) => void;
+  onOpenUpload: (prefillTopic?: AssignedTopic, prefillLecture?: Lecture) => void;
   refreshTrigger?: number;
 }
 
@@ -3129,8 +3129,46 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
 
                           <div className="flex items-center justify-between text-slate-400 text-[11px]">
                             <span>Topic: <strong className="text-slate-300 font-normal">{lec.primaryTopic}</strong></span>
-                            <span className="font-mono text-slate-400">{lec.durationMinutes || 45}m</span>
+                            <div className="flex items-center gap-2">
+                              {lec.videoParts && lec.videoParts.length > 1 && (
+                                <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold">
+                                  🎬 {lec.videoParts.length} Videos
+                                </span>
+                              )}
+                              <span className="font-mono text-slate-400">{lec.durationMinutes || 45}m</span>
+                            </div>
                           </div>
+
+                          {/* PER-VIDEO BREAKDOWN WHEN VIDEO PARTS EXIST */}
+                          {lec.videoParts && lec.videoParts.length > 0 && (
+                            <div className="space-y-1.5 pt-1">
+                              {lec.videoParts.map((vp, vIdx) => (
+                                <div
+                                  key={vp.id || vIdx}
+                                  className="p-2 rounded-lg bg-slate-900/80 border border-slate-800/80 flex items-start justify-between gap-2 text-[11px]"
+                                >
+                                  <div className="min-w-0 flex-1 space-y-0.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-mono text-[10px] text-indigo-400 font-bold">#{vIdx + 1}</span>
+                                      <span className="font-semibold text-slate-200 truncate">{vp.partTitle}</span>
+                                      <span className="text-[10px] font-mono text-slate-400">({vp.durationMinutes}m)</span>
+                                    </div>
+                                    {vp.description && (
+                                      <p className="text-[10px] text-slate-400 line-clamp-1">{vp.description}</p>
+                                    )}
+                                  </div>
+                                  <a
+                                    href={vp.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-medium shrink-0"
+                                  >
+                                    {vp.linkType === 'youtube' ? 'YT' : 'Drive'} ↗
+                                  </a>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           {/* INLINE ADMIN DIRECTIVES ON THIS LECTURE */}
                           {lec.adminRemarks && lec.adminRemarks.length > 0 && (
@@ -3201,6 +3239,14 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                           <span className="text-[11px] text-slate-500">{new Date(lec.createdAt).toLocaleDateString()}</span>
                           
                           <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => onOpenUpload(undefined, lec)}
+                              className="px-2.5 py-1 bg-indigo-950/60 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                              title="Add more video links or edit per-video details"
+                            >
+                              <span>+ Add/Edit Videos</span>
+                            </button>
+
                             <button
                               onClick={() => setReuploadingLecture(lec)}
                               className="px-2.5 py-1 bg-purple-950/60 hover:bg-purple-600 border border-purple-500/40 text-purple-300 hover:text-white rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"

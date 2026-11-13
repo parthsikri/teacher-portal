@@ -1,20 +1,32 @@
 import React, { useState } from 'react';
-import type { User, AssignedTopic } from '../../types';
+import type { User, AssignedTopic, Lecture, LectureVideoItem } from '../../types';
 import { StorageService } from '../../services/storage';
 import { ThumbnailService } from '../../services/thumbnailService';
 import confetti from 'canvas-confetti';
-import { Link2, Play, FileText, X, Sparkles } from 'lucide-react';
+import { Link2, Play, FileText, X, Sparkles, Plus, Trash2, Film } from 'lucide-react';
 
 interface UploadLectureModalProps {
   teacher: User;
   prefillTopic?: AssignedTopic | null;
+  prefillLecture?: Lecture | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
+const createEmptyVideoPart = (index: number, defaultTitle = ''): LectureVideoItem => ({
+  id: `vid-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+  partTitle: defaultTitle || `Part ${index + 1}`,
+  linkType: 'youtube',
+  url: '',
+  durationMinutes: 45,
+  coveredSubtopics: [],
+  description: '',
+});
+
 export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   teacher,
   prefillTopic,
+  prefillLecture,
   onClose,
   onSuccess,
 }) => {
@@ -26,35 +38,111 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
     (t) => t.teacherId.toUpperCase() === teacher.teacherId.toUpperCase() && t.status !== 'completed'
   );
 
-  const [selectedAssignedTopicId, setSelectedAssignedTopicId] = useState<string>(prefillTopic ? prefillTopic.id : '');
-  const chosenTopicId = prefillTopic ? prefillTopic.id : (selectedAssignedTopicId || undefined);
+  const [selectedAssignedTopicId, setSelectedAssignedTopicId] = useState<string>(
+    prefillLecture?.assignedTopicId || (prefillTopic ? prefillTopic.id : '')
+  );
+  const chosenTopicId = prefillTopic ? prefillTopic.id : (prefillLecture?.assignedTopicId || selectedAssignedTopicId || undefined);
   const activeExtension = StorageService.getActiveExtensionForTopic(teacher.teacherId, chosenTopicId);
   const [showBacklogLogsDetails, setShowBacklogLogsDetails] = useState(false);
 
   const teacherAssignedSubjects = StorageService.getTeacherAssignedSubjects(teacher);
 
   // Form fields
-  const [title, setTitle] = useState(prefillTopic ? prefillTopic.topicTitle : '');
+  const [title, setTitle] = useState(prefillLecture?.title || (prefillTopic ? prefillTopic.topicTitle : ''));
   const [subject, setSubject] = useState(
-    prefillTopic ? prefillTopic.subject : (teacherAssignedSubjects[0] || teacher.subject || 'Engineering')
+    prefillLecture?.subject || (prefillTopic ? prefillTopic.subject : (teacherAssignedSubjects[0] || teacher.subject || 'Engineering'))
   );
-  const [primaryTopic, setPrimaryTopic] = useState(prefillTopic ? prefillTopic.topicTitle : '');
-  const [subtopics, setSubtopics] = useState<string[]>(prefillTopic ? prefillTopic.subtopics : []);
+  const [primaryTopic, setPrimaryTopic] = useState(
+    prefillLecture?.primaryTopic || (prefillTopic ? prefillTopic.topicTitle : '')
+  );
+  const [subtopics, setSubtopics] = useState<string[]>(
+    prefillLecture?.subtopics || (prefillTopic ? prefillTopic.subtopics : [])
+  );
   const [subtopicInput, setSubtopicInput] = useState('');
   const [deadlineDate, setDeadlineDate] = useState(
-    prefillTopic ? prefillTopic.deadlineDate : new Date().toISOString().split('T')[0]
+    prefillLecture?.deadlineDate || (prefillTopic ? prefillTopic.deadlineDate : new Date().toISOString().split('T')[0])
   );
-  const [durationMinutes, setDurationMinutes] = useState<number>(45);
 
-  // Video Link format: 'youtube' | 'drive'
-  const [videoLinkType, setVideoLinkType] = useState<'youtube' | 'drive'>('youtube');
-  const [videoUrl, setVideoUrl] = useState('');
+  // Multi-video links with complete per-video info
+  const [videoParts, setVideoParts] = useState<LectureVideoItem[]>(() => {
+    if (prefillLecture?.videoParts && prefillLecture.videoParts.length > 0) {
+      return prefillLecture.videoParts.map((vp) => ({ ...vp }));
+    }
+    if (prefillLecture && (prefillLecture.youtubeUrl || prefillLecture.driveUrl)) {
+      const url = prefillLecture.youtubeUrl || prefillLecture.driveUrl || '';
+      const isDrive = !prefillLecture.youtubeUrl && !!prefillLecture.driveUrl;
+      return [{
+        id: `vid-init-${Date.now()}`,
+        partTitle: prefillLecture.title || 'Part 1: Main Lecture',
+        linkType: isDrive ? 'drive' : 'youtube',
+        url,
+        durationMinutes: prefillLecture.durationMinutes || 45,
+        coveredSubtopics: prefillLecture.subtopics || [],
+        description: prefillLecture.primaryTopic || '',
+      }];
+    }
+    return [
+      createEmptyVideoPart(
+        0,
+        prefillTopic ? `Part 1: ${prefillTopic.topicTitle}` : 'Part 1: Core Lecture'
+      ),
+    ];
+  });
+
+  // Total duration automatically summed across all video parts
+  const durationMinutes = videoParts.reduce((sum, part) => sum + Math.max(0, Number(part.durationMinutes) || 0), 0);
 
   // Class Notes Link
-  const [notesUrl, setNotesUrl] = useState('');
+  const [notesUrl, setNotesUrl] = useState(prefillLecture?.notesUrl || '');
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleUpdateVideoPart = (index: number, patch: Partial<LectureVideoItem>) => {
+    setVideoParts((prev) =>
+      prev.map((part, i) => {
+        if (i !== index) return part;
+        const next = { ...part, ...patch };
+        if (patch.url !== undefined) {
+          const trimmed = patch.url.trim();
+          if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
+            next.linkType = 'youtube';
+          } else if (trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com')) {
+            next.linkType = 'drive';
+          }
+        }
+        return next;
+      })
+    );
+  };
+
+  const handleToggleSubtopicForVideo = (videoIdx: number, subtopicName: string) => {
+    setVideoParts((prev) =>
+      prev.map((part, i) => {
+        if (i !== videoIdx) return part;
+        const existing = part.coveredSubtopics || [];
+        const has = existing.includes(subtopicName);
+        return {
+          ...part,
+          coveredSubtopics: has
+            ? existing.filter((s) => s !== subtopicName)
+            : [...existing, subtopicName],
+        };
+      })
+    );
+  };
+
+  const handleAddVideoPart = () => {
+    setVideoParts((prev) => [
+      ...prev,
+      createEmptyVideoPart(prev.length, `Part ${prev.length + 1}: ${primaryTopic.trim() || 'Continuation'}`),
+    ]);
+  };
+
+  const handleRemoveVideoPart = (index: number) => {
+    if (videoParts.length <= 1) return;
+    setVideoParts((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleAddSubtopic = () => {
     const raw = subtopicInput.trim();
@@ -88,27 +176,84 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       return;
     }
 
-    if (!videoUrl.trim() && !notesUrl.trim()) {
-      setErrorMsg('Please provide a Video Link (YouTube or Drive) or Class Notes Link.');
+    const filledVideos = videoParts.filter((v) => v.url.trim().length > 0);
+    if (filledVideos.length === 0 && !notesUrl.trim()) {
+      setErrorMsg('Please provide at least one Video Link (YouTube or Drive) or a Class Notes Link.');
       return;
+    }
+
+    // Validate every video row that has a URL (or all rows if multiple video rows exist)
+    for (let i = 0; i < videoParts.length; i++) {
+      const vp = videoParts[i];
+      const hasUrl = vp.url.trim().length > 0;
+      if (!hasUrl && videoParts.length === 1 && notesUrl.trim()) {
+        continue; // Notes-only submission
+      }
+      if (!hasUrl) {
+        setErrorMsg(`Video #${i + 1}: Please enter the video URL or remove the empty video row.`);
+        return;
+      }
+      if (!/^https?:\/\/.+/i.test(vp.url.trim())) {
+        setErrorMsg(`Video #${i + 1}: Please enter a valid URL starting with http:// or https://.`);
+        return;
+      }
+      if (!vp.partTitle.trim()) {
+        setErrorMsg(`Video #${i + 1}: Please enter an accurate Video Title / Part Name.`);
+        return;
+      }
+      if (!vp.durationMinutes || vp.durationMinutes < 5) {
+        setErrorMsg(`Video #${i + 1}: Please enter an accurate duration (at least 5 minutes).`);
+        return;
+      }
+      const hasCoveredInfo =
+        (vp.description && vp.description.trim().length > 0) ||
+        (vp.coveredSubtopics && vp.coveredSubtopics.length > 0);
+      if (!hasCoveredInfo) {
+        setErrorMsg(`Video #${i + 1}: Please specify what topics/concepts this video covers (description or subtopics).`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
 
     try {
+      const normalizedVideoParts: LectureVideoItem[] = filledVideos.map((vp, idx) => {
+        const rawUrl = vp.url.trim();
+        const isYt = rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be');
+        const isDrive = rawUrl.includes('drive.google.com') || rawUrl.includes('docs.google.com');
+        const resolvedType: 'youtube' | 'drive' = isYt ? 'youtube' : isDrive ? 'drive' : vp.linkType;
+        return {
+          ...vp,
+          id: vp.id || `vid-${Date.now()}-${idx}`,
+          partTitle: vp.partTitle.trim(),
+          linkType: resolvedType,
+          url: rawUrl,
+          durationMinutes: Math.max(5, Number(vp.durationMinutes) || 45),
+          coveredSubtopics: vp.coveredSubtopics || [],
+          description: vp.description?.trim() || '',
+        };
+      });
+
+      const totalSessionDuration =
+        normalizedVideoParts.length > 0
+          ? normalizedVideoParts.reduce((s, v) => s + v.durationMinutes, 0)
+          : Math.max(5, durationMinutes || 45);
+
       const activeExt = StorageService.getActiveExtensionForTopic(teacher.teacherId, chosenTopicId);
       const timeRemaining = StorageService.getTodayTimeRemaining(teacher.teacherId);
       const extensionMinutesLeft = activeExt ? Math.max(0, activeExt.allowedMinutes - activeExt.usedMinutes) : 0;
       const effectiveDailyLimit = timeRemaining.maxDailyMinutes + extensionMinutesLeft;
       
-      const existingLecture = chosenTopicId ? StorageService.getLectures().find(l => l.assignedTopicId === chosenTopicId) : null;
+      const existingLecture = chosenTopicId
+        ? StorageService.getLectures().find(l => l.assignedTopicId === chosenTopicId)
+        : prefillLecture || null;
       const existingDuration = existingLecture ? (existingLecture.durationMinutes || 0) : 0;
-      const netAdditionalMinutes = Math.max(0, durationMinutes - existingDuration);
+      const netAdditionalMinutes = Math.max(0, totalSessionDuration - existingDuration);
 
       if (timeRemaining.minutesRecordedToday + netAdditionalMinutes > effectiveDailyLimit) {
         const limitMessage = activeExt
-          ? `This session exceeds today's regular limit (${timeRemaining.maxDailyMinutes}m) plus the ${extensionMinutesLeft}m remaining in your active extension.`
-          : `This session exceeds today's ${timeRemaining.maxDailyMinutes}-minute recording limit.`;
+          ? `This session (${totalSessionDuration}m) exceeds today's regular limit (${timeRemaining.maxDailyMinutes}m) plus the ${extensionMinutesLeft}m remaining in your active extension.`
+          : `This session (${totalSessionDuration}m) exceeds today's ${timeRemaining.maxDailyMinutes}-minute recording limit.`;
         setErrorMsg(limitMessage);
         setIsSubmitting(false);
         return;
@@ -118,19 +263,18 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
       // User strict requirement: Any lecture submitted under extension or past cutoff is marked as 'late' only!
       const submissionStatus = (activeExt || !isOnTime) ? 'late' : 'on_time';
 
-      const rawUrl = videoUrl.trim();
-      const isYt = rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be');
-      const isDrive = rawUrl.includes('drive.google.com') || rawUrl.includes('docs.google.com');
-
-      let resolvedType = videoLinkType;
-      if (isYt) resolvedType = 'youtube';
-      else if (isDrive) resolvedType = 'drive';
-
-      const youtubeLink = resolvedType === 'youtube' && rawUrl ? rawUrl : undefined;
-      const driveVideoLink = resolvedType === 'drive' && rawUrl ? rawUrl : undefined;
+      const youtubeLink = normalizedVideoParts.find((v) => v.linkType === 'youtube')?.url;
+      const driveVideoLink = normalizedVideoParts.find((v) => v.linkType === 'drive')?.url;
 
       const chosenTopic = chosenTopicId ? StorageService.getAssignedTopics().find(t => t.id === chosenTopicId) : null;
-      const unitNumber = prefillTopic ? (prefillTopic.unitNumber || 'UNIT 1') : (chosenTopic?.unitNumber || 'UNIT 1');
+      const unitNumber = prefillTopic ? (prefillTopic.unitNumber || 'UNIT 1') : (chosenTopic?.unitNumber || prefillLecture?.unitNumber || 'UNIT 1');
+
+      const mergedSubtopics = Array.from(
+        new Set([
+          ...subtopics,
+          ...normalizedVideoParts.flatMap((v) => v.coveredSubtopics || []),
+        ])
+      );
 
       StorageService.addLecture({
         teacherId: teacher.teacherId,
@@ -139,12 +283,13 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         subject: subject.trim() || teacher.subject || teacher.department,
         title: title.trim(),
         primaryTopic: primaryTopic.trim(),
-        subtopics: subtopics.length > 0 ? subtopics : [primaryTopic.trim()],
-        durationMinutes: Math.max(5, durationMinutes || 45),
+        subtopics: mergedSubtopics.length > 0 ? mergedSubtopics : [primaryTopic.trim()],
+        durationMinutes: totalSessionDuration,
         deadlineDate,
         status: submissionStatus,
         youtubeUrl: youtubeLink,
         driveUrl: driveVideoLink,
+        videoParts: normalizedVideoParts.length > 0 ? normalizedVideoParts : undefined,
         notesUrl: notesUrl.trim() || undefined,
         assignedTopicId: chosenTopicId,
         unitNumber,
@@ -364,16 +509,11 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 )}
               </div>
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Duration (Minutes) *</label>
-                <input
-                  type="number"
-                  min="5"
-                  max="360"
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10) || 0)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs font-mono font-bold"
-                  required
-                />
+                <label className="block text-slate-400 font-medium mb-1">Total Duration (Auto-Summed)</label>
+                <div className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-emerald-400 text-xs font-mono font-bold flex items-center justify-between">
+                  <span>{durationMinutes} min</span>
+                  <span className="text-[10px] text-slate-500 font-normal">{videoParts.length} {videoParts.length === 1 ? 'video' : 'videos'}</span>
+                </div>
               </div>
               <div>
                 <label className="block text-slate-400 font-medium mb-1">Topic Due Date</label>
@@ -405,7 +545,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                     const detected = ThumbnailService.autoDetectSubtopics({
                       title,
                       primaryTopic,
-                      videoUrl,
+                      videoUrl: videoParts[0]?.url || '',
                       assignedTopicId: prefillTopic ? prefillTopic.id : undefined,
                     });
                     if (detected.length > 0) {
@@ -463,67 +603,167 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* 2. LECTURE VIDEO LINK (YOUTUBE / DRIVE) */}
+          {/* 2. LECTURE VIDEO LINKS (1 OR MORE VIDEOS WITH COMPLETE PER-VIDEO INFO) */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                <Play className="w-3.5 h-3.5 text-indigo-400" />
-                Lecture Video Link *
-              </label>
-
-              <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setVideoLinkType('youtube')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1 ${
-                    videoLinkType === 'youtube'
-                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Play className="w-3 h-3 text-red-400 fill-red-400" /> YouTube Unlisted
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVideoLinkType('drive')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1 ${
-                    videoLinkType === 'drive'
-                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Link2 className="w-3 h-3 text-blue-400" /> Google Drive
-                </button>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <label className="text-slate-200 font-bold flex items-center gap-1.5 text-xs">
+                  <Film className="w-3.5 h-3.5 text-indigo-400" />
+                  Lecture Video Links & Per-Video Info *
+                </label>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Upload 1 or more video links for this topic. Every video must have an accurate title, duration, and topics covered.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={handleAddVideoPart}
+                className="px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/40 text-indigo-300 font-bold text-[11px] flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Another Video
+              </button>
             </div>
 
-            {videoLinkType === 'youtube' ? (
-              <div>
-                <input
-                  type="url"
-                  placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-red-500 font-mono text-xs"
-                />
-                <span className="text-[10px] text-slate-500 mt-1 block">
-                  Paste the Unlisted or Public YouTube video link for HD in-portal playback.
-                </span>
-              </div>
-            ) : (
-              <div>
-                <input
-                  type="url"
-                  placeholder="https://drive.google.com/file/d/.../view"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 font-mono text-xs"
-                />
-                <span className="text-[10px] text-slate-500 mt-1 block">
-                  Paste the Google Drive video file sharing link (ensure sharing is set to "Anyone with link").
-                </span>
-              </div>
-            )}
+            <div className="space-y-3">
+              {videoParts.map((vp, idx) => (
+                <div
+                  key={vp.id}
+                  className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-mono font-bold text-[10px]">
+                        Video #{idx + 1}
+                      </span>
+                      <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateVideoPart(idx, { linkType: 'youtube' })}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${
+                            vp.linkType === 'youtube'
+                              ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          <Play className="w-2.5 h-2.5 text-red-400 fill-red-400" /> YouTube
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateVideoPart(idx, { linkType: 'drive' })}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${
+                            vp.linkType === 'drive'
+                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          <Link2 className="w-2.5 h-2.5 text-blue-400" /> Google Drive
+                        </button>
+                      </div>
+                    </div>
+
+                    {videoParts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveVideoPart(idx)}
+                        className="p-1 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        title={`Remove Video #${idx + 1}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] text-slate-400 font-medium mb-1">
+                        Video Title / Part Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder={`e.g. Part ${idx + 1}: Concept & Solved Numericals`}
+                        value={vp.partTitle}
+                        onChange={(e) => handleUpdateVideoPart(idx, { partTitle: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 font-medium mb-1">
+                        Duration (min) *
+                      </label>
+                      <input
+                        type="number"
+                        min="5"
+                        max="360"
+                        value={vp.durationMinutes}
+                        onChange={(e) =>
+                          handleUpdateVideoPart(idx, { durationMinutes: parseInt(e.target.value, 10) || 0 })
+                        }
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 font-medium mb-1">
+                      {vp.linkType === 'youtube' ? 'YouTube Unlisted / Public URL *' : 'Google Drive Video Link *'}
+                    </label>
+                    <input
+                      type="url"
+                      placeholder={
+                        vp.linkType === 'youtube'
+                          ? 'https://www.youtube.com/watch?v=... or https://youtu.be/...'
+                          : 'https://drive.google.com/file/d/.../view'
+                      }
+                      value={vp.url}
+                      onChange={(e) => handleUpdateVideoPart(idx, { url: e.target.value })}
+                      className={`w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none font-mono text-xs ${
+                        vp.linkType === 'youtube' ? 'focus:border-red-500' : 'focus:border-blue-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 font-medium mb-1">
+                      What This Video Covers (Accurate Info / Summary) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Covers Dijkstra's algorithm proof, dry run, and time complexity analysis"
+                      value={vp.description || ''}
+                      onChange={(e) => handleUpdateVideoPart(idx, { description: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
+                    />
+                    {subtopics.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <span className="text-[10px] text-slate-500 block">
+                          Tag subtopics covered in Video #{idx + 1}:
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {subtopics.map((st) => {
+                            const selected = (vp.coveredSubtopics || []).includes(st);
+                            return (
+                              <button
+                                key={st}
+                                type="button"
+                                onClick={() => handleToggleSubtopicForVideo(idx, st)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer ${
+                                  selected
+                                    ? 'bg-indigo-600/30 border-indigo-500 text-indigo-200'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                                }`}
+                              >
+                                {selected ? '✓ ' : '+ '}
+                                {st}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <hr className="border-slate-800" />

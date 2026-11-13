@@ -11,19 +11,32 @@ interface VideoModalProps {
 }
 
 export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose, onReupload }) => {
-  // Resiliently resolve YouTube and Drive URLs:
-  // Check both youtubeUrl and driveUrl in case a YouTube link was stored in driveUrl or vice-versa
-  const rawYtUrl = (lecture?.youtubeUrl && (lecture.youtubeUrl.includes('youtu.be') || lecture.youtubeUrl.includes('youtube.com')))
-    ? lecture.youtubeUrl
-    : (lecture?.driveUrl && (lecture.driveUrl.includes('youtu.be') || lecture.driveUrl.includes('youtube.com')))
-      ? lecture.driveUrl
-      : lecture?.youtubeUrl;
+  const videoParts = lecture?.videoParts && lecture.videoParts.length > 0 ? lecture.videoParts : [];
+  const [selectedPartIndex, setSelectedPartIndex] = useState<number>(0);
 
-  const rawDriveUrl = (lecture?.driveUrl && (lecture.driveUrl.includes('drive.google.com') || lecture.driveUrl.includes('docs.google.com')))
-    ? lecture.driveUrl
-    : (lecture?.youtubeUrl && (lecture.youtubeUrl.includes('drive.google.com') || lecture.youtubeUrl.includes('docs.google.com')))
+  const activePart = videoParts[selectedPartIndex] || videoParts[0] || null;
+
+  // Resiliently resolve YouTube and Drive URLs:
+  // If videoParts exist, use the currently selected part; otherwise fall back to legacy youtubeUrl/driveUrl
+  const partUrl = activePart?.url;
+  const partIsYt = partUrl ? (partUrl.includes('youtu.be') || partUrl.includes('youtube.com') || activePart?.linkType === 'youtube') : false;
+  const partIsDrive = partUrl ? (partUrl.includes('drive.google.com') || partUrl.includes('docs.google.com') || activePart?.linkType === 'drive') : false;
+
+  const rawYtUrl = activePart
+    ? (partIsYt ? partUrl : undefined)
+    : (lecture?.youtubeUrl && (lecture.youtubeUrl.includes('youtu.be') || lecture.youtubeUrl.includes('youtube.com')))
       ? lecture.youtubeUrl
-      : lecture?.driveUrl;
+      : (lecture?.driveUrl && (lecture.driveUrl.includes('youtu.be') || lecture.driveUrl.includes('youtube.com')))
+        ? lecture.driveUrl
+        : lecture?.youtubeUrl;
+
+  const rawDriveUrl = activePart
+    ? (partIsDrive && !partIsYt ? partUrl : undefined)
+    : (lecture?.driveUrl && (lecture.driveUrl.includes('drive.google.com') || lecture.driveUrl.includes('docs.google.com')))
+      ? lecture.driveUrl
+      : (lecture?.youtubeUrl && (lecture.youtubeUrl.includes('drive.google.com') || lecture.youtubeUrl.includes('docs.google.com')))
+        ? lecture.youtubeUrl
+        : lecture?.driveUrl;
 
   const ytEmbed = getYouTubeEmbedUrl(rawYtUrl);
   const driveEmbed = getDriveEmbedUrl(rawDriveUrl);
@@ -32,7 +45,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose, onReup
   const localFileUrl = lecture?.localFileUrl;
   const isPdfFile = lecture?.fileName?.toLowerCase().endsWith('.pdf') || lecture?.notesUrl?.includes('.pdf');
 
-  const liveVideoUrl = rawYtUrl || rawDriveUrl || lecture?.youtubeUrl || lecture?.driveUrl;
+  const liveVideoUrl = activePart?.url || rawYtUrl || rawDriveUrl || lecture?.youtubeUrl || lecture?.driveUrl;
 
   const availableTabs: ('youtube' | 'drive' | 'local' | 'notes' | 'dpp')[] = [];
   // If reuploaded, prioritize the reuploaded YouTube/Drive video over any initial local file
@@ -53,10 +66,14 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose, onReup
   );
 
   useEffect(() => {
+    setSelectedPartIndex(0);
+  }, [lecture?.id]);
+
+  useEffect(() => {
     if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
       setActiveTab(availableTabs[0]);
     }
-  }, [lecture?.id, lecture?.reuploadedAt, lecture?.youtubeUrl, lecture?.driveUrl, availableTabs.join(',')]);
+  }, [lecture?.id, lecture?.reuploadedAt, lecture?.youtubeUrl, lecture?.driveUrl, selectedPartIndex, availableTabs.join(',')]);
 
   if (!lecture) return null;
 
@@ -144,6 +161,65 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose, onReup
               >
                 <ExternalLink className="w-3 h-3" /> Previous Link
               </a>
+            )}
+          </div>
+        )}
+
+        {/* Multi-Video Parts Selector & Current Video Details */}
+        {videoParts.length > 0 && (
+          <div className="bg-slate-950/95 border-b border-slate-800 px-6 py-2.5 space-y-2">
+            {videoParts.length > 1 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
+                  Videos ({videoParts.length}):
+                </span>
+                {videoParts.map((vp, idx) => {
+                  const isSel = idx === selectedPartIndex;
+                  return (
+                    <button
+                      key={vp.id || idx}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPartIndex(idx);
+                        setActiveTab(vp.linkType === 'drive' ? 'drive' : 'youtube');
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer border ${
+                        isSel
+                          ? 'bg-indigo-600 text-white border-indigo-400 shadow'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>#{idx + 1}</span>
+                      <span className="max-w-[160px] truncate">{vp.partTitle}</span>
+                      <span className="text-[10px] font-mono opacity-80">({vp.durationMinutes}m)</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {activePart && (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-slate-900/70 border border-slate-800/80 rounded-xl px-3 py-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-indigo-300">{activePart.partTitle}</span>
+                  <span className="text-slate-600">•</span>
+                  <span className="font-mono text-emerald-400 font-bold">{activePart.durationMinutes} min</span>
+                  {activePart.description && (
+                    <>
+                      <span className="text-slate-600">•</span>
+                      <span className="text-slate-300">{activePart.description}</span>
+                    </>
+                  )}
+                </div>
+                {activePart.coveredSubtopics && activePart.coveredSubtopics.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {activePart.coveredSubtopics.map((st) => (
+                      <span key={st} className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 text-[10px]">
+                        {st}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
