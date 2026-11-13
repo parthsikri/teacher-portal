@@ -183,6 +183,7 @@ export interface LectureVideoItem {
   partTitle: string;          // Clear title for this specific video (e.g. "Part 1: Theory & Concepts")
   linkType: 'youtube' | 'drive';
   url: string;
+  notesUrl?: string;          // Compulsory Class Notes / PDF link for this specific video
   durationMinutes: number;    // Individual duration of this video in minutes
   coveredSubtopics?: string[];// Subtopics covered in this specific video
   description?: string;       // Accurate summary / notes for this video

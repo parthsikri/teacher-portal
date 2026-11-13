@@ -40,7 +40,8 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose, onReup
 
   const ytEmbed = getYouTubeEmbedUrl(rawYtUrl);
   const driveEmbed = getDriveEmbedUrl(rawDriveUrl);
-  const notesEmbed = getDriveEmbedUrl(lecture?.notesUrl);
+  const activeNotesUrl = activePart?.notesUrl || lecture?.notesUrl;
+  const notesEmbed = getDriveEmbedUrl(activeNotesUrl);
   const dppEmbed = getDriveEmbedUrl(lecture?.dppUrl);
   const localFileUrl = lecture?.localFileUrl;
   const isPdfFile = lecture?.fileName?.toLowerCase().endsWith('.pdf') || lecture?.notesUrl?.includes('.pdf');
@@ -210,15 +211,27 @@ export const VideoModal: React.FC<VideoModalProps> = ({ lecture, onClose, onReup
                     </>
                   )}
                 </div>
-                {activePart.coveredSubtopics && activePart.coveredSubtopics.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {activePart.coveredSubtopics.map((st) => (
-                      <span key={st} className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 text-[10px]">
-                        {st}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {activePart.notesUrl && (
+                    <a
+                      href={activePart.notesUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1"
+                    >
+                      <FileText className="w-3 h-3" /> Video #{selectedPartIndex + 1} Notes ↗
+                    </a>
+                  )}
+                  {activePart.coveredSubtopics && activePart.coveredSubtopics.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {activePart.coveredSubtopics.map((st) => (
+                        <span key={st} className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 text-[10px]">
+                          {st}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

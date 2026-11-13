@@ -3,7 +3,7 @@ import type { User, AssignedTopic, Lecture, LectureVideoItem } from '../../types
 import { StorageService } from '../../services/storage';
 import { ThumbnailService } from '../../services/thumbnailService';
 import confetti from 'canvas-confetti';
-import { Link2, Play, FileText, X, Sparkles, Plus, Trash2, Film } from 'lucide-react';
+import { Link2, Play, FileText, X, Sparkles, Plus, Trash2, Film, CheckCircle2, MapPin, Wand2 } from 'lucide-react';
 
 interface UploadLectureModalProps {
   teacher: User;
@@ -18,6 +18,7 @@ const createEmptyVideoPart = (index: number, defaultTitle = ''): LectureVideoIte
   partTitle: defaultTitle || `Part ${index + 1}`,
   linkType: 'youtube',
   url: '',
+  notesUrl: '',
   durationMinutes: 45,
   coveredSubtopics: [],
   description: '',
@@ -76,6 +77,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         partTitle: prefillLecture.title || 'Part 1: Main Lecture',
         linkType: isDrive ? 'drive' : 'youtube',
         url,
+        notesUrl: prefillLecture.notesUrl || '',
         durationMinutes: prefillLecture.durationMinutes || 45,
         coveredSubtopics: prefillLecture.subtopics || [],
         description: prefillLecture.primaryTopic || '',
@@ -92,11 +94,52 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
   // Total duration automatically summed across all video parts
   const durationMinutes = videoParts.reduce((sum, part) => sum + Math.max(0, Number(part.durationMinutes) || 0), 0);
 
-  // Class Notes Link
+  // Class Notes Link (Optional topic-level supplementary handout)
   const [notesUrl, setNotesUrl] = useState(prefillLecture?.notesUrl || '');
+  const [quickSubtopicDrafts, setQuickSubtopicDrafts] = useState<Record<string, string>>({});
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleQuickAddAndTagSubtopic = (videoIdx: number, videoId: string) => {
+    const raw = (quickSubtopicDrafts[videoId] || '').trim();
+    if (!raw) return;
+    const items = raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    if (items.length === 0) return;
+
+    setSubtopics((prev) => {
+      const next = [...prev];
+      items.forEach((item) => {
+        if (!next.includes(item)) next.push(item);
+      });
+      return next;
+    });
+
+    setVideoParts((prev) =>
+      prev.map((part, i) => {
+        if (i !== videoIdx) return part;
+        const existing = part.coveredSubtopics || [];
+        const nextCovered = [...existing];
+        items.forEach((item) => {
+          if (!nextCovered.includes(item)) nextCovered.push(item);
+        });
+        return { ...part, coveredSubtopics: nextCovered };
+      })
+    );
+
+    setQuickSubtopicDrafts((prev) => ({ ...prev, [videoId]: '' }));
+  };
+
+  const handleDistributeSubtopicsEvenly = () => {
+    if (subtopics.length === 0 || videoParts.length === 0) return;
+    const chunkSize = Math.ceil(subtopics.length / videoParts.length);
+    setVideoParts((prev) =>
+      prev.map((part, idx) => ({
+        ...part,
+        coveredSubtopics: subtopics.slice(idx * chunkSize, (idx + 1) * chunkSize),
+      }))
+    );
+  };
 
   const handleUpdateVideoPart = (index: number, patch: Partial<LectureVideoItem>) => {
     setVideoParts((prev) =>
@@ -205,6 +248,10 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         setErrorMsg(`Video #${i + 1}: Please enter an accurate duration (at least 5 minutes).`);
         return;
       }
+      if (!vp.notesUrl || !vp.notesUrl.trim() || !/^https?:\/\/.+/i.test(vp.notesUrl.trim())) {
+        setErrorMsg(`Video #${i + 1}: Class Notes / PDF link is compulsory (must start with http:// or https://).`);
+        return;
+      }
       const hasCoveredInfo =
         (vp.description && vp.description.trim().length > 0) ||
         (vp.coveredSubtopics && vp.coveredSubtopics.length > 0);
@@ -228,6 +275,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
           partTitle: vp.partTitle.trim(),
           linkType: resolvedType,
           url: rawUrl,
+          notesUrl: vp.notesUrl?.trim() || '',
           durationMinutes: Math.max(5, Number(vp.durationMinutes) || 45),
           coveredSubtopics: vp.coveredSubtopics || [],
           description: vp.description?.trim() || '',
@@ -290,7 +338,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         youtubeUrl: youtubeLink,
         driveUrl: driveVideoLink,
         videoParts: normalizedVideoParts.length > 0 ? normalizedVideoParts : undefined,
-        notesUrl: notesUrl.trim() || undefined,
+        notesUrl: notesUrl.trim() || normalizedVideoParts[0]?.notesUrl || undefined,
         assignedTopicId: chosenTopicId,
         unitNumber,
       });
@@ -560,8 +608,9 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"
-                  placeholder="Add subtopics and press Enter"
+                  placeholder="Add subtopics (comma-separated) and press Enter"
                   value={subtopicInput}
+                  onChange={(e) => setSubtopicInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -603,16 +652,16 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* 2. LECTURE VIDEO LINKS (1 OR MORE VIDEOS WITH COMPLETE PER-VIDEO INFO) */}
+          {/* 2. LECTURE VIDEO LINKS (1 OR MORE VIDEOS WITH COMPULSORY NOTES & SUBTOPIC ROADMAP) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <label className="text-slate-200 font-bold flex items-center gap-1.5 text-xs">
                   <Film className="w-3.5 h-3.5 text-indigo-400" />
-                  Lecture Video Links & Per-Video Info *
+                  Lecture Video Links, Compulsory Notes & Roadmap *
                 </label>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Upload 1 or more video links for this topic. Every video must have an accurate title, duration, and topics covered.
+                  Upload 1 or more video links. Every video requires an accurate title, duration, compulsory Class Notes PDF link, and covered subtopics.
                 </p>
               </div>
               <button
@@ -623,6 +672,84 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                 <Plus className="w-3.5 h-3.5" /> Add Another Video
               </button>
             </div>
+
+            {/* SUBTOPIC TAGGING ROADMAP TRACKER */}
+            {subtopics.length > 0 && (() => {
+              const coveredSet = new Set(videoParts.flatMap((v) => v.coveredSubtopics || []));
+              const coveredCount = subtopics.filter((st) => coveredSet.has(st)).length;
+              const coveragePct = Math.round((coveredCount / subtopics.length) * 100);
+              return (
+                <div className="p-3 rounded-xl bg-slate-950 border border-indigo-500/30 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="text-[11px] font-bold text-slate-200">
+                        Subtopic Tagging Roadmap
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                        coveredCount === subtopics.length
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                      }`}>
+                        {coveredCount}/{subtopics.length} Mapped ({coveragePct}%)
+                      </span>
+                    </div>
+                    {videoParts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={handleDistributeSubtopicsEvenly}
+                        className="px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Automatically distribute subtopics across your videos in order"
+                      >
+                        <Wand2 className="w-3 h-3" /> Auto-Map Across Videos
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full h-1.5 rounded-full bg-slate-900 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        coveredCount === subtopics.length ? 'bg-emerald-500' : 'bg-indigo-500'
+                      }`}
+                      style={{ width: `${coveragePct}%` }}
+                    />
+                  </div>
+
+                  {/* Ordered Roadmap Steps */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {subtopics.map((st, sIdx) => {
+                      const assignedVideos = videoParts
+                        .map((v, vIdx) => ((v.coveredSubtopics || []).includes(st) ? `V${vIdx + 1}` : null))
+                        .filter(Boolean) as string[];
+                      const isMapped = assignedVideos.length > 0;
+                      return (
+                        <div
+                          key={st}
+                          className={`px-2 py-1 rounded-lg text-[10px] border flex items-center gap-1.5 ${
+                            isMapped
+                              ? 'bg-emerald-950/30 border-emerald-500/35 text-emerald-200'
+                              : 'bg-amber-950/20 border-dashed border-amber-500/40 text-amber-200'
+                          }`}
+                        >
+                          <span className="font-mono font-bold text-[9px] px-1 rounded bg-slate-900 text-slate-300">
+                            {sIdx + 1}
+                          </span>
+                          <span className="font-medium">{st}</span>
+                          {isMapped ? (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[9px]">
+                              ✓ {assignedVideos.join(', ')}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-amber-300 font-semibold">Unassigned</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="space-y-3">
               {videoParts.map((vp, idx) => (
@@ -703,23 +830,39 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] text-slate-400 font-medium mb-1">
-                      {vp.linkType === 'youtube' ? 'YouTube Unlisted / Public URL *' : 'Google Drive Video Link *'}
-                    </label>
-                    <input
-                      type="url"
-                      placeholder={
-                        vp.linkType === 'youtube'
-                          ? 'https://www.youtube.com/watch?v=... or https://youtu.be/...'
-                          : 'https://drive.google.com/file/d/.../view'
-                      }
-                      value={vp.url}
-                      onChange={(e) => handleUpdateVideoPart(idx, { url: e.target.value })}
-                      className={`w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none font-mono text-xs ${
-                        vp.linkType === 'youtube' ? 'focus:border-red-500' : 'focus:border-blue-500'
-                      }`}
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 font-medium mb-1">
+                        {vp.linkType === 'youtube' ? 'YouTube Unlisted / Public URL *' : 'Google Drive Video Link *'}
+                      </label>
+                      <input
+                        type="url"
+                        placeholder={
+                          vp.linkType === 'youtube'
+                            ? 'https://www.youtube.com/watch?v=... or https://youtu.be/...'
+                            : 'https://drive.google.com/file/d/.../view'
+                        }
+                        value={vp.url}
+                        onChange={(e) => handleUpdateVideoPart(idx, { url: e.target.value })}
+                        className={`w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none font-mono text-xs ${
+                          vp.linkType === 'youtube' ? 'focus:border-red-500' : 'focus:border-blue-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] text-emerald-300 font-semibold mb-1 flex items-center gap-1">
+                        <FileText className="w-3 h-3 text-emerald-400" />
+                        Class Notes / PDF Link for Video #{idx + 1} *
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://drive.google.com/file/d/.../view"
+                        value={vp.notesUrl || ''}
+                        onChange={(e) => handleUpdateVideoPart(idx, { notesUrl: e.target.value })}
+                        className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-400 font-mono text-xs"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -733,33 +876,82 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                       onChange={(e) => handleUpdateVideoPart(idx, { description: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-indigo-500 text-xs"
                     />
-                    {subtopics.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        <span className="text-[10px] text-slate-500 block">
-                          Tag subtopics covered in Video #{idx + 1}:
+
+                    {/* STEP-BY-STEP SUBTOPIC ROADMAP CHECKLIST FOR THIS VIDEO */}
+                    <div className="mt-2.5 p-2.5 rounded-lg bg-slate-900/70 border border-slate-800/90 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-indigo-400" />
+                          Subtopics Covered in Video #{idx + 1}
                         </span>
-                        <div className="flex flex-wrap gap-1">
-                          {subtopics.map((st) => {
+                        <span className="text-[10px] font-mono text-indigo-300">
+                          {(vp.coveredSubtopics || []).length} selected
+                        </span>
+                      </div>
+
+                      {subtopics.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {subtopics.map((st, sIdx) => {
                             const selected = (vp.coveredSubtopics || []).includes(st);
+                            const otherVideos = videoParts
+                              .map((other, oIdx) => (oIdx !== idx && (other.coveredSubtopics || []).includes(st) ? `V${oIdx + 1}` : null))
+                              .filter(Boolean) as string[];
                             return (
                               <button
                                 key={st}
                                 type="button"
                                 onClick={() => handleToggleSubtopicForVideo(idx, st)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer ${
+                                className={`px-2 py-1.5 rounded-lg text-[10px] font-medium border transition-all cursor-pointer flex items-center justify-between gap-1.5 text-left ${
                                   selected
-                                    ? 'bg-indigo-600/30 border-indigo-500 text-indigo-200'
-                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                                    ? 'bg-indigo-600/25 border-indigo-500 text-indigo-100 shadow-sm'
+                                    : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                                 }`}
                               >
-                                {selected ? '✓ ' : '+ '}
-                                {st}
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                  <span className={`w-4 h-4 rounded-full text-[9px] font-mono font-bold flex items-center justify-center shrink-0 ${
+                                    selected ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-400'
+                                  }`}>
+                                    {selected ? '✓' : sIdx + 1}
+                                  </span>
+                                  <span className="truncate">{st}</span>
+                                </span>
+                                {otherVideos.length > 0 && (
+                                  <span className="text-[9px] font-mono px-1 rounded bg-slate-800 text-slate-400 shrink-0">
+                                    In {otherVideos.join(',')}
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
                         </div>
+                      )}
+
+                      {/* Quick inline add & tag subtopic for this video */}
+                      <div className="flex gap-1.5 pt-1">
+                        <input
+                          type="text"
+                          placeholder={`+ Add & tag new subtopic for Video #${idx + 1}...`}
+                          value={quickSubtopicDrafts[vp.id] || ''}
+                          onChange={(e) =>
+                            setQuickSubtopicDrafts((prev) => ({ ...prev, [vp.id]: e.target.value }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleQuickAddAndTagSubtopic(idx, vp.id);
+                            }
+                          }}
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAddAndTagSubtopic(idx, vp.id)}
+                          className="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold cursor-pointer shrink-0"
+                        >
+                          + Tag
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -768,11 +960,11 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* 3. CLASS NOTES / DPP LINK */}
+          {/* 3. SUPPLEMENTARY TOPIC-LEVEL HANDOUT / DPP LINK (OPTIONAL) */}
           <div className="space-y-2">
             <label className="text-slate-300 font-semibold flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-emerald-400" />
-              Class PDF Notes & Slides Link (Optional)
+              Combined Topic Handout / DPP Link (Optional)
             </label>
             <input
               type="url"

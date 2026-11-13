@@ -3156,15 +3156,36 @@ export const TeacherView: React.FC<TeacherViewProps> = ({
                                     {vp.description && (
                                       <p className="text-[10px] text-slate-400 line-clamp-1">{vp.description}</p>
                                     )}
+                                    {vp.coveredSubtopics && vp.coveredSubtopics.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 pt-0.5">
+                                        {vp.coveredSubtopics.map((st) => (
+                                          <span key={st} className="px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[9px]">
+                                            {st}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
-                                  <a
-                                    href={vp.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-medium shrink-0"
-                                  >
-                                    {vp.linkType === 'youtube' ? 'YT' : 'Drive'} ↗
-                                  </a>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {vp.notesUrl && (
+                                      <a
+                                        href={vp.notesUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold"
+                                      >
+                                        Notes ↗
+                                      </a>
+                                    )}
+                                    <a
+                                      href={vp.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-medium"
+                                    >
+                                      {vp.linkType === 'youtube' ? 'YT' : 'Drive'} ↗
+                                    </a>
+                                  </div>
                                 </div>
                               ))}
                             </div>

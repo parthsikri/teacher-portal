@@ -5163,6 +5163,16 @@ Portal URL: ${window.location.origin}`;
                                                       <span className="font-mono text-emerald-400 font-bold text-[10px]">
                                                         {vp.durationMinutes}m
                                                       </span>
+                                                      {vp.notesUrl && (
+                                                        <a
+                                                          href={vp.notesUrl}
+                                                          target="_blank"
+                                                          rel="noreferrer"
+                                                          className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-semibold text-[10px]"
+                                                        >
+                                                          Notes ↗
+                                                        </a>
+                                                      )}
                                                       <a
                                                         href={vp.url}
                                                         target="_blank"
