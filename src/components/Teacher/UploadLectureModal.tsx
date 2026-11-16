@@ -248,8 +248,8 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         setErrorMsg(`Video #${i + 1}: Please enter an accurate duration (at least 5 minutes).`);
         return;
       }
-      if (!vp.notesUrl || !vp.notesUrl.trim() || !/^https?:\/\/.+/i.test(vp.notesUrl.trim())) {
-        setErrorMsg(`Video #${i + 1}: Class Notes / PDF link is compulsory (must start with http:// or https://).`);
+      if (vp.notesUrl && vp.notesUrl.trim().length > 0 && !/^https?:\/\/.+/i.test(vp.notesUrl.trim())) {
+        setErrorMsg(`Video #${i + 1}: If provided, the Notes / PDF link must start with http:// or https://.`);
         return;
       }
       const hasCoveredInfo =
@@ -259,6 +259,20 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         setErrorMsg(`Video #${i + 1}: Please specify what topics/concepts this video covers (description or subtopics).`);
         return;
       }
+    }
+
+    if (notesUrl.trim().length > 0 && !/^https?:\/\/.+/i.test(notesUrl.trim())) {
+      setErrorMsg('Topic Class Notes / PDF link must start with http:// or https://.');
+      return;
+    }
+
+    const hasAtLeastOneNotesFile =
+      /^https?:\/\/.+/i.test(notesUrl.trim()) ||
+      videoParts.some((vp) => vp.notesUrl && /^https?:\/\/.+/i.test(vp.notesUrl.trim()));
+
+    if (!hasAtLeastOneNotesFile) {
+      setErrorMsg('Please attach at least one Class Notes / PDF link for this topic (either in Topic Notes or on any video).');
+      return;
     }
 
     setIsSubmitting(true);
@@ -338,7 +352,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
         youtubeUrl: youtubeLink,
         driveUrl: driveVideoLink,
         videoParts: normalizedVideoParts.length > 0 ? normalizedVideoParts : undefined,
-        notesUrl: notesUrl.trim() || normalizedVideoParts[0]?.notesUrl || undefined,
+        notesUrl: notesUrl.trim() || normalizedVideoParts.find((v) => v.notesUrl)?.notesUrl || undefined,
         assignedTopicId: chosenTopicId,
         unitNumber,
       });
@@ -658,10 +672,10 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               <div>
                 <label className="text-slate-200 font-bold flex items-center gap-1.5 text-xs">
                   <Film className="w-3.5 h-3.5 text-indigo-400" />
-                  Lecture Video Links, Compulsory Notes & Roadmap *
+                  Lecture Video Links & Subtopic Roadmap *
                 </label>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Upload 1 or more video links. Every video requires an accurate title, duration, compulsory Class Notes PDF link, and covered subtopics.
+                  Upload 1 or more video links. Every video requires an accurate title, duration, and covered topics. At least 1 Class Notes PDF is required for the topic.
                 </p>
               </div>
               <button
@@ -851,16 +865,16 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-[11px] text-emerald-300 font-semibold mb-1 flex items-center gap-1">
+                      <label className="block text-[11px] text-slate-400 font-medium mb-1 flex items-center gap-1">
                         <FileText className="w-3 h-3 text-emerald-400" />
-                        Class Notes / PDF Link for Video #{idx + 1} *
+                        Video #{idx + 1} Notes / PDF Link (Optional)
                       </label>
                       <input
                         type="url"
                         placeholder="https://drive.google.com/file/d/.../view"
                         value={vp.notesUrl || ''}
                         onChange={(e) => handleUpdateVideoPart(idx, { notesUrl: e.target.value })}
-                        className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-400 font-mono text-xs"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-400 font-mono text-xs"
                       />
                     </div>
                   </div>
@@ -960,12 +974,24 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* 3. SUPPLEMENTARY TOPIC-LEVEL HANDOUT / DPP LINK (OPTIONAL) */}
+          {/* 3. TOPIC CLASS NOTES / HANDOUT LINK (AT LEAST 1 NOTES FILE REQUIRED FOR TOPIC) */}
           <div className="space-y-2">
-            <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-emerald-400" />
-              Combined Topic Handout / DPP Link (Optional)
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-slate-200 font-semibold flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                Topic Class Notes / PDF Link *
+              </label>
+              {(/^https?:\/\/.+/i.test(notesUrl.trim()) ||
+                videoParts.some((vp) => vp.notesUrl && /^https?:\/\/.+/i.test(vp.notesUrl.trim()))) ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  ✓ Notes Attached
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  At least 1 notes file required
+                </span>
+              )}
+            </div>
             <input
               type="url"
               placeholder="https://drive.google.com/file/d/.../view"
@@ -974,7 +1000,7 @@ export const UploadLectureModal: React.FC<UploadLectureModalProps> = ({
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500 font-mono text-xs"
             />
             <span className="text-[10px] text-slate-500 block">
-              Google Drive PDF link for handouts, handwritten notes, or slide deck.
+              Google Drive PDF link for topic handouts, handwritten notes, or slide deck (optional here if already attached to a video above).
             </span>
           </div>
         </form>

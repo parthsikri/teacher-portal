@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Lecture, AssignedTopic, SubjectReference } from '../../types';
 import { StorageService, toCanonicalSubject } from '../../services/storage';
 import { VideoModal } from '../Common/VideoModal';
